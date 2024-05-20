@@ -15,6 +15,7 @@
 
 #include "sandbox_manager_kit.h"
 
+#include <cinttypes>
 #include <cstdint>
 #include "sandbox_manager_client.h"
 #include "sandbox_manager_err_code.h"
@@ -59,7 +60,7 @@ int32_t SandboxManagerKit::PersistPolicy(
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
     size_t policySize = policy.size();
     if ((policySize == 0) || (policySize > POLICY_VECTOR_SIZE_LIMIT) || (tokenId == 0)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "policySize = %{public}u, tokenId = %{public}lu",
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "policySize = %{public}u, tokenId = %{public}" PRIu64,
             static_cast<uint32_t>(policySize), tokenId);
         return SandboxManagerErrCode::INVALID_PARAMTER;
     }
@@ -73,7 +74,7 @@ int32_t SandboxManagerKit::UnPersistPolicy(
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
     size_t policySize = policy.size();
     if ((policySize == 0) || (policySize > POLICY_VECTOR_SIZE_LIMIT) || (tokenId == 0)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "policySize = %{public}u, tokenId = %{public}lu",
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "policySize = %{public}u, tokenId = %{public}" PRIu64,
             static_cast<uint32_t>(policySize), tokenId);
         return SandboxManagerErrCode::INVALID_PARAMTER;
     }

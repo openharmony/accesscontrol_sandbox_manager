@@ -15,6 +15,7 @@
 
 #include "policy_info_manager.h"
 
+#include <cinttypes>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -99,7 +100,8 @@ int32_t PolicyInfoManager::MatchSinglePolicy(const uint64_t tokenId, const Polic
     }
 
     // search records have same tokenId and depth <= input policy
-    GenericValues conditions, symbols;
+    GenericValues conditions;
+    GenericValues symbols;
     uint64_t searchDepth = GetDepth(policy.path);
 
     conditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(tokenId));
@@ -228,7 +230,8 @@ int32_t PolicyInfoManager::RangeFind(const GenericValues &conditions, const Gene
 int32_t PolicyInfoManager::ExactFind(const uint64_t tokenId, const PolicyInfo &policy, PolicyInfo &result)
 {
     // search policy that have same tokenId, path, depth, mode
-    GenericValues conditions, symbols;
+    GenericValues conditions;
+    GenericValues symbols;
     TransferPolicyToGeneric(tokenId, policy, conditions);
 
     std::vector<GenericValues> searchResults;
@@ -272,7 +275,8 @@ int64_t PolicyInfoManager::GetDepth(const std::string &path)
 bool PolicyInfoManager::IsPolicyMatch(const PolicyInfo &searchPolicy, const uint64_t searchDepth,
     const PolicyInfo &referPolicy, const uint64_t referDepth)
 {
-    bool pathMatch, modeMatch;
+    bool pathMatch;
+    bool modeMatch;
     if (searchDepth == referDepth) {
         // if depth equal, path should be strict equal
         pathMatch = (searchPolicy.path == referPolicy.path);
@@ -285,7 +289,8 @@ bool PolicyInfoManager::IsPolicyMatch(const PolicyInfo &searchPolicy, const uint
         return false;
     }
 
-    uint64_t searchMode, referMode;
+    uint64_t searchMode;
+    uint64_t referMode;
     searchMode = searchPolicy.mode & MODE_FILTER;
     referMode = referPolicy.mode & MODE_FILTER;
     // mode should strict equal
@@ -314,7 +319,7 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
     // mode between 0 and 0b11(READ_MODE+WRITE_MODE)
     if (policy.mode < OperateMode::READ_MODE ||
         policy.mode > OperateMode::READ_MODE + OperateMode::WRITE_MODE) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "policy mode check fail: %{public}lu", policy.mode);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "policy mode check fail: %{public}" PRIu64, policy.mode);
         return SandboxRetType::INVALID_MODE;
     }
     return SANDBOX_MANAGER_OK;

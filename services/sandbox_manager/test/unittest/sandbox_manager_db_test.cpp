@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 
+#include <cinttypes>
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <string>
@@ -45,7 +46,10 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
 
 void ResultLogDB(const GenericValues value)
 {
-    int64_t tokenid, mode, depth, flag;
+    int64_t tokenid;
+    int64_t mode;
+    int64_t depth;
+    int64_t flag;
     std::string path;
 
     tokenid = value.GetInt(PolicyFiledConst::FIELD_TOKENID);
@@ -54,7 +58,8 @@ void ResultLogDB(const GenericValues value)
     depth = value.GetInt(PolicyFiledConst::FIELD_DEPTH);
     flag = value.GetInt(PolicyFiledConst::FIELD_FLAG);
 
-    SANDBOXMANAGER_LOG_INFO(LABEL, "%{public}ld-%{public}ld-%{public}ld-%{public}s-flag:%{public}ld",
+    SANDBOXMANAGER_LOG_INFO(LABEL, "%{public}" PRIu64"-%{public}" PRIu64
+        "-%{public}" PRId64"-%{public}s-flag:%{public}" PRId64,
         tokenid, mode, depth, path.c_str(), flag);
 }
 
@@ -120,7 +125,8 @@ HWTEST_F(SandboxManagerDbTest, SandboxManagerDbTest001, TestSize.Level1)
     EXPECT_EQ(0, SandboxManagerDb::GetInstance().Add(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY,
         values));
 
-    GenericValues conditions, symbols;
+    GenericValues conditions;
+    GenericValues symbols;
     std::vector<GenericValues> dbResult;
     EXPECT_EQ(0, SandboxManagerDb::GetInstance().Find(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY,
         conditions, symbols, dbResult));
@@ -141,7 +147,8 @@ HWTEST_F(SandboxManagerDbTest, SandboxManagerDbTest002, TestSize.Level1)
         values));
 
     // find token = 2, depth <= 1, g_value5
-    GenericValues conditions, symbols;
+    GenericValues conditions;
+    GenericValues symbols;
     conditions.Put(PolicyFiledConst::FIELD_TOKENID, 2);
     symbols.Put(PolicyFiledConst::FIELD_TOKENID, std::string("="));
 
@@ -151,12 +158,15 @@ HWTEST_F(SandboxManagerDbTest, SandboxManagerDbTest002, TestSize.Level1)
     std::vector<GenericValues> dbResult;
     EXPECT_EQ(0, SandboxManagerDb::GetInstance().Find(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY,
         conditions, symbols, dbResult));
-    SANDBOXMANAGER_LOG_INFO(LABEL, "dbResult:%{public}lu", dbResult.size());
+    SANDBOXMANAGER_LOG_INFO(LABEL, "dbResult:%{public}zu", dbResult.size());
 
     uint64_t sizeLimit = 1;
     EXPECT_EQ(sizeLimit, dbResult.size());
 
-    int64_t tokenid, mode, depth, flag;
+    int64_t tokenid;
+    int64_t mode;
+    int64_t depth;
+    int64_t flag;
     std::string path;
 
     tokenid = dbResult[0].GetInt(PolicyFiledConst::FIELD_TOKENID);
@@ -187,7 +197,8 @@ HWTEST_F(SandboxManagerDbTest, SandboxManagerDbTest003, TestSize.Level1)
     EXPECT_EQ(0, SandboxManagerDb::GetInstance().Remove(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY,
         g_value1));
     
-    GenericValues conditions, symbols;
+    GenericValues conditions;
+    GenericValues symbols;
     std::vector<GenericValues> dbResult;
     EXPECT_EQ(0, SandboxManagerDb::GetInstance().Find(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY,
         conditions, symbols, dbResult));
@@ -216,7 +227,8 @@ HWTEST_F(SandboxManagerDbTest, SandboxManagerDbTest004, TestSize.Level1)
     EXPECT_EQ(0, SandboxManagerDb::GetInstance().Remove(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY,
         tmpValue));
     
-    GenericValues conditions, symbols;
+    GenericValues conditions;
+    GenericValues symbols;
     std::vector<GenericValues> dbResult;
     EXPECT_EQ(0, SandboxManagerDb::GetInstance().Find(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY,
         conditions, symbols, dbResult));

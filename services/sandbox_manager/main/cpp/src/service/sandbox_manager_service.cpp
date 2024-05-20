@@ -16,6 +16,7 @@
 #include "sandbox_manager_service.h"
 
 #include <cctype>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include "accesstoken_kit.h"
@@ -130,7 +131,7 @@ int32_t SandboxManagerService::PersistPolicy(const std::vector<PolicyInfo> &poli
     uint64_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}lu.", policy.size());
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu.", policy.size());
         return INVALID_PARAMTER;
     }
     result.resize(policySize);
@@ -143,7 +144,7 @@ int32_t SandboxManagerService::UnPersistPolicy(
     uint64_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size =  %{public}lu.", policy.size());
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size =  %{public}zu.", policy.size());
         return INVALID_PARAMTER;
     }
 
@@ -157,7 +158,7 @@ int32_t SandboxManagerService::PersistPolicyByTokenId(
     size_t policySize = policy.size();
     if ((policySize == 0) || (policySize > POLICY_VECTOR_SIZE_LIMIT) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(
-            LABEL, "Policy vector size error or invalid tokenid, size = %{public}lu, tokenid = %{public}lu",
+            LABEL, "Policy vector size error or invalid tokenid, size = %{public}zu, tokenid = %{public}" PRIu64,
             policy.size(), tokenId);
         return INVALID_PARAMTER;
     }
@@ -171,7 +172,7 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
     size_t policySize = policy.size();
     if ((policySize == 0) || (policySize > POLICY_VECTOR_SIZE_LIMIT) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(
-            LABEL, "Policy vector size error or invalid tokenid, size = %{public}lu, tokenid = %{public}lu",
+            LABEL, "Policy vector size error or invalid tokenid, size = %{public}zu, tokenid = %{public}" PRIu64,
             policy.size(), tokenId);
         return INVALID_PARAMTER;
     }
@@ -184,7 +185,7 @@ int32_t SandboxManagerService::SetPolicy(uint64_t tokenId, const std::vector<Pol
 {
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT || tokenId == 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}lu, tokenid = %{public}lu",
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu, tokenid = %{public}" PRIu64,
             policy.size(), tokenId);
         return INVALID_PARAMTER;
     }
@@ -204,7 +205,7 @@ int32_t SandboxManagerService::StartAccessingPolicy(
     uint64_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}lu", policy.size());
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu", policy.size());
         return INVALID_PARAMTER;
     }
 
@@ -226,7 +227,7 @@ int32_t SandboxManagerService::StopAccessingPolicy(
     uint64_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}lu", policy.size());
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu", policy.size());
         return INVALID_PARAMTER;
     }
 
@@ -246,7 +247,7 @@ int32_t SandboxManagerService::CheckPersistPolicy(
 {
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT || tokenId == 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}lu, tokenid = %{public}lu",
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu, tokenid = %{public}" PRIu64,
             policy.size(), tokenId);
         return INVALID_PARAMTER;
     }
@@ -336,7 +337,7 @@ bool SandboxManagerService::StartByEventAction(const SystemAbilityOnDemandReason
             return false;
         }
         PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId);
-        SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenID = %{public}lu.", tokenId);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenID = %{public}" PRIu64".", tokenId);
     }
     return true;
 }

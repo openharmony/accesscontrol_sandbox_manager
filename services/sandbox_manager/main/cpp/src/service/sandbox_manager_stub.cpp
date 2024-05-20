@@ -15,6 +15,7 @@
 
 #include "sandbox_manager_stub.h"
 
+#include <cinttypes>
 #include <cstdint>
 #include <unistd.h>
 #include <vector>
@@ -382,10 +383,10 @@ bool SandboxManagerStub::CheckPermission(const uint64_t tokenId, const std::stri
 {
     uint32_t ret = Security::AccessToken::AccessTokenKit::VerifyAccessToken(tokenId, permission);
     if (ret == Security::AccessToken::PermissionState::PERMISSION_GRANTED) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Check permission token:%{public}lu pass", tokenId);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Check permission token:%{public}" PRIu64" pass", tokenId);
         return true;
     }
-    SANDBOXMANAGER_LOG_ERROR(LABEL, "Check permission token:%{public}lu fail", tokenId);
+    SANDBOXMANAGER_LOG_ERROR(LABEL, "Check permission token:%{public}" PRIu64" fail", tokenId);
     return false;
 }
 } // namespace SandboxManager

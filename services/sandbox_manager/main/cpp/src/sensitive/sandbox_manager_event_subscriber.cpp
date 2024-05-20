@@ -15,6 +15,7 @@
 
 #include "sandbox_manager_event_subscriber.h"
 
+#include <cinttypes>
 #include <string>
 #include "policy_info_manager.h"
 #include "sandbox_manager_log.h"
@@ -76,11 +77,11 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEvent(const EventFwk::CommonE
         action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_FULLY_REMOVED) {
         uint64_t tokenId = want.GetParams().GetIntParam("accessTokenId", 0);
         if (tokenId == 0) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Error tokenid = %{public}lu.", tokenId);
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Error tokenid = %{public}" PRIu64".", tokenId);
             return;
         }
         PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId);
-        SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenid = %{public}lu.", tokenId);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenid = %{public}" PRIu64".", tokenId);
     }
 }
 } // namespace SandboxManager

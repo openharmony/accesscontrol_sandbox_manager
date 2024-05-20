@@ -14,6 +14,7 @@
  */
 
 #include <chrono>
+#include <cinttypes>
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <string>
@@ -74,12 +75,16 @@ void PolicyInfoManagerTest::TearDown(void)
 
 void PrintDbRecords()
 {
-    GenericValues conditions, symbols;
+    GenericValues conditions;
+    GenericValues symbols;
     std::vector<GenericValues> dbResult;
     EXPECT_EQ(0, SandboxManagerDb::GetInstance().Find(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY,
         conditions, symbols, dbResult));
     for (size_t i = 0; i < dbResult.size(); i++) {
-        int64_t tokenid, mode, depth, flag;
+        int64_t tokenid;
+        int64_t mode;
+        int64_t depth;
+        int64_t flag;
         std::string path;
 
         tokenid = dbResult[i].GetInt(PolicyFiledConst::FIELD_TOKENID);
@@ -89,7 +94,8 @@ void PrintDbRecords()
         flag = dbResult[i].GetInt(PolicyFiledConst::FIELD_FLAG);
 
         SANDBOXMANAGER_LOG_INFO(LABEL,
-            "tokenid:%{public}ld-mode:%{public}ld-depth:%{public}ld-path:%{public}s-flag:%{public}ld",
+            "tokenid:%{public}" PRIu64"-mode:%{public}" PRIu64
+            "-depth:%{public}" PRId64"-path:%{public}s-flag:%{public}" PRId64,
             tokenid, mode, depth, path.c_str(), flag);
     }
 }
