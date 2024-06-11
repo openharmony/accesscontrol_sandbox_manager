@@ -37,7 +37,6 @@ sandbox_manager_sources = [
 ]
 
 sandbox_manager_deps = [
-  "${sandbox_manager_path}/frameworks/common:sandbox_manager_common_cxx",
   "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
   "${sandbox_manager_path}/interfaces/innerkits/sandbox_manager:libsandbox_manager_sdk",
   "${sandbox_manager_path}/services/common:sandbox_manager_service_common",

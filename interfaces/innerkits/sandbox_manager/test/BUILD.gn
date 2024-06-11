@@ -43,7 +43,6 @@ ohos_unittest("libsandbox_manager_sdk_test") {
   configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 
   deps = [
-    "${sandbox_manager_path}/frameworks/common:sandbox_manager_common_cxx",
     "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
     "../:libsandbox_manager_sdk",
   ]

@@ -60,7 +60,6 @@ if (is_standard_system) {
     configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 
     deps = [
-      "${sandbox_manager_path}/frameworks/common:sandbox_manager_common_cxx",
       "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
       "${sandbox_manager_path}/services/common:sandbox_manager_service_common",
       "${sandbox_manager_path}/services/sandbox_manager:sandbox_manager_service.rc",

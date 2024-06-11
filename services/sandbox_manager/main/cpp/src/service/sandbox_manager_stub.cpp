@@ -381,7 +381,7 @@ SandboxManagerStub::~SandboxManagerStub()
 
 bool SandboxManagerStub::CheckPermission(const uint64_t tokenId, const std::string &permission)
 {
-    uint32_t ret = Security::AccessToken::AccessTokenKit::VerifyAccessToken(tokenId, permission);
+    int32_t ret = Security::AccessToken::AccessTokenKit::VerifyAccessToken(tokenId, permission);
     if (ret == Security::AccessToken::PermissionState::PERMISSION_GRANTED) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Check permission token:%{public}" PRIu64" pass", tokenId);
         return true;
