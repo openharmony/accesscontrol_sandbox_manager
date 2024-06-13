@@ -41,9 +41,6 @@ ohos_shared_library("sandbox_manager_service_common") {
   cflags_cc = [ "-DHILOG_ENABLE" ]
   configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 
-  deps =
-      [ "${sandbox_manager_path}/frameworks/common:sandbox_manager_common_cxx" ]
-
   external_deps = [
     "c_utils:utils",
     "hilog:libhilog",

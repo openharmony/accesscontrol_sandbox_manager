@@ -60,7 +60,7 @@ int32_t PolicyInfoManager::AddPolicy(const uint64_t tokenId, const std::vector<P
     for (size_t i = 0; i < policySize; i++) {
         int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
         if (checkPolicyRet != SANDBOX_MANAGER_OK) {
-            result[i] = checkPolicyRet;
+            result[i] = static_cast<uint32_t>(checkPolicyRet);
             continue;
         }
         // find duplicate record (have same tokenId, path), delete it
@@ -95,14 +95,14 @@ int32_t PolicyInfoManager::MatchSinglePolicy(const uint64_t tokenId, const Polic
 {
     int32_t checkPolicyRet = CheckPolicyValidity(policy);
     if (checkPolicyRet != SANDBOX_MANAGER_OK) {
-        result = checkPolicyRet;
+        result = static_cast<uint32_t>(checkPolicyRet);
         return INVALID_PARAMTER;
     }
 
     // search records have same tokenId and depth <= input policy
     GenericValues conditions;
     GenericValues symbols;
-    uint64_t searchDepth = GetDepth(policy.path);
+    uint64_t searchDepth = static_cast<uint64_t>(GetDepth(policy.path));
 
     conditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(tokenId));
     symbols.Put(PolicyFiledConst::FIELD_TOKENID, std::string("="));
@@ -126,8 +126,8 @@ int32_t PolicyInfoManager::MatchSinglePolicy(const uint64_t tokenId, const Polic
     for (size_t i = 0; i < dbResultsSize; i++) {
         PolicyInfo referPolicy;
         referPolicy.path = dbResults[i].GetString(PolicyFiledConst::FIELD_PATH);
-        referPolicy.mode = dbResults[i].GetInt(PolicyFiledConst::FIELD_MODE);
-        uint64_t referDepth = dbResults[i].GetInt(PolicyFiledConst::FIELD_DEPTH);
+        referPolicy.mode = static_cast<uint64_t>(dbResults[i].GetInt(PolicyFiledConst::FIELD_MODE));
+        uint64_t referDepth = static_cast<uint64_t>(dbResults[i].GetInt(PolicyFiledConst::FIELD_DEPTH));
         
         PolicyInfo searchPolicy;
         searchPolicy.mode = policy.mode;
@@ -174,7 +174,7 @@ int32_t PolicyInfoManager::RemovePolicy(
     for (size_t i = 0; i < policySize; i++) {
         int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
         if (checkPolicyRet != SANDBOX_MANAGER_OK) {
-            result[i] = checkPolicyRet;
+            result[i] = static_cast<uint32_t>(checkPolicyRet);
             continue;
         }
         
@@ -246,7 +246,7 @@ int32_t PolicyInfoManager::ExactFind(const uint64_t tokenId, const PolicyInfo &p
         return SANDBOX_MANAGER_DB_RETURN_EMPTY;
     }
     result.path = searchResults[0].GetString(PolicyFiledConst::FIELD_PATH);
-    result.mode = searchResults[0].GetInt(PolicyFiledConst::FIELD_MODE);
+    result.mode = static_cast<uint64_t>(searchResults[0].GetInt(PolicyFiledConst::FIELD_MODE));
     return SANDBOX_MANAGER_OK;
 }
 

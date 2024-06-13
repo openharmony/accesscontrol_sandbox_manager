@@ -56,7 +56,6 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
   cflags_cc = [ "-DHILOG_ENABLE" ]
 
   deps = [
-    "${sandbox_manager_path}/frameworks/common:sandbox_manager_common_cxx",
     "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
     "${sandbox_manager_path}/services/common:sandbox_manager_service_common",
     "${sandbox_manager_path}/services/sandbox_manager:sandbox_manager_service",
@@ -105,8 +104,8 @@ ohos_unittest("libsandbox_manager_sqlite_mock_test") {
     "${sandbox_manager_path}/services/common/database/src/variant_value.cpp",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/policy_field_const.cpp",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/sandbox_manager_db.cpp",
-    "mock/src/sqlite_mock_test.cpp",
     "mock/src/sqlite3sym.cpp",
+    "mock/src/sqlite_mock_test.cpp",
   ]
 
   deps = [
@@ -129,5 +128,5 @@ group("unittest") {
   deps = [
     ":libsandbox_manager_service_standard_test",
     ":libsandbox_manager_sqlite_mock_test",
-    ]
+  ]
 }

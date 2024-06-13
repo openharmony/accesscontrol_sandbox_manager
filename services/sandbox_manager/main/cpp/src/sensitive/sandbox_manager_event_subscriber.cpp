@@ -75,7 +75,7 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEvent(const EventFwk::CommonE
     SANDBOXMANAGER_LOG_INFO(LABEL, "Receive event = %{public}s.", action.c_str());
     if (action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_REMOVED ||
         action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_FULLY_REMOVED) {
-        uint64_t tokenId = want.GetParams().GetIntParam("accessTokenId", 0);
+        uint64_t tokenId = static_cast<uint64_t>(want.GetParams().GetIntParam("accessTokenId", 0));
         if (tokenId == 0) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Error tokenid = %{public}" PRIu64".", tokenId);
             return;

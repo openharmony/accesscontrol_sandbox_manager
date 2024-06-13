@@ -50,8 +50,5 @@ ohos_shared_library("sandbox_manager_communication_adapter_cxx") {
     "src/policy_info_vector_parcel.cpp",
   ]
 
-  dep =
-      [ "${sandbox_manager_path}/frameworks/common:sandbox_manager_common_cxx" ]
-
   external_deps = [ "c_utils:utils" ]
 }

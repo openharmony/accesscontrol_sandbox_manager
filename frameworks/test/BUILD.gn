@@ -28,10 +28,7 @@ ohos_unittest("libsandbox_manager_communication_adapter_cxx_test") {
 
   sources = [ "unittest/sandbox_manager_parcel_test.cpp" ]
 
-  deps = [
-    "${sandbox_manager_path}/frameworks/common:sandbox_manager_common_cxx",
-    "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
-  ]
+  deps = [ "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx" ]
 
   external_deps = [
     "c_utils:utils",
