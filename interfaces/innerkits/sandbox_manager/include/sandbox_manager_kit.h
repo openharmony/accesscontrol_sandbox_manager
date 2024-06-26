@@ -17,6 +17,7 @@
 #define SANDBOXMANAGER_KIT_H
 
 #include "policy_info.h"
+#include "sandbox_manager_err_code.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -48,7 +49,7 @@ public:
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
     static int32_t PersistPolicy(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     /**
      * @brief Unpersist policys with a given tokenId
      * @param tokenId a given tokenId
@@ -57,7 +58,7 @@ public:
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
     static int32_t UnPersistPolicy(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     /**
      * @brief Set policys with a given tokenId to MAC layer
      * @param tokenId a given tokenId
@@ -120,7 +121,19 @@ public:
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
     static int32_t CheckPersistPolicy(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
+    /**
+     * @brief load all policys by tokenid that auto-loaded flag = 1
+     * @param tokenId a given tokenId
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t StartAccessingByTokenId(uint32_t tokenId);
+    /**
+     * @brief unset all policy of a given tokenid
+     * @param tokenId a given tokenId
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t UnSetAllPolicyByToken(uint32_t tokenId);
 };
 } // SandboxManager
 } // AccessControl

@@ -42,12 +42,13 @@ public:
     int32_t StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
     int32_t StopAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
     int32_t CheckPersistPolicy(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result) override;
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result) override;
     int32_t PersistPolicyByTokenId(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
     int32_t UnPersistPolicyByTokenId(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
-
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
+    int32_t StartAccessingByTokenId(uint32_t tokenId) override;
+    int32_t UnSetAllPolicyByToken(uint32_t tokenId) override;
 private:
     int32_t SendRequest(SandboxManagerInterfaceCode code, MessageParcel &data, MessageParcel &reply);
     int32_t SendRequest(SandboxManagerInterfaceCode code, MessageParcel &data, MessageParcel &reply,
