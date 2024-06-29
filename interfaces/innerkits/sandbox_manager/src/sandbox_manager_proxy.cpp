@@ -41,22 +41,25 @@ SandboxManagerProxy::SandboxManagerProxy(const sptr<IRemoteObject> &impl)
 SandboxManagerProxy::~SandboxManagerProxy()
 {}
 
-bool SandboxManagerProxy::SendRequest(SandboxManagerInterfaceCode code,
-    MessageParcel &data, MessageParcel &reply)
+int32_t SandboxManagerProxy::SendRequest(SandboxManagerInterfaceCode code, MessageParcel &data, MessageParcel &reply)
 {
     MessageOption option(MessageOption::TF_SYNC);
+    return SendRequest(code, data, reply, option);
+}
+
+int32_t SandboxManagerProxy::SendRequest(SandboxManagerInterfaceCode code, MessageParcel &data, MessageParcel &reply,
+    MessageOption &option)
+{
     sptr<IRemoteObject> remote = Remote();
     if (remote == nullptr) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "remote service null.");
-        return false;
+        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
     }
-    int32_t requestResult = remote->SendRequest(
-        static_cast<uint32_t>(code), data, reply, option);
-    if (requestResult != NO_ERROR) {
+    int32_t requestResult = remote->SendRequest(static_cast<uint32_t>(code), data, reply, option);
+    if (requestResult != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "request fail, result: %{public}d", requestResult);
-        return false;
     }
-    return true;
+    return requestResult;
 }
 
 int32_t SandboxManagerProxy::PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
@@ -73,11 +76,12 @@ int32_t SandboxManagerProxy::PersistPolicy(const std::vector<PolicyInfo> &policy
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoVectorParcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
-    
+
     MessageParcel reply;
-    if (!SendRequest(SandboxManagerInterfaceCode::PERSIST_PERMISSION, data, reply)) {
+    int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::PERSIST_PERMISSION, data, reply);
+    if (requestRet != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
-        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+        return requestRet;
     }
 
     int32_t remoteRet;
@@ -109,9 +113,10 @@ int32_t SandboxManagerProxy::UnPersistPolicy(const std::vector<PolicyInfo> &poli
     }
     
     MessageParcel reply;
-    if (!SendRequest(SandboxManagerInterfaceCode::UNPERSIST_PERMISSION, data, reply)) {
+    int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::UNPERSIST_PERMISSION, data, reply);
+    if (requestRet != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
-        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+        return requestRet;
     }
 
     int32_t remoteRet;
@@ -148,9 +153,10 @@ int32_t SandboxManagerProxy::PersistPolicyByTokenId(
     }
     
     MessageParcel reply;
-    if (!SendRequest(SandboxManagerInterfaceCode::PERSIST_PERMISSION_BY_TOKENID, data, reply)) {
+    int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::PERSIST_PERMISSION_BY_TOKENID, data, reply);
+    if (requestRet != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
-        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+        return requestRet;
     }
 
     int32_t remoteRet;
@@ -186,9 +192,10 @@ int32_t SandboxManagerProxy::UnPersistPolicyByTokenId(
     }
     
     MessageParcel reply;
-    if (!SendRequest(SandboxManagerInterfaceCode::UNPERSIST_PERMISSION_BY_TOKENID, data, reply)) {
+    int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::UNPERSIST_PERMISSION_BY_TOKENID, data, reply);
+    if (requestRet != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
-        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+        return requestRet;
     }
 
     int32_t remoteRet;
@@ -230,10 +237,10 @@ int32_t SandboxManagerProxy::SetPolicy(uint64_t tokenId, const std::vector<Polic
     }
 
     MessageParcel reply;
-    MessageOption option(MessageOption::TF_SYNC);
-    if (!SendRequest(SandboxManagerInterfaceCode::SET_POLICY, data, reply)) {
+    int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::SET_POLICY, data, reply);
+    if (requestRet != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
-        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+        return requestRet;
     }
 
     int32_t remoteRet;
@@ -260,10 +267,10 @@ int32_t SandboxManagerProxy::StartAccessingPolicy(const std::vector<PolicyInfo> 
     }
     
     MessageParcel reply;
-    MessageOption option(MessageOption::TF_SYNC);
-    if (!SendRequest(SandboxManagerInterfaceCode::START_ACCESSING_URI, data, reply)) {
+    int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::START_ACCESSING_URI, data, reply);
+    if (requestRet != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
-        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+        return requestRet;
     }
 
     int32_t remoteRet;
@@ -295,10 +302,10 @@ int32_t SandboxManagerProxy::StopAccessingPolicy(const std::vector<PolicyInfo> &
     }
     
     MessageParcel reply;
-    MessageOption option(MessageOption::TF_SYNC);
-    if (!SendRequest(SandboxManagerInterfaceCode::STOP_ACCESSING_URI, data, reply)) {
+    int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::STOP_ACCESSING_URI, data, reply);
+    if (requestRet != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
-        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+        return requestRet;
     }
 
     int32_t remoteRet;
@@ -335,10 +342,10 @@ int32_t SandboxManagerProxy::CheckPersistPolicy(uint64_t tokenId, const std::vec
     }
 
     MessageParcel reply;
-    MessageOption option(MessageOption::TF_SYNC);
-    if (!SendRequest(SandboxManagerInterfaceCode::CHECK_PERSIST_PERMISSION, data, reply)) {
+    int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::CHECK_PERSIST_PERMISSION, data, reply);
+    if (requestRet != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
-        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+        return requestRet;
     }
 
     int32_t remoteRet;

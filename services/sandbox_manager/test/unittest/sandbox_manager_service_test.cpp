@@ -30,6 +30,7 @@
 #include "sandbox_manager_event_subscriber.h"
 #include "sandbox_manager_service.h"
 #undef private
+#include "sandboxmanager_service_ipc_interface_code.h"
 #include "token_setproc.h"
 
 using namespace testing::ext;
@@ -114,17 +115,17 @@ void SandboxManagerServiceTest::TearDownTestCase(void)
 void SandboxManagerServiceTest::SetUp(void)
 {
     sandboxManagerService_ = DelayedSingleton<SandboxManagerService>::GetInstance();
-    EXPECT_NE(nullptr, sandboxManagerService_);
+    ASSERT_NE(nullptr, sandboxManagerService_);
 
     selfTokenId_ = GetSelfTokenID();
     NativeTokenGet();
     Security::AccessToken::AccessTokenID tokenID =
         Security::AccessToken::AccessTokenKit::GetNativeTokenId("foundation");
-    EXPECT_NE(0, tokenID);
+    ASSERT_NE(0, tokenID);
     EXPECT_EQ(0, SetSelfTokenID(tokenID));
     Security::AccessToken::AccessTokenIDEx tokenIdEx = {0};
     tokenIdEx = Security::AccessToken::AccessTokenKit::AllocHapToken(g_testInfoParms, g_testPolicyPrams);
-    EXPECT_NE(0, tokenIdEx.tokenIdExStruct.tokenID);
+    ASSERT_NE(0, tokenIdEx.tokenIdExStruct.tokenID);
     sysGrantToken_ = tokenIdEx.tokenIdExStruct.tokenID;
 }
 
@@ -284,8 +285,8 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest007, TestSize.Level
     std::vector<PolicyInfo> policy;
     std::vector<uint32_t> result;
     policy.resize(1);
-    EXPECT_NE(INVALID_PARAMTER, sandboxManagerService_->PersistPolicy(policy, result));
-    EXPECT_NE(INVALID_PARAMTER, sandboxManagerService_->UnPersistPolicy(policy, result));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->PersistPolicy(policy, result));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->UnPersistPolicy(policy, result));
 }
  
 /**
@@ -316,8 +317,8 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest008, TestSize.Level
     EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->PersistPolicyByTokenId(tokenId, policy, result));
     EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->UnPersistPolicyByTokenId(tokenId, policy, result));
     tokenId = 1;
-    EXPECT_NE(INVALID_PARAMTER, sandboxManagerService_->PersistPolicyByTokenId(tokenId, policy, result));
-    EXPECT_NE(INVALID_PARAMTER, sandboxManagerService_->UnPersistPolicyByTokenId(tokenId, policy, result));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->PersistPolicyByTokenId(tokenId, policy, result));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->UnPersistPolicyByTokenId(tokenId, policy, result));
 }
  
 /**
@@ -402,31 +403,26 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub001, TestSize.Level1)
     MessageOption option;
     std::string descriptor = "I don't know";
     data.WriteInterfaceToken(OHOS::Str8ToStr16(descriptor));
-    EXPECT_NE(NO_ERROR, sandboxManagerService_->OnRemoteRequest(code, data, reply, option));
+    EXPECT_EQ(-1, sandboxManagerService_->OnRemoteRequest(code, data, reply, option));
     data.WriteInterfaceToken(u"ohos.accesscontrol.sandbox_manager.ISandboxManager");
     EXPECT_NE(NO_ERROR, sandboxManagerService_->OnRemoteRequest(code, data, reply, option));
     data.WriteInterfaceToken(u"ohos.accesscontrol.sandbox_manager.ISandboxManager");
-    code = 0xffb0;
-    EXPECT_EQ(NO_ERROR, sandboxManagerService_->OnRemoteRequest(code, data, reply, option));
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->OnRemoteRequest(
+        static_cast<uint32_t>(SandboxManagerInterfaceCode::PERSIST_PERMISSION), data, reply, option));
 
     sandboxManagerService_->requestFuncMap_.insert(
         std::pair<uint32_t, SandboxManagerStub::RequestFuncType>(code, nullptr));
-    ASSERT_NE(sandboxManagerService_->requestFuncMap_.end(),
-        sandboxManagerService_->requestFuncMap_.find(code));
+    ASSERT_NE(sandboxManagerService_->requestFuncMap_.end(), sandboxManagerService_->requestFuncMap_.find(code));
     data.WriteInterfaceToken(u"ohos.accesscontrol.sandbox_manager.ISandboxManager");
-    EXPECT_EQ(NO_ERROR, sandboxManagerService_->OnRemoteRequest(code, data, reply, option));
+    EXPECT_NE(NO_ERROR, sandboxManagerService_->OnRemoteRequest(code, data, reply, option));
     sandboxManagerService_->requestFuncMap_.erase(code);
 
-    sandboxManagerService_->PersistPolicyInner(data, reply);
-    int32_t ret = reply.ReadInt32();
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, ret);
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->PersistPolicyInner(data, reply));
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel;
     data.WriteParcelable(policyInfoVectorParcel);
     sandboxManagerService_->PersistPolicyInner(data, reply);
 
-    sandboxManagerService_->UnPersistPolicyInner(data, reply);
-    ret = reply.ReadInt32();
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, ret);
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->UnPersistPolicyInner(data, reply));
     data.WriteParcelable(policyInfoVectorParcel);
     sandboxManagerService_->UnPersistPolicyInner(data, reply);
     uint64_t tokenId = 0;
@@ -443,26 +439,20 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub002, TestSize.Level1)
 {
     MessageParcel data;
     MessageParcel reply;
-    sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply));
     data.WriteUint64(1);
-    sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply));
     data.WriteUint64(1);
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel;
     data.WriteParcelable(policyInfoVectorParcel);
-    sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply));
 
-    sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply));
     data.WriteUint64(1);
-    sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply));
     data.WriteUint64(1);
     data.WriteParcelable(policyInfoVectorParcel);
-    sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply));
 }
 
 /**
@@ -475,46 +465,34 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub003, TestSize.Level1)
 {
     MessageParcel data;
     MessageParcel reply;
-    sandboxManagerService_->SetPolicyInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->SetPolicyInner(data, reply));
     data.WriteUint64(1);
-    sandboxManagerService_->SetPolicyInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->SetPolicyInner(data, reply));
     data.WriteUint64(1);
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel;
     data.WriteParcelable(policyInfoVectorParcel);
-    sandboxManagerService_->SetPolicyInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->SetPolicyInner(data, reply));
 
-    sandboxManagerService_->CheckPersistPolicyInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->CheckPersistPolicyInner(data, reply));
     data.WriteUint64(1);
-    sandboxManagerService_->CheckPersistPolicyInner(data, reply);
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->CheckPersistPolicyInner(data, reply));
     data.WriteUint64(1);
     data.WriteParcelable(policyInfoVectorParcel);
-    sandboxManagerService_->CheckPersistPolicyInner(data, reply);
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->CheckPersistPolicyInner(data, reply));
 
-    sandboxManagerService_->StartAccessingPolicyInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->StartAccessingPolicyInner(data, reply));
     data.WriteUint64(1);
-    sandboxManagerService_->StartAccessingPolicyInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->StartAccessingPolicyInner(data, reply));
     data.WriteUint64(1);
     data.WriteParcelable(policyInfoVectorParcel);
-    sandboxManagerService_->StartAccessingPolicyInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->StartAccessingPolicyInner(data, reply));
 
-    sandboxManagerService_->StopAccessingPolicyInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->StopAccessingPolicyInner(data, reply));
     data.WriteUint64(1);
-    sandboxManagerService_->StopAccessingPolicyInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->StopAccessingPolicyInner(data, reply));
     data.WriteUint64(1);
     data.WriteParcelable(policyInfoVectorParcel);
-    sandboxManagerService_->StopAccessingPolicyInner(data, reply);
-    EXPECT_NE(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->StopAccessingPolicyInner(data, reply));
 }
 
 /**
@@ -528,8 +506,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub004, TestSize.Level1)
     SetSelfTokenID(sysGrantToken_);
     MessageParcel data, reply;
     data.WriteUint32(POLICY_VECTOR_SIZE_LIMIT + 1);
-    sandboxManagerService_->PersistPolicyInner(data, reply);
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->PersistPolicyInner(data, reply));
 
     std::vector<PolicyInfo> policy;
     policy.emplace_back(PolicyInfo {
@@ -539,8 +516,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub004, TestSize.Level1)
     PolicyInfoVectorParcel policyInfoVectorParcel;
     policyInfoVectorParcel.policyVector = policy;
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->PersistPolicyInner(data, reply);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->PersistPolicyInner(data, reply));
     SetSelfTokenID(selfTokenId_);
 }
 
@@ -554,12 +530,10 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub005, TestSize.Level1)
 {
     SetSelfTokenID(sysGrantToken_);
     MessageParcel data, reply;
-    sandboxManagerService_->UnPersistPolicyInner(data, reply); // no tokenid
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->UnPersistPolicyInner(data, reply));
 
     data.WriteUint32(POLICY_VECTOR_SIZE_LIMIT + 1);
-    sandboxManagerService_->UnPersistPolicyInner(data, reply); // err read parcel
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->UnPersistPolicyInner(data, reply));
 
     std::vector<PolicyInfo> policy;
     policy.emplace_back(PolicyInfo {
@@ -569,8 +543,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub005, TestSize.Level1)
     PolicyInfoVectorParcel policyInfoVectorParcel;
     policyInfoVectorParcel.policyVector = policy;
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->UnPersistPolicyInner(data, reply);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->UnPersistPolicyInner(data, reply));
     SetSelfTokenID(selfTokenId_);
 }
 
@@ -584,13 +557,11 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub006, TestSize.Level1)
 {
     SetSelfTokenID(sysGrantToken_);
     MessageParcel data, reply;
-    sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply); // no tokenid
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply));
 
     data.WriteUint64(0);
     data.WriteUint32(POLICY_VECTOR_SIZE_LIMIT + 1);
-    sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply); // err read parcel
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply));
 
     data.WriteUint64(0);
     std::vector<PolicyInfo> policy;
@@ -601,8 +572,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub006, TestSize.Level1)
     PolicyInfoVectorParcel policyInfoVectorParcel;
     policyInfoVectorParcel.policyVector = policy;
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply); // err path
-    EXPECT_EQ(INVALID_PARAMTER, reply.ReadInt32());
+    EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply));
 
     data.WriteUint64(1);
     policy.clear();
@@ -612,8 +582,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub006, TestSize.Level1)
     });
     policyInfoVectorParcel.policyVector = policy;
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply));
     SetSelfTokenID(selfTokenId_);
 }
 
@@ -627,13 +596,11 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub007, TestSize.Level1)
 {
     SetSelfTokenID(sysGrantToken_);
     MessageParcel data, reply;
-    sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply); // no tokenid
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply));
 
     data.WriteUint64(0);
     data.WriteUint32(POLICY_VECTOR_SIZE_LIMIT + 1);
-    sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply); // err read parcel
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply));
 
     data.WriteUint64(0);
     std::vector<PolicyInfo> policy;
@@ -644,8 +611,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub007, TestSize.Level1)
     PolicyInfoVectorParcel policyInfoVectorParcel;
     policyInfoVectorParcel.policyVector = policy;
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply);
-    EXPECT_EQ(INVALID_PARAMTER, reply.ReadInt32());
+    EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply));
 
     data.WriteUint64(1);
     policy.clear();
@@ -655,8 +621,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub007, TestSize.Level1)
     });
     policyInfoVectorParcel.policyVector = policy;
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->PersistPolicyByTokenIdInner(data, reply));
     SetSelfTokenID(selfTokenId_);
 }
 
@@ -670,13 +635,11 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub008, TestSize.Level1)
 {
     SetSelfTokenID(sysGrantToken_);
     MessageParcel data, reply;
-    sandboxManagerService_->SetPolicyInner(data, reply); // no tokenid
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->SetPolicyInner(data, reply));
 
     data.WriteUint64(sysGrantToken_);
     data.WriteUint32(POLICY_VECTOR_SIZE_LIMIT + 1);
-    sandboxManagerService_->SetPolicyInner(data, reply); // err read parcel
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->SetPolicyInner(data, reply));
 
     data.WriteUint64(sysGrantToken_);
     std::vector<PolicyInfo> policy;
@@ -688,8 +651,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub008, TestSize.Level1)
     policyInfoVectorParcel.policyVector = policy;
     data.WriteParcelable(&policyInfoVectorParcel);
     data.WriteUint64(0);
-    sandboxManagerService_->SetPolicyInner(data, reply);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetPolicyInner(data, reply));
     SetSelfTokenID(selfTokenId_);
 }
 
@@ -704,8 +666,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub009, TestSize.Level1)
     SetSelfTokenID(sysGrantToken_);
     MessageParcel data, reply;
     data.WriteUint32(POLICY_VECTOR_SIZE_LIMIT + 1);
-    sandboxManagerService_->StartAccessingPolicyInner(data, reply);
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->StartAccessingPolicyInner(data, reply));
 
     std::vector<PolicyInfo> policy;
     policy.emplace_back(PolicyInfo {
@@ -715,8 +676,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub009, TestSize.Level1)
     PolicyInfoVectorParcel policyInfoVectorParcel;
     policyInfoVectorParcel.policyVector = policy;
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->StartAccessingPolicyInner(data, reply);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->StartAccessingPolicyInner(data, reply));
     SetSelfTokenID(selfTokenId_);
 }
 
@@ -731,8 +691,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub010, TestSize.Level1)
     SetSelfTokenID(sysGrantToken_);
     MessageParcel data, reply;
     data.WriteUint32(POLICY_VECTOR_SIZE_LIMIT + 1);
-    sandboxManagerService_->StopAccessingPolicyInner(data, reply);
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->StopAccessingPolicyInner(data, reply));
 
     std::vector<PolicyInfo> policy;
     policy.emplace_back(PolicyInfo {
@@ -742,8 +701,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub010, TestSize.Level1)
     PolicyInfoVectorParcel policyInfoVectorParcel;
     policyInfoVectorParcel.policyVector = policy;
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->StopAccessingPolicyInner(data, reply);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, reply.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->StopAccessingPolicyInner(data, reply));
     SetSelfTokenID(selfTokenId_);
 }
 
@@ -757,14 +715,12 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub011, TestSize.Level1)
 {
     SetSelfTokenID(sysGrantToken_);
     MessageParcel data, reply1;
-    sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply1); // no tokenid
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply1.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply1));
 
     MessageParcel reply2;
     data.WriteUint64(0);
     data.WriteUint32(POLICY_VECTOR_SIZE_LIMIT + 1);
-    sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply2); // err read parcel
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reply2.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply2));
 
     MessageParcel reply3;
     data.WriteUint64(1);
@@ -776,14 +732,12 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub011, TestSize.Level1)
     PolicyInfoVectorParcel policyInfoVectorParcel;
     policyInfoVectorParcel.policyVector = policy;
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply3);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, reply3.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->UnPersistPolicyByTokenIdInner(data, reply3));
 
     MessageParcel reply4;
     data.WriteUint64(1);
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->CheckPersistPolicyInner(data, reply4);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, reply4.ReadInt32());
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->CheckPersistPolicyInner(data, reply4));
 
     SetSelfTokenID(selfTokenId_);
 }
@@ -803,20 +757,16 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub012, TestSize.Level1)
     MessageParcel data, reply;
 
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->PersistPolicyInner(data, reply);
-    EXPECT_EQ(INVALID_PARAMTER, reply.ReadInt32());
+    EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->PersistPolicyInner(data, reply));
 
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->UnPersistPolicyInner(data, reply);
-    EXPECT_EQ(INVALID_PARAMTER, reply.ReadInt32());
+    EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->UnPersistPolicyInner(data, reply));
 
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->StartAccessingPolicyInner(data, reply);
-    EXPECT_EQ(INVALID_PARAMTER, reply.ReadInt32());
+    EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->StartAccessingPolicyInner(data, reply));
 
     data.WriteParcelable(&policyInfoVectorParcel);
-    sandboxManagerService_->StopAccessingPolicyInner(data, reply);
-    EXPECT_EQ(INVALID_PARAMTER, reply.ReadInt32());
+    EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->StopAccessingPolicyInner(data, reply));
     
     SetSelfTokenID(selfTokenId_);
 }
