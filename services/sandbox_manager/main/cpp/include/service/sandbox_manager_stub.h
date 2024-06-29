@@ -36,19 +36,19 @@ public:
     virtual void DelayUnloadService() = 0;
 
 private:
-    void PersistPolicyInner(MessageParcel &data, MessageParcel &reply);
-    void UnPersistPolicyInner(MessageParcel &data, MessageParcel &reply);
-    void PersistPolicyByTokenIdInner(MessageParcel &data, MessageParcel &reply);
-    void UnPersistPolicyByTokenIdInner(MessageParcel &data, MessageParcel &reply);
-    void SetPolicyInner(MessageParcel &data, MessageParcel &reply);
-    void StartAccessingPolicyInner(MessageParcel &data, MessageParcel &reply);
-    void StopAccessingPolicyInner(MessageParcel &data, MessageParcel &reply);
-    void CheckPersistPolicyInner(MessageParcel &data, MessageParcel &reply);
+    int32_t PersistPolicyInner(MessageParcel &data, MessageParcel &reply);
+    int32_t UnPersistPolicyInner(MessageParcel &data, MessageParcel &reply);
+    int32_t PersistPolicyByTokenIdInner(MessageParcel &data, MessageParcel &reply);
+    int32_t UnPersistPolicyByTokenIdInner(MessageParcel &data, MessageParcel &reply);
+    int32_t SetPolicyInner(MessageParcel &data, MessageParcel &reply);
+    int32_t StartAccessingPolicyInner(MessageParcel &data, MessageParcel &reply);
+    int32_t StopAccessingPolicyInner(MessageParcel &data, MessageParcel &reply);
+    int32_t CheckPersistPolicyInner(MessageParcel &data, MessageParcel &reply);
     void SetPolicyOpFuncInMap();
 
     bool CheckPermission(const uint64_t tokenId, const std::string &permission);
 
-    using RequestFuncType = void (SandboxManagerStub::*)(MessageParcel &data, MessageParcel &reply);
+    using RequestFuncType = int32_t (SandboxManagerStub::*)(MessageParcel &data, MessageParcel &reply);
     std::map<uint32_t, RequestFuncType> requestFuncMap_;
 };
 } // namespace SandboxManager

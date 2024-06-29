@@ -45,7 +45,9 @@ public:
         uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
 
 private:
-    bool SendRequest(SandboxManagerInterfaceCode code, MessageParcel &data, MessageParcel &reply);
+    int32_t SendRequest(SandboxManagerInterfaceCode code, MessageParcel &data, MessageParcel &reply);
+    int32_t SendRequest(SandboxManagerInterfaceCode code, MessageParcel &data, MessageParcel &reply,
+                        MessageOption &option);
     static inline BrokerDelegator<SandboxManagerProxy> delegator_;
 };
 } // namespace SandboxManager
