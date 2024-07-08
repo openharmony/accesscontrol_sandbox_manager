@@ -48,7 +48,7 @@ namespace OHOS {
             return false;
         }
 
-        if (!datas.WriteUint64(tokenId)) {
+        if (!datas.WriteUint32(tokenId)) {
             return false;
         }
 

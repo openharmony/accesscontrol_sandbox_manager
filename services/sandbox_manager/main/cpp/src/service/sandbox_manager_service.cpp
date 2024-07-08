@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2024 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -181,22 +181,67 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
     return PolicyInfoManager::GetInstance().RemovePolicy(tokenId, policy, result);
 }
 
-int32_t SandboxManagerService::SetPolicy(uint64_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag)
+int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+                                         uint64_t policyFlag, std::vector<uint32_t> &result)
 {
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT || tokenId == 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu, tokenid = %{public}" PRIu64,
-            policy.size(), tokenId);
+    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
+        return INVALID_PARAMTER;
+    }
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
+        return INVALID_PARAMTER;
+    }
+    if ((policyFlag != 0) && (policyFlag != 1)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policyFlag failed, policyFlag = %{public}" PRIu64 ".", policyFlag);
         return INVALID_PARAMTER;
     }
 
-    if (policyFlag == IS_POLICY_ALLOWED_TO_BE_PRESISTED) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Allow to set persistant.");
-    } else {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Not allow to set persistant.");
+    return PolicyInfoManager::GetInstance().SetPolicy(tokenId, policy, policyFlag, result);
+}
+
+int32_t SandboxManagerService::UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy)
+{
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
+        return INVALID_PARAMTER;
     }
-    // set to Mac here, FORBIDDEN_TO_BE_PERSISTED
-    return SANDBOX_MANAGER_OK;
+    uint32_t length = policy.path.length();
+    if (length == 0 || length > POLICY_PATH_LIMIT) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path size check failed, path=%{public}s", policy.path.c_str());
+        return INVALID_PARAMTER;
+    }
+
+    return PolicyInfoManager::GetInstance().UnSetPolicy(tokenId, policy);
+}
+
+int32_t SandboxManagerService::SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+                                              uint64_t policyFlag)
+{
+    std::vector<uint32_t> result;
+    return SetPolicy(tokenId, policy, policyFlag, result);
+}
+
+int32_t SandboxManagerService::UnSetPolicyAsync(uint32_t tokenId, const PolicyInfo &policy)
+{
+    return UnSetPolicy(tokenId, policy);
+}
+
+int32_t SandboxManagerService::CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+                                           std::vector<bool> &result)
+{
+    size_t policySize = policy.size();
+    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
+        return INVALID_PARAMTER;
+    }
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
+        return INVALID_PARAMTER;
+    }
+
+    return PolicyInfoManager::GetInstance().CheckPolicy(tokenId, policy, result);
 }
 
 int32_t SandboxManagerService::StartAccessingPolicy(

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2024 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -87,14 +87,57 @@ int32_t SandboxManagerClient::UnPersistPolicyByTokenId(
     return proxy->UnPersistPolicyByTokenId(tokenId, policy, result);
 }
 
-int32_t SandboxManagerClient::SetPolicy(uint64_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag)
+int32_t SandboxManagerClient::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+                                        uint64_t policyFlag, std::vector<uint32_t> &result)
 {
     auto proxy = GetProxy(true);
     if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "proxy is null");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null.");
         return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
     }
-    return proxy->SetPolicy(tokenId, policy, policyFlag);
+    return proxy->SetPolicy(tokenId, policy, policyFlag, result);
+}
+
+int32_t SandboxManagerClient::UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy)
+{
+    auto proxy = GetProxy(true);
+    if (proxy == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null.");
+        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
+    }
+    return proxy->UnSetPolicy(tokenId, policy);
+}
+
+int32_t SandboxManagerClient::SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+                                             uint64_t policyFlag)
+{
+    auto proxy = GetProxy(true);
+    if (proxy == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null.");
+        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
+    }
+    return proxy->SetPolicyAsync(tokenId, policy, policyFlag);
+}
+
+int32_t SandboxManagerClient::UnSetPolicyAsync(uint32_t tokenId, const PolicyInfo &policy)
+{
+    auto proxy = GetProxy(true);
+    if (proxy == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null.");
+        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
+    }
+    return proxy->UnSetPolicyAsync(tokenId, policy);
+}
+
+int32_t SandboxManagerClient::CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+                                          std::vector<bool> &result)
+{
+    auto proxy = GetProxy(true);
+    if (proxy == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null.");
+        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
+    }
+    return proxy->CheckPolicy(tokenId, policy, result);
 }
 
 int32_t SandboxManagerClient::StartAccessingPolicy(

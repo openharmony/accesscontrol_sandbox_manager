@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2024 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -62,10 +62,41 @@ public:
      * @brief Set policys with a given tokenId to MAC layer
      * @param tokenId a given tokenId
      * @param policy vector of PolicyInfo, see policy_info.h
-     * @param result insert result of each policy, result is SandboxRetType in policy_info.h
+     * @param policyFlag flag of policy
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
-    static int32_t SetPolicy(uint64_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag);
+    static int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
+                             std::vector<uint32_t> &result);
+    /**
+     * @brief Unset policy with a given tokenId from MAC layer
+     * @param tokenId a given tokenId
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy);
+    /**
+     * @brief Set policys with a given tokenId to MAC layer async
+     * @param tokenId a given tokenId
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @param policyFlag flag of policy
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag);
+    /**
+     * @brief Unset policy with a given tokenId from MAC layer async
+     * @param tokenId a given tokenId
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t UnSetPolicyAsync(uint32_t tokenId, const PolicyInfo &policy);
+    /**
+     * @brief Check policy with a given tokenId from MAC layer
+     * @param tokenId a given tokenId
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @param result check result of each policy
+     * @return true if policy exist, else false
+     */
+    static int32_t CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     /**
      * @brief Set existing persisted policys with caller's tokenId to MAC layer
      *        not existed policy would be ignored, but have a return in result

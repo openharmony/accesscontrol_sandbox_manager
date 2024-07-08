@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2024 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -152,7 +152,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, SetPolicy001, TestSize.Level1)
     }
     std::vector<uint32_t> result;
 
-    EXPECT_EQ(PERMISSION_DENIED, SandboxManagerKit::SetPolicy(GetSelfTokenID(), policy, 0));
+    EXPECT_EQ(PERMISSION_DENIED, SandboxManagerKit::SetPolicy(GetSelfTokenID(), policy, 0, result));
     EXPECT_EQ(0, result.size());
 }
 

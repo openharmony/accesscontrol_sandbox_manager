@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2024 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include "mac_adapter.h"
 #include "generic_values.h"
 #include "policy_info.h"
 
@@ -67,6 +68,30 @@ public:
      *      / SANDBOX_MANAGER_DB_RETURN_EMPTY
      */
     int32_t RemovePolicy(const uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+    /**
+     * @brief set policies of a certain tokenId
+     * @param tokenId token id of the object
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @param result set result of each policy
+     * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
+     */
+    int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
+                      std::vector<uint32_t> &result);
+    /**
+     * @brief unset policies of a certain tokenId
+     * @param tokenId token id of the object
+     * @param policy PolicyInfo, see policy_info.h
+     * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
+     */
+    int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy);
+    /**
+     * @brief check policies of a certain tokenId
+     * @param tokenId token id of the object
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @param result check result of each policy
+     * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
+     */
+    int32_t CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     /**
      * @brief remove all policys of a certain tokenId (bundle)
      * @param tokenId token id of the object
@@ -128,6 +153,9 @@ private:
      * @return INVALID_PATH / INVALID_MODE / SANDBOX_MANAGER_OK
      */
     int32_t CheckPolicyValidity(const PolicyInfo &policy);
+
+private:
+    MacAdapter macAdapter_;
 };
 } // namespace SandboxManager
 } // namespace AccessControl

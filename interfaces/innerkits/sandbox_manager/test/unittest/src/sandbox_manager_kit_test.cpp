@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2024 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -168,7 +168,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicyByTokenID001, TestSize.Level1)
     policy.emplace_back(info);
     std::vector<uint32_t> result;
 
-    const uint64_t tokenId = 123456; // 123456 is a mocked tokenid.
+    const uint32_t tokenId = 123456; // 123456 is a mocked tokenid.
 
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(tokenId, policy, result));
     ASSERT_EQ(1, result.size());
@@ -641,35 +641,36 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy013, TestSize.Level1)
  */
 HWTEST_F(SandboxManagerKitTest, PersistPolicy014, TestSize.Level1)
 {
-    uint64_t tokenId = 0;
+    uint32_t tokenId = 0;
     std::vector<PolicyInfo> policy;
     std::vector<uint32_t> result;
     uint64_t policyFlag = 0;
     std::vector<bool> flag;
-    PolicyInfo infoParent = {
-        .path = "/data/log",
-        .mode = OperateMode::WRITE_MODE
-    };
+    PolicyInfo infoParent = {.path = "/data/log", .mode = OperateMode::WRITE_MODE};
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::PersistPolicy(tokenId, policy, result));
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::UnPersistPolicy(tokenId, policy, result));
-    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag));
+    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER,
+              SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, result));
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, flag));
     tokenId = 1;
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::PersistPolicy(tokenId, policy, result));
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::UnPersistPolicy(tokenId, policy, result));
-    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag));
+    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER,
+              SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, result));
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, flag));
 
     tokenId = 0;
     policy.emplace_back(infoParent);
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::PersistPolicy(tokenId, policy, result));
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::UnPersistPolicy(tokenId, policy, result));
-    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag));
+    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER,
+              SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, result));
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, flag));
     tokenId = 1;
     EXPECT_NE(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::PersistPolicy(tokenId, policy, result));
     EXPECT_NE(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::UnPersistPolicy(tokenId, policy, result));
-    EXPECT_NE(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag));
+    EXPECT_NE(SandboxManagerErrCode::INVALID_PARAMTER,
+              SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, result));
     EXPECT_NE(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, flag));
 
     for (int i = 0; i < 500; i++) {
@@ -678,15 +679,37 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy014, TestSize.Level1)
     tokenId = 0;
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::PersistPolicy(tokenId, policy, result));
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::UnPersistPolicy(tokenId, policy, result));
-    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag));
+    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER,
+              SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, result));
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, flag));
     tokenId = 1;
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::PersistPolicy(tokenId, policy, result));
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::UnPersistPolicy(tokenId, policy, result));
-    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag));
+    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER,
+              SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, result));
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, flag));
 }
 
+/**
+ * @tc.name: PersistPolicy015
+ * @tc.desc: add test.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, PersistPolicy015, TestSize.Level1)
+{
+    uint32_t tokenId = 0;
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> result;
+    uint64_t policyFlag = 0;
+    std::vector<bool> flag;
+    PolicyInfo infoParent = {.path = "/data/log", .mode = OperateMode::WRITE_MODE};
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, result));
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::SetPolicyAsync(tokenId, policy, policyFlag));
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetPolicy(tokenId, infoParent));
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetPolicyAsync(tokenId, infoParent));
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::CheckPolicy(tokenId, policy, flag));
+}
 } //SandboxManager
 } //AccessControl
 } // OHOS

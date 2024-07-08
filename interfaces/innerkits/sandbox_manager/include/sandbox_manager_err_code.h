@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2024 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -30,6 +30,9 @@ enum SandboxManagerErrCode : int32_t {
     SANDBOX_MANAGER_DB_ERR,
     SANDBOX_MANAGER_DB_RETURN_EMPTY,
     SANDBOX_MANAGER_DB_RECORD_NOT_EXIST,
+
+    SANDBOX_MANAGER_MAC_NOT_INIT,
+    SANDBOX_MANAGER_MAC_IOCTL_ERR,
 };
 } // SandboxManager
 } // AccessControl

@@ -21,6 +21,7 @@ sandbox_manager_include_dirs = [
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/database",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/sensitive",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/service",
+  "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/mac",
 ]
 
 sandbox_manager_sources = [
@@ -30,6 +31,7 @@ sandbox_manager_sources = [
   "${sandbox_manager_path}/services/common/database/src/variant_value.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/policy_field_const.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/sandbox_manager_db.cpp",
+  "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/mac/mac_adapter.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/sensitive/sandbox_manager_event_subscriber.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/service/policy_info_manager.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/service/sandbox_manager_service.cpp",

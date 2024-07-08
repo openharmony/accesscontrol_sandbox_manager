@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2024 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -46,6 +46,7 @@ PolicyInfoManager &PolicyInfoManager::GetInstance()
 void PolicyInfoManager::Init()
 {
     SandboxManagerDb::GetInstance();
+    macAdapter_.Init();
 }
 
 int32_t PolicyInfoManager::AddPolicy(const uint64_t tokenId, const std::vector<PolicyInfo> &policy,
@@ -194,6 +195,93 @@ int32_t PolicyInfoManager::RemovePolicy(
             return SANDBOX_MANAGER_DB_ERR;
         }
     }
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
+                                     std::vector<uint32_t> &result)
+{
+    if (!macAdapter_.IsMacSupport()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        return SANDBOX_MANAGER_OK;
+    }
+    result.resize(policy.size(), INVALID_PATH);
+    std::vector<size_t> validIndex;
+    std::vector<PolicyInfo> validPolicies;
+    for (size_t index = 0; index < policy.size(); ++index) {
+        int32_t res = CheckPolicyValidity(policy[index]);
+        if (res == SANDBOX_MANAGER_OK) {
+            validIndex.emplace_back(index);
+            validPolicies.emplace_back(policy[index]);
+        } else {
+            result[index] = res;
+        }
+    }
+
+    if (validPolicies.empty()) {
+        SANDBOXMANAGER_LOG_WARN(LABEL, "No valid policy to set.");
+        return SANDBOX_MANAGER_OK;
+    }
+
+    std::vector<uint32_t> setResult(validPolicies.size(), SANDBOX_MANAGER_OK);
+    int32_t ret = macAdapter_.SetSandboxPolicy(tokenId, validPolicies, policyFlag, setResult);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Set sandbox policy failed, error=%{public}d.", ret);
+        result.clear();
+        return ret;
+    }
+    size_t resultIndex = 0;
+    for (const auto &index : validIndex) {
+        result[index] = setResult[resultIndex++];
+    }
+
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy)
+{
+    if (!macAdapter_.IsMacSupport()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        return SANDBOX_MANAGER_OK;
+    }
+    return macAdapter_.UnSetSandboxPolicy(tokenId, policy);
+}
+
+int32_t PolicyInfoManager::CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+                                       std::vector<bool> &result)
+{
+    if (!macAdapter_.IsMacSupport()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        return SANDBOX_MANAGER_OK;
+    }
+    result.resize(policy.size(), false);
+    std::vector<size_t> validIndex;
+    std::vector<PolicyInfo> validPolicies;
+    for (size_t index = 0; index < policy.size(); ++index) {
+        int32_t res = CheckPolicyValidity(policy[index]);
+        if (res == SANDBOX_MANAGER_OK) {
+            validIndex.emplace_back(index);
+            validPolicies.emplace_back(policy[index]);
+        }
+    }
+
+    if (validPolicies.empty()) {
+        SANDBOXMANAGER_LOG_WARN(LABEL, "No valid policy to set.");
+        return SANDBOX_MANAGER_OK;
+    }
+
+    std::vector<bool> checkResult(validPolicies.size(), false);
+    int32_t ret = macAdapter_.CheckSandboxPolicy(tokenId, validPolicies, checkResult);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check sandbox policy failed, error=%{public}d.", ret);
+        result.clear();
+        return ret;
+    }
+    size_t resultIndex = 0;
+    for (const auto &index : validIndex) {
+        result[index] = checkResult[resultIndex++];
+    }
+
     return SANDBOX_MANAGER_OK;
 }
 

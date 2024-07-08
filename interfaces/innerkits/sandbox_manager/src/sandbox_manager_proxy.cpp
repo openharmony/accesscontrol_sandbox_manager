@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2024 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -20,6 +20,7 @@
 #include "iremote_proxy.h"
 #include "message_parcel.h"
 #include "parcel.h"
+#include "policy_info_parcel.h"
 #include "policy_info_vector_parcel.h"
 #include "sandboxmanager_service_ipc_interface_code.h"
 #include "sandbox_manager_err_code.h"
@@ -211,41 +212,165 @@ int32_t SandboxManagerProxy::UnPersistPolicyByTokenId(
     return remoteRet;
 }
 
-int32_t SandboxManagerProxy::SetPolicy(uint64_t tokenId, const std::vector<PolicyInfo> &policy,
-    uint64_t policyFlag)
+static bool WriteSetPolicyParcel(MessageParcel &data, uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+                                 uint64_t policyFlag)
 {
-    MessageParcel data;
     if (!data.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write descriptor fail");
-        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write descriptor failed.");
+        return false;
     }
-    if (!data.WriteUint64(tokenId)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId fail");
-        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    if (!data.WriteUint32(tokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId failed.");
+        return false;
     }
-    
+
     PolicyInfoVectorParcel policyInfoVectorParcel;
     policyInfoVectorParcel.policyVector = policy;
     if (!data.WriteParcelable(&policyInfoVectorParcel)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoVectorParcel fail");
-        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoVectorParcel failed.");
+        return false;
     }
 
     if (!data.WriteUint64(policyFlag)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyFlag fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyFlag failed.");
+        return false;
+    }
+    return true;
+}
+
+int32_t SandboxManagerProxy::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+                                       uint64_t policyFlag, std::vector<uint32_t> &result)
+{
+    MessageParcel data;
+    if (!WriteSetPolicyParcel(data, tokenId, policy, policyFlag)) {
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     MessageParcel reply;
     int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::SET_POLICY, data, reply);
     if (requestRet != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
         return requestRet;
     }
 
     int32_t remoteRet;
     if (!reply.ReadInt32(remoteRet)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read ret fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "read ret failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    result.clear();
+    if (remoteRet != SANDBOX_MANAGER_OK) {
+        return remoteRet;
+    }
+    if (!reply.ReadUInt32Vector(&result)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read result failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    return remoteRet;
+}
+
+int32_t SandboxManagerProxy::SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+                                            uint64_t policyFlag)
+{
+    MessageParcel data;
+    if (!WriteSetPolicyParcel(data, tokenId, policy, policyFlag)) {
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    MessageParcel reply;
+    MessageOption option(MessageOption::TF_ASYNC);
+    return SendRequest(SandboxManagerInterfaceCode::SET_POLICY_ASYNC, data, reply, option);
+}
+
+static bool WriteUnSetPolicyParcel(MessageParcel &data, uint32_t tokenId, const PolicyInfo &policy)
+{
+    if (!data.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write descriptor failed.");
+        return false;
+    }
+    if (!data.WriteUint32(tokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId failed.");
+        return false;
+    }
+
+    PolicyInfoParcel policyInfoParcel;
+    policyInfoParcel.policyInfo = policy;
+    if (!data.WriteParcelable(&policyInfoParcel)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoParcel failed.");
+        return false;
+    }
+    return true;
+}
+
+int32_t SandboxManagerProxy::UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy)
+{
+    MessageParcel data;
+    if (!WriteUnSetPolicyParcel(data, tokenId, policy)) {
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    MessageParcel reply;
+    int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::UNSET_POLICY, data, reply);
+    if (requestRet != SANDBOX_MANAGER_OK) {
+        return requestRet;
+    }
+
+    int32_t remoteRet;
+    if (!reply.ReadInt32(remoteRet)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read ret failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    return remoteRet;
+}
+
+int32_t SandboxManagerProxy::UnSetPolicyAsync(uint32_t tokenId, const PolicyInfo &policy)
+{
+    MessageParcel data;
+    if (!WriteUnSetPolicyParcel(data, tokenId, policy)) {
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    MessageParcel reply;
+    MessageOption option(MessageOption::TF_ASYNC);
+    return SendRequest(SandboxManagerInterfaceCode::UNSET_POLICY_ASYNC, data, reply, option);
+}
+
+int32_t SandboxManagerProxy::CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+    std::vector<bool> &result)
+{
+    MessageParcel data;
+    if (!data.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write descriptor failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    if (!data.WriteUint32(tokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    PolicyInfoVectorParcel policyInfoVectorParcel;
+    policyInfoVectorParcel.policyVector = policy;
+    if (!data.WriteParcelable(&policyInfoVectorParcel)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoVectorParcel failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    MessageParcel reply;
+    int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::CHECK_POLICY, data, reply);
+    if (requestRet != SANDBOX_MANAGER_OK) {
+        return requestRet;
+    }
+
+    int32_t remoteRet;
+    if (!reply.ReadInt32(remoteRet)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read ret failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    result.clear();
+    if (remoteRet != SANDBOX_MANAGER_OK) {
+        return remoteRet;
+    }
+    if (!reply.ReadBoolVector(&result)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read result failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return remoteRet;

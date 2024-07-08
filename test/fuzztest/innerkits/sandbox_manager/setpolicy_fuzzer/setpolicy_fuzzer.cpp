@@ -32,7 +32,7 @@ namespace OHOS {
         }
 
         std::vector<PolicyInfo> policyVec;
-        uint64_t tokenId = static_cast<uint64_t>(size);
+        uint32_t tokenId = static_cast<uint32_t>(size);
         uint64_t policyFlag = static_cast<uint64_t>(size);
 
         PolicyInfo policy = {
@@ -40,8 +40,9 @@ namespace OHOS {
             .mode = static_cast<uint64_t>(size),
         };
         policyVec.emplace_back(policy);
+        std::vector<uint32_t> result;
 
-        int32_t ret = SandboxManagerKit::SetPolicy(tokenId, policyVec, policyFlag);
+        int32_t ret = SandboxManagerKit::SetPolicy(tokenId, policyVec, policyFlag, result);
         return ret == SandboxManagerErrCode::SANDBOX_MANAGER_OK;
     }
 
