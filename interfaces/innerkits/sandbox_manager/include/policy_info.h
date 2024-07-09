@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2024 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -34,7 +34,7 @@ typedef enum SandboxRetType {
     INVALID_MODE = 2,
     INVALID_PATH = 3,
     POLICY_HAS_NOT_BEEN_PERSISTED = 4,
-    POLICY_HAS_BEEN_PERSISTED = 5,
+    POLICY_MAC_FAIL = 5,
 } SandboxRetType;
 
 const uint32_t IS_POLICY_ALLOWED_TO_BE_PRESISTED = 1 << 0;

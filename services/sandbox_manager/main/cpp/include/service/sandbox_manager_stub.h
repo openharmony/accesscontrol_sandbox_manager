@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2024 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -41,12 +41,14 @@ private:
     int32_t PersistPolicyByTokenIdInner(MessageParcel &data, MessageParcel &reply);
     int32_t UnPersistPolicyByTokenIdInner(MessageParcel &data, MessageParcel &reply);
     int32_t SetPolicyInner(MessageParcel &data, MessageParcel &reply);
+    int32_t UnSetPolicyInner(MessageParcel &data, MessageParcel &reply);
+    int32_t SetPolicyAsyncInner(MessageParcel &data, MessageParcel &reply);
+    int32_t UnSetPolicyAsyncInner(MessageParcel &data, MessageParcel &reply);
+    int32_t CheckPolicyInner(MessageParcel &data, MessageParcel &reply);
     int32_t StartAccessingPolicyInner(MessageParcel &data, MessageParcel &reply);
     int32_t StopAccessingPolicyInner(MessageParcel &data, MessageParcel &reply);
     int32_t CheckPersistPolicyInner(MessageParcel &data, MessageParcel &reply);
     void SetPolicyOpFuncInMap();
-
-    bool CheckPermission(const uint64_t tokenId, const std::string &permission);
 
     using RequestFuncType = int32_t (SandboxManagerStub::*)(MessageParcel &data, MessageParcel &reply);
     std::map<uint32_t, RequestFuncType> requestFuncMap_;
