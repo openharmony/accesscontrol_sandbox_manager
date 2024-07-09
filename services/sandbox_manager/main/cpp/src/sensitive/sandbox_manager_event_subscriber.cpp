@@ -42,6 +42,7 @@ bool SandboxManagerCommonEventSubscriber::RegisterEvent()
     auto skill = std::make_shared<EventFwk::MatchingSkills>();
     skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_REMOVED);
     skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_FULLY_REMOVED);
+    skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_DATA_CLEARED);
     EventFwk::CommonEventSubscribeInfo subscribeInfo(*skill);
     auto info = std::make_shared<EventFwk::CommonEventSubscribeInfo>(*skill);
     g_subscriber = std::make_shared<SandboxManagerCommonEventSubscriber>(*info);
@@ -74,14 +75,15 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEvent(const EventFwk::CommonE
     std::string action = want.GetAction();
     SANDBOXMANAGER_LOG_INFO(LABEL, "Receive event = %{public}s.", action.c_str());
     if (action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_REMOVED ||
-        action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_FULLY_REMOVED) {
-        uint64_t tokenId = static_cast<uint64_t>(want.GetParams().GetIntParam("accessTokenId", 0));
+        action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_FULLY_REMOVED ||
+        action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_DATA_CLEARED) {
+        uint32_t tokenId = static_cast<uint32_t>(want.GetParams().GetIntParam("accessTokenId", 0));
         if (tokenId == 0) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Error tokenid = %{public}" PRIu64".", tokenId);
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Error tokenid = %{public}d.", tokenId);
             return;
         }
         PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId);
-        SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenid = %{public}" PRIu64".", tokenId);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenid = %{public}d.", tokenId);
     }
 }
 } // namespace SandboxManager

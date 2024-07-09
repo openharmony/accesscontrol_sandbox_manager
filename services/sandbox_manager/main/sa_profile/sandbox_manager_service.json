@@ -15,6 +15,9 @@
 			},
 			{
 				"name": "usual.event.PACKAGE_FULLY_REMOVED"
+			},
+			{
+				"name": "usual.event.PACKAGE_DATA_CLEARED"
 			}]
 		}
 	}]

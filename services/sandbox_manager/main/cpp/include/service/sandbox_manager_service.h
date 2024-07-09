@@ -44,9 +44,9 @@ public:
     int32_t PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
     int32_t UnPersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
     int32_t PersistPolicyByTokenId(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
     int32_t UnPersistPolicyByTokenId(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
     int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
                       std::vector<uint32_t> &result) override;
     int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy) override;
@@ -56,8 +56,10 @@ public:
     int32_t StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
     int32_t StopAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
     int32_t CheckPersistPolicy(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result) override;
-    void onRemovePackage(uint64_t tokenId);
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result) override;
+    int32_t StartAccessingByTokenId(uint32_t tokenId) override;
+    int32_t UnSetAllPolicyByToken(uint32_t tokenId) override;
+    void onRemovePackage(uint32_t tokenId);
 
     void DelayUnloadService() override;
     

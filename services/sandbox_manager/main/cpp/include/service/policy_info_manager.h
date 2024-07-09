@@ -40,7 +40,7 @@ public:
      * @param result insert result of each policy
      * @return SANDBOX_MANAGER_DB_ERR / SANDBOX_MANAGER_OK
      */
-    int32_t AddPolicy(const uint64_t tokenId, const std::vector<PolicyInfo> &policy,
+    int32_t AddPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &result, const uint32_t flag = 0);
     /**
      * @brief Match policys of a certain tokenId
@@ -49,7 +49,7 @@ public:
      * @param result match result of each policy
      * @return SANDBOX_MANAGER_DB_ERR / SANDBOX_MANAGER_OK
      */
-    int32_t MatchPolicy(const uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+    int32_t MatchPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     /**
      * @brief Match one policy of a certain tokenId
      * @param tokenId token id of the object
@@ -58,7 +58,7 @@ public:
      * @return INVALID_PARAMTER / SANDBOX_MANAGER_DB_ERR
      *     / SANDBOX_MANAGER_POLICY_NOT_MATCH / SANDBOX_MANAGER_OK
      */
-    int32_t MatchSinglePolicy(const uint64_t tokenId, const PolicyInfo &policy, uint32_t &result);
+    int32_t MatchSinglePolicy(const uint32_t tokenId, const PolicyInfo &policy, uint32_t &result);
     /**
      * @brief remove policys of a certain tokenId
      * @param tokenId token id of the object
@@ -67,7 +67,7 @@ public:
      * @return INVALID_PARAMTER / SANDBOX_MANAGER_DB_ERR / SANDBOX_MANAGER_OK
      *      / SANDBOX_MANAGER_DB_RETURN_EMPTY
      */
-    int32_t RemovePolicy(const uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+    int32_t RemovePolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     /**
      * @brief set policies of a certain tokenId
      * @param tokenId token id of the object
@@ -97,8 +97,37 @@ public:
      * @param tokenId token id of the object
      * @return bool
      */
-    bool RemoveBundlePolicy(const uint64_t tokenId);
- 
+    bool RemoveBundlePolicy(const uint32_t tokenId);
+    /**
+     * @brief activate all policys of input token that flag = 1
+     * @param tokenId token id of the object
+     * @return int32_t
+     */
+    int32_t StartAccessingByTokenId(const uint32_t tokenId);
+    /**
+     * @brief activate input persist policys
+     * @param tokenId token id of the object
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @param result  remove result of each policy
+     * @return int32_t
+     */
+    int32_t StartAccessingPolicy(
+        const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results);
+    /**
+     * @brief deactivate input persist policys
+     * @param tokenId token id of the object
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @param result  remove result of each policy
+     * @return int32_t
+     */
+    int32_t StopAccessingPolicy(
+        const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results);
+    /**
+     * @brief deactivate all policys with given tokenid
+     * @param tokenId token id of the object
+     * @return int32_t
+     */
+    int32_t UnSetAllPolicyByToken(const uint32_t tokenId);
 private:
     /**
      * @brief find a record with same token and policy path (mode not inclued)
@@ -107,7 +136,28 @@ private:
      * @param result search result
      * @return SANDBOX_MANAGER_DB_ERR / SANDBOX_MANAGER_DB_RETURN_EMPTY / SANDBOX_MANAGER_OK
      */
-    int32_t ExactFind(const uint64_t tokenId,  const PolicyInfo &policy, PolicyInfo &result);
+    int32_t ExactFind(const uint32_t tokenId,  const PolicyInfo &policy, PolicyInfo &result);
+    /**
+     * @brief check policy validity in batch
+     * @param policies input policy, see policy_info.h
+     * @param result output result
+     * @param passIndexes index of policy which is valid
+     * @return
+     */
+    void FilterValidPolicyInBatch(
+        const std::vector<PolicyInfo> &policies, std::vector<uint32_t> &results, std::vector<size_t> &passIndexes);
+    /**
+     * @brief AddToDatabaseIfNotDuplicate by remove deplicate records
+     * @param tokenId token id of the object
+     * @param policy input policy, see policy_info.h
+     * @param result output result
+     * @param passIndex index of policy which is valid
+     * @param flag persist flag
+     * @return
+     */
+    int32_t AddToDatabaseIfNotDuplicate(const uint32_t tokenId,
+        const std::vector<PolicyInfo> &policies, const std::vector<size_t> &passIndexes,
+        const uint32_t flag, std::vector<uint32_t> &results);
     /**
      * @brief find a record with input conditions
      * @param conditions input conditions
@@ -124,7 +174,7 @@ private:
      * @param generic transfer result
      * @return
      */
-    void TransferPolicyToGeneric(const uint64_t tokenId, const PolicyInfo &policy, GenericValues &generic);
+    void TransferPolicyToGeneric(const uint32_t tokenId, const PolicyInfo &policy, GenericValues &generic);
     /**
      * @brief cal depth of a given path string
      * @param path path of file system

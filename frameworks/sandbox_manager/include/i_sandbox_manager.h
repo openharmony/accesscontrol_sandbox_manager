@@ -34,9 +34,9 @@ public:
     virtual int32_t PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) = 0;
     virtual int32_t UnPersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) = 0;
     virtual int32_t PersistPolicyByTokenId(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) = 0;
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) = 0;
     virtual int32_t UnPersistPolicyByTokenId(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) = 0;
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) = 0;
     virtual int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
                               std::vector<uint32_t> &result) = 0;
     virtual int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy) = 0;
@@ -46,7 +46,9 @@ public:
     virtual int32_t StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) = 0;
     virtual int32_t StopAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) = 0;
     virtual int32_t CheckPersistPolicy(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result) = 0;
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result) = 0;
+    virtual int32_t StartAccessingByTokenId(uint32_t tokenId) = 0;
+    virtual int32_t UnSetAllPolicyByToken(uint32_t tokenId) = 0;
 };
 } // namespace SandboxManager
 } // namespace AccessControl

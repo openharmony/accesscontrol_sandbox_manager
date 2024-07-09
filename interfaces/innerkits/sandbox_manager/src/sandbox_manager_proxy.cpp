@@ -134,14 +134,14 @@ int32_t SandboxManagerProxy::UnPersistPolicy(const std::vector<PolicyInfo> &poli
 }
 
 int32_t SandboxManagerProxy::PersistPolicyByTokenId(
-    uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
+    uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
     MessageParcel data;
     if (!data.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write descriptor fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
-    if (!data.WriteUint64(tokenId)) {
+    if (!data.WriteUint32(tokenId)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
@@ -174,14 +174,14 @@ int32_t SandboxManagerProxy::PersistPolicyByTokenId(
 }
 
 int32_t SandboxManagerProxy::UnPersistPolicyByTokenId(
-    uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
+    uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
     MessageParcel data;
     if (!data.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write descriptor fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
-    if (!data.WriteUint64(tokenId)) {
+    if (!data.WriteUint32(tokenId)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
@@ -446,7 +446,7 @@ int32_t SandboxManagerProxy::StopAccessingPolicy(const std::vector<PolicyInfo> &
     return remoteRet;
 }
 
-int32_t SandboxManagerProxy::CheckPersistPolicy(uint64_t tokenId, const std::vector<PolicyInfo> &policy,
+int32_t SandboxManagerProxy::CheckPersistPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
     std::vector<bool> &result)
 {
     MessageParcel data;
@@ -454,7 +454,7 @@ int32_t SandboxManagerProxy::CheckPersistPolicy(uint64_t tokenId, const std::vec
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write descriptor fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
-    if (!data.WriteUint64(tokenId)) {
+    if (!data.WriteUint32(tokenId)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
@@ -484,6 +484,50 @@ int32_t SandboxManagerProxy::CheckPersistPolicy(uint64_t tokenId, const std::vec
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return remoteRet;
+}
+
+int32_t SandboxManagerProxy::StartAccessingByTokenId(uint32_t tokenId)
+{
+    MessageParcel data;
+    if (!data.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write descriptor fail.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    if (!data.WriteUint32(tokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId fail.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    MessageParcel reply;
+    MessageOption option(MessageOption::TF_ASYNC);
+    int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::START_ACCESSING_BY_TOKEN, data, reply, option);
+    if (requestRet != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Remote fail, requestRet = %{public}d.", requestRet);
+        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t SandboxManagerProxy::UnSetAllPolicyByToken(uint32_t tokenId)
+{
+    MessageParcel data;
+    if (!data.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write descriptor fail.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    if (!data.WriteUint32(tokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId fail.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    MessageParcel reply;
+    MessageOption option(MessageOption::TF_ASYNC);
+    int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::UNSET_ALL_POLICY_BY_TOKEN, data, reply, option);
+    if (requestRet != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Remote fail, requestRet = %{public}d.", requestRet);
+        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+    }
+    return SANDBOX_MANAGER_OK;
 }
 } // namespace SandboxManager
 } // namespace AccessControl

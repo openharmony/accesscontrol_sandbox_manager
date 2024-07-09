@@ -50,11 +50,13 @@ public:
     int32_t CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     int32_t StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     int32_t StopAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
-    int32_t CheckPersistPolicy(uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
+    int32_t CheckPersistPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     int32_t PersistPolicyByTokenId(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     int32_t UnPersistPolicyByTokenId(
-        uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+    int32_t StartAccessingByTokenId(uint32_t tokenId);
+    int32_t UnSetAllPolicyByToken(uint32_t tokenId);
 
     void FinishStartSASuccess(const sptr<IRemoteObject> &remoteObject);
     void FinishStartSAFail();

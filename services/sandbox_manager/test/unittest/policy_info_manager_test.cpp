@@ -291,7 +291,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest004, TestSize.Level1)
     std::vector<uint32_t> result13;
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policy, result13));
     EXPECT_EQ(sizeLimit, result13.size());
-    EXPECT_EQ(SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED, result13[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result13[0]);
 
     info.path = "/data/log/hilog";
     info.mode = OperateMode::READ_MODE;
@@ -348,7 +348,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest005, TestSize.Level1)
     std::vector<uint32_t> result4;
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policy, result4));
     EXPECT_EQ(sizeLimit, result4.size());
-    EXPECT_EQ(SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED, result4[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result4[0]);
 
     info.path = "/data/log";
     info.mode = OperateMode::WRITE_MODE + OperateMode::READ_MODE;

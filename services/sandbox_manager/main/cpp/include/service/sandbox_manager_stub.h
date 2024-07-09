@@ -48,6 +48,8 @@ private:
     int32_t StartAccessingPolicyInner(MessageParcel &data, MessageParcel &reply);
     int32_t StopAccessingPolicyInner(MessageParcel &data, MessageParcel &reply);
     int32_t CheckPersistPolicyInner(MessageParcel &data, MessageParcel &reply);
+    int32_t StartAccessingByTokenIdInner(MessageParcel &data, MessageParcel &reply);
+    int32_t UnSetAllPolicyByTokenInner(MessageParcel &data, MessageParcel &reply);
     void SetPolicyOpFuncInMap();
 
     using RequestFuncType = int32_t (SandboxManagerStub::*)(MessageParcel &data, MessageParcel &reply);

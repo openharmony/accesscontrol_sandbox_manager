@@ -40,7 +40,7 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerStub"};
 }
 
-static bool CheckPermission(const uint64_t tokenId, const std::string &permission);
+static bool CheckPermission(const uint32_t tokenId, const std::string &permission);
 
 int32_t SandboxManagerStub::OnRemoteRequest(
     uint32_t code, MessageParcel &data, MessageParcel &reply, MessageOption &option)
@@ -71,7 +71,7 @@ int32_t SandboxManagerStub::OnRemoteRequest(
 
 int32_t SandboxManagerStub::PersistPolicyInner(MessageParcel &data, MessageParcel &reply)
 {
-    uint64_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
@@ -101,7 +101,7 @@ int32_t SandboxManagerStub::PersistPolicyInner(MessageParcel &data, MessageParce
 
 int32_t SandboxManagerStub::UnPersistPolicyInner(MessageParcel &data, MessageParcel &reply)
 {
-    uint64_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
@@ -132,12 +132,12 @@ int32_t SandboxManagerStub::UnPersistPolicyInner(MessageParcel &data, MessagePar
 
 int32_t SandboxManagerStub::PersistPolicyByTokenIdInner(MessageParcel &data, MessageParcel &reply)
 {
-    uint64_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
-    uint64_t tokenId;
-    if (!data.ReadUint64(tokenId)) {
+    uint32_t tokenId;
+    if (!data.ReadUint32(tokenId)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "read tokenId parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
@@ -166,12 +166,12 @@ int32_t SandboxManagerStub::PersistPolicyByTokenIdInner(MessageParcel &data, Mes
 
 int32_t SandboxManagerStub::UnPersistPolicyByTokenIdInner(MessageParcel &data, MessageParcel &reply)
 {
-    uint64_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
-    uint64_t tokenId;
-    if (!data.ReadUint64(tokenId)) {
+    uint32_t tokenId;
+    if (!data.ReadUint32(tokenId)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "reply tokenId parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
@@ -347,7 +347,7 @@ int32_t SandboxManagerStub::CheckPolicyInner(MessageParcel &data, MessageParcel 
 
 int32_t SandboxManagerStub::StartAccessingPolicyInner(MessageParcel &data, MessageParcel &reply)
 {
-    uint64_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
@@ -377,7 +377,7 @@ int32_t SandboxManagerStub::StartAccessingPolicyInner(MessageParcel &data, Messa
 
 int32_t SandboxManagerStub::StopAccessingPolicyInner(MessageParcel &data, MessageParcel &reply)
 {
-    uint64_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
@@ -408,8 +408,8 @@ int32_t SandboxManagerStub::StopAccessingPolicyInner(MessageParcel &data, Messag
 
 int32_t SandboxManagerStub::CheckPersistPolicyInner(MessageParcel &data, MessageParcel &reply)
 {
-    uint64_t tokenId;
-    if (!data.ReadUint64(tokenId)) {
+    uint32_t tokenId;
+    if (!data.ReadUint32(tokenId)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "reply tokenId parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
@@ -434,6 +434,37 @@ int32_t SandboxManagerStub::CheckPersistPolicyInner(MessageParcel &data, Message
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write sandbox manager reply parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t SandboxManagerStub::StartAccessingByTokenIdInner(MessageParcel &data, MessageParcel &reply)
+{
+    if (IPCSkeleton::GetCallingUid() != FOUNDATION_UID) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Not foundation userid, permision denied.");
+        return PERMISSION_DENIED;
+    }
+    uint32_t tokenId;
+    if (!data.ReadUint32(tokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read tokenId parcel fail");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    this->StartAccessingByTokenId(tokenId);
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t SandboxManagerStub::UnSetAllPolicyByTokenInner(MessageParcel &data, MessageParcel &reply)
+{
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, SET_POLICY_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
+    }
+
+    uint32_t tokenId;
+    if (!data.ReadUint32(tokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read tokenId parcel fail");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    this->UnSetAllPolicyByToken(tokenId);
     return SANDBOX_MANAGER_OK;
 }
 
@@ -463,6 +494,10 @@ void SandboxManagerStub::SetPolicyOpFuncInMap()
         &SandboxManagerStub::StopAccessingPolicyInner;
     requestFuncMap_[static_cast<uint32_t>(SandboxManagerInterfaceCode::CHECK_PERSIST_PERMISSION)] =
         &SandboxManagerStub::CheckPersistPolicyInner;
+    requestFuncMap_[static_cast<uint32_t>(SandboxManagerInterfaceCode::START_ACCESSING_BY_TOKEN)] =
+        &SandboxManagerStub::StartAccessingByTokenIdInner;
+    requestFuncMap_[static_cast<uint32_t>(SandboxManagerInterfaceCode::UNSET_ALL_POLICY_BY_TOKEN)] =
+        &SandboxManagerStub::UnSetAllPolicyByTokenInner;
 }
 
 SandboxManagerStub::SandboxManagerStub()
@@ -475,14 +510,14 @@ SandboxManagerStub::~SandboxManagerStub()
     requestFuncMap_.clear();
 }
 
-bool CheckPermission(const uint64_t tokenId, const std::string &permission)
+bool CheckPermission(const uint32_t tokenId, const std::string &permission)
 {
     int32_t ret = Security::AccessToken::AccessTokenKit::VerifyAccessToken(tokenId, permission);
     if (ret == Security::AccessToken::PermissionState::PERMISSION_GRANTED) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Check permission token:%{public}" PRIu64" pass", tokenId);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Check permission token:%{public}d pass", tokenId);
         return true;
     }
-    SANDBOXMANAGER_LOG_ERROR(LABEL, "Check permission token:%{public}" PRIu64" fail", tokenId);
+    SANDBOXMANAGER_LOG_ERROR(LABEL, "Check permission token:%{public}d fail", tokenId);
     return false;
 }
 } // namespace SandboxManager

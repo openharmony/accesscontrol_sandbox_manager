@@ -66,7 +66,7 @@ int32_t SandboxManagerClient::UnPersistPolicy(const std::vector<PolicyInfo> &pol
 }
 
 int32_t SandboxManagerClient::PersistPolicyByTokenId(
-    uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
+    uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
     auto proxy = GetProxy(true);
     if (proxy == nullptr) {
@@ -77,7 +77,7 @@ int32_t SandboxManagerClient::PersistPolicyByTokenId(
 }
 
 int32_t SandboxManagerClient::UnPersistPolicyByTokenId(
-    uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
+    uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
     auto proxy = GetProxy(true);
     if (proxy == nullptr) {
@@ -162,7 +162,7 @@ int32_t SandboxManagerClient::StopAccessingPolicy(const std::vector<PolicyInfo> 
 }
 
 int32_t SandboxManagerClient::CheckPersistPolicy(
-    uint64_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result)
+    uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result)
 {
     auto proxy = GetProxy(true);
     if (proxy == nullptr) {
@@ -170,6 +170,26 @@ int32_t SandboxManagerClient::CheckPersistPolicy(
         return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
     }
     return proxy->CheckPersistPolicy(tokenId, policy, result);
+}
+
+int32_t SandboxManagerClient::StartAccessingByTokenId(uint32_t tokenId)
+{
+    auto proxy = GetProxy(true);
+    if (proxy == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null");
+        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
+    }
+    return proxy->StartAccessingByTokenId(tokenId);
+}
+
+int32_t SandboxManagerClient::UnSetAllPolicyByToken(uint32_t tokenId)
+{
+    auto proxy = GetProxy(true);
+    if (proxy == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null");
+        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
+    }
+    return proxy->UnSetAllPolicyByToken(tokenId);
 }
 
 bool SandboxManagerClient::StartLoadSandboxManagerSa()
