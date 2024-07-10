@@ -127,6 +127,16 @@ void SandboxManagerService::OnStart(const SystemAbilityOnDemandReason& startReas
     }
 }
 
+int32_t SandboxManagerService::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
+{
+    size_t filePathSize = filePathList.size();
+    if (filePathSize == 0 || filePathSize > POLICY_VECTOR_SIZE_LIMIT) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "FilePath vector size error, size = %{public}zu.", filePathSize);
+        return INVALID_PARAMTER;
+    }
+    return PolicyInfoManager::GetInstance().CleanPersistPolicyByPath(filePathList);
+}
+
 int32_t SandboxManagerService::PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();

@@ -35,6 +35,7 @@ enum class SandboxManagerInterfaceCode {
     UNSET_ALL_POLICY_BY_TOKEN,
     PERSIST_PERMISSION_BY_TOKENID,
     UNPERSIST_PERMISSION_BY_TOKENID,
+    CLEAN_PERSIST_POLICY_BY_PATH,
 };
 } // namespace SandboxManager
 } // namespace AccessControl

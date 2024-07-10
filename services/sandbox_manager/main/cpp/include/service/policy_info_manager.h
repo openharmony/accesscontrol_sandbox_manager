@@ -34,6 +34,12 @@ public:
     virtual ~PolicyInfoManager() = default;
     void Init();
     /**
+     * @brief Clear the persistence policy
+     * @param policy vector of string, file path
+     * @return SANDBOX_MANAGER_OK
+     */
+    int32_t CleanPersistPolicyByPath(const std::vector<std::string>& filePaths);
+    /**
      * @brief Insert policys to database
      * @param tokenId token id of the object
      * @param policy vector of PolicyInfo, see policy_info.h
@@ -130,6 +136,12 @@ public:
     int32_t UnSetAllPolicyByToken(const uint32_t tokenId);
 private:
     /**
+     * @brief Clean policy list on MAC
+     * @param GenericValues vector
+     */
+    void CleanPolicyOnMac(const std::vector<GenericValues> &results);
+
+    /**
      * @brief find a record with same token and policy path (mode not inclued)
      * @param tokenId token id of the object
      * @param policy search policy
@@ -175,6 +187,14 @@ private:
      * @return
      */
     void TransferPolicyToGeneric(const uint32_t tokenId, const PolicyInfo &policy, GenericValues &generic);
+    /**
+     * @brief transfer a GenericValues and token to policy style
+     * @param tokenId token id of the object
+     * @param policy input GenericValues
+     * @param generic transfer result
+     * @return
+     */
+    void TransferGenericToPolicy(const GenericValues &generic, uint32_t &tokenId, PolicyInfo &policy);
     /**
      * @brief cal depth of a given path string
      * @param path path of file system

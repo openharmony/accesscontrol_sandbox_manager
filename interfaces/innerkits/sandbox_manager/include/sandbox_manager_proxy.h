@@ -31,6 +31,7 @@ public:
     explicit SandboxManagerProxy(const sptr<IRemoteObject> &impl);
     ~SandboxManagerProxy() override;
 
+    int32_t CleanPersistPolicyByPath(const std::vector<std::string>& filePathList) override;
     int32_t PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
     int32_t UnPersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
     int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
