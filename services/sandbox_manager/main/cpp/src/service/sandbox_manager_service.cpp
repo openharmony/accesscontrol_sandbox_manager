@@ -391,7 +391,7 @@ bool SandboxManagerService::StartByEventAction(const SystemAbilityOnDemandReason
             return false;
         }
         size_t idx = 0;
-        uint64_t tokenId = std::stoull(strTokenID, &idx);
+        uint32_t tokenId = std::stoul(strTokenID, &idx);
         if (idx != strTokenID.length()) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Convert failed, tokenId = %{public}s.", strTokenID.c_str());
             return false;
@@ -401,7 +401,7 @@ bool SandboxManagerService::StartByEventAction(const SystemAbilityOnDemandReason
             return false;
         }
         PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId);
-        SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenID = %{public}" PRIu64".", tokenId);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenID = %{public}u.", tokenId);
     }
     return true;
 }
