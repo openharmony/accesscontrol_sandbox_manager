@@ -31,6 +31,7 @@ public:
 
     static const int SA_ID_SANDBOX_MANAGER_SERVICE = SANDBOX_MANAGER_SERVICE_ID;
 
+    virtual int32_t CleanPersistPolicyByPath(const std::vector<std::string>& filePathList) = 0;
     virtual int32_t PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) = 0;
     virtual int32_t UnPersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) = 0;
     virtual int32_t PersistPolicyByTokenId(

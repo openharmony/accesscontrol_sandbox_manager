@@ -17,6 +17,7 @@
 
 #include <cinttypes>
 #include <cstdint>
+#include <string>
 #include <unistd.h>
 #include <vector>
 #include "accesstoken_kit.h"
@@ -67,6 +68,26 @@ int32_t SandboxManagerStub::OnRemoteRequest(
     }
 
     return NO_ERROR;
+}
+
+int32_t SandboxManagerStub::CleanPersistPolicyByPathInner(MessageParcel &data, MessageParcel &reply)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Call CleanPersistPolicyByPathInner");
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!IsFileManagerCalling(callingTokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}d)", callingTokenId);
+        return PERMISSION_DENIED;
+    }
+
+    std::vector<std::string> filePathList;
+    if (!data.ReadStringVector(&filePathList)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read filePathList failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    
+    this->CleanPersistPolicyByPath(filePathList);
+    SANDBOXMANAGER_LOG_INFO(LABEL, "End CleanPersistPolicyByPathInner");
+    return SANDBOX_MANAGER_OK;
 }
 
 int32_t SandboxManagerStub::PersistPolicyInner(MessageParcel &data, MessageParcel &reply)
@@ -470,6 +491,8 @@ int32_t SandboxManagerStub::UnSetAllPolicyByTokenInner(MessageParcel &data, Mess
 
 void SandboxManagerStub::SetPolicyOpFuncInMap()
 {
+    requestFuncMap_[static_cast<uint32_t>(SandboxManagerInterfaceCode::CLEAN_PERSIST_POLICY_BY_PATH)] =
+        &SandboxManagerStub::CleanPersistPolicyByPathInner;
     requestFuncMap_[static_cast<uint32_t>(SandboxManagerInterfaceCode::PERSIST_PERMISSION)] =
         &SandboxManagerStub::PersistPolicyInner;
     requestFuncMap_[static_cast<uint32_t>(SandboxManagerInterfaceCode::UNPERSIST_PERMISSION)] =
@@ -519,6 +542,14 @@ bool CheckPermission(const uint32_t tokenId, const std::string &permission)
     }
     SANDBOXMANAGER_LOG_ERROR(LABEL, "Check permission token:%{public}d fail", tokenId);
     return false;
+}
+bool SandboxManagerStub::IsFileManagerCalling(uint32_t tokenCaller)
+{
+    if (tokenFileManagerId_ == 0) {
+        tokenFileManagerId_ = Security::AccessToken::AccessTokenKit::GetNativeTokenId(
+            "file_manager_service");
+    }
+    return tokenCaller == tokenFileManagerId_;
 }
 } // namespace SandboxManager
 } // namespace AccessControl

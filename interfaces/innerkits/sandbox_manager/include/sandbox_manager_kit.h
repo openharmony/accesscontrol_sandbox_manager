@@ -28,6 +28,12 @@ namespace SandboxManager {
 class SandboxManagerKit {
 public:
     /**
+     * @brief Clear the persistence policy
+     * @param Policy vector of string, file path
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t CleanPersistPolicyByPath(const std::vector<std::string>& filePathList);
+    /**
      * @brief Persist policys with caller's tokenId
      * @param policy vector of PolicyInfo, see policy_info.h
      * @param result insert result of each policy, result is SandboxRetType in policy_info.h

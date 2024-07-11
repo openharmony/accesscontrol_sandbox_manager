@@ -36,6 +36,7 @@ public:
     virtual void DelayUnloadService() = 0;
 
 private:
+    int32_t CleanPersistPolicyByPathInner(MessageParcel &data, MessageParcel &reply);
     int32_t PersistPolicyInner(MessageParcel &data, MessageParcel &reply);
     int32_t UnPersistPolicyInner(MessageParcel &data, MessageParcel &reply);
     int32_t PersistPolicyByTokenIdInner(MessageParcel &data, MessageParcel &reply);
@@ -51,9 +52,10 @@ private:
     int32_t StartAccessingByTokenIdInner(MessageParcel &data, MessageParcel &reply);
     int32_t UnSetAllPolicyByTokenInner(MessageParcel &data, MessageParcel &reply);
     void SetPolicyOpFuncInMap();
-
+    bool IsFileManagerCalling(uint32_t tokenCaller);
     using RequestFuncType = int32_t (SandboxManagerStub::*)(MessageParcel &data, MessageParcel &reply);
     std::map<uint32_t, RequestFuncType> requestFuncMap_;
+    uint32_t tokenFileManagerId_ = 0;
 };
 } // namespace SandboxManager
 } // namespace AccessControl

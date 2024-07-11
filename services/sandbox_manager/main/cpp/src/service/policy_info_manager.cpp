@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -51,6 +52,74 @@ void PolicyInfoManager::Init()
 {
     SandboxManagerDb::GetInstance();
     macAdapter_.Init();
+}
+
+void PolicyInfoManager::CleanPolicyOnMac(const std::vector<GenericValues>& results)
+{
+    if (!macAdapter_.IsMacSupport()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        return;
+    }
+    std::map<uint32_t, std::vector<PolicyInfo>> allPersistPolicy;
+    for (const auto& res : results) {
+        uint32_t tokenId;
+        PolicyInfo policy;
+        TransferGenericToPolicy(res, tokenId, policy);
+        auto it = allPersistPolicy.find(tokenId);
+        if (it == allPersistPolicy.end()) {
+            std::vector<PolicyInfo> policies;
+            policies.emplace_back(policy);
+            allPersistPolicy.insert(std::make_pair(tokenId, policies));
+        } else {
+            it->second.emplace_back(policy);
+        }
+    }
+
+    for (auto& it : allPersistPolicy) {
+        std::vector<bool> result(it.second.size());
+        int32_t count = 0;
+        macAdapter_.UnSetSandboxPolicy(it.first, it.second, result);
+        for (bool res : result) {
+            if (!res) {
+                ++count;
+            }
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Mac UnSetSandboxPolicy size = %{public}zu, fail size = %{public}d.",
+            it.second.size(), count);
+    }
+}
+
+int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
+{
+    //Gets the persistence policy to be cleaned up
+    std::vector<GenericValues> results;
+    for (const std::string& path : filePathList) {
+        uint32_t length = path.length();
+        if ((length == 0) || (length > POLICY_PATH_LIMIT)) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path check fail, length = %{public}zu.", path.length());
+            continue;
+        }
+        std::string pathTmp = AdjustPath(path);
+        SandboxManagerDb::GetInstance().FindSubPath(
+            SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY, pathTmp, results);
+    }
+    if (results.empty()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "No persistence policy was found to delete.");
+        return SANDBOX_MANAGER_OK;
+    }
+
+    //clean MAC
+    CleanPolicyOnMac(results);
+
+    //clear the persistence policy
+    for (const auto& res: results) {
+        int32_t ret = SandboxManagerDb::GetInstance().Remove(
+            SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY, res);
+        if (ret != SandboxManagerDb::SUCCESS) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Delete fail!");
+        }
+    }
+    return SANDBOX_MANAGER_OK;
 }
 
 int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
@@ -545,6 +614,12 @@ void PolicyInfoManager::TransferPolicyToGeneric(const uint32_t tokenId, const Po
     generic.Put(PolicyFiledConst::FIELD_DEPTH, GetDepth(path));
     generic.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(policy.mode));
 }
+void PolicyInfoManager::TransferGenericToPolicy(const GenericValues &generic, uint32_t &tokenId, PolicyInfo &policy)
+{
+    policy.path = generic.GetString(PolicyFiledConst::FIELD_PATH);
+    policy.mode = static_cast<uint64_t>(generic.GetInt(PolicyFiledConst::FIELD_MODE));
+    tokenId = static_cast<uint32_t>(generic.GetInt(PolicyFiledConst::FIELD_TOKENID));
+}
 
 int64_t PolicyInfoManager::GetDepth(const std::string &path)
 {
@@ -602,7 +677,7 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
     // path not empty and lenth < POLICY_PATH_LIMIT
     uint32_t length = policy.path.length();
     if (length == 0 || length > POLICY_PATH_LIMIT) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "policy path check fail: %{public}s", policy.path.c_str());
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "policy path check fail, length = %{public}zu", policy.path.length());
         return SandboxRetType::INVALID_PATH;
     }
     std::string path = AdjustPath(policy.path);

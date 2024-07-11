@@ -31,6 +31,16 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
 const uint64_t POLICY_VECTOR_SIZE_LIMIT = 500;
 const uint32_t POLICY_PATH_LIMIT = 256;
 
+int32_t SandboxManagerKit::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
+{
+    size_t filePathSize = filePathList.size();
+    if ((filePathSize == 0) || (filePathSize > POLICY_VECTOR_SIZE_LIMIT)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "FilePathSize = %{public}zu", filePathSize);
+        return SandboxManagerErrCode::INVALID_PARAMTER;
+    }
+    return SandboxManagerClient::GetInstance().CleanPersistPolicyByPath(filePathList);
+}
+
 int32_t SandboxManagerKit::PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");

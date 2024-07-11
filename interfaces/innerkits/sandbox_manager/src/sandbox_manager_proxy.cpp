@@ -15,9 +15,11 @@
 
 #include "sandbox_manager_proxy.h"
 
+#include <cstddef>
 #include <string>
 #include "iremote_object.h"
 #include "iremote_proxy.h"
+#include "message_option.h"
 #include "message_parcel.h"
 #include "parcel.h"
 #include "policy_info_parcel.h"
@@ -61,6 +63,24 @@ int32_t SandboxManagerProxy::SendRequest(SandboxManagerInterfaceCode code, Messa
         SANDBOXMANAGER_LOG_ERROR(LABEL, "request fail, result: %{public}d", requestResult);
     }
     return requestResult;
+}
+
+int32_t SandboxManagerProxy::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
+{
+    MessageParcel data;
+    if (!data.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write descriptor fail");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteStringVector(filePathList)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write filePathList failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    MessageParcel reply;
+    MessageOption option(MessageOption::TF_ASYNC);
+    return SendRequest(SandboxManagerInterfaceCode::CLEAN_PERSIST_POLICY_BY_PATH, data, reply, option);
 }
 
 int32_t SandboxManagerProxy::PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)

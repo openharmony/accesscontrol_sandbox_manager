@@ -44,6 +44,15 @@ SandboxManagerClient::SandboxManagerClient()
 SandboxManagerClient::~SandboxManagerClient()
 {}
 
+int32_t SandboxManagerClient::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
+{
+    auto proxy = GetProxy(true);
+    if (proxy == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null");
+        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
+    }
+    return proxy->CleanPersistPolicyByPath(filePathList);
+}
 
 int32_t SandboxManagerClient::PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {

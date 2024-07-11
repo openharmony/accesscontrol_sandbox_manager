@@ -51,6 +51,7 @@ public:
 
     int32_t Modify(const DataType type, const GenericValues &modifyValues, const GenericValues &conditions);
 
+    int32_t FindSubPath(const DataType type, const std::string& filePath, std::vector<GenericValues>& results);
     int32_t Find(const DataType type, const GenericValues &conditions,
         const GenericValues &symbols, std::vector<GenericValues> &results);
 

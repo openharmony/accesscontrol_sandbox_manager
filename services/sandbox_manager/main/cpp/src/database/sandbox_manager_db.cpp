@@ -16,6 +16,7 @@
 #include "sandbox_manager_db.h"
 
 #include <cstdint>
+#include <string>
 #include "policy_field_const.h"
 #include "sandbox_manager_log.h"
 
@@ -126,6 +127,29 @@ int32_t SandboxManagerDb::Modify(const DataType type, const GenericValues& modif
     }
     int ret = statement.Step();
     return (ret == Statement::State::DONE) ? SUCCESS : FAILURE;
+}
+
+int32_t SandboxManagerDb::FindSubPath(
+    const DataType type, const std::string& filePath, std::vector<GenericValues>& results)
+{
+    OHOS::Utils::UniqueReadGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
+    auto it = dataTypeToSqlTable_.find(type);
+    if (it == dataTypeToSqlTable_.end()) {
+        return FAILURE;
+    }
+    std::string sql = "select * from " + it->second.tableName_ + " where " + PolicyFiledConst::FIELD_PATH
+        + " like '" + filePath + "/%'" + " or " + PolicyFiledConst::FIELD_PATH + " = '" + filePath + "'";
+    auto statement = Prepare(sql);
+
+    while (statement.Step() == Statement::State::ROW) {
+        int32_t columnCount = statement.GetColumnCount();
+        GenericValues value;
+        for (int32_t i = 0; i < columnCount; i++) {
+            value.Put(statement.GetColumnName(i), statement.GetValue(i, false));
+        }
+        results.emplace_back(value);
+    }
+    return SUCCESS;
 }
 
 int32_t SandboxManagerDb::Find(const DataType type, const GenericValues& conditions,

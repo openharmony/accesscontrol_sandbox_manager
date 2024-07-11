@@ -16,6 +16,7 @@
 #include "sandbox_manager_kit_coverage_test.h"
 
 #include <cstdint>
+#include <string>
 #include <vector>
 #include "access_token.h"
 #include "accesstoken_kit.h"
@@ -71,6 +72,8 @@ HWTEST_F(SandboxManagerKitCoverageTest, PersistPolicy001, TestSize.Level1)
     std::vector<uint32_t> result;
 
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::PersistPolicy(policy, result));
+    std::vector<std::string> filePaths;
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
 
     std::vector<PolicyInfo> policyEmpty;
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::PersistPolicy(policyEmpty, result));
