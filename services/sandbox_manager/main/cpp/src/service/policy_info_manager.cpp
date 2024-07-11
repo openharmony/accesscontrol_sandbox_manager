@@ -182,20 +182,24 @@ int32_t PolicyInfoManager::AddToDatabaseIfNotDuplicate(const uint32_t tokenId, c
     const std::vector<size_t> &passIndexes, const uint32_t flag, std::vector<uint32_t> &results)
 {
     std::vector<GenericValues> addPolicyGeneric;
+    if (passIndexes.empty()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "No policies need to add.");
+        return SANDBOX_MANAGER_OK;
+    }
+    
     for (size_t each : passIndexes) {
         GenericValues condition;
         TransferPolicyToGeneric(tokenId, policies[each], condition);
-        int32_t ret = SandboxManagerDb::GetInstance().Remove(
-            SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY, condition);
-        if (ret != SandboxManagerDb::SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Database remove error");
-            return SANDBOX_MANAGER_DB_ERR;
-        }
         condition.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(flag));
         addPolicyGeneric.emplace_back(condition);
     }
+    std::string duplicateMode = SandboxManagerDb::IGNORE;
+    // replace duplicate policy when flag is 1
+    if (flag == 1) {
+        duplicateMode = SandboxManagerDb::REPLACE;
+    }
     int32_t ret = SandboxManagerDb::GetInstance().Add(
-        SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY, addPolicyGeneric);
+        SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY, addPolicyGeneric, duplicateMode);
     if (ret != SandboxManagerDb::SUCCESS) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
         results.clear();

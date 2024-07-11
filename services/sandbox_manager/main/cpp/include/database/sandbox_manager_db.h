@@ -32,6 +32,8 @@ namespace SandboxManager {
 class SandboxManagerDb : public SqliteHelper {
 public:
     enum ExecuteResult { FAILURE = -1, SUCCESS };
+    static const std::string IGNORE;
+    static const std::string REPLACE;
     struct SqliteTable {
     public:
         std::string tableName_;
@@ -45,7 +47,8 @@ public:
 
     ~SandboxManagerDb() override;
 
-    int32_t Add(const DataType type, const std::vector<GenericValues> &values);
+    int32_t Add(const DataType type, const std::vector<GenericValues> &values,
+        const std::string &duplicateMode = IGNORE);
 
     int32_t Remove(const DataType type, const GenericValues &conditions);
 
@@ -63,7 +66,7 @@ public:
 private:
     int32_t CreatePersistedPolicyTable() const;
 
-    std::string CreateInsertPrepareSqlCmd(const DataType type) const;
+    std::string CreateInsertPrepareSqlCmd(const DataType type, const std::string &duplicateMode) const;
     std::string CreateDeletePrepareSqlCmd(
         const DataType type, const std::vector<std::string> &columnNames = std::vector<std::string>()) const;
     std::string CreateUpdatePrepareSqlCmd(const DataType type, const std::vector<std::string> &modifyColumns,

@@ -340,7 +340,7 @@ HWTEST_F(SandboxManagerDbTest, SandboxManagerDbTest007, TestSize.Level1)
     EXPECT_TRUE(ret.empty());
 
     ret = SandboxManagerDb::GetInstance().CreateInsertPrepareSqlCmd(
-        SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY);
+        SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY, "ignore");
     EXPECT_TRUE(ret.empty());
     SandboxManagerDb::GetInstance().dataTypeToSqlTable_ = oldTable;
 }
