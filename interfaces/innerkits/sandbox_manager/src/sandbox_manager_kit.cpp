@@ -29,7 +29,7 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerKit"};
 }
 const uint64_t POLICY_VECTOR_SIZE_LIMIT = 500;
-const uint32_t POLICY_PATH_LIMIT = 256;
+const uint32_t POLICY_PATH_LIMIT = 4095;
 
 int32_t SandboxManagerKit::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
 {

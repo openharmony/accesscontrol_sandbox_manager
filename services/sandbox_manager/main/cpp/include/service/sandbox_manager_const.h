@@ -22,7 +22,7 @@ namespace AccessControl {
 namespace SandboxManager {
 #define SA_LIFE_TIME (1000 * 60 * 3)   // 3 min
 
-const uint32_t POLICY_PATH_LIMIT = 256;
+const uint32_t POLICY_PATH_LIMIT = 4095;
 
 const uint64_t MODE_FILTER = 0b11;
 // 1bit-readbit 2bit- writebit, see OperateMode

@@ -30,6 +30,9 @@ static const std::string INTEGER_STR = " integer not null,";
 static const std::string TEXT_STR = " text not null,";
 }
 
+const std::string SandboxManagerDb::IGNORE = "ignore";
+const std::string SandboxManagerDb::REPLACE = "replace";
+
 SandboxManagerDb& SandboxManagerDb::GetInstance()
 {
     static SandboxManagerDb instance;
@@ -69,10 +72,16 @@ SandboxManagerDb::SandboxManagerDb() : SqliteHelper(DATABASE_NAME, DATABASE_PATH
     Open();
 }
 
-int32_t SandboxManagerDb::Add(const DataType type, const std::vector<GenericValues>& values)
+int32_t SandboxManagerDb::Add(const DataType type, const std::vector<GenericValues> &values,
+    const std::string &duplicateMode)
 {
     OHOS::Utils::UniqueWriteGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
-    std::string prepareSql = CreateInsertPrepareSqlCmd(type);
+    if ((duplicateMode != IGNORE) && (duplicateMode != REPLACE)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Duplicate mode should be ignore or replace, input = %{public}s.",
+            duplicateMode.c_str());
+        return FAILURE;
+    }
+    std::string prepareSql = CreateInsertPrepareSqlCmd(type, duplicateMode);
     auto statement = Prepare(prepareSql);
     BeginTransaction();
     bool isExecuteSuccessfully = true;
@@ -177,7 +186,7 @@ int32_t SandboxManagerDb::RefreshAll(const DataType type, const std::vector<Gene
 {
     OHOS::Utils::UniqueWriteGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
     std::string deleteSql = CreateDeletePrepareSqlCmd(type);
-    std::string insertSql = CreateInsertPrepareSqlCmd(type);
+    std::string insertSql = CreateInsertPrepareSqlCmd(type, IGNORE);
     auto deleteStatement = Prepare(deleteSql);
     auto insertStatement = Prepare(insertSql);
     BeginTransaction();
@@ -205,13 +214,14 @@ int32_t SandboxManagerDb::RefreshAll(const DataType type, const std::vector<Gene
     return SUCCESS;
 }
 
-std::string SandboxManagerDb::CreateInsertPrepareSqlCmd(const DataType type) const
+std::string SandboxManagerDb::CreateInsertPrepareSqlCmd(const DataType type,
+    const std::string &duplicateMode) const
 {
     auto it = dataTypeToSqlTable_.find(type);
     if (it == dataTypeToSqlTable_.end()) {
         return std::string();
     }
-    std::string sql = "insert into " + it->second.tableName_ + " values(";
+    std::string sql = "insert or " + duplicateMode + " into " + it->second.tableName_ + " values(";
     int i = 1;
     for (const auto& columnName : it->second.tableColumnNames_) {
         sql.append(":" + columnName);
