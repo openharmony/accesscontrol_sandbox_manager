@@ -127,6 +127,7 @@ int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const std::vector<P
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        result.resize(policy.size(), SandboxRetType::OPERATE_SUCCESSFULLY);
         return SANDBOX_MANAGER_OK;
     }
     size_t policySize = policy.size();
@@ -283,6 +284,7 @@ int32_t PolicyInfoManager::RemovePolicy(
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        result.resize(policy.size(), SandboxRetType::OPERATE_SUCCESSFULLY);
         return SANDBOX_MANAGER_OK;
     }
     // remove only token, path, mode equal
@@ -326,6 +328,7 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        result.resize(policy.size(), SandboxRetType::OPERATE_SUCCESSFULLY);
         return SANDBOX_MANAGER_OK;
     }
     result.resize(policy.size(), INVALID_PATH);
@@ -375,6 +378,7 @@ int32_t PolicyInfoManager::CheckPolicy(uint32_t tokenId, const std::vector<Polic
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        result.resize(policy.size(), true);
         return SANDBOX_MANAGER_OK;
     }
     result.resize(policy.size(), false);
@@ -469,6 +473,7 @@ int32_t PolicyInfoManager::StartAccessingPolicy(
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        results.resize(policy.size(), SandboxRetType::OPERATE_SUCCESSFULLY);
         return SANDBOX_MANAGER_OK;
     }
     size_t policySize = policy.size();
@@ -517,6 +522,7 @@ int32_t PolicyInfoManager::StopAccessingPolicy(
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        results.resize(policy.size(), SandboxRetType::OPERATE_SUCCESSFULLY);
         return SANDBOX_MANAGER_OK;
     }
     size_t policySize = policy.size();
