@@ -124,8 +124,8 @@ int32_t MacAdapter::SetSandboxPolicy(uint32_t tokenId, const std::vector<PolicyI
             result[offset + i] = info.pathInfos[i].result ? SANDBOX_MANAGER_OK : POLICY_MAC_FAIL;
         }
     }
-    uint32_t failCount =
-        std::count_if(result.begin(), result.end(), [](uint32_t res) { return res != SANDBOX_MANAGER_OK; });
+    uint32_t failCount = static_cast<uint32_t>(
+        std::count_if(result.begin(), result.end(), [](uint32_t res) { return res != SANDBOX_MANAGER_OK; }));
     if (failCount > 0) {
         SANDBOXMANAGER_LOG_WARN(LABEL, "Set policy has failed items, failCount=%{public}u.", failCount);
     }
@@ -209,7 +209,7 @@ int32_t MacAdapter::CheckSandboxPolicy(uint32_t tokenId, const std::vector<Polic
         }
     }
 
-    uint32_t failCount = std::count(result.begin(), result.end(), false);
+    uint32_t failCount = static_cast<uint32_t>(std::count(result.begin(), result.end(), false));
     if (failCount > 0) {
         SANDBOXMANAGER_LOG_WARN(LABEL, "Check policy has failed items, failCount=%{public}u.", failCount);
     }
@@ -251,7 +251,7 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const std::vector<Polic
         }
     }
 
-    uint32_t failCount = std::count(result.begin(), result.end(), false);
+    uint32_t failCount = static_cast<uint32_t>(std::count(result.begin(), result.end(), false));
     if (failCount > 0) {
         SANDBOXMANAGER_LOG_WARN(LABEL, "Unset policy has failed items, failCount=%{public}u.", failCount);
     }

@@ -337,7 +337,7 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
             validIndex.emplace_back(index);
             validPolicies.emplace_back(policy[index]);
         } else {
-            result[index] = res;
+            result[index] = static_cast<uint32_t>(res);
         }
     }
 
