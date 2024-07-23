@@ -20,12 +20,19 @@ group("fuzztest") {
   deps += [
     # deps file
     "checkpersistpolicystub_fuzzer:CheckPersistPolicyStubFuzzTest",
+    "checkpolicystub_fuzzer:CheckPolicyStubFuzzTest",
+    "cleanpersistpolicybypathstub_fuzzer:CleanPersistPolicyByPathStubFuzzTest",
     "persistpolicystub_fuzzer:PersistPolicyStubFuzzTest",
     "persistpolicytokenstub_fuzzer:PersistPolicyTokenStubFuzzTest",
+    "setpolicyasyncstub_fuzzer:SetPolicyAsyncStubFuzzTest",
     "setpolicystub_fuzzer:SetPolicyStubFuzzTest",
+    "startaccessingbytokenidstub_fuzzer:StartAccessingByTokenidStubFuzzTest",
     "startaccessingpolicystub_fuzzer:StartAccessingPolicyStubFuzzTest",
     "stopaccessingpolicystub_fuzzer:StopAccessingPolicyStubFuzzTest",
     "unpersistpolicystub_fuzzer:UnPersistPolicyStubFuzzTest",
     "unpersistpolicytokenstub_fuzzer:UnpersistPolicyTokenStubFuzzTest",
+    "unsetallpolicybytokenstub_fuzzer:UnsetAllPolicyByTokenStubFuzzTest",
+    "unsetpolicyasyncstub_fuzzer:UnsetPolicyAsyncStubFuzzTest",
+    "unsetpolicystub_fuzzer:UnsetPolicyStubFuzzTest",
   ]
 }

@@ -18,6 +18,7 @@
 #include <vector>
 #include <cstdint>
 #include <string>
+#include "fuzz_common.h"
 #include "i_sandbox_manager.h"
 #include "policy_info_vector_parcel.h"
 #include "sandboxmanager_service_ipc_interface_code.h"
@@ -34,20 +35,16 @@ namespace OHOS {
 
         std::vector<PolicyInfo> policyVec;
         std::vector<bool> result;
-        uint64_t tokenId = static_cast<uint64_t>(size);
-
-        PolicyInfo policy = {
-            .path = std::string(reinterpret_cast<const char*>(data), size),
-            .mode = static_cast<uint64_t>(size),
-        };
-        policyVec.emplace_back(policy);
+        PolicyInfoRandomGenerator gen(data, size);
+        uint32_t tokenId = gen.GetData<uint32_t>();
+        gen.GeneratePolicyInfoVec(policyVec);
 
         MessageParcel datas;
         if (!datas.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
             return false;
         }
 
-        if (!datas.WriteUint64(tokenId)) {
+        if (!datas.WriteUint32(tokenId)) {
             return false;
         }
 

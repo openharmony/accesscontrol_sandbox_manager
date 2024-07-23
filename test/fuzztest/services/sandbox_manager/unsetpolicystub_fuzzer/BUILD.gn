@@ -16,14 +16,14 @@ import("//build/test.gni")
 import("../../../../../sandbox_manager.gni")
 import("../sandbox_manager_service_fuzz.gni")
 
-ohos_fuzztest("PersistPolicyTokenStubFuzzTest") {
+ohos_fuzztest("UnsetPolicyStubFuzzTest") {
   module_out_path = module_output_path_interface_sandbox
   fuzz_config_file = "."
 
   include_dirs = [ "../../../common" ]
   include_dirs += sandbox_manager_include_dirs
 
-  sources = [ "persistpolicytokenstub_fuzzer.cpp" ]
+  sources = [ "unsetpolilcystub_fuzzer.cpp" ]
   sources += sandbox_manager_sources
 
   deps = []

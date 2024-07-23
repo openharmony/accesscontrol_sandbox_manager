@@ -23,10 +23,7 @@ ohos_fuzztest("UnPersistPolicyStubFuzzTest") {
   include_dirs = [ "../../../common" ]
   include_dirs += sandbox_manager_include_dirs
 
-  sources = [
-    "../../../common/alloc_token.cpp",
-    "unpersistpolicystub_fuzzer.cpp",
-  ]
+  sources = [ "unpersistpolicystub_fuzzer.cpp" ]
   sources += sandbox_manager_sources
 
   deps = []
