@@ -63,35 +63,8 @@ namespace OHOS {
         return ret;
     }
 
-    void NativeTokenGet()
-    {
-        uint64_t fullTokenId;
-        const char **perms = new const char *[1];
-        perms[0] = "ohos.permission.DISTRIBUTED_DATASYNC";
-
-        NativeTokenInfoParams infoInstance = {
-            .dcapsNum = 0,
-            .permsNum = 1,
-            .aclsNum = 0,
-            .dcaps = nullptr,
-            .perms = perms,
-            .acls = nullptr,
-            .aplStr = "system_core",
-        };
-
-        infoInstance.processName = "TestCase";
-        fullTokenId = GetAccessTokenId(&infoInstance);
-        SetSelfTokenID(fullTokenId);
-        Security::AccessToken::AccessTokenKit::ReloadNativeTokenInfo();
-        delete[] perms;
-    }
-
     void AllocToken()
     {
-        NativeTokenGet();
-        Security::AccessToken::AccessTokenID tokenID =
-            Security::AccessToken::AccessTokenKit::GetNativeTokenId("foundation");
-        SetSelfTokenID(tokenID);
         Security::AccessToken::AccessTokenIDEx tokenIdEx = {0};
         tokenIdEx = Security::AccessToken::AccessTokenKit::AllocHapToken(g_testInfoParms, g_testPolicyPrams);
         g_mockToken = tokenIdEx.tokenIdExStruct.tokenID;

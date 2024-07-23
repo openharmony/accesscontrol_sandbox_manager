@@ -13,39 +13,31 @@
  * limitations under the License.
  */
 
-#include "persistpolicytoken_fuzzer.h"
+#include "checkpolicy_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
 #include <string>
-#include "alloc_token.h"
 #include "fuzz_common.h"
 #include "sandbox_manager_kit.h"
-#include "token_setproc.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
-    bool PersistPolicyToken(const uint8_t *data, size_t size)
+    bool CheckPersistPolicyFuzzTest(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
 
         std::vector<PolicyInfo> policyVec;
-        std::vector<uint32_t> result;
+        std::vector<bool> result;
         PolicyInfoRandomGenerator gen(data, size);
-        gen.GeneratePolicyInfoVec(policyVec);
         uint32_t tokenId = gen.GetData<uint32_t>();
-
-        SandboxManagerKit::SetPolicy(tokenId, policyVec, 1, result);
-        SandboxManagerKit::PersistPolicy(tokenId, policyVec, result);
+        gen.GeneratePolicyInfoVec(policyVec);
+      
+        SandboxManagerKit::CheckPolicy(tokenId, policyVec, result);
         return true;
-    }
-
-    bool PersistPolicyTokenFuzzTest(const uint8_t *data, size_t size)
-    {
-        return AllocTokenWithFuzz(data, size, PersistPolicyToken);
     }
 }
 
@@ -53,6 +45,6 @@ namespace OHOS {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     /* Run your code on data */
-    OHOS::PersistPolicyTokenFuzzTest(data, size);
+    OHOS::CheckPersistPolicyFuzzTest(data, size);
     return 0;
 }

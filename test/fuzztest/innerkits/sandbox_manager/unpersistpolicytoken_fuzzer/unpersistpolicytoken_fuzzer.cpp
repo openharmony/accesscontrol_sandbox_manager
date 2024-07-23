@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <string>
 #include "alloc_token.h"
-#include "sandbox_manager_err_code.h"
+#include "fuzz_common.h"
 #include "sandbox_manager_kit.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
@@ -33,16 +33,14 @@ namespace OHOS {
 
         std::vector<PolicyInfo> policyVec;
         std::vector<uint32_t> result;
-        uint64_t tokenId = static_cast<uint64_t>(size);
+        PolicyInfoRandomGenerator gen(data, size);
+        gen.GeneratePolicyInfoVec(policyVec);
+        uint32_t tokenId = gen.GetData<uint32_t>();
 
-        PolicyInfo policy = {
-            .path = std::string(reinterpret_cast<const char*>(data), size),
-            .mode = static_cast<uint64_t>(size),
-        };
-        policyVec.emplace_back(policy);
-
-        int32_t ret = SandboxManagerKit::UnPersistPolicy(tokenId, policyVec, result);
-        return ret == SandboxManagerErrCode::SANDBOX_MANAGER_OK;
+        SandboxManagerKit::SetPolicy(tokenId, policyVec, 1, result);
+        SandboxManagerKit::PersistPolicy(tokenId, policyVec, result);
+        SandboxManagerKit::UnPersistPolicy(tokenId, policyVec, result);
+        return true;
     }
 
     bool UnPersistPolicyTokenFuzzTest(const uint8_t *data, size_t size)

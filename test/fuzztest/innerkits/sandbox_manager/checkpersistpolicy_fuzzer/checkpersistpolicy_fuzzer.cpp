@@ -18,6 +18,7 @@
 #include <vector>
 #include <cstdint>
 #include <string>
+#include "fuzz_common.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_kit.h"
 
@@ -32,16 +33,12 @@ namespace OHOS {
 
         std::vector<PolicyInfo> policyVec;
         std::vector<bool> result;
-        uint64_t tokenId = static_cast<uint64_t>(size);
-
-        PolicyInfo policy = {
-            .path = std::string(reinterpret_cast<const char*>(data), size),
-            .mode = static_cast<uint64_t>(size),
-        };
-        policyVec.emplace_back(policy);
-        
-        int32_t ret = SandboxManagerKit::CheckPersistPolicy(tokenId, policyVec, result);
-        return ret == SandboxManagerErrCode::SANDBOX_MANAGER_OK;
+        PolicyInfoRandomGenerator gen(data, size);
+        uint32_t tokenId = gen.GetData<uint32_t>();
+        gen.GeneratePolicyInfoVec(policyVec);
+      
+        SandboxManagerKit::CheckPersistPolicy(tokenId, policyVec, result);
+        return true;
     }
 }
 

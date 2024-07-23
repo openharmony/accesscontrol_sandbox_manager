@@ -15,7 +15,7 @@ import("//build/config/features.gni")
 import("//build/test.gni")
 import("../../../../../sandbox_manager.gni")
 
-ohos_fuzztest("UnpersistPolicyTokenFuzzTest") {
+ohos_fuzztest("CheckPolicyFuzzTest") {
   module_out_path = module_output_path_interface_sandbox
   fuzz_config_file = "."
 
@@ -30,9 +30,8 @@ ohos_fuzztest("UnpersistPolicyTokenFuzzTest") {
     "-fno-omit-frame-pointer",
   ]
   sources = [
-    "../../../common/alloc_token.cpp",
     "../../../common/fuzz_common.cpp",
-    "unpersistpolicytoken_fuzzer.cpp",
+    "checkpolicy_fuzzer.cpp",
   ]
 
   deps = [ "${sandbox_manager_path}/interfaces/innerkits/sandbox_manager:libsandbox_manager_sdk" ]
@@ -40,9 +39,6 @@ ohos_fuzztest("UnpersistPolicyTokenFuzzTest") {
   configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 
   external_deps = [
-    "access_token:libaccesstoken_sdk",
-    "access_token:libnativetoken",
-    "access_token:libtoken_setproc",
     "c_utils:utils",
     "hilog:libhilog",
   ]
