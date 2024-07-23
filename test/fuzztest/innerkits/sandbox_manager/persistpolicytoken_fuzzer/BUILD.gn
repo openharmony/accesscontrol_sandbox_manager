@@ -31,6 +31,7 @@ ohos_fuzztest("PersistPolicyTokenFuzzTest") {
   ]
   sources = [
     "../../../common/alloc_token.cpp",
+    "../../../common/fuzz_common.cpp",
     "persistpolicytoken_fuzzer.cpp",
   ]
 

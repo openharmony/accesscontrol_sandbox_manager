@@ -31,6 +31,7 @@ ohos_fuzztest("StartAccessingPolicyFuzzTest") {
   ]
   sources = [
     "../../../common/alloc_token.cpp",
+    "../../../common/fuzz_common.cpp",
     "startaccessingpolicy_fuzzer.cpp",
   ]
 

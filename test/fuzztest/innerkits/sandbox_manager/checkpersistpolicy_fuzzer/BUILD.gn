@@ -19,15 +19,20 @@ ohos_fuzztest("CheckPersistPolicyFuzzTest") {
   module_out_path = module_output_path_interface_sandbox
   fuzz_config_file = "."
 
-  include_dirs =
-      [ "${sandbox_manager_path}/interfaces/innerkits/sandbox_manager/include" ]
+  include_dirs = [
+    "${sandbox_manager_path}/interfaces/innerkits/sandbox_manager/include",
+    "../../../common",
+  ]
   cflags = [
     "-g",
     "-O0",
     "-Wno-unused-variable",
     "-fno-omit-frame-pointer",
   ]
-  sources = [ "checkpersistpolicy_fuzzer.cpp" ]
+  sources = [
+    "../../../common/fuzz_common.cpp",
+    "checkpersistpolicy_fuzzer.cpp",
+  ]
 
   deps = [ "${sandbox_manager_path}/interfaces/innerkits/sandbox_manager:libsandbox_manager_sdk" ]
 

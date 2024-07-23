@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "persistpolicytoken_fuzzer.h"
+#include "unsetpolilcy_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
@@ -26,26 +26,28 @@
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
-    bool PersistPolicyToken(const uint8_t *data, size_t size)
+    bool UnSetPolicy(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
 
         std::vector<PolicyInfo> policyVec;
+        PolicyInfo policy;
         std::vector<uint32_t> result;
-        PolicyInfoRandomGenerator gen(data, size);
-        gen.GeneratePolicyInfoVec(policyVec);
-        uint32_t tokenId = gen.GetData<uint32_t>();
 
-        SandboxManagerKit::SetPolicy(tokenId, policyVec, 1, result);
-        SandboxManagerKit::PersistPolicy(tokenId, policyVec, result);
+        PolicyInfoRandomGenerator gen(data, size);
+        gen.GeneratePolicyInfo(policy);
+        policyVec.push_back(policy);
+
+        SandboxManagerKit::SetPolicy(GetSelfTokenID(), policyVec, 0, result);
+        SandboxManagerKit::UnSetPolicy(GetSelfTokenID(), policy);
         return true;
     }
 
-    bool PersistPolicyTokenFuzzTest(const uint8_t *data, size_t size)
+    bool UnSetPolicyFuzzTest(const uint8_t *data, size_t size)
     {
-        return AllocTokenWithFuzz(data, size, PersistPolicyToken);
+        return AllocTokenWithFuzz(data, size, UnSetPolicy);
     }
 }
 
@@ -53,6 +55,6 @@ namespace OHOS {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     /* Run your code on data */
-    OHOS::PersistPolicyTokenFuzzTest(data, size);
+    OHOS::UnSetPolicyFuzzTest(data, size);
     return 0;
 }

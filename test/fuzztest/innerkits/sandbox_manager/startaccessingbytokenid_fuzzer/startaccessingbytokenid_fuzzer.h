@@ -13,14 +13,9 @@
  * limitations under the License.
  */
 
-#ifndef ALLOC_TOKEN_H
-#define ALLOC_TOKEN_H
-#include <cstddef>
-#include <cstdint>
+#ifndef TEST_FUZZTEST_STARTACCESSINGBYTOKENID_FUZZER_H
+#define TEST_FUZZTEST_STARTACCESSINGBYTOKENID_FUZZER_H
 
-namespace OHOS {
-bool AllocTokenWithFuzz(const uint8_t *data, size_t size, bool(*func)(const uint8_t *, size_t));
-void AllocToken();
-void DeleteToken();
-} // OHOS
-#endif // ALLOC_TOKEN_H
+#define FUZZ_PROJECT_NAME "startaccessingbytokenid_fuzzer"
+
+#endif // TEST_FUZZTEST_STARTACCESSINGBYTOKENID_FUZZER_H

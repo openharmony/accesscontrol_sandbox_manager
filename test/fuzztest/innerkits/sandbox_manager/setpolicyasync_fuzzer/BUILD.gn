@@ -15,7 +15,7 @@ import("//build/config/features.gni")
 import("//build/test.gni")
 import("../../../../../sandbox_manager.gni")
 
-ohos_fuzztest("UnpersistPolicyTokenFuzzTest") {
+ohos_fuzztest("SetPolicyAsyncFuzzTest") {
   module_out_path = module_output_path_interface_sandbox
   fuzz_config_file = "."
 
@@ -32,7 +32,7 @@ ohos_fuzztest("UnpersistPolicyTokenFuzzTest") {
   sources = [
     "../../../common/alloc_token.cpp",
     "../../../common/fuzz_common.cpp",
-    "unpersistpolicytoken_fuzzer.cpp",
+    "setpolicyasync_fuzzer.cpp",
   ]
 
   deps = [ "${sandbox_manager_path}/interfaces/innerkits/sandbox_manager:libsandbox_manager_sdk" ]

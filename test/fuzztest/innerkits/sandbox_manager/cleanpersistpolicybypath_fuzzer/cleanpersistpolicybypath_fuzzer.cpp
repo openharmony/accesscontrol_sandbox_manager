@@ -13,12 +13,12 @@
  * limitations under the License.
  */
 
-#include "persistpolicytoken_fuzzer.h"
+#include "cleanpersistpolicybypath_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
 #include <string>
-#include "alloc_token.h"
+#include "accesstoken_kit.h"
 #include "fuzz_common.h"
 #include "sandbox_manager_kit.h"
 #include "token_setproc.h"
@@ -26,26 +26,27 @@
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
-    bool PersistPolicyToken(const uint8_t *data, size_t size)
+namespace {
+static uint32_t SELF_TOKEN = 0;
+static uint32_t FILE_MANAGER_TOKEN = 0;
+};
+    bool CheckPersistPolicyFuzzTest(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
+        FILE_MANAGER_TOKEN = Security::AccessToken::AccessTokenKit::GetNativeTokenId(
+            "file_manager_service");
+        SELF_TOKEN = GetSelfTokenID();
+        SetSelfTokenID(FILE_MANAGER_TOKEN);
 
-        std::vector<PolicyInfo> policyVec;
-        std::vector<uint32_t> result;
+        std::vector<std::string> pathList;
         PolicyInfoRandomGenerator gen(data, size);
-        gen.GeneratePolicyInfoVec(policyVec);
-        uint32_t tokenId = gen.GetData<uint32_t>();
-
-        SandboxManagerKit::SetPolicy(tokenId, policyVec, 1, result);
-        SandboxManagerKit::PersistPolicy(tokenId, policyVec, result);
+        gen.GenerateStringVec(pathList);
+      
+        SandboxManagerKit::CleanPersistPolicyByPath(pathList);
+        SetSelfTokenID(SELF_TOKEN);
         return true;
-    }
-
-    bool PersistPolicyTokenFuzzTest(const uint8_t *data, size_t size)
-    {
-        return AllocTokenWithFuzz(data, size, PersistPolicyToken);
     }
 }
 
@@ -53,6 +54,6 @@ namespace OHOS {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     /* Run your code on data */
-    OHOS::PersistPolicyTokenFuzzTest(data, size);
+    OHOS::CheckPersistPolicyFuzzTest(data, size);
     return 0;
 }
