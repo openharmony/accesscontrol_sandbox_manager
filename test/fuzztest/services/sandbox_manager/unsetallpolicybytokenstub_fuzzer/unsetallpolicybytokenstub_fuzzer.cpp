@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "startaccessingpolicystub_fuzzer.h"
+#include "unsetallpolicybytokenstub_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
@@ -28,40 +28,33 @@
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
-    bool StartAccessingPolicyStub(const uint8_t *data, size_t size)
+    bool UnsetAllPolicyByTokenStub(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
-
-        std::vector<PolicyInfo> policyVec;
-        std::vector<uint32_t> result;
         PolicyInfoRandomGenerator gen(data, size);
-        gen.GeneratePolicyInfoVec(policyVec);
+        uint32_t tokenid = gen.GetData<uint32_t>();
 
         MessageParcel datas;
         if (!datas.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
             return false;
         }
-
-        PolicyInfoVectorParcel policyInfoParcel;
-        policyInfoParcel.policyVector = policyVec;
-        if (!datas.WriteParcelable(&policyInfoParcel)) {
+        if (!datas.WriteUint32(tokenid)) {
             return false;
         }
             
-        uint32_t code = static_cast<uint32_t>(SandboxManagerInterfaceCode::START_ACCESSING_URI);
+        uint32_t code = static_cast<uint32_t>(SandboxManagerInterfaceCode::UNSET_ALL_POLICY_BY_TOKEN);
 
         MessageParcel reply;
         MessageOption option;
         DelayedSingleton<SandboxManagerService>::GetInstance()->OnRemoteRequest(code, datas, reply, option);
-
         return true;
     }
 
-    bool StartAccessingPolicyStubFuzzTest(const uint8_t *data, size_t size)
+    bool UnsetAllPolicyByTokenFuzzTest(const uint8_t *data, size_t size)
     {
-        return AllocTokenWithFuzz(data, size, StartAccessingPolicyStub);
+        return AllocTokenWithFuzz(data, size, UnsetAllPolicyByTokenStub);
     }
 }
 
@@ -69,6 +62,6 @@ namespace OHOS {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     /* Run your code on data */
-    OHOS::StartAccessingPolicyStubFuzzTest(data, size);
+    OHOS::UnsetAllPolicyByTokenFuzzTest(data, size);
     return 0;
 }

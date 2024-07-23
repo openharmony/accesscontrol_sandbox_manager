@@ -13,55 +13,56 @@
  * limitations under the License.
  */
 
-#include "startaccessingpolicystub_fuzzer.h"
+#include "cleanpersistpolicybypathstub_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
 #include <string>
-#include "alloc_token.h"
+#include "accesstoken_kit.h"
 #include "fuzz_common.h"
 #include "i_sandbox_manager.h"
 #include "policy_info_vector_parcel.h"
 #include "sandboxmanager_service_ipc_interface_code.h"
 #include "sandbox_manager_service.h"
+#include "token_setproc.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
-    bool StartAccessingPolicyStub(const uint8_t *data, size_t size)
+namespace {
+static uint32_t SELF_TOKEN = 0;
+static uint32_t FILE_MANAGER_TOKEN = 0;
+};
+    bool CleanPersistPolicyByPathStubFuzzTest(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
+        FILE_MANAGER_TOKEN = Security::AccessToken::AccessTokenKit::GetNativeTokenId(
+            "file_manager_service");
+        SELF_TOKEN = GetSelfTokenID();
+        SetSelfTokenID(FILE_MANAGER_TOKEN);
 
-        std::vector<PolicyInfo> policyVec;
-        std::vector<uint32_t> result;
+        std::vector<std::string> pathList;
         PolicyInfoRandomGenerator gen(data, size);
-        gen.GeneratePolicyInfoVec(policyVec);
+        gen.GenerateStringVec(pathList);
 
         MessageParcel datas;
         if (!datas.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
             return false;
         }
 
-        PolicyInfoVectorParcel policyInfoParcel;
-        policyInfoParcel.policyVector = policyVec;
-        if (!datas.WriteParcelable(&policyInfoParcel)) {
+        if (!datas.WriteStringVector(pathList)) {
             return false;
         }
-            
-        uint32_t code = static_cast<uint32_t>(SandboxManagerInterfaceCode::START_ACCESSING_URI);
+
+        uint32_t code = static_cast<uint32_t>(SandboxManagerInterfaceCode::CLEAN_PERSIST_POLICY_BY_PATH);
 
         MessageParcel reply;
         MessageOption option;
         DelayedSingleton<SandboxManagerService>::GetInstance()->OnRemoteRequest(code, datas, reply, option);
-
+        SetSelfTokenID(SELF_TOKEN);
         return true;
-    }
-
-    bool StartAccessingPolicyStubFuzzTest(const uint8_t *data, size_t size)
-    {
-        return AllocTokenWithFuzz(data, size, StartAccessingPolicyStub);
     }
 }
 
@@ -69,6 +70,6 @@ namespace OHOS {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     /* Run your code on data */
-    OHOS::StartAccessingPolicyStubFuzzTest(data, size);
+    OHOS::CleanPersistPolicyByPathStubFuzzTest(data, size);
     return 0;
 }

@@ -23,10 +23,7 @@ ohos_fuzztest("StartAccessingPolicyStubFuzzTest") {
   include_dirs = [ "../../../common" ]
   include_dirs += sandbox_manager_include_dirs
 
-  sources = [
-    "../../../common/alloc_token.cpp",
-    "startaccessingpolicystub_fuzzer.cpp",
-  ]
+  sources = [ "startaccessingpolicystub_fuzzer.cpp" ]
   sources += sandbox_manager_sources
 
   deps = []

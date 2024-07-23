@@ -13,34 +13,40 @@
  * limitations under the License.
  */
 
-#include "startaccessingpolicystub_fuzzer.h"
+#include "setpolicyasyncstub_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
 #include <string>
 #include "alloc_token.h"
 #include "fuzz_common.h"
-#include "i_sandbox_manager.h"
 #include "policy_info_vector_parcel.h"
+#include "i_sandbox_manager.h"
 #include "sandboxmanager_service_ipc_interface_code.h"
 #include "sandbox_manager_service.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
-    bool StartAccessingPolicyStub(const uint8_t *data, size_t size)
+    bool SetPolicyAsyncStub(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
 
         std::vector<PolicyInfo> policyVec;
-        std::vector<uint32_t> result;
         PolicyInfoRandomGenerator gen(data, size);
+        uint32_t tokenId = gen.GetData<uint32_t>();
+        uint64_t policyFlag = gen.GetData<uint64_t>() % 2; // 2 is flag max
+
         gen.GeneratePolicyInfoVec(policyVec);
 
         MessageParcel datas;
         if (!datas.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
+            return false;
+        }
+
+        if (!datas.WriteUint32(tokenId)) {
             return false;
         }
 
@@ -49,19 +55,22 @@ namespace OHOS {
         if (!datas.WriteParcelable(&policyInfoParcel)) {
             return false;
         }
-            
-        uint32_t code = static_cast<uint32_t>(SandboxManagerInterfaceCode::START_ACCESSING_URI);
 
+        if (!datas.WriteUint64(policyFlag)) {
+            return false;
+        }
+
+        uint32_t code = static_cast<uint32_t>(SandboxManagerInterfaceCode::SET_POLICY_ASYNC);
         MessageParcel reply;
         MessageOption option;
-        DelayedSingleton<SandboxManagerService>::GetInstance()->OnRemoteRequest(code, datas, reply, option);
 
+        DelayedSingleton<SandboxManagerService>::GetInstance()->OnRemoteRequest(code, datas, reply, option);
         return true;
     }
 
-    bool StartAccessingPolicyStubFuzzTest(const uint8_t *data, size_t size)
+    bool SetPolicyAsyncStubFuzzTest(const uint8_t *data, size_t size)
     {
-        return AllocTokenWithFuzz(data, size, StartAccessingPolicyStub);
+        return AllocTokenWithFuzz(data, size, SetPolicyAsyncStub);
     }
 }
 
@@ -69,6 +78,6 @@ namespace OHOS {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     /* Run your code on data */
-    OHOS::StartAccessingPolicyStubFuzzTest(data, size);
+    OHOS::SetPolicyAsyncStubFuzzTest(data, size);
     return 0;
 }
