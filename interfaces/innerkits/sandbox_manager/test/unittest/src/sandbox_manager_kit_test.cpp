@@ -1664,6 +1664,38 @@ HWTEST_F(SandboxManagerKitTest, StartAccessingByTokenIdTest003, TestSize.Level1)
     ASSERT_EQ(1, result.size());
     EXPECT_TRUE(result[0]);
 }
+
+/**
+ * @tc.name: UnSetAllPolicyByTokenTest001
+ * @tc.desc: destroy all mac policy in kernel with given tokenid
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, UnSetAllPolicyByTokenTest001, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policyA;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParentA = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policyA.emplace_back(infoParentA);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyA, policyFlag, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policyA, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_TRUE(result[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetAllPolicyByToken(g_mockToken));
+    sleep(1);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policyA, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_FALSE(result[0]);
+}
 } // SandboxManager
 } // AccessControl
 } // OHOS

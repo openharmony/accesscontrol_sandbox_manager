@@ -160,6 +160,25 @@ HWTEST_F(SandboxManagerKitCoverageTest, SetPolicy001, TestSize.Level1)
 }
 
 /**
+ * @tc.name: SetPolicy002
+ * @tc.desc: SetPolicy invalid PersistFlag input.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitCoverageTest, SetPolicy002, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    for (uint32_t i = 0; i < VALID_POLICY_SIZE; i++) {
+        PolicyInfo info;
+        policy.emplace_back(info);
+    }
+    std::vector<uint32_t> result;
+    uint64_t policyFlag = 0xff; // oxff is invalid input
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::SetPolicy(GetSelfTokenID(), policy, policyFlag, result));
+    EXPECT_EQ(0, result.size());
+}
+
+/**
  * @tc.name: StartAccessingPolicy001
  * @tc.desc: StartAccessingPolicy with invalid input.
  * @tc.type: FUNC
@@ -238,6 +257,52 @@ HWTEST_F(SandboxManagerKitCoverageTest, StopAccessingPolicy002, TestSize.Level1)
 
     EXPECT_EQ(PERMISSION_DENIED, SandboxManagerKit::StopAccessingPolicy(policy, result));
     EXPECT_EQ(0, result.size());
+}
+
+/**
+ * @tc.name: UnSetAllPolicyByTokenTest001
+ * @tc.desc: UnSetAllPolicyByToken with invalid input token
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitCoverageTest, UnSetAllPolicyByTokenTest001, TestSize.Level1)
+{
+    uint32_t invalidToken = 0;
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetAllPolicyByToken(invalidToken));
+}
+
+/**
+ * @tc.name: UnSetPolicyTest001
+ * @tc.desc: UnSetPolicy with invalid input policy
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitCoverageTest, UnSetPolicyTest001, TestSize.Level1)
+{
+    PolicyInfo invalidPolicy {
+        .mode = 0,
+        .path = "",
+    };
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetPolicy(GetSelfTokenID(), invalidPolicy));
+    invalidPolicy.path.resize(0xffff); // 0xffff is invalid length
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetPolicy(GetSelfTokenID(), invalidPolicy));
+}
+
+/**
+ * @tc.name: SetPolicyAsync001
+ * @tc.desc: SetPolicyAsync invalid PersistFlag input.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitCoverageTest, SetPolicyAsync001, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    for (uint32_t i = 0; i < VALID_POLICY_SIZE; i++) {
+        PolicyInfo info;
+        policy.emplace_back(info);
+    }
+    uint64_t policyFlag = 0xff; // oxff is invalid input
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::SetPolicyAsync(GetSelfTokenID(), policy, policyFlag));
 }
 } //SandboxManager
 } //AccessControl
