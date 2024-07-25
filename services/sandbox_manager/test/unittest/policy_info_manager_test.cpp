@@ -301,6 +301,127 @@ HWTEST_F(PolicyInfoManagerTest, GenericValuesTest001, TestSize.Level1)
     std::string str;
     EXPECT_EQ(str, variantValue.GetString());
 }
+
+/**
+ * @tc.name: CleanPersistPolicyByPathTest001
+ * @tc.desc: Test CleanPersistPolicyByPath
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, CleanPersistPolicyByPathTest001, TestSize.Level1)
+{
+    PolicyInfo info;
+    uint64_t sizeLimit = 1;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+
+    info.path = "/data/log";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    policy[0] = info;
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+
+    std::vector<uint32_t> result11;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, policy, result11));
+    EXPECT_EQ(sizeLimit, result11.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result11[0]);
+
+    uint32_t matchResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchSinglePolicy(selfTokenId_, info, matchResult));
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, matchResult);
+
+    std::vector<std::string> paths;
+    paths.emplace_back(info.path);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CleanPersistPolicyByPath(paths));
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchSinglePolicy(selfTokenId_, info, matchResult));
+    EXPECT_EQ(SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED, matchResult);
+}
+
+/**
+ * @tc.name: MacAdapterTest001
+ * @tc.desc: Test MacAdapterTest - not inited
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MacAdapterTest001, TestSize.Level1)
+{
+    MacAdapter macAdapter;
+    std::vector<PolicyInfo> policy;
+    uint64_t flag = 0;
+    std::vector<uint32_t> u32Res;
+    EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.SetSandboxPolicy(selfTokenId_, policy, flag, u32Res));
+    std::vector<bool> boolRes;
+    EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.QuerySandboxPolicy(selfTokenId_, policy, boolRes));
+    EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.CheckSandboxPolicy(selfTokenId_, policy, boolRes));
+    EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.UnSetSandboxPolicy(selfTokenId_, policy, boolRes));
+    PolicyInfo info;
+    EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.UnSetSandboxPolicy(selfTokenId_, info));
+    EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.DestroySandboxPolicy(selfTokenId_));
+}
+
+/**
+ * @tc.name: PolicyInfoManagerTest012
+ * @tc.desc: Test PolicyInfoManager - MAC not supported
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest012, TestSize.Level1)
+{
+    MacAdapter original = PolicyInfoManager::GetInstance().macAdapter_;
+    MacAdapter mockMacAdapter;
+    PolicyInfoManager::GetInstance().macAdapter_ = mockMacAdapter;
+    std::vector<PolicyInfo> policy;
+    PolicyInfo info;
+    info.path = "/data/log";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    policy.emplace_back(info);
+    uint32_t flag = 0;
+    std::vector<uint32_t> u32Res;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, policy, u32Res, flag));
+    ASSERT_EQ(1, u32Res.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
+
+    u32Res.resize(0);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().RemovePolicy(selfTokenId_, policy, u32Res));
+    ASSERT_EQ(1, u32Res.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
+
+    u32Res.resize(0);
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, static_cast<uint64_t>(flag), u32Res));
+    ASSERT_EQ(1, u32Res.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().UnSetPolicy(selfTokenId_, info));
+
+    std::vector<bool> boolRes;
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().CheckPolicy(selfTokenId_, policy, boolRes));
+    ASSERT_EQ(1, boolRes.size());
+    EXPECT_EQ(true, boolRes[0]);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().StartAccessingByTokenId(selfTokenId_));
+    
+    u32Res.resize(0);
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().StartAccessingPolicy(selfTokenId_, policy, u32Res));
+    ASSERT_EQ(1, u32Res.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
+
+    u32Res.resize(0);
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().StopAccessingPolicy(selfTokenId_, policy, u32Res));
+    ASSERT_EQ(1, u32Res.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_));
+
+    PolicyInfoManager::GetInstance().macAdapter_ = original;
+}
 } // SandboxManager
 } // AccessControl
 } // OHOS

@@ -21,6 +21,7 @@
 #include "hap_token_info.h"
 #include "nativetoken_kit.h"
 #include "policy_info.h"
+#include "policy_info_parcel.h"
 #include "policy_info_vector_parcel.h"
 #include "sandbox_manager_const.h"
 #include "sandbox_manager_db.h"
@@ -81,8 +82,6 @@ public:
     uint64_t selfTokenId_ = 1; // test token
     uint64_t sysGrantToken_;
 };
-
-PolicyInfo modeErr1, modeErr2, pathErr1, pathErr2, sysGrant, normal1, normal2, normal3;
 
 void SandboxManagerServiceTest::SetUpTestCase(void)
 {}
@@ -745,6 +744,184 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub012, TestSize.Level1)
     data.WriteParcelable(&policyInfoVectorParcel);
     EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->StopAccessingPolicyInner(data, reply));
     
+    SetSelfTokenID(selfTokenId_);
+}
+
+
+/**
+ * @tc.name: SandboxManagerStub013
+ * @tc.desc: Test SetPolicyInner - success
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub013, TestSize.Level1)
+{
+    SetSelfTokenID(sysGrantToken_);
+    PolicyInfo policy {
+        .mode = OperateMode::READ_MODE,
+        .path = "/test",
+    };
+    std::vector<PolicyInfo> policies = {policy};
+    MessageParcel data;
+    MessageParcel reply;
+    data.WriteUint32(GetSelfTokenID());
+    PolicyInfoVectorParcel policyInfoVectorParcel;
+    policyInfoVectorParcel.policyVector = policies;
+    data.WriteParcelable(&policyInfoVectorParcel);
+    data.WriteUint64(0);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetPolicyInner(data, reply));
+    SetSelfTokenID(selfTokenId_);
+}
+
+/**
+ * @tc.name: SandboxManagerStub014
+ * @tc.desc: Test CleanPersistPolicyByPathInner invalid input
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub014, TestSize.Level1)
+{
+    uint32_t fileManagerToken = Security::AccessToken::AccessTokenKit::GetNativeTokenId(
+            "file_manager_service");
+    MessageParcel data;
+    MessageParcel reply;
+    EXPECT_EQ(PERMISSION_DENIED, sandboxManagerService_->CleanPersistPolicyByPathInner(data, reply));
+    SetSelfTokenID(fileManagerToken);
+    // read string vector error
+    data.WriteInt32(-1);
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->CleanPersistPolicyByPathInner(data, reply));
+    // success
+    MessageParcel data2;
+    std::vector<std::string> paths = {"/A/B" };
+    data2.WriteStringVector(paths);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->CleanPersistPolicyByPathInner(data2, reply));
+    SetSelfTokenID(selfTokenId_);
+}
+
+/**
+ * @tc.name: SandboxManagerStub015
+ * @tc.desc: Test SetPolicyAsyncInner - success
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub015, TestSize.Level1)
+{
+    SetSelfTokenID(sysGrantToken_);
+    PolicyInfo policy {
+        .mode = OperateMode::READ_MODE,
+        .path = "/test",
+    };
+    std::vector<PolicyInfo> policies = {policy};
+    MessageParcel data;
+    MessageParcel reply;
+    data.WriteUint32(GetSelfTokenID());
+    PolicyInfoVectorParcel policyInfoVectorParcel;
+    policyInfoVectorParcel.policyVector = policies;
+    data.WriteParcelable(&policyInfoVectorParcel);
+    data.WriteUint64(0);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetPolicyAsyncInner(data, reply));
+    SetSelfTokenID(selfTokenId_);
+}
+
+/**
+ * @tc.name: SandboxManagerStub016
+ * @tc.desc: Test UnSetPolicyInner - success
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub016, TestSize.Level1)
+{
+    SetSelfTokenID(sysGrantToken_);
+    PolicyInfo policy {
+        .mode = OperateMode::READ_MODE,
+        .path = "/test",
+    };
+    MessageParcel data;
+    MessageParcel reply;
+    data.WriteUint32(GetSelfTokenID());
+    PolicyInfoParcel policyInfoParcel;
+    policyInfoParcel.policyInfo = policy;
+    data.WriteParcelable(&policyInfoParcel);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->UnSetPolicyInner(data, reply));
+    SetSelfTokenID(selfTokenId_);
+}
+
+/**
+ * @tc.name: SandboxManagerStub017
+ * @tc.desc: Test UnSetPolicyAsyncInner - success
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub017, TestSize.Level1)
+{
+    SetSelfTokenID(sysGrantToken_);
+    PolicyInfo policy {
+        .mode = OperateMode::READ_MODE,
+        .path = "/test",
+    };
+    MessageParcel data;
+    MessageParcel reply;
+    data.WriteUint32(GetSelfTokenID());
+    PolicyInfoParcel policyInfoParcel;
+    policyInfoParcel.policyInfo = policy;
+    data.WriteParcelable(&policyInfoParcel);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->UnSetPolicyAsyncInner(data, reply));
+    SetSelfTokenID(selfTokenId_);
+}
+
+/**
+ * @tc.name: SandboxManagerStub018
+ * @tc.desc: Test CheckPolicyInner - success
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub018, TestSize.Level1)
+{
+    PolicyInfo policy {
+        .mode = OperateMode::READ_MODE,
+        .path = "/test",
+    };
+    std::vector<PolicyInfo> policies = {policy};
+    MessageParcel data;
+    MessageParcel reply;
+    data.WriteUint32(GetSelfTokenID());
+    PolicyInfoVectorParcel policyInfoVectorParcel;
+    policyInfoVectorParcel.policyVector = policies;
+    data.WriteParcelable(&policyInfoVectorParcel);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->CheckPolicyInner(data, reply));
+}
+
+/**
+ * @tc.name: SandboxManagerStub019
+ * @tc.desc: Test StartAccessingByTokenIdInner - success
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub019, TestSize.Level1)
+{
+    uint32_t selfUid = getuid();
+    setuid(FOUNDATION_UID);
+    MessageParcel data;
+    MessageParcel reply;
+    data.WriteUint32(1);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->StartAccessingByTokenIdInner(data, reply));
+    setuid(selfUid);
+}
+
+/**
+ * @tc.name: SandboxManagerStub020
+ * @tc.desc: Test UnSetAllPolicyByTokenInner - success
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub020, TestSize.Level1)
+{
+    SetSelfTokenID(sysGrantToken_);
+    MessageParcel data;
+    MessageParcel reply;
+    data.WriteUint32(GetSelfTokenID());
+    data.WriteUint32(1);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->UnSetAllPolicyByTokenInner(data, reply));
     SetSelfTokenID(selfTokenId_);
 }
 
