@@ -634,8 +634,11 @@ void PolicyInfoManager::TransferGenericToPolicy(const GenericValues &generic, ui
 int64_t PolicyInfoManager::GetDepth(const std::string &path)
 {
     std::string inputPath = AdjustPath(path);
+    if (inputPath.empty()) {
+        return 0;
+    }
     // if path end with '/', depth -1
-    if (inputPath[inputPath.length()-1] == '/') {
+    if (inputPath.back() == '/') {
         return static_cast<int64_t>(count(inputPath.begin(), inputPath.end(), '/') - 1);
     } else {
         return static_cast<int64_t>(count(inputPath.begin(), inputPath.end(), '/'));
@@ -676,10 +679,15 @@ bool PolicyInfoManager::IsPolicyMatch(const PolicyInfo &searchPolicy, const uint
 
 std::string PolicyInfoManager::AdjustPath(const std::string &path)
 {
-    if (path[path.length() - 1] == '/') {
-        return path.substr(0, path.length() - 1);
+    if (path.empty()) {
+        return path;
     }
-    return path;
+    // delete '/' at the end of string
+    std::string retPath = path;
+    if (retPath.back() == '/') {
+        retPath.pop_back();
+    }
+    return retPath;
 }
 
 int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
