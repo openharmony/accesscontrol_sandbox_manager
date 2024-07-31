@@ -31,7 +31,7 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
 };
 
 constexpr const char* DEV_NODE = "/dev/dec";
-const size_t MAX_POLICY_NUM = 32;
+const size_t MAX_POLICY_NUM = 8;
 
 struct PathInfo {
     char *path = nullptr;

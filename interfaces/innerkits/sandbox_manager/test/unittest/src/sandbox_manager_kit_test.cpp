@@ -50,7 +50,7 @@ const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSI
 const Security::AccessToken::AccessTokenID INVALID_TOKENID = 0;
 const uint64_t POLICY_VECTOR_SIZE_LIMIT = 500;
 const int32_t FOUNDATION_UID = 5523;
-const size_t MAX_POLICY_NUM = 32;
+const size_t MAX_POLICY_NUM = 8;
 uint32_t g_selfTokenId;
 uint32_t g_mockToken;
 Security::AccessToken::PermissionStateFull g_testState1 = {
