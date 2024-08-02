@@ -66,12 +66,15 @@ public:
     
 private:
     bool Initialize();
+    bool InitDelayUnloadHandler();
     void OnAddSystemAbility(int32_t systemAbilityId, const std::string& deviceId) override;
     bool StartByEventAction(const SystemAbilityOnDemandReason& startReason);
 
     std::mutex stateMutex_;
     ServiceRunningState state_;
+    std::mutex unloadMutex_;
     std::shared_ptr<EventHandler> unloadHandler_ = nullptr;
+    std::shared_ptr<EventRunner> unloadRunner_ = nullptr;
 };
 } // namespace SandboxManager
 } // namespace AccessControl

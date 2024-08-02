@@ -82,6 +82,7 @@ void SandboxManagerService::OnStart()
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to publish service! ");
         return;
     }
+    DelayUnloadService();
     SANDBOXMANAGER_LOG_INFO(LABEL, "SandboxManagerService start successful.");
 }
 
@@ -125,6 +126,8 @@ void SandboxManagerService::OnStart(const SystemAbilityOnDemandReason& startReas
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to publish service.");
         return;
     }
+    DelayUnloadService();
+    SANDBOXMANAGER_LOG_INFO(LABEL, "SandboxManagerService start successful.");
 }
 
 int32_t SandboxManagerService::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
@@ -330,7 +333,6 @@ int32_t SandboxManagerService::UnSetAllPolicyByToken(uint32_t tokenId)
 
 bool SandboxManagerService::Initialize()
 {
-    DelayUnloadService();
     PolicyInfoManager::GetInstance().Init();
     AddSystemAbilityListener(COMMON_EVENT_SERVICE_ID);
     return true;
@@ -343,14 +345,31 @@ void SandboxManagerService::OnAddSystemAbility(int32_t systemAbilityId, const st
     }
 }
 
+bool SandboxManagerService::InitDelayUnloadHandler()
+{
+    if ((unloadRunner_ != nullptr) && (unloadHandler_ != nullptr)) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "UnloadRunner_ and UnloadHandler_ already init.");
+        return true;
+    }
+    unloadRunner_ = EventRunner::Create(SA_ID_SANDBOX_MANAGER_SERVICE, AppExecFwk::ThreadMode::FFRT);
+    if (unloadRunner_ == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "UnloadRunner_ init failed.");
+        return false;
+    }
+    unloadHandler_ = std::make_shared<EventHandler>(unloadRunner_);
+    if (unloadHandler_ == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "UnloadHandler_ init failed.");
+        return false;
+    }
+    return true;
+}
+
 void SandboxManagerService::DelayUnloadService()
 {
-    if (unloadHandler_ == nullptr) {
-        std::shared_ptr<EventRunner> runner
-            = EventRunner::Create(SA_ID_SANDBOX_MANAGER_SERVICE);
-        unloadHandler_ = std::make_shared<EventHandler>(runner);
+    std::lock_guard<std::mutex> lock(unloadMutex_);
+    if (!InitDelayUnloadHandler()) {
+        return;
     }
-
     auto task = [this]() {
         auto samgrProxy = OHOS::SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
         if (samgrProxy == nullptr) {
@@ -365,6 +384,7 @@ void SandboxManagerService::DelayUnloadService()
     };
     unloadHandler_->RemoveTask("SandboxManagerUnload");
     unloadHandler_->PostTask(task, "SandboxManagerUnload", SA_LIFE_TIME);
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Delay unload task updated.");
 }
 
 bool SandboxManagerService::StartByEventAction(const SystemAbilityOnDemandReason& startReason)
