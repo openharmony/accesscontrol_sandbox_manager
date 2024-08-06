@@ -17,10 +17,14 @@
     "adapted_system_type": [ "standard" ],
     "rom": "10000KB",
     "ram": "5000KB",
+    "hisysevent_config": [
+      "//base/accesscontrol/sandbox_manager/hisysevent.yaml"
+    ],
     "deps": {
       "components": [
         "c_utils",
         "hilog",
+        "hisysevent",
         "ipc",
         "safwk",
         "samgr",
