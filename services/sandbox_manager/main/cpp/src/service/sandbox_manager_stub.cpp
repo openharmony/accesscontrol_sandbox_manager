@@ -53,11 +53,11 @@ int32_t SandboxManagerStub::OnRemoteRequest(
         SANDBOXMANAGER_LOG_ERROR(LABEL, "get unexpect descriptor: %{public}s", Str16ToStr8(descriptor).c_str());
         return -1;
     }
-    DelayUnloadService();
     auto itFunc = requestFuncMap_.find(code);
     if (itFunc != requestFuncMap_.end()) {
         auto requestFunc = itFunc->second;
         if (requestFunc != nullptr) {
+            DelayUnloadService();
             return (this->*requestFunc)(data, reply);
         } else {
             // when valid code without any function to handle

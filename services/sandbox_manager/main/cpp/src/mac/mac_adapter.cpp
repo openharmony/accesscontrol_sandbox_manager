@@ -31,7 +31,7 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
 };
 
 constexpr const char* DEV_NODE = "/dev/dec";
-const size_t MAX_POLICY_NUM = 32;
+const size_t MAX_POLICY_NUM = 8;
 
 struct PathInfo {
     char *path = nullptr;
@@ -94,7 +94,7 @@ bool MacAdapter::IsMacSupport()
 int32_t MacAdapter::SetSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                      uint64_t policyFlag, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_INFO(LABEL, "set sandbox policy target:%{public}u flag:%{public}lu", tokenId, policyFlag);
+    SANDBOXMANAGER_LOG_INFO(LABEL, "set sandbox policy target:%{public}u flag:%{public}llu", tokenId, policyFlag);
     if (fd_ < 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Not init yet.");
         return SANDBOX_MANAGER_MAC_NOT_INIT;
