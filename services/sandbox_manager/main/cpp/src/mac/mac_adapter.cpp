@@ -167,7 +167,7 @@ int32_t MacAdapter::QuerySandboxPolicy(uint32_t tokenId, const std::vector<Polic
         }
     }
 
-    uint32_t failCount = std::count(result.begin(), result.end(), false);
+    uint32_t failCount = static_cast<uint32_t>(std::count(result.begin(), result.end(), false));
     if (failCount > 0) {
         SANDBOXMANAGER_LOG_WARN(LABEL, "Query policy has failed items, failCount=%{public}u.", failCount);
     }
