@@ -16,6 +16,7 @@
 #include "mac_adapter.h"
 #include <cstdint>
 #include <fcntl.h>
+#include <cinttypes>
 #include <string>
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -94,7 +95,8 @@ bool MacAdapter::IsMacSupport()
 int32_t MacAdapter::SetSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                      uint64_t policyFlag, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_INFO(LABEL, "set sandbox policy target:%{public}u flag:%{public}llu", tokenId, policyFlag);
+    SANDBOXMANAGER_LOG_INFO(LABEL, "set sandbox policy target:%{public}u flag:%{public}" PRIu64 ".", tokenId,
+        policyFlag);
     if (fd_ < 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Not init yet.");
         return SANDBOX_MANAGER_MAC_NOT_INIT;
