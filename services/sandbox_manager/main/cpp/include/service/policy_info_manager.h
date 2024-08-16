@@ -154,9 +154,9 @@ private:
      * @param policies input policy, see policy_info.h
      * @param result output result
      * @param passIndexes index of policy which is valid
-     * @return
+     * @return uint32_t invalid policy count
      */
-    void FilterValidPolicyInBatch(
+    uint32_t FilterValidPolicyInBatch(
         const std::vector<PolicyInfo> &policies, std::vector<uint32_t> &results, std::vector<size_t> &passIndexes);
     /**
      * @brief AddToDatabaseIfNotDuplicate by remove deplicate records

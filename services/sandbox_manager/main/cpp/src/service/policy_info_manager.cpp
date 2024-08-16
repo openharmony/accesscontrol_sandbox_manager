@@ -30,6 +30,7 @@
 #include "policy_info.h"
 #include "sandbox_manager_const.h"
 #include "sandbox_manager_db.h"
+#include "sandbox_manager_dfx_helper.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_log.h"
 
@@ -74,7 +75,7 @@ void PolicyInfoManager::CleanPolicyOnMac(const std::vector<GenericValues>& resul
             it->second.emplace_back(policy);
         }
     }
-
+    uint32_t failCount = 0;
     for (auto& it : allPersistPolicy) {
         std::vector<bool> result(it.second.size());
         int32_t count = 0;
@@ -86,7 +87,11 @@ void PolicyInfoManager::CleanPolicyOnMac(const std::vector<GenericValues>& resul
         }
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac UnSetSandboxPolicy size = %{public}zu, fail size = %{public}d.",
             it.second.size(), count);
+        failCount += count;
     }
+    size_t resultSize = results.size();
+    PolicyOperateInfo info(resultSize, resultSize - failCount, failCount, 0);
+    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::CLEAN_PERSIST_POLICY_BY_PATH, info);
 }
 
 int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
@@ -104,6 +109,9 @@ int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::strin
             SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY, pathTmp, results);
     }
     if (results.empty()) {
+        PolicyOperateInfo info(0, 0, 0, 0);
+        SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(
+            OperateTypeEnum::CLEAN_PERSIST_POLICY_BY_PATH, info);
         SANDBOXMANAGER_LOG_INFO(LABEL, "No persistence policy was found to delete.");
         return SANDBOX_MANAGER_OK;
     }
@@ -134,7 +142,7 @@ int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const std::vector<P
     result.resize(policySize);
     // check validity
     std::vector<size_t> queryPolicyIndex;
-    FilterValidPolicyInBatch(policy, result, queryPolicyIndex);
+    uint32_t invalidNum = FilterValidPolicyInBatch(policy, result, queryPolicyIndex);
     // query mac kernel
     size_t queryPolicyIndexSize = queryPolicyIndex.size();
     std::vector<bool> queryResults(queryPolicyIndexSize);
@@ -144,6 +152,8 @@ int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const std::vector<P
     int32_t ret = macAdapter_.QuerySandboxPolicy(tokenId, queryPolicys, queryResults);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter query error, err code = %{public}d", ret);
+        PolicyOperateInfo info(policySize, 0, policySize - invalidNum, invalidNum);
+        SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::PERSIST_POLICY, info);
         result.clear();
         return ret;
     }
@@ -157,16 +167,19 @@ int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const std::vector<P
             result[queryPolicyIndex[i]] = SandboxRetType::FORBIDDEN_TO_BE_PERSISTED;
         }
     }
+    uint32_t failNum = queryPolicyIndexSize - addPolicyIndex.size();
     ret = AddToDatabaseIfNotDuplicate(tokenId, policy, addPolicyIndex, flag, result);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "AddToDatabaseIfNotDuplicate failed.");
         result.clear();
         return ret;
     }
+    PolicyOperateInfo info(policySize, addPolicyIndex.size(), failNum, invalidNum);
+    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::PERSIST_POLICY, info);
     return SANDBOX_MANAGER_OK;
 }
 
-void PolicyInfoManager::FilterValidPolicyInBatch(
+uint32_t PolicyInfoManager::FilterValidPolicyInBatch(
     const std::vector<PolicyInfo> &policies, std::vector<uint32_t> &results, std::vector<size_t> &passIndexes)
 {
     size_t policySize = policies.size();
@@ -178,6 +191,7 @@ void PolicyInfoManager::FilterValidPolicyInBatch(
         }
         passIndexes.emplace_back(i);
     }
+    return policySize - passIndexes.size();
 }
 int32_t PolicyInfoManager::AddToDatabaseIfNotDuplicate(const uint32_t tokenId, const std::vector<PolicyInfo> &policies,
     const std::vector<size_t> &passIndexes, const uint32_t flag, std::vector<uint32_t> &results)
@@ -292,22 +306,30 @@ int32_t PolicyInfoManager::RemovePolicy(
     if (result.size() != policySize) {
         result.resize(policySize);
     }
+    uint32_t invalidNum = 0;
+    uint32_t failNum = 0;
+    uint32_t successNum = 0;
     for (size_t i = 0; i < policySize; ++i) {
         int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
         if (checkPolicyRet != SANDBOX_MANAGER_OK) {
             result[i] = static_cast<uint32_t>(checkPolicyRet);
+            ++invalidNum;
             continue;
         }
         PolicyInfo exactFindRes;
         int32_t ret = ExactFind(tokenId, policy[i], exactFindRes);
         if (ret == SANDBOX_MANAGER_DB_RETURN_EMPTY) {
             result[i] = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
+            ++successNum;
             continue;
         }
         
         ret = macAdapter_.UnSetSandboxPolicy(tokenId, policy[i]);
         if (ret != SANDBOX_MANAGER_OK) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter unset error, err code = %{public}d.", ret);
+            ++failNum;
+            PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
+            SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNPERSIST_POLICY, info);
             return ret;
         }
 
@@ -319,33 +341,43 @@ int32_t PolicyInfoManager::RemovePolicy(
             SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
             return SANDBOX_MANAGER_DB_ERR;
         }
+        ++successNum;
     }
+    PolicyOperateInfo info(result.size(), successNum, failNum, invalidNum);
+    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNPERSIST_POLICY, info);
     return SANDBOX_MANAGER_OK;
 }
 
 int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
                                      std::vector<uint32_t> &result)
 {
+    size_t policySize = policy.size();
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
-        result.resize(policy.size(), SandboxRetType::OPERATE_SUCCESSFULLY);
+        result.resize(policySize, SandboxRetType::OPERATE_SUCCESSFULLY);
         return SANDBOX_MANAGER_OK;
     }
-    result.resize(policy.size(), INVALID_PATH);
+    result.resize(policySize, INVALID_PATH);
     std::vector<size_t> validIndex;
     std::vector<PolicyInfo> validPolicies;
-    for (size_t index = 0; index < policy.size(); ++index) {
+    uint32_t invalidNum = 0;
+    uint32_t failNum = 0;
+    uint32_t successNum = 0;
+    for (size_t index = 0; index < policySize; ++index) {
         int32_t res = CheckPolicyValidity(policy[index]);
         if (res == SANDBOX_MANAGER_OK) {
             validIndex.emplace_back(index);
             validPolicies.emplace_back(policy[index]);
         } else {
             result[index] = static_cast<uint32_t>(res);
+            ++invalidNum;
         }
     }
 
     if (validPolicies.empty()) {
         SANDBOXMANAGER_LOG_WARN(LABEL, "No valid policy to set.");
+        PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
+        SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::SET_POLICY, info);
         return SANDBOX_MANAGER_OK;
     }
 
@@ -353,6 +385,8 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
     int32_t ret = macAdapter_.SetSandboxPolicy(tokenId, validPolicies, policyFlag, setResult);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Set sandbox policy failed, error=%{public}d.", ret);
+        PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
+        SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::SET_POLICY, info);
         result.clear();
         return ret;
     }
@@ -360,7 +394,10 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
     for (const auto &index : validIndex) {
         result[index] = setResult[resultIndex++];
     }
-
+    successNum = std::count(setResult.begin(), setResult.end(), SANDBOX_MANAGER_OK);
+    failNum = validPolicies.size() - successNum;
+    PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
+    SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::SET_POLICY, info);
     return SANDBOX_MANAGER_OK;
 }
 
@@ -370,7 +407,14 @@ int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const PolicyInfo &polic
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
         return SANDBOX_MANAGER_OK;
     }
-    return macAdapter_.UnSetSandboxPolicy(tokenId, policy);
+    int32_t ret = macAdapter_.UnSetSandboxPolicy(tokenId, policy);
+    if (ret != SANDBOX_MANAGER_OK) {
+        PolicyOperateInfo info(1, 0, 1, 0);
+        SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::UNSET_POLICY, info);
+    }
+    PolicyOperateInfo info(1, 1, 0, 0);
+    SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::UNSET_POLICY, info);
+    return ret;
 }
 
 int32_t PolicyInfoManager::CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
@@ -423,6 +467,9 @@ bool PolicyInfoManager::RemoveBundlePolicy(const uint32_t tokenId)
         SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
         return false;
     }
+    PolicyOperateInfo info(0, 0, 0, 0);
+    info.callerTokenid = tokenId;
+    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::REMOVE_BUNDLE_POLICY_BY_EVENT, info);
     return true;
 }
 
@@ -449,6 +496,8 @@ int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId)
     size_t searchSize = dbResults.size();
     if (searchSize == 0) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Database find result empty");
+        PolicyOperateInfo info(0, 0, 0, 0);
+        SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::START_ACCESSING_POLICY_BY_TOKEN, info);
         return SANDBOX_MANAGER_DB_RETURN_EMPTY;
     }
 
@@ -465,6 +514,9 @@ int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId)
         SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter set policy error, err code = %{public}d.", ret);
         return ret;
     }
+    uint32_t successNum = std::count(macResults.begin(), macResults.end(), SANDBOX_MANAGER_OK);
+    PolicyOperateInfo info(searchSize, successNum, searchSize - successNum, 0);
+    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::START_ACCESSING_POLICY_BY_TOKEN, info);
     return SANDBOX_MANAGER_OK;
 }
 
@@ -488,11 +540,13 @@ int32_t PolicyInfoManager::StartAccessingPolicy(
     }
     // set to mac
     std::vector<size_t> accessingIndex;
+    uint32_t invalidNum = 0;
     for (size_t i = 0; i < policySize; ++i) {
         if (matchResults[i] == SandboxRetType::OPERATE_SUCCESSFULLY) {
             accessingIndex.emplace_back(i);
         } else {
             results[i] = matchResults[i];
+            ++invalidNum;
         }
     }
     size_t accessingIndexSize = accessingIndex.size();
@@ -507,13 +561,17 @@ int32_t PolicyInfoManager::StartAccessingPolicy(
         return ret;
     }
     // write ok flag
+    uint32_t successNum = 0;
     for (size_t i = 0; i < accessingIndexSize; ++i) {
         if (macResults[i] == SANDBOX_MANAGER_OK) {
             results[accessingIndex[i]] = SandboxRetType::OPERATE_SUCCESSFULLY;
+            ++successNum;
         } else {
             results[accessingIndex[i]] = SandboxRetType::POLICY_MAC_FAIL;
         }
     }
+    PolicyOperateInfo info(policySize, successNum, accessingIndexSize - successNum, invalidNum);
+    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::START_ACCESSING_POLICY, info);
     return SANDBOX_MANAGER_OK;
 }
 
@@ -537,11 +595,13 @@ int32_t PolicyInfoManager::StopAccessingPolicy(
     }
     // set to mac
     std::vector<size_t> accessingIndex;
+    uint32_t invalidNum = 0;
     for (size_t i = 0; i < policySize; ++i) {
         if (matchResults[i] == SandboxRetType::OPERATE_SUCCESSFULLY) {
             accessingIndex.emplace_back(i);
         } else {
             results[i] = matchResults[i];
+            ++invalidNum;
         }
     }
     size_t accessingIndexSize = accessingIndex.size();
@@ -556,13 +616,17 @@ int32_t PolicyInfoManager::StopAccessingPolicy(
         return ret;
     }
     // write ok flag
+    uint32_t successNum = 0;
     for (size_t i = 0; i < accessingIndexSize; ++i) {
         if (macResults[i]) {
             results[accessingIndex[i]] = SandboxRetType::OPERATE_SUCCESSFULLY;
+            ++successNum;
         } else {
             results[accessingIndex[i]] = SandboxRetType::POLICY_MAC_FAIL;
         }
     }
+    PolicyOperateInfo info(policySize, successNum, accessingIndexSize - successNum, invalidNum);
+    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::STOP_ACCESSING_POLICY, info);
     return SANDBOX_MANAGER_OK;
 }
 
@@ -572,6 +636,9 @@ int32_t PolicyInfoManager::UnSetAllPolicyByToken(const uint32_t tokenId)
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
         return SANDBOX_MANAGER_OK;
     }
+    PolicyOperateInfo info(0, 0, 0, 0);
+    info.callerTokenid = tokenId;
+    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNSET_ALL_POLICY_BY_TOKEN, info);
     return macAdapter_.DestroySandboxPolicy(tokenId);
 }
 

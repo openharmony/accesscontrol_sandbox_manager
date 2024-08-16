@@ -26,6 +26,7 @@
 #include "policy_info_parcel.h"
 #include "policy_info_vector_parcel.h"
 #include "sandbox_manager_const.h"
+#include "sandbox_manager_dfx_helper.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_log.h"
 #include "sandbox_manager_service.h"
@@ -540,6 +541,7 @@ bool CheckPermission(const uint32_t tokenId, const std::string &permission)
         SANDBOXMANAGER_LOG_INFO(LABEL, "Check permission token:%{public}d pass", tokenId);
         return true;
     }
+    SandboxManagerDfxHelper::WritePermissionCheckFailEvent(permission, tokenId);
     SANDBOXMANAGER_LOG_ERROR(LABEL, "Check permission token:%{public}d fail", tokenId);
     return false;
 }
