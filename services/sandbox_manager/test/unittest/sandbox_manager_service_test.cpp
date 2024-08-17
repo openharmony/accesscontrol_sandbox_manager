@@ -18,6 +18,9 @@
 #include <vector>
 #include "access_token.h"
 #include "accesstoken_kit.h"
+#define private public
+#include "event_handler.h"
+#undef private
 #include "hap_token_info.h"
 #include "nativetoken_kit.h"
 #include "policy_info.h"
@@ -398,6 +401,16 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub001, TestSize.Level1)
     EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, sandboxManagerService_->UnPersistPolicyInner(data, reply));
     data.WriteParcelable(policyInfoVectorParcel);
     sandboxManagerService_->UnPersistPolicyInner(data, reply);
+
+    if (sandboxManagerService_->unloadRunner_ != nullptr) {
+        sandboxManagerService_->unloadRunner_->queue_.reset();
+        sandboxManagerService_->unloadRunner_ = nullptr;
+    }
+    if (sandboxManagerService_->unloadHandler_ != nullptr) {
+        sandboxManagerService_->unloadHandler_->eventRunner_.reset();
+        sandboxManagerService_->unloadHandler_ = nullptr;
+    }
+    sleep(3);
     SetSelfTokenID(selfTokenId_);
 }
 
