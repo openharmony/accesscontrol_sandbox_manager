@@ -13,7 +13,10 @@
     "name": "sandbox_manager",
     "subsystem": "accesscontrol",
     "syscap": [],
-    "features": [ "sandbox_manager_feature_coverage" ],
+    "features": [
+      "sandbox_manager_feature_coverage",
+      "sandbox_manager_with_dec"
+    ],
     "adapted_system_type": [ "standard" ],
     "rom": "10000KB",
     "ram": "5000KB",
