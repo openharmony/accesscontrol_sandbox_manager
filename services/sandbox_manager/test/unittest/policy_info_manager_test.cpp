@@ -102,6 +102,7 @@ void PrintDbRecords()
     }
 }
 
+#ifdef MAC_ENABLED
 /**
  * @tc.name: PolicyInfoManagerTest002
  * @tc.desc: Test AddPolicy - normal cases
@@ -151,7 +152,9 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest002, TestSize.Level1)
     PrintDbRecords();
     // db should have result9, result10, result11, result13
 }
+#endif
 
+#ifdef MAC_ENABLED
 /**
  * @tc.name: PolicyInfoManagerTest004
  * @tc.desc: Test MatchPolicy - normal
@@ -197,6 +200,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest004, TestSize.Level1)
     EXPECT_EQ(sizeLimit, result14.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result14[0]);
 }
+#endif
 
 /**
  * @tc.name: PolicyInfoManagerTest006
@@ -302,6 +306,7 @@ HWTEST_F(PolicyInfoManagerTest, GenericValuesTest001, TestSize.Level1)
     EXPECT_EQ(str, variantValue.GetString());
 }
 
+#ifdef MAC_ENABLED
 /**
  * @tc.name: CleanPersistPolicyByPathTest001
  * @tc.desc: Test CleanPersistPolicyByPath
@@ -339,6 +344,7 @@ HWTEST_F(PolicyInfoManagerTest, CleanPersistPolicyByPathTest001, TestSize.Level1
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchSinglePolicy(selfTokenId_, info, matchResult));
     EXPECT_EQ(SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED, matchResult);
 }
+#endif
 
 /**
  * @tc.name: MacAdapterTest001

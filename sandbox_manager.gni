@@ -15,3 +15,6 @@ sandbox_manager_path = "//base/accesscontrol/sandbox_manager"
 module_output_path_interface_sandbox =
     "sandbox_manager/sandbox_manager/interface/"
 module_output_path_service_sandbox = "sandbox_manager/sandbox_manager/service/"
+if (product_name != "rk3568") {
+  defined += [ "MAC_ENABLED" ]
+}
