@@ -56,6 +56,9 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
   configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 
   cflags_cc = [ "-DHILOG_ENABLE" ]
+  if (sandbox_manager_with_dec) {
+    cflags_cc += [ "-DMAC_ENABLED" ]
+  }
 
   deps = [
     "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
