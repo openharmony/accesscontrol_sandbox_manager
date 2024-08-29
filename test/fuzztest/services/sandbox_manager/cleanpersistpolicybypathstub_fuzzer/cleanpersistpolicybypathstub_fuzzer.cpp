@@ -23,7 +23,9 @@
 #include "i_sandbox_manager.h"
 #include "policy_info_vector_parcel.h"
 #include "sandboxmanager_service_ipc_interface_code.h"
+#define private public
 #include "sandbox_manager_service.h"
+#undef private
 #include "token_setproc.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
@@ -60,6 +62,7 @@ static uint32_t FILE_MANAGER_TOKEN = 0;
 
         MessageParcel reply;
         MessageOption option;
+        DelayedSingleton<SandboxManagerService>::GetInstance()->Initialize();
         DelayedSingleton<SandboxManagerService>::GetInstance()->OnRemoteRequest(code, datas, reply, option);
         SetSelfTokenID(SELF_TOKEN);
         return true;

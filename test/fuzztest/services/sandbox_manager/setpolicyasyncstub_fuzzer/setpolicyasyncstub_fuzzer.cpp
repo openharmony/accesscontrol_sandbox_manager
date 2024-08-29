@@ -23,7 +23,9 @@
 #include "policy_info_vector_parcel.h"
 #include "i_sandbox_manager.h"
 #include "sandboxmanager_service_ipc_interface_code.h"
+#define private public
 #include "sandbox_manager_service.h"
+#undef private
 
 using namespace OHOS::AccessControl::SandboxManager;
 
@@ -63,7 +65,7 @@ namespace OHOS {
         uint32_t code = static_cast<uint32_t>(SandboxManagerInterfaceCode::SET_POLICY_ASYNC);
         MessageParcel reply;
         MessageOption option;
-
+        DelayedSingleton<SandboxManagerService>::GetInstance()->Initialize();
         DelayedSingleton<SandboxManagerService>::GetInstance()->OnRemoteRequest(code, datas, reply, option);
         return true;
     }
