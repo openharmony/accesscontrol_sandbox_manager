@@ -35,7 +35,7 @@ PolicyOperateInfo::PolicyOperateInfo(uint32_t totalNum, uint32_t successNum,
     uint32_t failNum, uint32_t invalidNum) : policyNum(totalNum),
     successNum(successNum), failNum(failNum), invalidNum(invalidNum)
 {
-    callerPid = IPCSkeleton::GetCallingRealPid();
+    callerPid = static_cast<uint32_t>(IPCSkeleton::GetCallingRealPid());
     callerTokenid = IPCSkeleton::GetCallingTokenID();
 }
 
@@ -44,7 +44,7 @@ void SandboxManagerDfxHelper::WritePermissionCheckFailEvent(const std::string &p
 {
     uint32_t inputPid = callerPid;
     if (inputPid == 0) {
-        inputPid = IPCSkeleton::GetCallingRealPid();
+        inputPid = static_cast<uint32_t>(IPCSkeleton::GetCallingRealPid());
     }
     uint32_t inputTokenid = callerTokenid;
     if (inputTokenid == 0) {

@@ -87,7 +87,7 @@ void PolicyInfoManager::CleanPolicyOnMac(const std::vector<GenericValues>& resul
         }
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac UnSetSandboxPolicy size = %{public}zu, fail size = %{public}d.",
             it.second.size(), count);
-        failCount += count;
+        failCount += static_cast<uint32_t>(count);
     }
     size_t resultSize = results.size();
     PolicyOperateInfo info(resultSize, resultSize - failCount, failCount, 0);
@@ -394,7 +394,7 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
     for (const auto &index : validIndex) {
         result[index] = setResult[resultIndex++];
     }
-    successNum = std::count(setResult.begin(), setResult.end(), SANDBOX_MANAGER_OK);
+    successNum = static_cast<uint32_t>(std::count(setResult.begin(), setResult.end(), SANDBOX_MANAGER_OK));
     failNum = validPolicies.size() - successNum;
     PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
     SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::SET_POLICY, info);
@@ -514,9 +514,11 @@ int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId)
         SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter set policy error, err code = %{public}d.", ret);
         return ret;
     }
-    uint32_t successNum = std::count(macResults.begin(), macResults.end(), SANDBOX_MANAGER_OK);
-    PolicyOperateInfo info(searchSize, successNum, searchSize - successNum, 0);
-    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::START_ACCESSING_POLICY_BY_TOKEN, info);
+    uint32_t successNum = static_cast<uint32_t>(std::count(macResults.begin(), macResults.end(), SANDBOX_MANAGER_OK));
+    if (searchSize >= successNum) {
+        PolicyOperateInfo info(searchSize, successNum, searchSize - successNum, 0);
+        SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::START_ACCESSING_POLICY_BY_TOKEN, info);
+    }
     return SANDBOX_MANAGER_OK;
 }
 
