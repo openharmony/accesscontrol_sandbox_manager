@@ -30,7 +30,6 @@
 #include "nocopyable.h"
 #include "policy_info.h"
 #include "refbase.h"
-#include "sandbox_manager_death_recipient.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -59,29 +58,18 @@ public:
     int32_t StartAccessingByTokenId(uint32_t tokenId);
     int32_t UnSetAllPolicyByToken(uint32_t tokenId);
 
-    void FinishStartSASuccess(const sptr<IRemoteObject> &remoteObject);
-    void FinishStartSAFail();
-    void OnRemoteDiedHandle();
-
 private:
     SandboxManagerClient();
     DISALLOW_COPY_AND_MOVE(SandboxManagerClient);
-    sptr<ISandboxManager> proxy_ = nullptr;
-    sptr<ISandboxManager> GetProxy(bool doLoadSa);
-    void GetProxyFromRemoteObject(const sptr<IRemoteObject> &remoteObject);
 
-    bool StartLoadSandboxManagerSa();
-    void WaitForSandboxManagerSa();
-    void LoadSandboxManagerSa();
-    void GetSandboxManagerSa();
-
-    std::mutex cvLock_;
-    bool readyFlag_ = false;
-    std::condition_variable sandboxManagerCon_;
     std::mutex proxyMutex_;
-    sptr<SandboxManagerDeathRecipient> serviceDeathObserver_ = nullptr;
+    sptr<ISandboxManager> GetProxy();
+
+    int32_t CallProxyWithRetry(const std::function<int32_t(sptr<ISandboxManager> &)> &func,
+        const char *funcName);
+    bool IsRequestNeedRetry(int32_t ret);
 };
 } // SandboxManager
 } // AccessControl
 } // OHOS
-#endif //SANDBOXMANAGER_CLIENT_H
+#endif // SANDBOXMANAGER_CLIENT_H
