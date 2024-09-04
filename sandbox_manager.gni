@@ -11,8 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-sandbox_manager_path = "//base/accesscontrol/sandbox_manager" 
+sandbox_manager_path = "//base/accesscontrol/sandbox_manager"
 module_output_path_interface_sandbox =
-    "sandbox_manager/interface/"
-module_output_path_service_sandbox =
-    "sandbox_manager/service"
+    "sandbox_manager/sandbox_manager/interface/"
+module_output_path_service_sandbox = "sandbox_manager/sandbox_manager/service/"
+declare_args() {
+  sandbox_manager_with_dec = false
+}
