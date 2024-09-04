@@ -48,7 +48,7 @@ const std::string SET_POLICY_PERMISSION = "ohos.permission.SET_SANDBOX_POLICY";
 const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSIST";
 const Security::AccessToken::AccessTokenID INVALID_TOKENID = 0;
 const uint64_t POLICY_VECTOR_SIZE_LIMIT = 500;
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 const int32_t FOUNDATION_UID = 5523;
 #endif
 const size_t MAX_POLICY_NUM = 8;
@@ -144,7 +144,7 @@ void SandboxManagerKitTest::TearDown()
     EXPECT_EQ(0, SetSelfTokenID(g_selfTokenId));
 }
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy003
  * @tc.desc: PersistPolicy with permission.
@@ -187,7 +187,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy003, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicyByTokenID001
  * @tc.desc: PersistPolicyByTokenId with permission.
@@ -227,7 +227,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicyByTokenID001, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy004
  * @tc.desc: PersistPolicy with invalid path.
@@ -258,7 +258,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy004, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy005
  * @tc.desc: PersistPolicy directory.
@@ -305,7 +305,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy005, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy006
  * @tc.desc: PersistPolicy directory.
@@ -356,7 +356,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy006, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy007
  * @tc.desc: PersistPolicy directory.
@@ -406,7 +406,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy007, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy008
  * @tc.desc: PersistPolicy directory.
@@ -449,7 +449,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy008, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy009
  * @tc.desc: PersistPolicy directory.
@@ -498,7 +498,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy009, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy010
  * @tc.desc: PersistPolicy directory.
@@ -545,7 +545,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy010, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy011
  * @tc.desc: PersistPolicy directory.
@@ -592,7 +592,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy011, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy012
  * @tc.desc: PersistPolicy directory.
@@ -640,7 +640,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy012, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy013
  * @tc.desc: PersistPolicy directory.
@@ -767,7 +767,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy015, TestSize.Level1)
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::CheckPolicy(tokenId, policy, flag));
 }
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest001
  * @tc.desc: Check allowed policy
@@ -814,7 +814,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest001, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest002
  * @tc.desc: Check allowed policy
@@ -862,7 +862,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest002, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest003
  * @tc.desc: Check parent directory policy with r+w
@@ -910,7 +910,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest003, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest004
  * @tc.desc: Check parent directory policy with r
@@ -965,7 +965,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest004, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest005
  * @tc.desc: Check parent directory policy with w
@@ -1020,7 +1020,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest005, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest006
  * @tc.desc: Check parent directory policy with w
@@ -1064,7 +1064,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest006, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest007
  * @tc.desc: Check allowed policy with invalid tokenID
@@ -1097,7 +1097,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest007, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest008
  * @tc.desc: Check allowed policy with invalid policy
@@ -1150,7 +1150,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest008, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetPolicyTest001
  * @tc.desc: Unset policy with invalid tokenID
@@ -1177,7 +1177,7 @@ HWTEST_F(SandboxManagerKitTest, UnSetPolicyTest001, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetPolicyTest002
  * @tc.desc: Unset allowed policy
@@ -1226,7 +1226,7 @@ HWTEST_F(SandboxManagerKitTest, UnSetPolicyTest002, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetPolicyTest003
  * @tc.desc: Unset parent policy
@@ -1260,7 +1260,7 @@ HWTEST_F(SandboxManagerKitTest, UnSetPolicyTest003, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetPolicyTest004
  * @tc.desc: Unset policy without permission
@@ -1318,7 +1318,7 @@ HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest001, TestSize.Level1)
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicyAsync(g_selfTokenId, policy[0]));
 }
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyAsyncTest002
  * @tc.desc: Set/Unset allowed policy
@@ -1364,7 +1364,7 @@ HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest002, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyAsyncTest003
  * @tc.desc: Set/UnSet parent policy
@@ -1394,7 +1394,7 @@ HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest003, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyAsyncTest004
  * @tc.desc: Set/UnSet policy without permission
@@ -1425,7 +1425,7 @@ HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest004, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPersistPolicyByPathTest001
  * @tc.desc: Clean persist policy by path
@@ -1477,7 +1477,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest001, TestSize.Level1
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPersistPolicyByPathTest002
  * @tc.desc: Clean child persist policy by path
@@ -1539,7 +1539,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest002, TestSize.Level1
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPersistPolicyByPathTest003
  * @tc.desc: Clean child persist policy by path
@@ -1612,7 +1612,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest004, TestSize.Level1
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
 }
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPersistPolicyByPathTest005
  * @tc.desc: Clean persist policy by path with invalid path
@@ -1674,7 +1674,7 @@ HWTEST_F(SandboxManagerKitTest, StartAccessingByTokenIdTest002, TestSize.Level1)
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingByTokenId(g_selfTokenId));
 }
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: StartAccessingByTokenIdTest003
  * @tc.desc: Start accessing by tokenID
@@ -1730,7 +1730,7 @@ HWTEST_F(SandboxManagerKitTest, StartAccessingByTokenIdTest003, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetAllPolicyByTokenTest001
  * @tc.desc: destroy all mac policy in kernel with given tokenid
