@@ -57,7 +57,7 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
 
   cflags_cc = [ "-DHILOG_ENABLE" ]
   if (sandbox_manager_with_dec) {
-    cflags_cc += [ "-DMAC_ENABLED" ]
+    cflags_cc += [ "-DDEC_ENABLED" ]
   }
 
   deps = [

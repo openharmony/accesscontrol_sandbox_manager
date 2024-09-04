@@ -102,7 +102,7 @@ void PrintDbRecords()
     }
 }
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyInfoManagerTest002
  * @tc.desc: Test AddPolicy - normal cases
@@ -154,7 +154,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest002, TestSize.Level1)
 }
 #endif
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyInfoManagerTest004
  * @tc.desc: Test MatchPolicy - normal
@@ -306,7 +306,7 @@ HWTEST_F(PolicyInfoManagerTest, GenericValuesTest001, TestSize.Level1)
     EXPECT_EQ(str, variantValue.GetString());
 }
 
-#ifdef MAC_ENABLED
+#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPersistPolicyByPathTest001
  * @tc.desc: Test CleanPersistPolicyByPath
