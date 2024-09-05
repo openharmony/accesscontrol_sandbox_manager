@@ -16,21 +16,29 @@
 #include "sandbox_manager_client.h"
 
 #include <cstdint>
-#include "iservice_registry.h"
+#include <thread>
 #include "i_sandbox_manager.h"
+#include "iservice_registry.h"
 #include "refbase.h"
-#include "sandbox_manager_death_recipient.h"
 #include "sandbox_manager_err_code.h"
-#include "sandbox_manager_load_callback.h"
 #include "sandbox_manager_log.h"
+#include "sys_binder.h"
 
 namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
+namespace {
 static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerClient"
 };
-static const int32_t SANDBOX_MANAGER_LOAD_SA_TIMEOUT_MS = 4000;
+static const int32_t SANDBOX_MANAGER_LOAD_SA_TIMEOUT_SEC = 4;
+static const int32_t SANDBOX_MANAGER_LOAD_SA_TRY_TIMES = 2;
+static const int32_t SA_REQUEST_RETRY_TIMES = 1;
+
+static const int32_t SENDREQ_FAIL_ERR = 32;
+static const std::vector<int32_t> RETRY_CODE_LIST = {
+    BR_DEAD_REPLY, BR_FAILED_REPLY, SENDREQ_FAIL_ERR };
+}
 
 SandboxManagerClient& SandboxManagerClient::GetInstance()
 {
@@ -46,308 +54,189 @@ SandboxManagerClient::~SandboxManagerClient()
 
 int32_t SandboxManagerClient::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->CleanPersistPolicyByPath(filePathList);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->CleanPersistPolicyByPath(filePathList); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "proxy is null");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->PersistPolicy(policy, result);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->PersistPolicy(policy, result); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::UnPersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "proxy is null");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->UnPersistPolicy(policy, result);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->UnPersistPolicy(policy, result); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::PersistPolicyByTokenId(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "proxy is null");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->PersistPolicyByTokenId(tokenId, policy, result);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->PersistPolicyByTokenId(tokenId, policy, result); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::UnPersistPolicyByTokenId(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "proxy is null");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->UnPersistPolicyByTokenId(tokenId, policy, result);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->UnPersistPolicyByTokenId(tokenId, policy, result); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                         uint64_t policyFlag, std::vector<uint32_t> &result)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null.");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->SetPolicy(tokenId, policy, policyFlag, result);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->SetPolicy(tokenId, policy, policyFlag, result); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null.");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->UnSetPolicy(tokenId, policy);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->UnSetPolicy(tokenId, policy); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                              uint64_t policyFlag)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null.");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->SetPolicyAsync(tokenId, policy, policyFlag);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->SetPolicyAsync(tokenId, policy, policyFlag); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::UnSetPolicyAsync(uint32_t tokenId, const PolicyInfo &policy)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null.");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->UnSetPolicyAsync(tokenId, policy);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->UnSetPolicyAsync(tokenId, policy); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                           std::vector<bool> &result)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null.");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->CheckPolicy(tokenId, policy, result);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->CheckPolicy(tokenId, policy, result); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::StartAccessingPolicy(
     const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "proxy is null");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->StartAccessingPolicy(policy, result);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->StartAccessingPolicy(policy, result); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::StopAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "proxy is null");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->StopAccessingPolicy(policy, result);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->StopAccessingPolicy(policy, result); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::CheckPersistPolicy(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "proxy is null");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->CheckPersistPolicy(tokenId, policy, result);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->CheckPersistPolicy(tokenId, policy, result); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::StartAccessingByTokenId(uint32_t tokenId)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->StartAccessingByTokenId(tokenId);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->StartAccessingByTokenId(tokenId); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::UnSetAllPolicyByToken(uint32_t tokenId)
 {
-    auto proxy = GetProxy(true);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Proxy is null");
-        return SANDBOX_MANAGER_SERVICE_NOT_EXIST;
-    }
-    return proxy->UnSetAllPolicyByToken(tokenId);
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->UnSetAllPolicyByToken(tokenId); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
-bool SandboxManagerClient::StartLoadSandboxManagerSa()
+sptr<ISandboxManager> SandboxManagerClient::GetProxy()
 {
-    {
-        std::unique_lock<std::mutex> lock(cvLock_);
-        readyFlag_ = false;
-    }
-    auto sam = OHOS::SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
-    if (sam == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSystemAbilityManager is null");
-        return false;
-    }
-    sptr<SandboxManagerLoadCallback> ptrSandboxManagerLoadCallback = new (std::nothrow) SandboxManagerLoadCallback();
-    if (ptrSandboxManagerLoadCallback == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "New ptrSandboxManagerLoadCallback fail.");
-        return false;
-    }
-
-    int32_t result = sam->LoadSystemAbility(ISandboxManager::SA_ID_SANDBOX_MANAGER_SERVICE,
-        ptrSandboxManagerLoadCallback);
-    if (result != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "LoadSystemAbility %{public}d failed",
-            ISandboxManager::SA_ID_SANDBOX_MANAGER_SERVICE);
-        return false;
-    }
-    SANDBOXMANAGER_LOG_INFO(LABEL, "Notify samgr load sa %{public}d success",
-        ISandboxManager::SA_ID_SANDBOX_MANAGER_SERVICE);
-    return true;
-}
-
-void SandboxManagerClient::WaitForSandboxManagerSa()
-{
-    // wait_for release lock and block until time out(1s) or match the condition with notice
-    std::unique_lock<std::mutex> lock(cvLock_);
-    auto waitStatus = sandboxManagerCon_.wait_for(
-        lock, std::chrono::milliseconds(SANDBOX_MANAGER_LOAD_SA_TIMEOUT_MS), [this]() { return readyFlag_; });
-    if (!waitStatus) {
-        // time out or loadcallback fail
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Sandbox manager load sa timeout");
-        return;
-    }
-}
-
-void SandboxManagerClient::GetSandboxManagerSa()
-{
-    auto sam = OHOS::SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
-    if (sam == nullptr) {
+    std::unique_lock<std::mutex> lock(proxyMutex_);
+    auto samgr = OHOS::SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
+    if (samgr == nullptr) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSystemAbilityManager return null");
-        return;
+        return nullptr;
     }
-
-    auto sa = sam->GetSystemAbility(ISandboxManager::SA_ID_SANDBOX_MANAGER_SERVICE);
-    if (sa == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSystemAbility %{public}d is null",
-            ISandboxManager::SA_ID_SANDBOX_MANAGER_SERVICE);
-        return;
-    }
-
-    GetProxyFromRemoteObject(sa);
-}
-
-void SandboxManagerClient::LoadSandboxManagerSa()
-{
-    if (!StartLoadSandboxManagerSa()) {
-        return;
-    }
-    WaitForSandboxManagerSa();
-}
-
-void SandboxManagerClient::OnRemoteDiedHandle()
-{
-    SANDBOXMANAGER_LOG_ERROR(LABEL, "Remote service died");
-    std::unique_lock<std::mutex> lock(proxyMutex_);
-    proxy_ = nullptr;
-    serviceDeathObserver_ = nullptr;
-    {
-        std::unique_lock<std::mutex> lock1(cvLock_);
-        readyFlag_ = false;
-    }
-}
-
-void SandboxManagerClient::FinishStartSASuccess(const sptr<IRemoteObject> &remoteObject)
-{
-    SANDBOXMANAGER_LOG_INFO(LABEL, "Get sandbox_manager sa success.");
-
-    GetProxyFromRemoteObject(remoteObject);
-
-    // get lock which wait_for release and send a notice so that wait_for can out of block
-    std::unique_lock<std::mutex> lock(cvLock_);
-    readyFlag_ = true;
-    sandboxManagerCon_.notify_one();
-}
-
-void SandboxManagerClient::FinishStartSAFail()
-{
-    SANDBOXMANAGER_LOG_ERROR(LABEL, "get sandbox_manager sa failed.");
-
-    // get lock which wait_for release and send a notice
-    std::unique_lock<std::mutex> lock(cvLock_);
-    readyFlag_ = true;
-    sandboxManagerCon_.notify_one();
-}
-
-void SandboxManagerClient::GetProxyFromRemoteObject(const sptr<IRemoteObject> &remoteObject)
-{
-    if (remoteObject == nullptr) {
-        return;
-    }
-
-    sptr<SandboxManagerDeathRecipient> serviceDeathObserver = new (std::nothrow) SandboxManagerDeathRecipient();
-    if (serviceDeathObserver == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Alloc service death observer fail");
-        return;
-    }
-
-    if (!remoteObject->AddDeathRecipient(serviceDeathObserver)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Add service death observer fail");
-        return;
-    }
-
-    auto proxy = iface_cast<ISandboxManager>(remoteObject);
-    if (proxy == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "iface_cast get null");
-        return;
-    }
-    std::unique_lock<std::mutex> lock(proxyMutex_);
-    proxy_ = proxy;
-    serviceDeathObserver_ = serviceDeathObserver;
-    SANDBOXMANAGER_LOG_INFO(LABEL, "GetSystemAbility %{public}d success",
-        ISandboxManager::SA_ID_SANDBOX_MANAGER_SERVICE);
-    return;
-}
-
-sptr<ISandboxManager> SandboxManagerClient::GetProxy(bool doLoadSa)
-{
-    {
-        std::unique_lock<std::mutex> lock(proxyMutex_);
-        if (proxy_ != nullptr) {
-            return proxy_;
+    // If sa is loaded, CheckSystemAbility return not null.
+    auto remoteObject = samgr->CheckSystemAbility(ISandboxManager::SA_ID_SANDBOX_MANAGER_SERVICE);
+    if (remoteObject != nullptr) {
+        auto proxy = iface_cast<ISandboxManager>(remoteObject);
+        if (proxy != nullptr) {
+            return proxy;
         }
     }
-    if (doLoadSa) {
-        LoadSandboxManagerSa();
-    } else {
-        GetSandboxManagerSa();
+    // Try to load sa for SANDBOX_MANAGER_LOAD_SA_TRY_TIMES times.
+    for (int32_t i = 0; i < SANDBOX_MANAGER_LOAD_SA_TRY_TIMES; i++) {
+        remoteObject = samgr->LoadSystemAbility(ISandboxManager::SA_ID_SANDBOX_MANAGER_SERVICE,
+            SANDBOX_MANAGER_LOAD_SA_TIMEOUT_SEC);
+        if (remoteObject != nullptr) {
+            auto proxy = iface_cast<ISandboxManager>(remoteObject);
+            if (proxy != nullptr) {
+                return proxy;
+            }
+            SANDBOXMANAGER_LOG_WARN(LABEL, "Get iface_cast return NULL.");
+        }
+        SANDBOXMANAGER_LOG_WARN(LABEL, "Try to load SandboxManager Sa failed, times %{public}d / %{public}d",
+            i, SANDBOX_MANAGER_LOAD_SA_TRY_TIMES);
     }
-    std::unique_lock<std::mutex> lock(proxyMutex_);
-    return proxy_;
+    SANDBOXMANAGER_LOG_ERROR(LABEL, "Get proxy retry failed %{public}d times.",
+        SANDBOX_MANAGER_LOAD_SA_TRY_TIMES);
+    return nullptr;
+}
+
+int32_t SandboxManagerClient::CallProxyWithRetry(
+    const std::function<int32_t(sptr<ISandboxManager> &)> &func, const char *funcName)
+{
+    auto proxy = GetProxy();
+    if (proxy != nullptr) {
+        int32_t ret = func(proxy);
+        if (!IsRequestNeedRetry(ret)) {
+            return ret;
+        } else {
+            SANDBOXMANAGER_LOG_WARN(LABEL, "First try call %{public}s failed, " \
+                "err = %{public}d. Begin retry.", funcName, ret);
+        }
+    } else {
+        SANDBOXMANAGER_LOG_WARN(LABEL, "First try call %{public}s failed, proxy is NULL. Begin retry.", funcName);
+    }
+    // begin retry
+    for (int32_t i = 0; i < SA_REQUEST_RETRY_TIMES; i++) {
+        proxy = GetProxy();
+        if (proxy == nullptr) {
+            SANDBOXMANAGER_LOG_WARN(LABEL, "Get proxy %{public}s failed, retry time = %{public}d.", funcName, i);
+            continue;
+        }
+        int32_t ret = func(proxy);
+        if (!IsRequestNeedRetry(ret)) {
+            return ret;
+        }
+        SANDBOXMANAGER_LOG_WARN(LABEL, "Call %{public}s failed, retry time = %{public}d, " \
+            "result = %{public}d.", funcName, i, ret);
+    }
+    SANDBOXMANAGER_LOG_ERROR(LABEL, "Retry call service %{public}s error, tried %{public}d times.",
+        funcName, SA_REQUEST_RETRY_TIMES);
+    return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+}
+
+bool SandboxManagerClient::IsRequestNeedRetry(int32_t ret)
+{
+    auto it = std::find(RETRY_CODE_LIST.begin(), RETRY_CODE_LIST.end(), ret);
+    return it != RETRY_CODE_LIST.end();
 }
 } // SandboxManager
 } // AccessControl

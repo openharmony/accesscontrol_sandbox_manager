@@ -51,9 +51,7 @@ if (is_standard_system) {
 
     sources = [
       "src/sandbox_manager_client.cpp",
-      "src/sandbox_manager_death_recipient.cpp",
       "src/sandbox_manager_kit.cpp",
-      "src/sandbox_manager_load_callback.cpp",
       "src/sandbox_manager_proxy.cpp",
     ]
 
