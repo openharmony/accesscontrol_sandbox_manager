@@ -41,12 +41,19 @@ namespace {
 static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxPolicyInfoManager"
 };
+static std::mutex g_instanceMutex;
 }
 
 PolicyInfoManager &PolicyInfoManager::GetInstance()
 {
-    static PolicyInfoManager instance;
-    return instance;
+    static PolicyInfoManager* instance = nullptr;
+    if (instance == nullptr) {
+        std::lock_guard<std::mutex> lock(g_instanceMutex);
+        if (instance == nullptr) {
+            instance = new PolicyInfoManager();
+        }
+    }
+    return *instance;
 }
 
 void PolicyInfoManager::Init()

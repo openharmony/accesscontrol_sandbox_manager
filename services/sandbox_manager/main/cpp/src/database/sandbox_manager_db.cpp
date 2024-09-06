@@ -28,6 +28,7 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {LOG_CORE,
     ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerDb"};
 static const std::string INTEGER_STR = " integer not null,";
 static const std::string TEXT_STR = " text not null,";
+static std::mutex g_instanceMutex;
 }
 
 const std::string SandboxManagerDb::IGNORE = "ignore";
@@ -35,8 +36,14 @@ const std::string SandboxManagerDb::REPLACE = "replace";
 
 SandboxManagerDb& SandboxManagerDb::GetInstance()
 {
-    static SandboxManagerDb instance;
-    return instance;
+    static SandboxManagerDb* instance = nullptr;
+    if (instance == nullptr) {
+        std::lock_guard<std::mutex> lock(g_instanceMutex);
+        if (instance == nullptr) {
+            instance = new SandboxManagerDb();
+        }
+    }
+    return *instance;
 }
 
 SandboxManagerDb::~SandboxManagerDb()
