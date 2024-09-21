@@ -20,7 +20,9 @@ sandbox_manager_service_src = [
   "../main/cpp/src/sensitive/sandbox_manager_event_subscriber.cpp",
   "../main/cpp/src/service/policy_info_manager.cpp",
   "../main/cpp/src/database/policy_field_const.cpp",
-  "../main/cpp/src/database/sandbox_manager_db.cpp",
+  "../main/cpp/src/database/sandbox_manager_rdb.cpp",
+  "../main/cpp/src/database/sandbox_manager_rdb_open_callback.cpp",
+  "../main/cpp/src/database/sandbox_manager_rdb_utils.cpp",
   "../main/cpp/src/mac/mac_adapter.cpp",
 ]
 
@@ -48,7 +50,7 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
 
   sources = [
     "unittest/policy_info_manager_test.cpp",
-    "unittest/sandbox_manager_db_test.cpp",
+    "unittest/sandbox_manager_rdb_test.cpp",
     "unittest/sandbox_manager_service_test.cpp",
   ]
   sources += sandbox_manager_service_src
@@ -77,54 +79,14 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
     "eventhandler:libeventhandler",
     "hilog:libhilog",
     "ipc:ipc_core",
+    "relational_store:native_rdb",
     "safwk:system_ability_fwk",
     "samgr:samgr_proxy",
     "sqlite:sqlite",
   ]
 }
 
-ohos_unittest("libsandbox_manager_sqlite_mock_test") {
-  subsystem_name = "accesscontrol"
-  part_name = "sandbox_manager"
-  module_out_path = part_name + "/" + part_name
-
-  include_dirs = [
-    "${sandbox_manager_path}/frameworks/common/include",
-    "${sandbox_manager_path}/services/common/database/include",
-    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/database",
-    "mock/include",
-  ]
-
-  sources = [
-    "${sandbox_manager_path}/services/common/database/src/generic_values.cpp",
-    "${sandbox_manager_path}/services/common/database/src/sqlite_helper.cpp",
-    "${sandbox_manager_path}/services/common/database/src/statement.cpp",
-    "${sandbox_manager_path}/services/common/database/src/variant_value.cpp",
-    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/policy_field_const.cpp",
-    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/sandbox_manager_db.cpp",
-    "mock/src/sqlite3sym.cpp",
-    "mock/src/sqlite_mock_test.cpp",
-  ]
-
-  deps = [
-    "//third_party/googletest:gmock_main",
-    "//third_party/googletest:gtest_main",
-  ]
-
-  configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
-
-  cflags_cc = [ "-DHILOG_ENABLE" ]
-
-  external_deps = [
-    "c_utils:utils",
-    "hilog:libhilog",
-  ]
-}
-
 group("unittest") {
   testonly = true
-  deps = [
-    ":libsandbox_manager_service_standard_test",
-    ":libsandbox_manager_sqlite_mock_test",
-  ]
+  deps = [ ":libsandbox_manager_service_standard_test" ]
 }
