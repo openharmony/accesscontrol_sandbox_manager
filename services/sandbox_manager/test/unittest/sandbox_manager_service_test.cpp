@@ -27,7 +27,7 @@
 #include "policy_info_parcel.h"
 #include "policy_info_vector_parcel.h"
 #include "sandbox_manager_const.h"
-#include "sandbox_manager_db.h"
+#include "sandbox_manager_rdb.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_event_subscriber.h"
 #define private public
