@@ -30,7 +30,7 @@
 #include "policy_info_manager.h"
 #undef private
 #include "sandbox_manager_const.h"
-#include "sandbox_manager_db.h"
+#include "sandbox_manager_rdb.h"
 #include "sandbox_manager_log.h"
 #include "sandbox_manager_err_code.h"
 
@@ -49,21 +49,21 @@ public:
 };
 
 static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
-    LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerDbTest"
+    LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerRdbTest"
 };
 
 void PolicyInfoManagerTest::SetUpTestCase(void)
 {
     // remove all in db
     GenericValues conditions;
-    SandboxManagerDb::GetInstance().Remove(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
 }
 
 void PolicyInfoManagerTest::TearDownTestCase(void)
 {
     // remove all in db
     GenericValues conditions;
-    SandboxManagerDb::GetInstance().Remove(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
 }
 
 void PolicyInfoManagerTest::SetUp(void)
@@ -80,7 +80,7 @@ void PrintDbRecords()
     GenericValues conditions;
     GenericValues symbols;
     std::vector<GenericValues> dbResult;
-    EXPECT_EQ(0, SandboxManagerDb::GetInstance().Find(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY,
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
         conditions, symbols, dbResult));
     for (size_t i = 0; i < dbResult.size(); i++) {
         int64_t tokenid;

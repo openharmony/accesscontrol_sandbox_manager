@@ -49,7 +49,9 @@ if (is_standard_system) {
 
     sources = [
       "main/cpp/src/database/policy_field_const.cpp",
-      "main/cpp/src/database/sandbox_manager_db.cpp",
+      "main/cpp/src/database/sandbox_manager_rdb.cpp",
+      "main/cpp/src/database/sandbox_manager_rdb_open_callback.cpp",
+      "main/cpp/src/database/sandbox_manager_rdb_utils.cpp",
       "main/cpp/src/mac/mac_adapter.cpp",
       "main/cpp/src/sensitive/sandbox_manager_event_subscriber.cpp",
       "main/cpp/src/service/policy_info_manager.cpp",
@@ -76,6 +78,7 @@ if (is_standard_system) {
       "eventhandler:libeventhandler",
       "hilog:libhilog",
       "ipc:ipc_core",
+      "relational_store:native_rdb",
       "safwk:system_ability_fwk",
       "samgr:samgr_proxy",
       "sqlite:sqlite",

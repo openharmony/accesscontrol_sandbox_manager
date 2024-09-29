@@ -29,7 +29,7 @@
 #include "policy_field_const.h"
 #include "policy_info.h"
 #include "sandbox_manager_const.h"
-#include "sandbox_manager_db.h"
+#include "sandbox_manager_rdb.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_log.h"
 
@@ -50,7 +50,7 @@ PolicyInfoManager &PolicyInfoManager::GetInstance()
 
 void PolicyInfoManager::Init()
 {
-    SandboxManagerDb::GetInstance();
+    SandboxManagerRdb::GetInstance();
     macAdapter_.Init();
 }
 
@@ -100,8 +100,8 @@ int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::strin
             continue;
         }
         std::string pathTmp = AdjustPath(path);
-        SandboxManagerDb::GetInstance().FindSubPath(
-            SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY, pathTmp, results);
+        SandboxManagerRdb::GetInstance().FindSubPath(
+            SANDBOX_MANAGER_PERSISTED_POLICY, pathTmp, results);
     }
     if (results.empty()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "No persistence policy was found to delete.");
@@ -113,9 +113,9 @@ int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::strin
 
     //clear the persistence policy
     for (const auto& res: results) {
-        int32_t ret = SandboxManagerDb::GetInstance().Remove(
-            SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY, res);
-        if (ret != SandboxManagerDb::SUCCESS) {
+        int32_t ret = SandboxManagerRdb::GetInstance().Remove(
+            SANDBOX_MANAGER_PERSISTED_POLICY, res);
+        if (ret != SandboxManagerRdb::SUCCESS) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Delete fail!");
         }
     }
@@ -194,14 +194,14 @@ int32_t PolicyInfoManager::AddToDatabaseIfNotDuplicate(const uint32_t tokenId, c
         condition.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(flag));
         addPolicyGeneric.emplace_back(condition);
     }
-    std::string duplicateMode = SandboxManagerDb::IGNORE;
+    std::string duplicateMode = SandboxManagerRdb::IGNORE;
     // replace duplicate policy when flag is 1
     if (flag == 1) {
-        duplicateMode = SandboxManagerDb::REPLACE;
+        duplicateMode = SandboxManagerRdb::REPLACE;
     }
-    int32_t ret = SandboxManagerDb::GetInstance().Add(
-        SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY, addPolicyGeneric, duplicateMode);
-    if (ret != SandboxManagerDb::SUCCESS) {
+    int32_t ret = SandboxManagerRdb::GetInstance().Add(
+        SANDBOX_MANAGER_PERSISTED_POLICY, addPolicyGeneric, duplicateMode);
+    if (ret != SandboxManagerRdb::SUCCESS) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
         results.clear();
         return SANDBOX_MANAGER_DB_ERR;
@@ -313,9 +313,9 @@ int32_t PolicyInfoManager::RemovePolicy(
 
         GenericValues condition;
         TransferPolicyToGeneric(tokenId, policy[i], condition);
-        ret = SandboxManagerDb::GetInstance().Remove(
-            SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY, condition);
-        if (ret != SandboxManagerDb::SUCCESS) {
+        ret = SandboxManagerRdb::GetInstance().Remove(
+            SANDBOX_MANAGER_PERSISTED_POLICY, condition);
+        if (ret != SandboxManagerRdb::SUCCESS) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
             return SANDBOX_MANAGER_DB_ERR;
         }
@@ -417,9 +417,9 @@ bool PolicyInfoManager::RemoveBundlePolicy(const uint32_t tokenId)
     GenericValues conditions;
     conditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(tokenId));
     // remove policys that have same tokenId
-    int32_t ret = SandboxManagerDb::GetInstance().Remove(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY,
+    int32_t ret = SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY,
         conditions);
-    if (ret != SandboxManagerDb::SUCCESS) {
+    if (ret != SandboxManagerRdb::SUCCESS) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
         return false;
     }
@@ -578,9 +578,9 @@ int32_t PolicyInfoManager::UnSetAllPolicyByToken(const uint32_t tokenId)
 int32_t PolicyInfoManager::RangeFind(const GenericValues &conditions, const GenericValues &symbols,
     std::vector<GenericValues> &results)
 {
-    int32_t ret = SandboxManagerDb::GetInstance().Find(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY,
+    int32_t ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
         conditions, symbols, results);
-    if (ret != SandboxManagerDb::SUCCESS) {
+    if (ret != SandboxManagerRdb::SUCCESS) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
         return SANDBOX_MANAGER_DB_ERR;
     }
@@ -599,9 +599,9 @@ int32_t PolicyInfoManager::ExactFind(const uint32_t tokenId, const PolicyInfo &p
     TransferPolicyToGeneric(tokenId, policy, conditions);
 
     std::vector<GenericValues> searchResults;
-    int32_t ret = SandboxManagerDb::GetInstance().Find(SandboxManagerDb::SANDBOX_MANAGER_PERSISTED_POLICY,
+    int32_t ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
         conditions, symbols, searchResults);
-    if (ret != SandboxManagerDb::SUCCESS) {
+    if (ret != SandboxManagerRdb::SUCCESS) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
         return SANDBOX_MANAGER_DB_ERR;
     }
