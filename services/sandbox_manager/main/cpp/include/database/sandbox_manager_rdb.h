@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef SANDBOX_MANAGER_DB_H
-#define SANDBOX_MANAGER_DB_H
+#ifndef SANDBOX_MANAGER_RDB_H
+#define SANDBOX_MANAGER_RDB_H
 
 #include <cstdint>
 #include <vector>
@@ -25,27 +25,20 @@
 #include "policy_field_const.h"
 #include "rwlock.h"
 #include "sqlite_helper.h"
+#include "sandbox_manager_rdb_utils.h"
 
 namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
-class SandboxManagerDb : public SqliteHelper {
+class SandboxManagerRdb {
 public:
     enum ExecuteResult { FAILURE = -1, SUCCESS };
     static const std::string IGNORE;
     static const std::string REPLACE;
-    struct SqliteTable {
-    public:
-        std::string tableName_;
-        std::vector<std::string> tableColumnNames_;
-    };
-    enum DataType {
-        SANDBOX_MANAGER_PERSISTED_POLICY,
-    };
 
-    static SandboxManagerDb &GetInstance();
+    static SandboxManagerRdb &GetInstance();
 
-    ~SandboxManagerDb() override;
+    virtual ~SandboxManagerRdb() = default;
 
     int32_t Add(const DataType type, const std::vector<GenericValues> &values,
         const std::string &duplicateMode = IGNORE);
@@ -58,34 +51,17 @@ public:
     int32_t Find(const DataType type, const GenericValues &conditions,
         const GenericValues &symbols, std::vector<GenericValues> &results);
 
-    int32_t RefreshAll(const DataType type, const std::vector<GenericValues> &values);
-
-    void OnCreate() override;
-    void OnUpdate() override;
-
 private:
-    int32_t CreatePersistedPolicyTable() const;
+    SandboxManagerRdb();
+    inline static int32_t GetConflictResolution(const std::string &duplicateMode,
+        NativeRdb::ConflictResolution &solution);
+    DISALLOW_COPY_AND_MOVE(SandboxManagerRdb);
 
-    std::string CreateInsertPrepareSqlCmd(const DataType type, const std::string &duplicateMode) const;
-    std::string CreateDeletePrepareSqlCmd(
-        const DataType type, const std::vector<std::string> &columnNames = std::vector<std::string>()) const;
-    std::string CreateUpdatePrepareSqlCmd(const DataType type, const std::vector<std::string> &modifyColumns,
-        const std::vector<std::string> &conditionColumns) const;
-    std::string CreateSelectPrepareSqlCmd(const DataType type, const std::vector<std::string> &searchColumns,
-    const GenericValues &conditions) const;
-
-    SandboxManagerDb();
-    DISALLOW_COPY_AND_MOVE(SandboxManagerDb);
-
-    std::map<DataType, SqliteTable> dataTypeToSqlTable_;
     OHOS::Utils::RWLock rwLock_;
-    inline static const std::string PERSISTED_POLICY_TABLE = "persisted_policy_table";
-
-    inline static const std::string DATABASE_NAME = "sandbox_manager.db";
-    inline static const std::string DATABASE_PATH = "/data/service/el1/public/sandbox_manager/";
+    std::shared_ptr<NativeRdb::RdbStore> db_ = nullptr;
     static const int DATABASE_VERSION = 1;
 };
 } // namespace SandboxManager
 } // namespace AccessControl
 } // namespace OHOS
-#endif // SANDBOX_MANAGER_DB_H
+#endif // SANDBOX_MANAGER_RDB_H
