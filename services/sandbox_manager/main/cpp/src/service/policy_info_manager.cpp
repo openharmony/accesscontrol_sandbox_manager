@@ -234,6 +234,25 @@ int32_t PolicyInfoManager::AddToDatabaseIfNotDuplicate(const uint32_t tokenId, c
     return SANDBOX_MANAGER_OK;
 }
 
+void PolicyInfoManager::RepeatsPathPolicyModeCal(std::vector<GenericValues> &dbResults, uint64_t dbResultsSize)
+{
+    std::map<std::string, int64_t> dbResultsMap;
+    for (size_t i = 0; i < dbResultsSize; ++i) {
+        std::string currPath = dbResults[i].GetString(PolicyFiledConst::FIELD_PATH);
+        int64_t currMode = static_cast<int64_t>(dbResults[i].GetInt(PolicyFiledConst::FIELD_MODE));
+        if (dbResultsMap.find(currPath) != dbResultsMap.end()) {
+            dbResultsMap[currPath] |= currMode;
+        } else {
+            dbResultsMap.insert(std::make_pair(currPath, currMode));
+        }
+    }
+    for (size_t i = 0; i < dbResultsSize; ++i) {
+        std::string polisyPath = dbResults[i].GetString(PolicyFiledConst::FIELD_PATH);
+        dbResults[i].Remove(PolicyFiledConst::FIELD_MODE);
+        dbResults[i].Put(PolicyFiledConst::FIELD_MODE, dbResultsMap[polisyPath]);
+    }
+}
+
 int32_t PolicyInfoManager::MatchSinglePolicy(const uint32_t tokenId, const PolicyInfo &policy, uint32_t &result)
 {
     int32_t checkPolicyRet = CheckPolicyValidity(policy);
@@ -266,12 +285,13 @@ int32_t PolicyInfoManager::MatchSinglePolicy(const uint32_t tokenId, const Polic
         result = POLICY_HAS_NOT_BEEN_PERSISTED;
         return SANDBOX_MANAGER_OK;
     }
+    RepeatsPathPolicyModeCal(dbResults, dbResultsSize);
     for (size_t i = 0; i < dbResultsSize; ++i) {
         PolicyInfo referPolicy;
         referPolicy.path = dbResults[i].GetString(PolicyFiledConst::FIELD_PATH);
         referPolicy.mode = static_cast<uint64_t>(dbResults[i].GetInt(PolicyFiledConst::FIELD_MODE));
         uint64_t referDepth = static_cast<uint64_t>(dbResults[i].GetInt(PolicyFiledConst::FIELD_DEPTH));
-        
+
         PolicyInfo searchPolicy;
         searchPolicy.mode = policy.mode;
         searchPolicy.path = AdjustPath(policy.path);
