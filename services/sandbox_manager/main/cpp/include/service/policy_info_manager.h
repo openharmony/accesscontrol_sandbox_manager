@@ -57,6 +57,13 @@ public:
      */
     int32_t MatchPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     /**
+     * @brief The mode of the same path policy performs or operations
+     * @param GenericValues vector
+     * @param dbResults size
+     */
+    void RepeatsPathPolicyModeCal(std::vector<GenericValues> &dbResults,
+        uint64_t dbResultsSize);
+    /**
      * @brief Match one policy of a certain tokenId
      * @param tokenId token id of the object
      * @param policy PolicyInfo, see policy_info.h
