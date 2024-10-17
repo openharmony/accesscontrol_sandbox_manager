@@ -32,7 +32,7 @@
 │   ├── common                  # 框架公共代码存放目录
 │   ├── sandbox_manager         # 沙箱管理服务框架代码存放目录
 │   └── test                    # 测试代码存放目录
-├── interfaces/innerkits/       # 接口层
+├── interfaces/inner_api/       # 接口层
 │   └── sandbox_manager         # 沙箱管理接口代码存放目录
 └── services                    # 服务层
     ├── common                  # 服务公共代码存放目录
@@ -119,8 +119,8 @@ int32_t sandboxManagerErrCode = SandboxManagerKit::CheckPersistPolicy(tokenId, p
 3. 在需要引用本模块的gn脚本的external_deps中添加"sandbox_manager:libsandbox_manager_sdk"
 4. 在需要引用本模块的代码文件中#include "sandbox_manager_kit.h"
 5. 调用本模块的inner api，参考[inner api使用](#inner-api使用)
-6. inner api错误码请见[sandbox_manager_err_code.h](./interfaces/innerkits/sandbox_manager/include/sandbox_manager_err_code.h)
-7. PolicyInfo类及输入的result返回值请见[policy_info.h](./interfaces/innerkits/sandbox_manager/include/policy_info.h)中的PolicyInfo、SandboxRetType和OperateMode
+6. inner api错误码请见[sandbox_manager_err_code.h](./interfaces/inner_api/sandbox_manager/include/sandbox_manager_err_code.h)
+7. PolicyInfo类及输入的result返回值请见[policy_info.h](./interfaces/inner_api/sandbox_manager/include/policy_info.h)中的PolicyInfo、SandboxRetType和OperateMode
 
 ### 应用开发者如何使用本模块
 本模块不提供JS api，请通过filemanagement和ability的相关接口间接调用本模块。

@@ -20,7 +20,7 @@ ohos_fuzztest("PersistPolicyFuzzTest") {
   fuzz_config_file = "."
 
   include_dirs = [
-    "${sandbox_manager_path}/interfaces/innerkits/sandbox_manager/include",
+    "${sandbox_manager_path}/interfaces/inner_api/sandbox_manager/include",
     "../../../common",
   ]
   cflags = [
@@ -35,7 +35,7 @@ ohos_fuzztest("PersistPolicyFuzzTest") {
     "persistpolicy_fuzzer.cpp",
   ]
 
-  deps = [ "${sandbox_manager_path}/interfaces/innerkits/sandbox_manager:libsandbox_manager_sdk" ]
+  deps = [ "${sandbox_manager_path}/frameworks/inner_api/sandbox_manager:libsandbox_manager_sdk" ]
 
   configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 

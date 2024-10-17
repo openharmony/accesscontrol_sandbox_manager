@@ -49,11 +49,13 @@
       },
       "inner_kits": [
         {
-          "name": "//base/accesscontrol/sandbox_manager/interfaces/innerkits/sandbox_manager:libsandbox_manager_sdk",
+          "name": "//base/accesscontrol/sandbox_manager/frameworks/inner_api/sandbox_manager:libsandbox_manager_sdk",
           "header": {
-            "header_base": "//base/accesscontrol/sandbox_manager/interfaces/innerkits/sandbox_manager/include",
+            "header_base": "//base/accesscontrol/sandbox_manager/interfaces/inner_api/sandbox_manager/include",
             "header_files": [
-              "sandbox_manager_kit.h"
+              "sandbox_manager_kit.h",
+              "sandbox_manager_err_code.h",
+              "policy_info.h"
             ]
           }
         }
