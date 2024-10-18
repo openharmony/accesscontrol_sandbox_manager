@@ -769,6 +769,58 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy015, TestSize.Level1)
 
 #ifdef DEC_ENABLED
 /**
+ * @tc.name: PersistPolicy016
+ * @tc.desc: PersistPolicy with permission.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, PersistPolicy016, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    std::vector<PolicyInfo> searchPolicy;
+    uint64_t policyFlag = 1;
+    uint64_t policySize = 2; // 2 is policy size
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParent1 = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE
+    };
+    PolicyInfo infoParent2 = {
+        .path = "/A/B",
+        .mode = OperateMode::WRITE_MODE
+    };
+    PolicyInfo searchInfoPolicy = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policy.emplace_back(infoParent1);
+    policy.emplace_back(infoParent2);
+    searchPolicy.emplace_back(searchInfoPolicy);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    ASSERT_EQ(policySize, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[1]);
+
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(policySize, result.size());
+    EXPECT_TRUE(result[0]);
+    EXPECT_TRUE(result[1]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, policyResult));
+    ASSERT_EQ(policySize, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[1]);
+
+    std::vector<bool> checkResult1;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, searchPolicy, checkResult1));
+    ASSERT_EQ(1, checkResult1.size());
+    EXPECT_EQ(true, checkResult1[0]);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
  * @tc.name: CheckPolicyTest001
  * @tc.desc: Check allowed policy
  * @tc.type: FUNC
