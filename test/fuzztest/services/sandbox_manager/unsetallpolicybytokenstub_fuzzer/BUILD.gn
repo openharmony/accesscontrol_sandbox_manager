@@ -17,7 +17,7 @@ import("../../../../../sandbox_manager.gni")
 import("../sandbox_manager_service_fuzz.gni")
 
 ohos_fuzztest("UnsetAllPolicyByTokenStubFuzzTest") {
-  module_out_path = module_output_path_interface_sandbox
+  module_out_path = module_output_path_service_sandbox
   fuzz_config_file = "."
 
   include_dirs = [ "../../../common" ]

@@ -155,9 +155,9 @@ void ResultToGenericValues(const std::shared_ptr<NativeRdb::ResultSet> &resultSe
         resultSet->GetColumnType(columnIndex, type);
 
         if (type == NativeRdb::ColumnType::TYPE_INTEGER) {
-            size_t type_size = 0;
-            resultSet->GetSize(columnIndex, type_size);
-            if (type_size == sizeof(int64_t)) {
+            size_t typeSize = 0;
+            resultSet->GetSize(columnIndex, typeSize);
+            if (typeSize == sizeof(int64_t)) {
                 int64_t data = 0;
                 resultSet->GetLong(columnIndex, data);
                 value.Put(columnName, data);
