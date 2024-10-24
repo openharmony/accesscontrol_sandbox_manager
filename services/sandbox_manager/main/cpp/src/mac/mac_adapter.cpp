@@ -16,6 +16,7 @@
 #include "mac_adapter.h"
 #include <cstdint>
 #include <fcntl.h>
+#include <cinttypes>
 #include <string>
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -94,6 +95,8 @@ bool MacAdapter::IsMacSupport()
 int32_t MacAdapter::SetSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                      uint64_t policyFlag, std::vector<uint32_t> &result)
 {
+    SANDBOXMANAGER_LOG_INFO(LABEL, "set sandbox policy target:%{public}u flag:%{public}" PRIu64 ".", tokenId,
+        policyFlag);
     if (fd_ < 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Not init yet.");
         return SANDBOX_MANAGER_MAC_NOT_INIT;
@@ -113,6 +116,8 @@ int32_t MacAdapter::SetSandboxPolicy(uint32_t tokenId, const std::vector<PolicyI
             info.pathInfos[i].path = const_cast<char *>(policy[offset + i].path.c_str());
             info.pathInfos[i].pathLen = policy[offset + i].path.length();
             info.pathInfos[i].mode = policy[offset + i].mode;
+            SANDBOXMANAGER_LOG_INFO(LABEL, "set policy paths target:%{public}u path:%{public}s mode:%{public}d",
+                tokenId, info.pathInfos[i].path, info.pathInfos[i].mode);
         }
 
         if (ioctl(fd_, SET_POLICY_CMD, &info) < 0) {
@@ -219,6 +224,8 @@ int32_t MacAdapter::CheckSandboxPolicy(uint32_t tokenId, const std::vector<Polic
 int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                        std::vector<bool> &result)
 {
+    SANDBOXMANAGER_LOG_INFO(LABEL, "unset sandbox policy target:%{public}u", tokenId);
+
     if (fd_ < 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Not init yet.");
         return SANDBOX_MANAGER_MAC_NOT_INIT;
@@ -239,6 +246,8 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const std::vector<Polic
             info.pathInfos[i].path = const_cast<char *>(policy[offset + i].path.c_str());
             info.pathInfos[i].pathLen = policy[offset + i].path.length();
             info.pathInfos[i].mode = policy[offset + i].mode;
+            SANDBOXMANAGER_LOG_INFO(LABEL, "unset policy paths target:%{public}u path:%{public}s mode:%{public}d",
+                tokenId, info.pathInfos[i].path, info.pathInfos[i].mode);
         }
 
         if (ioctl(fd_, UN_SET_POLICY_CMD, &info) < 0) {
@@ -272,6 +281,8 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const PolicyInfo &polic
     info.pathInfos[0].path = const_cast<char *>(policy.path.c_str());
     info.pathInfos[0].pathLen = policy.path.length();
     info.pathInfos[0].mode = policy.mode;
+    SANDBOXMANAGER_LOG_INFO(LABEL, "unset sandbox policy target:%{public}u path:%{public}s mode:%{public}d", tokenId,
+        info.pathInfos[0].path, info.pathInfos[0].mode);
 
     if (ioctl(fd_, UN_SET_POLICY_CMD, &info) < 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Unset policy failed, errno=%{public}d.", errno);
@@ -283,6 +294,8 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const PolicyInfo &polic
 
 int32_t MacAdapter::DestroySandboxPolicy(uint32_t tokenId)
 {
+    SANDBOXMANAGER_LOG_INFO(LABEL, "destroy sandbox policy target:%{public}u", tokenId);
+
     if (fd_ < 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Not init yet.");
         return SANDBOX_MANAGER_MAC_NOT_INIT;
