@@ -47,7 +47,7 @@ ohos_unittest("libsandbox_manager_sdk_test") {
 
   deps = [
     "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
-    "../:libsandbox_manager_sdk",
+    "${sandbox_manager_path}/frameworks/inner_api/sandbox_manager/:libsandbox_manager_sdk",
   ]
 
   external_deps = [

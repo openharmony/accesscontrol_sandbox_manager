@@ -19,8 +19,8 @@ group("sandbox_manager_build_module_test") {
   deps = []
   if (is_standard_system) {
     deps += [
+      "frameworks/inner_api/sandbox_manager/test:unittest",
       "frameworks/test:unittest",
-      "interfaces/innerkits/sandbox_manager/test:unittest",
       "services/sandbox_manager/test:unittest",
     ]
   }
