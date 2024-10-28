@@ -19,10 +19,7 @@ ohos_fuzztest("PersistPolicyFuzzTest") {
   module_out_path = module_output_path_interface_sandbox
   fuzz_config_file = "."
 
-  include_dirs = [
-    "${sandbox_manager_path}/interfaces/inner_api/sandbox_manager/include",
-    "../../../common",
-  ]
+  include_dirs = [ "../../../common" ]
   cflags = [
     "-g",
     "-O0",
