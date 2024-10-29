@@ -44,10 +44,10 @@ int32_t SandboxManagerRdbOpenCallback::OnCreate(NativeRdb::RdbStore &rdbStore)
     // Restore if back_db exist
     std::string backupDbPath = DATABASE_PATH + BACK_UP_RDB_NAME;
     if (access(backupDbPath.c_str(), NativeRdb::E_OK) == 0) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "backup db exist, need to restore");
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Backup db exist, need to restore");
         int32_t restoreRet = rdbStore.Restore(std::string(""), {});
         if (restoreRet != NativeRdb::E_OK) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "rdb restore failed ret:%{public}d", restoreRet);
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Rdb restore failed ret:%{public}d", restoreRet);
         }
     }
     return NativeRdb::E_OK;

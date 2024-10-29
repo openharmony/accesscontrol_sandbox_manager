@@ -48,10 +48,10 @@ int32_t SandboxManagerStub::OnRemoteRequest(
     uint32_t code, MessageParcel &data, MessageParcel &reply, MessageOption &option)
 {
     uint32_t callingTokenID = IPCSkeleton::GetCallingTokenID();
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "code %{public}u token %{public}u", code, callingTokenID);
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Code %{public}u token %{public}u", code, callingTokenID);
     std::u16string descriptor = data.ReadInterfaceToken();
     if (descriptor != ISandboxManager::GetDescriptor()) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "get unexpect descriptor: %{public}s", Str16ToStr8(descriptor).c_str());
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Get unexpect descriptor: %{public}s", Str16ToStr8(descriptor).c_str());
         return -1;
     }
     auto itFunc = requestFuncMap_.find(code);
@@ -100,14 +100,14 @@ int32_t SandboxManagerStub::PersistPolicyInner(MessageParcel &data, MessageParce
 
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
     if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager data parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager data parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     std::vector<uint32_t> result;
     int32_t ret = this->PersistPolicy(policyInfoVectorParcel->policyVector, result);
     if (!reply.WriteInt32(ret)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager ret parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     if (ret != SANDBOX_MANAGER_OK) {
@@ -115,7 +115,7 @@ int32_t SandboxManagerStub::PersistPolicyInner(MessageParcel &data, MessageParce
     }
 
     if (!reply.WriteUInt32Vector(result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager vector parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager vector parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return SANDBOX_MANAGER_OK;
@@ -130,7 +130,7 @@ int32_t SandboxManagerStub::UnPersistPolicyInner(MessageParcel &data, MessagePar
 
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
     if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read sandbox manager data parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read sandbox manager data parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
@@ -138,7 +138,7 @@ int32_t SandboxManagerStub::UnPersistPolicyInner(MessageParcel &data, MessagePar
 
     int32_t ret = this->UnPersistPolicy(policyInfoVectorParcel->policyVector, result);
     if (!reply.WriteInt32(ret)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager ret parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     if (ret != SANDBOX_MANAGER_OK) {
@@ -146,7 +146,7 @@ int32_t SandboxManagerStub::UnPersistPolicyInner(MessageParcel &data, MessagePar
     }
 
     if (!reply.WriteUInt32Vector(result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager vector parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager vector parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return SANDBOX_MANAGER_OK;
@@ -160,19 +160,19 @@ int32_t SandboxManagerStub::PersistPolicyByTokenIdInner(MessageParcel &data, Mes
     }
     uint32_t tokenId;
     if (!data.ReadUint32(tokenId)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read tokenId parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read tokenId parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
     if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read sandbox manager data parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read sandbox manager data parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     std::vector<uint32_t> result;
     int32_t ret = this->PersistPolicyByTokenId(tokenId, policyInfoVectorParcel->policyVector, result);
     if (!reply.WriteInt32(ret)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager ret parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     if (ret != SANDBOX_MANAGER_OK) {
@@ -180,7 +180,7 @@ int32_t SandboxManagerStub::PersistPolicyByTokenIdInner(MessageParcel &data, Mes
     }
 
     if (!reply.WriteUInt32Vector(result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager vector parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager vector parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return SANDBOX_MANAGER_OK;
@@ -194,12 +194,12 @@ int32_t SandboxManagerStub::UnPersistPolicyByTokenIdInner(MessageParcel &data, M
     }
     uint32_t tokenId;
     if (!data.ReadUint32(tokenId)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply tokenId parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply tokenId parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
     if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager data parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager data parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
@@ -207,7 +207,7 @@ int32_t SandboxManagerStub::UnPersistPolicyByTokenIdInner(MessageParcel &data, M
 
     int32_t ret = this->UnPersistPolicyByTokenId(tokenId, policyInfoVectorParcel->policyVector, result);
     if (!reply.WriteInt32(ret)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager ret parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     if (ret != SANDBOX_MANAGER_OK) {
@@ -215,7 +215,7 @@ int32_t SandboxManagerStub::UnPersistPolicyByTokenIdInner(MessageParcel &data, M
     }
 
     if (!reply.WriteUInt32Vector(result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager vector parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager vector parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return SANDBOX_MANAGER_OK;
@@ -376,14 +376,14 @@ int32_t SandboxManagerStub::StartAccessingPolicyInner(MessageParcel &data, Messa
 
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
     if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager data parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager data parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     std::vector<uint32_t> result;
     int32_t ret = this->StartAccessingPolicy(policyInfoVectorParcel->policyVector, result);
     if (!reply.WriteInt32(ret)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager ret parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     if (ret != SANDBOX_MANAGER_OK) {
@@ -406,7 +406,7 @@ int32_t SandboxManagerStub::StopAccessingPolicyInner(MessageParcel &data, Messag
 
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
     if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager data parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager data parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
@@ -414,7 +414,7 @@ int32_t SandboxManagerStub::StopAccessingPolicyInner(MessageParcel &data, Messag
 
     int32_t ret = this->StopAccessingPolicy(policyInfoVectorParcel->policyVector, result);
     if (!reply.WriteInt32(ret)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager ret parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     if (ret != SANDBOX_MANAGER_OK) {
@@ -432,20 +432,20 @@ int32_t SandboxManagerStub::CheckPersistPolicyInner(MessageParcel &data, Message
 {
     uint32_t tokenId;
     if (!data.ReadUint32(tokenId)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply tokenId parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply tokenId parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
     if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager data parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager data parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     std::vector<bool> result;
     int32_t ret = this->CheckPersistPolicy(tokenId, policyInfoVectorParcel->policyVector, result);
     if (!reply.WriteInt32(ret)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "reply sandbox manager ret parcel fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     if (ret != SANDBOX_MANAGER_OK) {

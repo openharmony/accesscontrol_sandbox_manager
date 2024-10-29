@@ -111,7 +111,7 @@ void ToRdbPredicates(const GenericValues &conditionValue, const GenericValues& s
                 predicates.LessThanOrEqualTo(column, value);
             } else {
                 SANDBOXMANAGER_LOG_ERROR(
-                    LABEL, "unknown symbol, input: %{public}s", symbol.c_str());
+                    LABEL, "Unknown symbol, input: %{public}s", symbol.c_str());
                 return;
             }
         }
