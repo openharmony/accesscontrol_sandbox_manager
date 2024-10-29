@@ -39,7 +39,7 @@ Statement::~Statement()
 void Statement::Bind(const int32_t index, const std::string &text)
 {
     if (index < 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "input index < 0");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Input index < 0");
         return;
     }
 
@@ -51,7 +51,7 @@ void Statement::Bind(const int32_t index, const std::string &text)
 void Statement::Bind(const int32_t index, int32_t value)
 {
     if (index < 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "input index < 0");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Input index < 0");
         return;
     }
 
@@ -63,7 +63,7 @@ void Statement::Bind(const int32_t index, int32_t value)
 void Statement::Bind(const int32_t index, int64_t value)
 {
     if (index < 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "input index < 0");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Input index < 0");
         return;
     }
     

@@ -43,7 +43,7 @@ int32_t SandboxManagerKit::CleanPersistPolicyByPath(const std::vector<std::strin
 
 int32_t SandboxManagerKit::PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
@@ -55,7 +55,7 @@ int32_t SandboxManagerKit::PersistPolicy(const std::vector<PolicyInfo> &policy, 
 
 int32_t SandboxManagerKit::UnPersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
@@ -68,7 +68,7 @@ int32_t SandboxManagerKit::UnPersistPolicy(const std::vector<PolicyInfo> &policy
 int32_t SandboxManagerKit::PersistPolicy(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
     size_t policySize = policy.size();
     if ((policySize == 0) || (policySize > POLICY_VECTOR_SIZE_LIMIT) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u, tokenId = %{public}d.",
@@ -82,7 +82,7 @@ int32_t SandboxManagerKit::PersistPolicy(
 int32_t SandboxManagerKit::UnPersistPolicy(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
     size_t policySize = policy.size();
     if ((policySize == 0) || (policySize > POLICY_VECTOR_SIZE_LIMIT) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u, tokenId = %{public}d.",
@@ -120,7 +120,7 @@ int32_t SandboxManagerKit::UnSetPolicy(uint32_t tokenId, const PolicyInfo &polic
     }
     uint32_t length = policy.path.length();
     if (length == 0 || length > POLICY_PATH_LIMIT) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path size check failed, path=%{public}s", policy.path.c_str());
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path size check failed, path=%{private}s", policy.path.c_str());
         return INVALID_PARAMTER;
     }
     return SandboxManagerClient::GetInstance().UnSetPolicy(tokenId, policy);
@@ -171,7 +171,7 @@ int32_t SandboxManagerKit::CheckPolicy(uint32_t tokenId, const std::vector<Polic
 
 int32_t SandboxManagerKit::StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
@@ -183,7 +183,7 @@ int32_t SandboxManagerKit::StartAccessingPolicy(const std::vector<PolicyInfo> &p
 
 int32_t SandboxManagerKit::StopAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
@@ -196,7 +196,7 @@ int32_t SandboxManagerKit::StopAccessingPolicy(const std::vector<PolicyInfo> &po
 int32_t SandboxManagerKit::CheckPersistPolicy(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT || tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));

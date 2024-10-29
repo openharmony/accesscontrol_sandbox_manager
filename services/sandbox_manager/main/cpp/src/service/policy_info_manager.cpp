@@ -223,7 +223,7 @@ int32_t PolicyInfoManager::AddToDatabaseIfNotDuplicate(const uint32_t tokenId, c
     int32_t ret = SandboxManagerRdb::GetInstance().Add(
         SANDBOX_MANAGER_PERSISTED_POLICY, addPolicyGeneric, duplicateMode);
     if (ret != SandboxManagerRdb::SUCCESS) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
         results.clear();
         return SANDBOX_MANAGER_DB_ERR;
     }
@@ -275,13 +275,13 @@ int32_t PolicyInfoManager::MatchSinglePolicy(const uint32_t tokenId, const Polic
     std::vector<GenericValues> dbResults;
     int32_t ret = RangeFind(conditions, symbols, dbResults);
     if (ret == SANDBOX_MANAGER_DB_ERR) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
         return SANDBOX_MANAGER_DB_ERR;
     }
     size_t dbResultsSize = dbResults.size();
     if (ret == SANDBOX_MANAGER_OK && dbResultsSize == 0) {
         // find nothing, return not match
-        SANDBOXMANAGER_LOG_DEBUG(LABEL, "database return empty");
+        SANDBOXMANAGER_LOG_DEBUG(LABEL, "Database return empty");
         result = POLICY_HAS_NOT_BEEN_PERSISTED;
         return SANDBOX_MANAGER_OK;
     }
@@ -365,7 +365,7 @@ int32_t PolicyInfoManager::RemovePolicy(
         ret = SandboxManagerRdb::GetInstance().Remove(
             SANDBOX_MANAGER_PERSISTED_POLICY, condition);
         if (ret != SandboxManagerRdb::SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
             return SANDBOX_MANAGER_DB_ERR;
         }
         ++successNum;
@@ -491,7 +491,7 @@ bool PolicyInfoManager::RemoveBundlePolicy(const uint32_t tokenId)
     int32_t ret = SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY,
         conditions);
     if (ret != SandboxManagerRdb::SUCCESS) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
         return false;
     }
     PolicyOperateInfo info(0, 0, 0, 0);
@@ -677,11 +677,11 @@ int32_t PolicyInfoManager::RangeFind(const GenericValues &conditions, const Gene
     int32_t ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
         conditions, symbols, results);
     if (ret != SandboxManagerRdb::SUCCESS) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
         return SANDBOX_MANAGER_DB_ERR;
     }
     if (results.empty()) {
-        SANDBOXMANAGER_LOG_DEBUG(LABEL, "database return empty");
+        SANDBOXMANAGER_LOG_DEBUG(LABEL, "Database return empty");
         return SANDBOX_MANAGER_OK;
     }
     return SANDBOX_MANAGER_OK;
@@ -698,11 +698,11 @@ int32_t PolicyInfoManager::ExactFind(const uint32_t tokenId, const PolicyInfo &p
     int32_t ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
         conditions, symbols, searchResults);
     if (ret != SandboxManagerRdb::SUCCESS) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "database operate error");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
         return SANDBOX_MANAGER_DB_ERR;
     }
     if (searchResults.empty()) {
-        SANDBOXMANAGER_LOG_DEBUG(LABEL, "database return empty");
+        SANDBOXMANAGER_LOG_DEBUG(LABEL, "Database return empty");
         return SANDBOX_MANAGER_DB_RETURN_EMPTY;
     }
     result.path = searchResults[0].GetString(PolicyFiledConst::FIELD_PATH);
@@ -791,7 +791,7 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
     // path not empty and lenth < POLICY_PATH_LIMIT
     uint32_t length = policy.path.length();
     if (length == 0 || length > POLICY_PATH_LIMIT) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "policy path check fail, length = %{public}zu", policy.path.length());
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path check fail, length = %{public}zu", policy.path.length());
         return SandboxRetType::INVALID_PATH;
     }
     std::string path = AdjustPath(policy.path);
@@ -799,7 +799,7 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
     // mode between 0 and 0b11(READ_MODE+WRITE_MODE)
     if (policy.mode < OperateMode::READ_MODE ||
         policy.mode > OperateMode::READ_MODE + OperateMode::WRITE_MODE) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "policy mode check fail: %{public}" PRIu64, policy.mode);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy mode check fail: %{public}" PRIu64, policy.mode);
         return SandboxRetType::INVALID_MODE;
     }
     return SANDBOX_MANAGER_OK;

@@ -55,12 +55,12 @@ int32_t SandboxManagerProxy::SendRequest(SandboxManagerInterfaceCode code, Messa
 {
     sptr<IRemoteObject> remote = Remote();
     if (remote == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "remote service null.");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Remote service null.");
         return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
     }
     int32_t requestResult = remote->SendRequest(static_cast<uint32_t>(code), data, reply, option);
     if (requestResult != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "request fail, result: %{public}d", requestResult);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Request fail, result: %{public}d", requestResult);
     }
     return requestResult;
 }
@@ -101,18 +101,18 @@ int32_t SandboxManagerProxy::PersistPolicy(const std::vector<PolicyInfo> &policy
     MessageParcel reply;
     int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::PERSIST_PERMISSION, data, reply);
     if (requestRet != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Remote fail");
         return requestRet;
     }
 
     int32_t remoteRet;
     if (!reply.ReadInt32(remoteRet)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read ret fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read ret fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     if (remoteRet == SANDBOX_MANAGER_OK && !reply.ReadUInt32Vector(&result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read result fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read result fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return remoteRet;
@@ -136,18 +136,18 @@ int32_t SandboxManagerProxy::UnPersistPolicy(const std::vector<PolicyInfo> &poli
     MessageParcel reply;
     int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::UNPERSIST_PERMISSION, data, reply);
     if (requestRet != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Remote fail");
         return requestRet;
     }
 
     int32_t remoteRet;
     if (!reply.ReadInt32(remoteRet)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read ret fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read ret fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     if (remoteRet == SANDBOX_MANAGER_OK && !reply.ReadUInt32Vector(&result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read result fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read result fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return remoteRet;
@@ -176,18 +176,18 @@ int32_t SandboxManagerProxy::PersistPolicyByTokenId(
     MessageParcel reply;
     int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::PERSIST_PERMISSION_BY_TOKENID, data, reply);
     if (requestRet != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Remote fail");
         return requestRet;
     }
 
     int32_t remoteRet;
     if (!reply.ReadInt32(remoteRet)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read ret fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read ret fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     if (remoteRet == SANDBOX_MANAGER_OK && !reply.ReadUInt32Vector(&result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read result fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read result fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return remoteRet;
@@ -215,18 +215,18 @@ int32_t SandboxManagerProxy::UnPersistPolicyByTokenId(
     MessageParcel reply;
     int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::UNPERSIST_PERMISSION_BY_TOKENID, data, reply);
     if (requestRet != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Remote fail");
         return requestRet;
     }
 
     int32_t remoteRet;
     if (!reply.ReadInt32(remoteRet)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read ret fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read ret fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     if (remoteRet == SANDBOX_MANAGER_OK && !reply.ReadUInt32Vector(&result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read result fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read result fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return remoteRet;
@@ -274,7 +274,7 @@ int32_t SandboxManagerProxy::SetPolicy(uint32_t tokenId, const std::vector<Polic
 
     int32_t remoteRet;
     if (!reply.ReadInt32(remoteRet)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read ret failed.");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read ret failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     result.clear();
@@ -414,18 +414,18 @@ int32_t SandboxManagerProxy::StartAccessingPolicy(const std::vector<PolicyInfo> 
     MessageParcel reply;
     int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::START_ACCESSING_URI, data, reply);
     if (requestRet != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Remote fail");
         return requestRet;
     }
 
     int32_t remoteRet;
     if (!reply.ReadInt32(remoteRet)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read ret fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read ret fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     if (remoteRet == SANDBOX_MANAGER_OK && !reply.ReadUInt32Vector(&result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read result fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read result fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return remoteRet;
@@ -449,18 +449,18 @@ int32_t SandboxManagerProxy::StopAccessingPolicy(const std::vector<PolicyInfo> &
     MessageParcel reply;
     int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::STOP_ACCESSING_URI, data, reply);
     if (requestRet != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Remote fail");
         return requestRet;
     }
 
     int32_t remoteRet;
     if (!reply.ReadInt32(remoteRet)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read ret fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read ret fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     if (remoteRet == SANDBOX_MANAGER_OK && !reply.ReadUInt32Vector(&result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read result fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read result fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return remoteRet;
@@ -489,18 +489,18 @@ int32_t SandboxManagerProxy::CheckPersistPolicy(uint32_t tokenId, const std::vec
     MessageParcel reply;
     int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::CHECK_PERSIST_PERMISSION, data, reply);
     if (requestRet != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "remote fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Remote fail");
         return requestRet;
     }
 
     int32_t remoteRet;
     if (!reply.ReadInt32(remoteRet)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read ret fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read ret fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     if (remoteRet == SANDBOX_MANAGER_OK && !reply.ReadBoolVector(&result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "read result fail");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read result fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return remoteRet;
