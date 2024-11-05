@@ -116,7 +116,7 @@ int32_t MacAdapter::SetSandboxPolicy(uint32_t tokenId, const std::vector<PolicyI
             info.pathInfos[i].path = const_cast<char *>(policy[offset + i].path.c_str());
             info.pathInfos[i].pathLen = policy[offset + i].path.length();
             info.pathInfos[i].mode = policy[offset + i].mode;
-            SANDBOXMANAGER_LOG_INFO(LABEL, "set policy paths target:%{public}u path:%{public}s mode:%{public}d",
+            SANDBOXMANAGER_LOG_INFO(LABEL, "set policy paths target:%{public}u path:%{private}s mode:%{public}d",
                 tokenId, info.pathInfos[i].path, info.pathInfos[i].mode);
         }
 
@@ -246,7 +246,7 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const std::vector<Polic
             info.pathInfos[i].path = const_cast<char *>(policy[offset + i].path.c_str());
             info.pathInfos[i].pathLen = policy[offset + i].path.length();
             info.pathInfos[i].mode = policy[offset + i].mode;
-            SANDBOXMANAGER_LOG_INFO(LABEL, "unset policy paths target:%{public}u path:%{public}s mode:%{public}d",
+            SANDBOXMANAGER_LOG_INFO(LABEL, "unset policy paths target:%{public}u path:%{private}s mode:%{public}d",
                 tokenId, info.pathInfos[i].path, info.pathInfos[i].mode);
         }
 
@@ -281,7 +281,7 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const PolicyInfo &polic
     info.pathInfos[0].path = const_cast<char *>(policy.path.c_str());
     info.pathInfos[0].pathLen = policy.path.length();
     info.pathInfos[0].mode = policy.mode;
-    SANDBOXMANAGER_LOG_INFO(LABEL, "unset sandbox policy target:%{public}u path:%{public}s mode:%{public}d", tokenId,
+    SANDBOXMANAGER_LOG_INFO(LABEL, "unset sandbox policy target:%{public}u path:%{private}s mode:%{public}d", tokenId,
         info.pathInfos[0].path, info.pathInfos[0].mode);
 
     if (ioctl(fd_, UN_SET_POLICY_CMD, &info) < 0) {

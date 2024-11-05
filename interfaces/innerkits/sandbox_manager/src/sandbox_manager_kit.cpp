@@ -120,7 +120,7 @@ int32_t SandboxManagerKit::UnSetPolicy(uint32_t tokenId, const PolicyInfo &polic
     }
     uint32_t length = policy.path.length();
     if (length == 0 || length > POLICY_PATH_LIMIT) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path size check failed, path=%{public}s", policy.path.c_str());
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path size check failed, path=%{private}s", policy.path.c_str());
         return INVALID_PARAMTER;
     }
     return SandboxManagerClient::GetInstance().UnSetPolicy(tokenId, policy);
