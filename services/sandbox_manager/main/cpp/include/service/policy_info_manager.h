@@ -86,10 +86,11 @@ public:
      * @param tokenId token id of the object
      * @param policy vector of PolicyInfo, see policy_info.h
      * @param result set result of each policy
+     * @param timestamp timestamp of policy
      * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
      */
     int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                      std::vector<uint32_t> &result);
+                      std::vector<uint32_t> &result, uint64_t timestamp = 0);
     /**
      * @brief unset policies of a certain tokenId
      * @param tokenId token id of the object
@@ -114,18 +115,20 @@ public:
     /**
      * @brief activate all policys of input token that flag = 1
      * @param tokenId token id of the object
+     * @param timestamp timestamp to access policy
      * @return int32_t
      */
-    int32_t StartAccessingByTokenId(const uint32_t tokenId);
+    int32_t StartAccessingByTokenId(const uint32_t tokenId, uint64_t timestamp = 0);
     /**
      * @brief activate input persist policys
      * @param tokenId token id of the object
      * @param policy vector of PolicyInfo, see policy_info.h
      * @param result  remove result of each policy
+     * @param timestamp timestamp to access policy
      * @return int32_t
      */
-    int32_t StartAccessingPolicy(
-        const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results);
+    int32_t StartAccessingPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+        std::vector<uint32_t> &results, uint64_t timestamp = 0);
     /**
      * @brief deactivate input persist policys
      * @param tokenId token id of the object
@@ -138,15 +141,16 @@ public:
     /**
      * @brief deactivate all policys with given tokenid
      * @param tokenId token id of the object
+     * @param timestamp timestamp to unset policy
      * @return int32_t
      */
-    int32_t UnSetAllPolicyByToken(const uint32_t tokenId);
+    int32_t UnSetAllPolicyByToken(const uint32_t tokenId, uint64_t timestamp = 0);
 private:
     /**
      * @brief Clean policy list on MAC
      * @param GenericValues vector
      */
-    void CleanPolicyOnMac(const std::vector<GenericValues> &results);
+    void CleanPolicyOnMac(const std::vector<std::string> &filePathList, int32_t userId);
 
     /**
      * @brief find a record with same token and policy path (mode not inclued)
@@ -230,6 +234,21 @@ private:
      * @return INVALID_PATH / INVALID_MODE / SANDBOX_MANAGER_OK
      */
     int32_t CheckPolicyValidity(const PolicyInfo &policy);
+    /**
+     * @brief remove policies not belong to the user
+     * @param results input policies to check
+     * @param userId delete policies not belong to this user
+     * @return
+     */
+    void RemoveResultByUserId(std::vector<GenericValues> &results, int32_t userId);
+    /**
+     * @brief get mac params with inputs
+     * @param tokenId a given tokenId
+     * @param policyFlag persist policy flag
+     * @param timestamp timestamp of the policy
+     * @return mac params structure
+     */
+    MacParams GetMacParams(uint32_t tokenId, uint64_t policyFlag, uint64_t timestamp);
 
 private:
     MacAdapter macAdapter_;

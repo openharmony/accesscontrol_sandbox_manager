@@ -202,7 +202,7 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
 }
 
 int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-                                         uint64_t policyFlag, std::vector<uint32_t> &result)
+                                         uint64_t policyFlag, std::vector<uint32_t> &result, uint64_t timestamp)
 {
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
@@ -218,7 +218,7 @@ int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const std::vector<Pol
         return INVALID_PARAMTER;
     }
 
-    return PolicyInfoManager::GetInstance().SetPolicy(tokenId, policy, policyFlag, result);
+    return PolicyInfoManager::GetInstance().SetPolicy(tokenId, policy, policyFlag, result, timestamp);
 }
 
 int32_t SandboxManagerService::UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy)
@@ -237,10 +237,10 @@ int32_t SandboxManagerService::UnSetPolicy(uint32_t tokenId, const PolicyInfo &p
 }
 
 int32_t SandboxManagerService::SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-                                              uint64_t policyFlag)
+                                              uint64_t policyFlag, uint64_t timestamp)
 {
     std::vector<uint32_t> result;
-    return SetPolicy(tokenId, policy, policyFlag, result);
+    return SetPolicy(tokenId, policy, policyFlag, result, timestamp);
 }
 
 int32_t SandboxManagerService::UnSetPolicyAsync(uint32_t tokenId, const PolicyInfo &policy)
@@ -264,17 +264,22 @@ int32_t SandboxManagerService::CheckPolicy(uint32_t tokenId, const std::vector<P
     return PolicyInfoManager::GetInstance().CheckPolicy(tokenId, policy, result);
 }
 
-int32_t SandboxManagerService::StartAccessingPolicy(
-    const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
+int32_t SandboxManagerService::StartAccessingPolicy(const std::vector<PolicyInfo> &policy,
+    std::vector<uint32_t> &result, bool useCallerToken, uint32_t tokenId, uint64_t timestamp)
 {
-    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    uint32_t callingTokenId = 0;
+    if (useCallerToken) {
+        callingTokenId = IPCSkeleton::GetCallingTokenID();
+    } else {
+        callingTokenId = tokenId;
+    }
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu", policy.size());
         return INVALID_PARAMTER;
     }
 
-    return PolicyInfoManager::GetInstance().StartAccessingPolicy(callingTokenId, policy, result);
+    return PolicyInfoManager::GetInstance().StartAccessingPolicy(callingTokenId, policy, result, timestamp);
 }
 
 int32_t SandboxManagerService::StopAccessingPolicy(
@@ -313,22 +318,22 @@ int32_t SandboxManagerService::CheckPersistPolicy(
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t SandboxManagerService::StartAccessingByTokenId(uint32_t tokenId)
+int32_t SandboxManagerService::StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp)
 {
     if (tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid Tokenid.");
         return INVALID_PARAMTER;
     }
-    return PolicyInfoManager::GetInstance().StartAccessingByTokenId(tokenId);
+    return PolicyInfoManager::GetInstance().StartAccessingByTokenId(tokenId, timestamp);
 }
 
-int32_t SandboxManagerService::UnSetAllPolicyByToken(uint32_t tokenId)
+int32_t SandboxManagerService::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp)
 {
     if (tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid Tokenid.");
         return INVALID_PARAMTER;
     }
-    return PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(tokenId);
+    return PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(tokenId, timestamp);
 }
 
 bool SandboxManagerService::Initialize()

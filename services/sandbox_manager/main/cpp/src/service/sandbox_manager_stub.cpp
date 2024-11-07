@@ -222,7 +222,7 @@ int32_t SandboxManagerStub::UnPersistPolicyByTokenIdInner(MessageParcel &data, M
 }
 
 static int32_t ReadSetPolicyParcel(MessageParcel &data, uint32_t &tokenId,
-    sptr<PolicyInfoVectorParcel> &policyInfoVectorParcel, uint64_t &policyFlag)
+    sptr<PolicyInfoVectorParcel> &policyInfoVectorParcel, uint64_t &policyFlag, uint64_t &timestamp)
 {
     uint64_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     if (!CheckPermission(callingTokenId, SET_POLICY_PERMISSION_NAME)) {
@@ -231,6 +231,11 @@ static int32_t ReadSetPolicyParcel(MessageParcel &data, uint32_t &tokenId,
 
     if (!data.ReadUint32(tokenId)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Read tokenId failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.ReadUint64(timestamp)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read timestamp failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
@@ -253,13 +258,14 @@ int32_t SandboxManagerStub::SetPolicyInner(MessageParcel &data, MessageParcel &r
     uint32_t tokenId;
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = nullptr;
     uint64_t policyFlag;
-    int32_t readRes = ReadSetPolicyParcel(data, tokenId, policyInfoVectorParcel, policyFlag);
+    uint64_t timestamp;
+    int32_t readRes = ReadSetPolicyParcel(data, tokenId, policyInfoVectorParcel, policyFlag, timestamp);
     if (readRes != SANDBOX_MANAGER_OK) {
         return readRes;
     }
 
     std::vector<uint32_t> result;
-    int32_t ret = this->SetPolicy(tokenId, policyInfoVectorParcel->policyVector, policyFlag, result);
+    int32_t ret = this->SetPolicy(tokenId, policyInfoVectorParcel->policyVector, policyFlag, result, timestamp);
     if (!reply.WriteInt32(ret)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write ret failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
@@ -279,12 +285,13 @@ int32_t SandboxManagerStub::SetPolicyAsyncInner(MessageParcel &data, MessageParc
     uint32_t tokenId;
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = nullptr;
     uint64_t policyFlag;
-    int32_t readRes = ReadSetPolicyParcel(data, tokenId, policyInfoVectorParcel, policyFlag);
+    uint64_t timestamp;
+    int32_t readRes = ReadSetPolicyParcel(data, tokenId, policyInfoVectorParcel, policyFlag, timestamp);
     if (readRes != SANDBOX_MANAGER_OK) {
         return readRes;
     }
 
-    return this->SetPolicyAsync(tokenId, policyInfoVectorParcel->policyVector, policyFlag);
+    return this->SetPolicyAsync(tokenId, policyInfoVectorParcel->policyVector, policyFlag, timestamp);
 }
 
 static int32_t ReadUnSetPolicyParcel(MessageParcel &data, uint32_t &tokenId,
@@ -374,6 +381,24 @@ int32_t SandboxManagerStub::StartAccessingPolicyInner(MessageParcel &data, Messa
         return PERMISSION_DENIED;
     }
 
+    bool useCallerToken;
+    if (!data.ReadBool(useCallerToken)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read useCallerToken failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    uint32_t tokenId;
+    if (!data.ReadUint32(tokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read tokenId failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    uint64_t timestamp;
+    if (!data.ReadUint64(timestamp)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read timestamp failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
     if (policyInfoVectorParcel == nullptr) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager data parcel fail");
@@ -381,7 +406,8 @@ int32_t SandboxManagerStub::StartAccessingPolicyInner(MessageParcel &data, Messa
     }
 
     std::vector<uint32_t> result;
-    int32_t ret = this->StartAccessingPolicy(policyInfoVectorParcel->policyVector, result);
+    int32_t ret =
+        this->StartAccessingPolicy(policyInfoVectorParcel->policyVector, result, useCallerToken, tokenId, timestamp);
     if (!reply.WriteInt32(ret)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
@@ -470,7 +496,13 @@ int32_t SandboxManagerStub::StartAccessingByTokenIdInner(MessageParcel &data, Me
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Read tokenId parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
-    this->StartAccessingByTokenId(tokenId);
+    uint64_t timestamp;
+    if (!data.ReadUint64(timestamp)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read timestamp failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    this->StartAccessingByTokenId(tokenId, timestamp);
     return SANDBOX_MANAGER_OK;
 }
 
@@ -486,7 +518,12 @@ int32_t SandboxManagerStub::UnSetAllPolicyByTokenInner(MessageParcel &data, Mess
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Read tokenId parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
-    this->UnSetAllPolicyByToken(tokenId);
+    uint64_t timestamp;
+    if (!data.ReadUint64(timestamp)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read timestamp failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    this->UnSetAllPolicyByToken(tokenId, timestamp);
     return SANDBOX_MANAGER_OK;
 }
 

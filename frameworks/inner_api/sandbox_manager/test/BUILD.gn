@@ -29,12 +29,15 @@ ohos_unittest("libsandbox_manager_sdk_test") {
   include_dirs = [
     "${sandbox_manager_path}/frameworks/sandbox_manager/include",
     "${sandbox_manager_path}/frameworks/common/include",
+    "${sandbox_manager_path}/interfaces/inner_api/sandbox_manager/include",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/mac",
     "../include",
     "../src",
     "unittest/include",
   ]
 
   sources = [
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/mac/mac_adapter.cpp",
     "unittest/src/sandbox_manager_kit_coverage_test.cpp",
     "unittest/src/sandbox_manager_kit_test.cpp",
   ]
@@ -46,8 +49,8 @@ ohos_unittest("libsandbox_manager_sdk_test") {
   configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 
   deps = [
-    "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
     "${sandbox_manager_path}/frameworks/inner_api/sandbox_manager/:libsandbox_manager_sdk",
+    "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
   ]
 
   external_deps = [
