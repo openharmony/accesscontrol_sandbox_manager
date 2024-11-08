@@ -215,10 +215,10 @@ int32_t PolicyInfoManager::AddToDatabaseIfNotDuplicate(const uint32_t tokenId, c
 
 void PolicyInfoManager::RepeatsPathPolicyModeCal(std::vector<GenericValues> &dbResults, uint64_t dbResultsSize)
 {
-    std::map<std::string, int64_t> dbResultsMap;
+    std::map<std::string, uint32_t> dbResultsMap;
     for (size_t i = 0; i < dbResultsSize; ++i) {
         std::string currPath = dbResults[i].GetString(PolicyFiledConst::FIELD_PATH);
-        int64_t currMode = static_cast<int64_t>(dbResults[i].GetInt(PolicyFiledConst::FIELD_MODE));
+        uint32_t currMode = static_cast<uint32_t>(dbResults[i].GetInt(PolicyFiledConst::FIELD_MODE));
         if (dbResultsMap.find(currPath) != dbResultsMap.end()) {
             dbResultsMap[currPath] |= currMode;
         } else {
@@ -228,7 +228,7 @@ void PolicyInfoManager::RepeatsPathPolicyModeCal(std::vector<GenericValues> &dbR
     for (size_t i = 0; i < dbResultsSize; ++i) {
         std::string polisyPath = dbResults[i].GetString(PolicyFiledConst::FIELD_PATH);
         dbResults[i].Remove(PolicyFiledConst::FIELD_MODE);
-        dbResults[i].Put(PolicyFiledConst::FIELD_MODE, dbResultsMap[polisyPath]);
+        dbResults[i].Put(PolicyFiledConst::FIELD_MODE, static_cast<int32_t>(dbResultsMap[polisyPath]));
     }
 }
 
