@@ -75,6 +75,16 @@ public:
     static int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
                              std::vector<uint32_t> &result);
     /**
+     * @brief Set policys with a given tokenId to MAC layer
+     * @param tokenId a given tokenId
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @param policyFlag flag of policy
+     * @param timestamp timestamp of policy
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
+                             std::vector<uint32_t> &result, uint64_t timestamp);
+    /**
      * @brief Unset policy with a given tokenId from MAC layer
      * @param tokenId a given tokenId
      * @param policy vector of PolicyInfo, see policy_info.h
@@ -89,6 +99,16 @@ public:
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
     static int32_t SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag);
+    /**
+     * @brief Set policys with a given tokenId to MAC layer async
+     * @param tokenId a given tokenId
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @param policyFlag flag of policy
+     * @param timestamp timestamp of policy
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
+        uint64_t timestamp);
     /**
      * @brief Unset policy with a given tokenId from MAC layer async
      * @param tokenId a given tokenId
@@ -113,6 +133,18 @@ public:
      */
     static int32_t StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     /**
+     * @brief Set existing persisted policys with caller's tokenId or a given tokenId
+     *        to MAC layer, not existed policy would be ignored, but have a return in result
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @param result insert result of each policy, result is SandboxRetType in policy_info.h
+     * @param useCallerToken use caller token if true, else use the given tokenId
+     * @param tokenId a given tokenId
+     * @param timestamp timestamp to access policy
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+        bool useCallerToken, uint32_t tokenId, uint64_t timestamp);
+    /**
      * @brief Stop existing persisted policys with caller's tokenId to MAC layer
      *        not existed policy would be ignored, but have a return in result
      * @param policy vector of PolicyInfo, see policy_info.h
@@ -135,11 +167,25 @@ public:
      */
     static int32_t StartAccessingByTokenId(uint32_t tokenId);
     /**
+     * @brief load all policys by tokenid that auto-loaded flag = 1
+     * @param tokenId a given tokenId
+     * @param timestamp timestamp to access policy
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp);
+    /**
      * @brief unset all policy of a given tokenid
      * @param tokenId a given tokenId
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
     static int32_t UnSetAllPolicyByToken(uint32_t tokenId);
+    /**
+     * @brief unset all policy of a given tokenid
+     * @param tokenId a given tokenId
+     * @param timestamp timestamp to unset policy
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp);
 };
 } // SandboxManager
 } // AccessControl

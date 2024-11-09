@@ -33,6 +33,7 @@
 #include "sandbox_manager_dfx_helper.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_log.h"
+#include "os_account_manager.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -62,47 +63,71 @@ void PolicyInfoManager::Init()
     macAdapter_.Init();
 }
 
-void PolicyInfoManager::CleanPolicyOnMac(const std::vector<GenericValues>& results)
+void PolicyInfoManager::CleanPolicyOnMac(const std::vector<std::string> &filePathList, int32_t userId)
 {
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Clean policy on Mac by userId:%{private}d", userId);
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
         return;
     }
-    std::map<uint32_t, std::vector<PolicyInfo>> allPersistPolicy;
-    for (const auto& res : results) {
-        uint32_t tokenId;
+    std::vector<PolicyInfo> policies;
+    for (const std::string &path:filePathList) {
         PolicyInfo policy;
-        TransferGenericToPolicy(res, tokenId, policy);
-        auto it = allPersistPolicy.find(tokenId);
-        if (it == allPersistPolicy.end()) {
-            std::vector<PolicyInfo> policies;
-            policies.emplace_back(policy);
-            allPersistPolicy.insert(std::make_pair(tokenId, policies));
-        } else {
-            it->second.emplace_back(policy);
+        policy.path = path;
+        policies.emplace_back(policy);
+    }
+
+    std::vector<bool> result(policies.size());
+
+    macAdapter_.UnSetSandboxPolicyByUser(userId, policies, result);
+    int32_t count = 0;
+    for (bool res : result) {
+        if (!res) {
+            ++count;
         }
     }
-    uint32_t failCount = 0;
-    for (auto& it : allPersistPolicy) {
-        std::vector<bool> result(it.second.size());
-        int32_t count = 0;
-        macAdapter_.UnSetSandboxPolicy(it.first, it.second, result);
-        for (bool res : result) {
-            if (!res) {
-                ++count;
-            }
-        }
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Mac UnSetSandboxPolicy size = %{public}zu, fail size = %{public}d.",
-            it.second.size(), count);
-        failCount += static_cast<uint32_t>(count);
-    }
-    size_t resultSize = results.size();
-    PolicyOperateInfo info(resultSize, resultSize - failCount, failCount, 0);
+    size_t resultSize = result.size();
+    PolicyOperateInfo info(resultSize, resultSize - count, count, 0);
     SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::CLEAN_PERSIST_POLICY_BY_PATH, info);
+}
+
+void PolicyInfoManager::RemoveResultByUserId(std::vector<GenericValues> &results, int32_t userId)
+{
+    for (auto it = results.begin(); it != results.end();) {
+        uint32_t tokenId = static_cast<uint32_t>(it->GetInt(PolicyFiledConst::FIELD_TOKENID));
+        Security::AccessToken::HapTokenInfo hapTokenInfoRes;
+        int ret = Security::AccessToken::AccessTokenKit::GetHapTokenInfo(tokenId, hapTokenInfoRes);
+        if (ret != 0) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "find user id by token id failed ret:%{public}d", ret);
+            ++it;
+            continue;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "check result userId:%{public}d hap userId:%{public}d target:%{public}u", userId,
+            hapTokenInfoRes.userID, tokenId);
+
+        if (hapTokenInfoRes.userID != userId) {
+            SANDBOXMANAGER_LOG_INFO(LABEL,
+                "userId:%{public}d hap userId:%{public}d mismatch, do not delete target:%{public}u", userId,
+                hapTokenInfoRes.userID, tokenId);
+            it = results.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
 {
+    // clean MAC
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "clean persist failed, get user id failed error=%{public}d", ret);
+        userId = 0; // set default userId
+    }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "clean policy by path and userId:%{public}d", userId);
+    CleanPolicyOnMac(filePathList, userId);
     //Gets the persistence policy to be cleaned up
     std::vector<GenericValues> results;
     for (const std::string& path : filePathList) {
@@ -123,8 +148,7 @@ int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::strin
         return SANDBOX_MANAGER_OK;
     }
 
-    //clean MAC
-    CleanPolicyOnMac(results);
+    RemoveResultByUserId(results, userId);
 
     //clear the persistence policy
     for (const auto& res: results) {
@@ -375,8 +399,22 @@ int32_t PolicyInfoManager::RemovePolicy(
     return SANDBOX_MANAGER_OK;
 }
 
+MacParams PolicyInfoManager::GetMacParams(uint32_t tokenId, uint64_t policyFlag, uint64_t timestamp)
+{
+    MacParams macParams;
+    macParams.tokenId = tokenId;
+    macParams.policyFlag = policyFlag;
+    macParams.timestamp = timestamp;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(macParams.userId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "get user id failed error=%{public}d", ret);
+        macParams.userId = 0; // set default userId
+    }
+    return macParams;
+}
+
 int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                                     std::vector<uint32_t> &result)
+                                     std::vector<uint32_t> &result, uint64_t timestamp)
 {
     size_t policySize = policy.size();
     if (!macAdapter_.IsMacSupport()) {
@@ -409,7 +447,8 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
     }
 
     std::vector<uint32_t> setResult(validPolicies.size(), SANDBOX_MANAGER_OK);
-    int32_t ret = macAdapter_.SetSandboxPolicy(tokenId, validPolicies, policyFlag, setResult);
+    MacParams macParams = GetMacParams(tokenId, policyFlag, timestamp);
+    int32_t ret = macAdapter_.SetSandboxPolicy(validPolicies, setResult, macParams);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Set sandbox policy failed, error=%{public}d.", ret);
         PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
@@ -500,7 +539,7 @@ bool PolicyInfoManager::RemoveBundlePolicy(const uint32_t tokenId)
     return true;
 }
 
-int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId)
+int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId, uint64_t timestamp)
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
@@ -536,7 +575,8 @@ int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId)
         policys[i] = policy;
     }
     std::vector<uint32_t> macResults(searchSize);
-    ret = macAdapter_.SetSandboxPolicy(tokenId, policys, 0, macResults);
+    MacParams macParams = GetMacParams(tokenId, 0, timestamp);
+    ret = macAdapter_.SetSandboxPolicy(policys, macResults, macParams);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter set policy error, err code = %{public}d.", ret);
         return ret;
@@ -550,7 +590,7 @@ int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId)
 }
 
 int32_t PolicyInfoManager::StartAccessingPolicy(
-    const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results)
+    const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results, uint64_t timestamp)
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
@@ -583,7 +623,8 @@ int32_t PolicyInfoManager::StartAccessingPolicy(
     std::transform(accessingIndex.begin(), accessingIndex.end(),
         accessingPolicy.begin(), [policy](size_t index) { return policy[index]; });
     std::vector<uint32_t> macResults(accessingIndexSize);
-    ret = macAdapter_.SetSandboxPolicy(tokenId, accessingPolicy, 0, macResults);
+    MacParams macParams = GetMacParams(tokenId, 0, timestamp);
+    ret = macAdapter_.SetSandboxPolicy(accessingPolicy, macResults, macParams);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter set policy error, err code = %{public}d.", ret);
         results.clear();
@@ -659,7 +700,7 @@ int32_t PolicyInfoManager::StopAccessingPolicy(
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t PolicyInfoManager::UnSetAllPolicyByToken(const uint32_t tokenId)
+int32_t PolicyInfoManager::UnSetAllPolicyByToken(const uint32_t tokenId, uint64_t timestamp)
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
@@ -668,7 +709,7 @@ int32_t PolicyInfoManager::UnSetAllPolicyByToken(const uint32_t tokenId)
     PolicyOperateInfo info(0, 0, 0, 0);
     info.callerTokenid = tokenId;
     SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNSET_ALL_POLICY_BY_TOKEN, info);
-    return macAdapter_.DestroySandboxPolicy(tokenId);
+    return macAdapter_.DestroySandboxPolicy(tokenId, timestamp);
 }
 
 int32_t PolicyInfoManager::RangeFind(const GenericValues &conditions, const GenericValues &symbols,
