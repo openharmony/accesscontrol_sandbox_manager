@@ -84,6 +84,9 @@ void MacAdapter::Init()
         SANDBOXMANAGER_LOG_INFO(LABEL, "Node exists, mac is support.");
         isMacSupport_ = true;
     }
+    if (fd_ > 0) {
+        return;
+    }
     fd_ = open(DEV_NODE, O_RDWR);
     if (fd_ < 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Open node failed, errno=%{public}d.", errno);
