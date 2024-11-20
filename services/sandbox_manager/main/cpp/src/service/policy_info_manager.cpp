@@ -80,7 +80,7 @@ void PolicyInfoManager::CleanPolicyOnMac(const std::vector<std::string> &filePat
     std::vector<bool> result(policies.size());
 
     macAdapter_.UnSetSandboxPolicyByUser(userId, policies, result);
-    int32_t count = 0;
+    uint32_t count = 0;
     for (bool res : result) {
         if (!res) {
             ++count;
