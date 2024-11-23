@@ -58,7 +58,6 @@ int32_t SandboxManagerStub::OnRemoteRequest(
     if (itFunc != requestFuncMap_.end()) {
         auto requestFunc = itFunc->second;
         if (requestFunc != nullptr) {
-            DelayUnloadService();
             return (this->*requestFunc)(data, reply);
         } else {
             // when valid code without any function to handle

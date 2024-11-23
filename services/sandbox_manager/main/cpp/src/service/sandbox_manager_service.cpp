@@ -82,7 +82,6 @@ void SandboxManagerService::OnStart()
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to publish service! ");
         return;
     }
-    DelayUnloadService();
     SANDBOXMANAGER_LOG_INFO(LABEL, "SandboxManagerService start successful.");
 }
 
@@ -126,7 +125,6 @@ void SandboxManagerService::OnStart(const SystemAbilityOnDemandReason& startReas
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to publish service.");
         return;
     }
-    DelayUnloadService();
     SANDBOXMANAGER_LOG_INFO(LABEL, "SandboxManagerService start successful.");
 }
 
@@ -367,29 +365,6 @@ bool SandboxManagerService::InitDelayUnloadHandler()
         return false;
     }
     return true;
-}
-
-void SandboxManagerService::DelayUnloadService()
-{
-    std::lock_guard<std::mutex> lock(unloadMutex_);
-    if (!InitDelayUnloadHandler()) {
-        return;
-    }
-    auto task = [this]() {
-        auto samgrProxy = OHOS::SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
-        if (samgrProxy == nullptr) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Get samgr failed.");
-            return;
-        }
-        int32_t ret = samgrProxy->UnloadSystemAbility(SA_ID_SANDBOX_MANAGER_SERVICE);
-        if (ret != ERR_OK) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Unload system ability failed.");
-            return;
-        }
-    };
-    unloadHandler_->RemoveTask("SandboxManagerUnload");
-    unloadHandler_->PostTask(task, "SandboxManagerUnload", SA_LIFE_TIME);
-    SANDBOXMANAGER_LOG_INFO(LABEL, "Delay unload task updated.");
 }
 
 bool SandboxManagerService::StartByEventAction(const SystemAbilityOnDemandReason& startReason)

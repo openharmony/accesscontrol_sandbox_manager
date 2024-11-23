@@ -3,22 +3,8 @@
 	"systemability": [{
 		"name": 3508,
 		"libpath": "libsandbox_manager_service.z.so",
-		"run-on-create": false,
+		"run-on-create": true,
 		"distributed": false,
-		"dump_level": 1,
-		"start-on-demand": {
-			"commonevent": [{
-				"name": "usual.event.BOOT_COMPLETED"
-			},
-			{
-				"name": "usual.event.PACKAGE_REMOVED"
-			},
-			{
-				"name": "usual.event.PACKAGE_FULLY_REMOVED"
-			},
-			{
-				"name": "usual.event.PACKAGE_DATA_CLEARED"
-			}]
-		}
+		"dump_level": 1
 	}]
 }
