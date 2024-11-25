@@ -61,8 +61,6 @@ public:
     int32_t StartAccessingByTokenId(uint32_t tokenId) override;
     int32_t UnSetAllPolicyByToken(uint32_t tokenId) override;
     void onRemovePackage(uint32_t tokenId);
-
-    void DelayUnloadService() override;
     
 private:
     bool Initialize();
