@@ -1708,6 +1708,67 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest005, TestSize.Level1
 }
 #endif
 
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: CleanPersistPolicyByPathTest006
+ * @tc.desc: Clean persist policy by path with invalid path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest006, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParentA = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE
+    };
+    PolicyInfo infoParentB = {
+        .path = "/A/C",
+        .mode = OperateMode::READ_MODE
+    };
+    PolicyInfo infoParentC = {
+        .path = "/A/B/C",
+        .mode = OperateMode::WRITE_MODE
+    };
+    policy.emplace_back(infoParentA);
+    policy.emplace_back(infoParentB);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    ASSERT_EQ(2, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    std::vector<uint32_t> retType;
+    std::vector<PolicyInfo> policyB;
+    policyB.emplace_back(infoParentB);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policyB, retType));
+    ASSERT_EQ(1, retType.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+
+    Security::AccessToken::AccessTokenID tokenID =
+        Security::AccessToken::AccessTokenKit::GetNativeTokenId("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+
+    std::vector<std::string> filePaths;
+    infoParentC.path = "/A/B/C 2";
+    infoParentB.path = "/A/C 1";
+    filePaths.emplace_back(infoParentC.path);
+    filePaths.emplace_back(infoParentB.path);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
+    sleep(1);
+
+    std::vector<PolicyInfo> policyCheck;
+    std::vector<bool> checkrResult;
+    infoParentB.path = "/A/C";
+    policyCheck.emplace_back(infoParentB);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policyCheck, checkrResult));
+    ASSERT_EQ(1, checkrResult.size());
+    EXPECT_TRUE(checkrResult[0]);
+}
+#endif
+
 /**
  * @tc.name: StartAccessingByTokenIdTest001
  * @tc.desc: Start accessing by invalid tokenId
