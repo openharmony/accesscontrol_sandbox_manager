@@ -32,6 +32,7 @@
 #include "sandbox_manager_event_subscriber.h"
 #define private public
 #include "sandbox_manager_event_subscriber.h"
+#include "policy_info_manager.h"
 #include "sandbox_manager_service.h"
 #undef private
 #include "sandboxmanager_service_ipc_interface_code.h"
@@ -87,7 +88,14 @@ public:
 };
 
 void SandboxManagerServiceTest::SetUpTestCase(void)
-{}
+{
+    if (PolicyInfoManager::GetInstance().macAdapter_.fd_ > 0) {
+        close(PolicyInfoManager::GetInstance().macAdapter_.fd_);
+        PolicyInfoManager::GetInstance().macAdapter_.fd_ = -1;
+        PolicyInfoManager::GetInstance().macAdapter_.isMacSupport_ = false;
+    }
+    PolicyInfoManager::GetInstance().macAdapter_.Init();
+}
 
 void SandboxManagerServiceTest::TearDownTestCase(void)
 {}
