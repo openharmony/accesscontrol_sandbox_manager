@@ -233,7 +233,7 @@ int32_t SandboxManagerProxy::UnPersistPolicyByTokenId(
 }
 
 static bool WriteSetPolicyParcel(MessageParcel &data, uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-                                 uint64_t policyFlag)
+                                 uint64_t policyFlag, uint64_t timestamp)
 {
     if (!data.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write descriptor failed.");
@@ -241,6 +241,10 @@ static bool WriteSetPolicyParcel(MessageParcel &data, uint32_t tokenId, const st
     }
     if (!data.WriteUint32(tokenId)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId failed.");
+        return false;
+    }
+    if (!data.WriteUint64(timestamp)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write timestamp failed.");
         return false;
     }
 
@@ -259,10 +263,10 @@ static bool WriteSetPolicyParcel(MessageParcel &data, uint32_t tokenId, const st
 }
 
 int32_t SandboxManagerProxy::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-                                       uint64_t policyFlag, std::vector<uint32_t> &result)
+                                       uint64_t policyFlag, std::vector<uint32_t> &result, uint64_t timestamp)
 {
     MessageParcel data;
-    if (!WriteSetPolicyParcel(data, tokenId, policy, policyFlag)) {
+    if (!WriteSetPolicyParcel(data, tokenId, policy, policyFlag, timestamp)) {
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
@@ -289,10 +293,10 @@ int32_t SandboxManagerProxy::SetPolicy(uint32_t tokenId, const std::vector<Polic
 }
 
 int32_t SandboxManagerProxy::SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-                                            uint64_t policyFlag)
+                                            uint64_t policyFlag, uint64_t timestamp)
 {
     MessageParcel data;
-    if (!WriteSetPolicyParcel(data, tokenId, policy, policyFlag)) {
+    if (!WriteSetPolicyParcel(data, tokenId, policy, policyFlag, timestamp)) {
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
@@ -396,11 +400,27 @@ int32_t SandboxManagerProxy::CheckPolicy(uint32_t tokenId, const std::vector<Pol
     return remoteRet;
 }
 
-int32_t SandboxManagerProxy::StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
+int32_t SandboxManagerProxy::StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+    bool useCallerToken, uint32_t tokenId, uint64_t timestamp)
 {
     MessageParcel data;
     if (!data.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write descriptor fail");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteBool(useCallerToken)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write useCallerToken failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteUint32(tokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteUint64(timestamp)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write timestamp failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
@@ -506,7 +526,7 @@ int32_t SandboxManagerProxy::CheckPersistPolicy(uint32_t tokenId, const std::vec
     return remoteRet;
 }
 
-int32_t SandboxManagerProxy::StartAccessingByTokenId(uint32_t tokenId)
+int32_t SandboxManagerProxy::StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp)
 {
     MessageParcel data;
     if (!data.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
@@ -515,6 +535,11 @@ int32_t SandboxManagerProxy::StartAccessingByTokenId(uint32_t tokenId)
     }
     if (!data.WriteUint32(tokenId)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId fail.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteUint64(timestamp)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write timestamp fail.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
@@ -528,7 +553,7 @@ int32_t SandboxManagerProxy::StartAccessingByTokenId(uint32_t tokenId)
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t SandboxManagerProxy::UnSetAllPolicyByToken(uint32_t tokenId)
+int32_t SandboxManagerProxy::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp)
 {
     MessageParcel data;
     if (!data.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
@@ -537,6 +562,11 @@ int32_t SandboxManagerProxy::UnSetAllPolicyByToken(uint32_t tokenId)
     }
     if (!data.WriteUint32(tokenId)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId fail.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteUint64(timestamp)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write timestamp failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 

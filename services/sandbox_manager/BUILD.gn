@@ -78,6 +78,7 @@ if (is_standard_system) {
       "eventhandler:libeventhandler",
       "hilog:libhilog",
       "ipc:ipc_core",
+      "os_account:os_account_innerkits",
       "relational_store:native_rdb",
       "safwk:system_ability_fwk",
       "samgr:samgr_proxy",

@@ -39,17 +39,19 @@ public:
     virtual int32_t UnPersistPolicyByTokenId(
         uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) = 0;
     virtual int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                              std::vector<uint32_t> &result) = 0;
+                              std::vector<uint32_t> &result, uint64_t timestamp) = 0;
     virtual int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy) = 0;
-    virtual int32_t SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag) = 0;
+    virtual int32_t SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
+        uint64_t timestamp) = 0;
     virtual int32_t UnSetPolicyAsync(uint32_t tokenId, const PolicyInfo &policy) = 0;
     virtual int32_t CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result) = 0;
-    virtual int32_t StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) = 0;
+    virtual int32_t StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+        bool useCallerToken, uint32_t tokenId, uint64_t timestamp) = 0;
     virtual int32_t StopAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) = 0;
     virtual int32_t CheckPersistPolicy(
         uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result) = 0;
-    virtual int32_t StartAccessingByTokenId(uint32_t tokenId) = 0;
-    virtual int32_t UnSetAllPolicyByToken(uint32_t tokenId) = 0;
+    virtual int32_t StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp) = 0;
+    virtual int32_t UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp) = 0;
 };
 } // namespace SandboxManager
 } // namespace AccessControl

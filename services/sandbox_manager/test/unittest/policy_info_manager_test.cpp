@@ -356,16 +356,17 @@ HWTEST_F(PolicyInfoManagerTest, MacAdapterTest001, TestSize.Level1)
 {
     MacAdapter macAdapter;
     std::vector<PolicyInfo> policy;
-    uint64_t flag = 0;
     std::vector<uint32_t> u32Res;
-    EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.SetSandboxPolicy(selfTokenId_, policy, flag, u32Res));
+    MacParams macParams;
+    macParams.tokenId = selfTokenId_;
+    EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.SetSandboxPolicy(policy, u32Res, macParams));
     std::vector<bool> boolRes;
     EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.QuerySandboxPolicy(selfTokenId_, policy, boolRes));
     EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.CheckSandboxPolicy(selfTokenId_, policy, boolRes));
     EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.UnSetSandboxPolicy(selfTokenId_, policy, boolRes));
     PolicyInfo info;
     EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.UnSetSandboxPolicy(selfTokenId_, info));
-    EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.DestroySandboxPolicy(selfTokenId_));
+    EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.DestroySandboxPolicy(selfTokenId_, 0));
 }
 
 /**
