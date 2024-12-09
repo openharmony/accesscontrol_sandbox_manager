@@ -22,6 +22,13 @@
 namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
+
+struct MacParams {
+    uint32_t tokenId;
+    uint64_t policyFlag;
+    uint64_t timestamp;
+    int32_t userId;
+};
 class MacAdapter {
 public:
     explicit MacAdapter();
@@ -29,13 +36,14 @@ public:
     void Init();
     bool IsMacSupport();
 
-    int32_t SetSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                             std::vector<uint32_t> &result);
+    int32_t SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+        MacParams &macParams);
     int32_t UnSetSandboxPolicy(uint32_t tokenId, const PolicyInfo &policy);
     int32_t UnSetSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     int32_t QuerySandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     int32_t CheckSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
-    int32_t DestroySandboxPolicy(uint32_t tokenId);
+    int32_t DestroySandboxPolicy(uint32_t tokenId, uint64_t timestamp);
+    int32_t UnSetSandboxPolicyByUser(int32_t userId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
 
 private:
     int32_t fd_ = -1;

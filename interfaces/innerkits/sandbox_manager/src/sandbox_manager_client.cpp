@@ -90,10 +90,10 @@ int32_t SandboxManagerClient::UnPersistPolicyByTokenId(
 }
 
 int32_t SandboxManagerClient::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-                                        uint64_t policyFlag, std::vector<uint32_t> &result)
+                                        uint64_t policyFlag, std::vector<uint32_t> &result, uint64_t timestamp)
 {
     std::function<int32_t(sptr<ISandboxManager> &)> func =
-        [&](sptr<ISandboxManager> &proxy) { return proxy->SetPolicy(tokenId, policy, policyFlag, result); };
+        [&](sptr<ISandboxManager> &proxy) { return proxy->SetPolicy(tokenId, policy, policyFlag, result, timestamp); };
     return CallProxyWithRetry(func, __FUNCTION__);
 }
 
@@ -105,10 +105,10 @@ int32_t SandboxManagerClient::UnSetPolicy(uint32_t tokenId, const PolicyInfo &po
 }
 
 int32_t SandboxManagerClient::SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-                                             uint64_t policyFlag)
+                                             uint64_t policyFlag, uint64_t timestamp)
 {
     std::function<int32_t(sptr<ISandboxManager> &)> func =
-        [&](sptr<ISandboxManager> &proxy) { return proxy->SetPolicyAsync(tokenId, policy, policyFlag); };
+        [&](sptr<ISandboxManager> &proxy) { return proxy->SetPolicyAsync(tokenId, policy, policyFlag, timestamp); };
     return CallProxyWithRetry(func, __FUNCTION__);
 }
 
@@ -127,11 +127,12 @@ int32_t SandboxManagerClient::CheckPolicy(uint32_t tokenId, const std::vector<Po
     return CallProxyWithRetry(func, __FUNCTION__);
 }
 
-int32_t SandboxManagerClient::StartAccessingPolicy(
-    const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
+int32_t SandboxManagerClient::StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+    bool useCallerToken, uint32_t tokenId, uint64_t timestamp)
 {
-    std::function<int32_t(sptr<ISandboxManager> &)> func =
-        [&](sptr<ISandboxManager> &proxy) { return proxy->StartAccessingPolicy(policy, result); };
+    std::function<int32_t(sptr<ISandboxManager> &)> func = [&](sptr<ISandboxManager> &proxy) {
+        return proxy->StartAccessingPolicy(policy, result, useCallerToken, tokenId, timestamp);
+    };
     return CallProxyWithRetry(func, __FUNCTION__);
 }
 
@@ -150,17 +151,18 @@ int32_t SandboxManagerClient::CheckPersistPolicy(
     return CallProxyWithRetry(func, __FUNCTION__);
 }
 
-int32_t SandboxManagerClient::StartAccessingByTokenId(uint32_t tokenId)
+int32_t SandboxManagerClient::StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp)
 {
-    std::function<int32_t(sptr<ISandboxManager> &)> func =
-        [&](sptr<ISandboxManager> &proxy) { return proxy->StartAccessingByTokenId(tokenId); };
+    std::function<int32_t(sptr<ISandboxManager> &)> func = [&](sptr<ISandboxManager> &proxy) {
+        return proxy->StartAccessingByTokenId(tokenId, timestamp);
+    };
     return CallProxyWithRetry(func, __FUNCTION__);
 }
 
-int32_t SandboxManagerClient::UnSetAllPolicyByToken(uint32_t tokenId)
+int32_t SandboxManagerClient::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp)
 {
     std::function<int32_t(sptr<ISandboxManager> &)> func =
-        [&](sptr<ISandboxManager> &proxy) { return proxy->UnSetAllPolicyByToken(tokenId); };
+        [&](sptr<ISandboxManager> &proxy) { return proxy->UnSetAllPolicyByToken(tokenId, timestamp); };
     return CallProxyWithRetry(func, __FUNCTION__);
 }
 

@@ -49,17 +49,19 @@ public:
     int32_t UnPersistPolicyByTokenId(
         uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
     int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                      std::vector<uint32_t> &result) override;
+                      std::vector<uint32_t> &result, uint64_t timestamp = 0) override;
     int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy) override;
-    int32_t SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag) override;
+    int32_t SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
+        uint64_t timestamp = 0) override;
     int32_t UnSetPolicyAsync(uint32_t tokenId, const PolicyInfo &policy) override;
     int32_t CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result) override;
-    int32_t StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
+    int32_t StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+        bool useCallerToken = true, uint32_t tokenId = 0, uint64_t timestamp = 0) override;
     int32_t StopAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
     int32_t CheckPersistPolicy(
         uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result) override;
-    int32_t StartAccessingByTokenId(uint32_t tokenId) override;
-    int32_t UnSetAllPolicyByToken(uint32_t tokenId) override;
+    int32_t StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp = 0) override;
+    int32_t UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp = 0) override;
     void onRemovePackage(uint32_t tokenId);
     
 private:
