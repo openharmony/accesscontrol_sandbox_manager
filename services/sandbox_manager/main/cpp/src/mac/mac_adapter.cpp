@@ -92,7 +92,7 @@ void MacAdapter::Init()
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Open node failed, errno=%{public}d.", errno);
         return;
     }
-    SANDBOXMANAGER_LOG_INFO(LABEL, "Open node success.", errno);
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Open node success.");
     return;
 }
 
