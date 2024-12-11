@@ -33,6 +33,10 @@ public:
 
     int OnRemoteRequest(uint32_t code, MessageParcel &data, MessageParcel &reply, MessageOption &options) override;
 
+#ifdef NOT_RESIDENT
+    virtual void DelayUnloadService() = 0;
+#endif
+
 private:
     int32_t CleanPersistPolicyByPathInner(MessageParcel &data, MessageParcel &reply);
     int32_t PersistPolicyInner(MessageParcel &data, MessageParcel &reply);
