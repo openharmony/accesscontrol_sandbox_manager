@@ -83,7 +83,6 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
     "relational_store:native_rdb",
     "safwk:system_ability_fwk",
     "samgr:samgr_proxy",
-    "sqlite:sqlite",
   ]
 }
 

@@ -28,8 +28,6 @@ sandbox_manager_include_dirs = [
 
 sandbox_manager_sources = [
   "${sandbox_manager_path}/services/common/database/src/generic_values.cpp",
-  "${sandbox_manager_path}/services/common/database/src/sqlite_helper.cpp",
-  "${sandbox_manager_path}/services/common/database/src/statement.cpp",
   "${sandbox_manager_path}/services/common/database/src/variant_value.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/policy_field_const.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/sandbox_manager_rdb.cpp",
@@ -65,5 +63,4 @@ sandbox_manager_external_deps = [
   "relational_store:native_rdb",
   "safwk:system_ability_fwk",
   "samgr:samgr_proxy",
-  "sqlite:sqlite",
 ]

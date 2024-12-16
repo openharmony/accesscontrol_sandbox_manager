@@ -24,7 +24,6 @@
 #include "nocopyable.h"
 #include "policy_field_const.h"
 #include "rwlock.h"
-#include "sqlite_helper.h"
 #include "sandbox_manager_rdb_utils.h"
 
 namespace OHOS {

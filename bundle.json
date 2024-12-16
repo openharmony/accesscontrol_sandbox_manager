@@ -36,7 +36,6 @@
         "eventhandler",
         "common_event_service",
         "ability_base",
-        "sqlite",
         "relational_store",
         "os_account"
       ],
