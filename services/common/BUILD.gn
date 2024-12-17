@@ -33,8 +33,6 @@ ohos_shared_library("sandbox_manager_service_common") {
 
   sources = [
     "database/src/generic_values.cpp",
-    "database/src/sqlite_helper.cpp",
-    "database/src/statement.cpp",
     "database/src/variant_value.cpp",
   ]
 
@@ -47,6 +45,5 @@ ohos_shared_library("sandbox_manager_service_common") {
     "ipc:ipc_core",
     "safwk:system_ability_fwk",
     "samgr:samgr_proxy",
-    "sqlite:sqlite",
   ]
 }

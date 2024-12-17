@@ -89,7 +89,6 @@ if (is_standard_system) {
       "relational_store:native_rdb",
       "safwk:system_ability_fwk",
       "samgr:samgr_proxy",
-      "sqlite:sqlite",
     ]
   }
 }
