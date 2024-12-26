@@ -1209,6 +1209,48 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest008, TestSize.Level1)
 
 #ifdef DEC_ENABLED
 /**
+ * @tc.name: CheckPolicyTest009
+ * @tc.desc: Check allowed policy
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, CheckPolicyTest009, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policyA;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParentA = {
+        .path = "/A/B",
+        .mode = OperateMode::WRITE_MODE
+    };
+    PolicyInfo infoParentB = {
+        .path = "/A/B/C",
+        .mode = OperateMode::WRITE_MODE
+    };
+    PolicyInfo infoParentC = {
+        .path = "/A/B/C.txt",
+        .mode = OperateMode::WRITE_MODE
+    };
+    policyA.emplace_back(infoParentA);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyA, policyFlag, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+ 
+    std::vector<bool> result;
+    std::vector<PolicyInfo> policyB;
+    policyB.emplace_back(infoParentA);
+    policyB.emplace_back(infoParentB);
+    policyB.emplace_back(infoParentC);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policyB, result));
+    ASSERT_EQ(3, result.size());
+    EXPECT_TRUE(result[0]);
+    EXPECT_TRUE(result[1]);
+    EXPECT_TRUE(result[2]);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
  * @tc.name: UnSetPolicyTest001
  * @tc.desc: Unset policy with invalid tokenID
  * @tc.type: FUNC
