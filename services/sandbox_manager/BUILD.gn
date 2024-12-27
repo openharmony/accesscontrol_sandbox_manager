@@ -15,7 +15,11 @@ import("//build/ohos.gni")
 import("../../sandbox_manager.gni")
 
 ohos_prebuilt_etc("sandbox_manager_service.rc") {
-  source = "sandbox_manager_service.cfg"
+  if (sandbox_manager_process_resident) {
+    source = "proc_resident_cfg/sandbox_manager_service.cfg"
+  } else {
+    source = "proc_non_resident_cfg/sandbox_manager_service.cfg"
+  }
   relative_install_dir = "init"
   subsystem_name = "accesscontrol"
   part_name = "sandbox_manager"
@@ -60,6 +64,9 @@ if (is_standard_system) {
     ]
 
     cflags_cc = [ "-DHILOG_ENABLE" ]
+    if (!sandbox_manager_process_resident) {
+      cflags_cc += [ "-DNOT_RESIDENT" ]
+    }
 
     configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 
