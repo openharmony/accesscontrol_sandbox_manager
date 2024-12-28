@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("//base/accesscontrol/sandbox_manager/sandbox_manager.gni")
 import("//build/ohos.gni")
 import("//build/ohos/sa_profile/sa_profile.gni")
 
@@ -18,6 +19,10 @@ if (is_standard_system) {
   ohos_sa_profile("sandbox_manager_sa_profile_standard") {
     part_name = "sandbox_manager"
 
-    sources = [ "sandbox_manager_service.json" ]
+    if (sandbox_manager_process_resident) {
+      sources = [ "proc_resident/sandbox_manager_service.json" ]
+    } else {
+      sources = [ "proc_non_resident/sandbox_manager_service.json" ]
+    }
   }
 }

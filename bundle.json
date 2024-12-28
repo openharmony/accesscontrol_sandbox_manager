@@ -15,6 +15,7 @@
     "syscap": [],
     "features": [
       "sandbox_manager_feature_coverage",
+      "sandbox_manager_process_resident",
       "sandbox_manager_with_dec"
     ],
     "adapted_system_type": [ "standard" ],

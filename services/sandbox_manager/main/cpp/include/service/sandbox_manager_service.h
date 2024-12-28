@@ -63,6 +63,9 @@ public:
     int32_t StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp = 0) override;
     int32_t UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp = 0) override;
     void onRemovePackage(uint32_t tokenId);
+#ifdef NOT_RESIDENT
+    void DelayUnloadService() override;
+#endif
     
 private:
     bool Initialize();
