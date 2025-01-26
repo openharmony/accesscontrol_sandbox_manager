@@ -16,6 +16,7 @@
 #include "sandbox_manager_proxy.h"
 
 #include <cstddef>
+#include <sstream>
 #include <string>
 #include "iremote_object.h"
 #include "iremote_proxy.h"
@@ -44,6 +45,17 @@ SandboxManagerProxy::SandboxManagerProxy(const sptr<IRemoteObject> &impl)
 SandboxManagerProxy::~SandboxManagerProxy()
 {}
 
+static void MarshalPolicy(std::stringstream &ss, const std::vector<PolicyInfo> &policy)
+{
+    uint32_t policyNum = policy.size();
+    ss.write(reinterpret_cast<const char *>(&policyNum), sizeof(policyNum));
+    for (int i = 0; i < policyNum; i++) {
+        uint32_t pathLen = policy[i].path.length();
+        ss.write(reinterpret_cast<const char *>(&pathLen), sizeof(pathLen));
+        ss.write(policy[i].path.c_str(), pathLen);
+        ss.write(reinterpret_cast<const char *>(&policy[i].mode), sizeof(policy[i].mode));
+    }
+}
 int32_t SandboxManagerProxy::SendRequest(SandboxManagerInterfaceCode code, MessageParcel &data, MessageParcel &reply)
 {
     MessageOption option(MessageOption::TF_SYNC);
@@ -91,10 +103,16 @@ int32_t SandboxManagerProxy::PersistPolicy(const std::vector<PolicyInfo> &policy
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
-    PolicyInfoVectorParcel policyInfoVectorParcel;
-    policyInfoVectorParcel.policyVector = policy;
-    if (!data.WriteParcelable(&policyInfoVectorParcel)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoVectorParcel fail");
+    std::stringstream ss;
+    MarshalPolicy(ss, policy);
+
+    if (!data.WriteUint32(ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policy len failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteRawData(reinterpret_cast<const void *>(ss.str().data()), ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write raw data failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
@@ -126,10 +144,16 @@ int32_t SandboxManagerProxy::UnPersistPolicy(const std::vector<PolicyInfo> &poli
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
-    PolicyInfoVectorParcel policyInfoVectorParcel;
-    policyInfoVectorParcel.policyVector = policy;
-    if (!data.WriteParcelable(&policyInfoVectorParcel)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoVectorParcel fail");
+    std::stringstream ss;
+    MarshalPolicy(ss, policy);
+
+    if (!data.WriteUint32(ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policy len failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteRawData(reinterpret_cast<const void *>(ss.str().data()), ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write raw data failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     
@@ -166,10 +190,16 @@ int32_t SandboxManagerProxy::PersistPolicyByTokenId(
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
-    PolicyInfoVectorParcel policyInfoVectorParcel;
-    policyInfoVectorParcel.policyVector = policy;
-    if (!data.WriteParcelable(&policyInfoVectorParcel)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoVectorParcel fail");
+    std::stringstream ss;
+    MarshalPolicy(ss, policy);
+
+    if (!data.WriteUint32(ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policy len failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteRawData(reinterpret_cast<const void *>(ss.str().data()), ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write raw data failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     
@@ -205,10 +235,16 @@ int32_t SandboxManagerProxy::UnPersistPolicyByTokenId(
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write tokenId fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
-    PolicyInfoVectorParcel policyInfoVectorParcel;
-    policyInfoVectorParcel.policyVector = policy;
-    if (!data.WriteParcelable(&policyInfoVectorParcel)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoVectorParcel fail");
+    std::stringstream ss;
+    MarshalPolicy(ss, policy);
+
+    if (!data.WriteUint32(ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policy len failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteRawData(reinterpret_cast<const void *>(ss.str().data()), ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write raw data failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     
@@ -248,11 +284,17 @@ static bool WriteSetPolicyParcel(MessageParcel &data, uint32_t tokenId, const st
         return false;
     }
 
-    PolicyInfoVectorParcel policyInfoVectorParcel;
-    policyInfoVectorParcel.policyVector = policy;
-    if (!data.WriteParcelable(&policyInfoVectorParcel)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoVectorParcel failed.");
-        return false;
+    std::stringstream ss;
+    MarshalPolicy(ss, policy);
+
+    if (!data.WriteUint32(ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policy len failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteRawData(reinterpret_cast<const void *>(ss.str().data()), ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write raw data failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     if (!data.WriteUint64(policyFlag)) {
@@ -371,10 +413,16 @@ int32_t SandboxManagerProxy::CheckPolicy(uint32_t tokenId, const std::vector<Pol
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
-    PolicyInfoVectorParcel policyInfoVectorParcel;
-    policyInfoVectorParcel.policyVector = policy;
-    if (!data.WriteParcelable(&policyInfoVectorParcel)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoVectorParcel failed.");
+    std::stringstream ss;
+    MarshalPolicy(ss, policy);
+
+    if (!data.WriteUint32(ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policy len failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteRawData(reinterpret_cast<const void *>(ss.str().data()), ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write raw data failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
@@ -424,10 +472,16 @@ int32_t SandboxManagerProxy::StartAccessingPolicy(const std::vector<PolicyInfo> 
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
-    PolicyInfoVectorParcel policyInfoVectorParcel;
-    policyInfoVectorParcel.policyVector = policy;
-    if (!data.WriteParcelable(&policyInfoVectorParcel)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoVectorParcel fail");
+    std::stringstream ss;
+    MarshalPolicy(ss, policy);
+
+    if (!data.WriteUint32(ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policy len failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteRawData(reinterpret_cast<const void *>(ss.str().data()), ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write raw data failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     
@@ -459,13 +513,19 @@ int32_t SandboxManagerProxy::StopAccessingPolicy(const std::vector<PolicyInfo> &
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
-    PolicyInfoVectorParcel policyInfoVectorParcel;
-    policyInfoVectorParcel.policyVector = policy;
-    if (!data.WriteParcelable(&policyInfoVectorParcel)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoVectorParcel fail");
+    std::stringstream ss;
+    MarshalPolicy(ss, policy);
+
+    if (!data.WriteUint32(ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policy len failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
-    
+
+    if (!data.WriteRawData(reinterpret_cast<const void *>(ss.str().data()), ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write raw data failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
     MessageParcel reply;
     int32_t requestRet = SendRequest(SandboxManagerInterfaceCode::STOP_ACCESSING_URI, data, reply);
     if (requestRet != SANDBOX_MANAGER_OK) {
@@ -499,10 +559,16 @@ int32_t SandboxManagerProxy::CheckPersistPolicy(uint32_t tokenId, const std::vec
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     
-    PolicyInfoVectorParcel policyInfoVectorParcel;
-    policyInfoVectorParcel.policyVector = policy;
-    if (!data.WriteParcelable(&policyInfoVectorParcel)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policyInfoVectorParcel fail");
+    std::stringstream ss;
+    MarshalPolicy(ss, policy);
+
+    if (!data.WriteUint32(ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write policy len failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    if (!data.WriteRawData(reinterpret_cast<const void *>(ss.str().data()), ss.str().length())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write raw data failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 

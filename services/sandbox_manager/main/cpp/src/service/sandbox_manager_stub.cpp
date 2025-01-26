@@ -17,6 +17,7 @@
 
 #include <cinttypes>
 #include <cstdint>
+#include <sstream>
 #include <string>
 #include <unistd.h>
 #include <vector>
@@ -43,6 +44,32 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
 }
 
 static bool CheckPermission(const uint32_t tokenId, const std::string &permission);
+
+static int UnMarshalPolicy(std::stringstream &ss, std::vector<PolicyInfo> &policyVec)
+{
+    uint32_t policyNum = 0;
+    char buf[POLICY_PATH_LIMIT + 1] = {0};
+    ss.read(reinterpret_cast<char *>(&policyNum), sizeof(policyNum));
+    if (policyNum > POLICY_VECTOR_SIZE_LIMIT) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "policy num:%{public}u is invalid", policyNum);
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    for (int i = 0; i < policyNum; i++) {
+        uint32_t pathLen = 0;
+        ss.read(reinterpret_cast<char *>(&pathLen), sizeof(pathLen));
+        if (pathLen > POLICY_PATH_LIMIT) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "path eln:%{public}u is invalid", pathLen);
+            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        }
+        ss.read(buf, pathLen);
+        PolicyInfo info;
+        info.path.assign(buf, pathLen);
+        ss.read(reinterpret_cast<char *>(&info.mode), sizeof(info.mode));
+        policyVec.push_back(info);
+    }
+    return SANDBOX_MANAGER_OK;
+}
 
 int32_t SandboxManagerStub::OnRemoteRequest(
     uint32_t code, MessageParcel &data, MessageParcel &reply, MessageOption &option)
@@ -100,14 +127,23 @@ int32_t SandboxManagerStub::PersistPolicyInner(MessageParcel &data, MessageParce
         return PERMISSION_DENIED;
     }
 
-    sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
-    if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager data parcel fail");
+    std::vector<PolicyInfo> policyVec;
+    auto vecDataSize = data.ReadUint32();
+    const void *buffer = data.ReadRawData(vecDataSize);
+    if (buffer == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read raw data failed");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    std::stringstream ss;
+    ss.write(reinterpret_cast<const char *>(buffer), vecDataSize);
+    if (UnMarshalPolicy(ss, policyVec) != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshal failed");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     std::vector<uint32_t> result;
-    int32_t ret = this->PersistPolicy(policyInfoVectorParcel->policyVector, result);
+    int32_t ret = this->PersistPolicy(policyVec, result);
     if (!reply.WriteInt32(ret)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
@@ -130,15 +166,24 @@ int32_t SandboxManagerStub::UnPersistPolicyInner(MessageParcel &data, MessagePar
         return PERMISSION_DENIED;
     }
 
-    sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
-    if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read sandbox manager data parcel fail");
+    std::vector<PolicyInfo> policyVec;
+    auto vecDataSize = data.ReadUint32();
+    const void *buffer = data.ReadRawData(vecDataSize);
+    if (buffer == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read raw data failed");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    std::stringstream ss;
+    ss.write(reinterpret_cast<const char *>(buffer), vecDataSize);
+    if (UnMarshalPolicy(ss, policyVec) != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshal failed");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     std::vector<uint32_t> result;
 
-    int32_t ret = this->UnPersistPolicy(policyInfoVectorParcel->policyVector, result);
+    int32_t ret = this->UnPersistPolicy(policyVec, result);
     if (!reply.WriteInt32(ret)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
@@ -165,14 +210,23 @@ int32_t SandboxManagerStub::PersistPolicyByTokenIdInner(MessageParcel &data, Mes
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Read tokenId parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
-    sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
-    if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read sandbox manager data parcel fail");
+    std::vector<PolicyInfo> policyVec;
+    auto vecDataSize = data.ReadUint32();
+    const void *buffer = data.ReadRawData(vecDataSize);
+    if (buffer == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read raw data failed");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    std::stringstream ss;
+    ss.write(reinterpret_cast<const char *>(buffer), vecDataSize);
+    if (UnMarshalPolicy(ss, policyVec) != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshal failed");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     std::vector<uint32_t> result;
-    int32_t ret = this->PersistPolicyByTokenId(tokenId, policyInfoVectorParcel->policyVector, result);
+    int32_t ret = this->PersistPolicyByTokenId(tokenId, policyVec, result);
     if (!reply.WriteInt32(ret)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
@@ -199,15 +253,24 @@ int32_t SandboxManagerStub::UnPersistPolicyByTokenIdInner(MessageParcel &data, M
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply tokenId parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
-    sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
-    if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager data parcel fail");
+    std::vector<PolicyInfo> policyVec;
+    auto vecDataSize = data.ReadUint32();
+    const void *buffer = data.ReadRawData(vecDataSize);
+    if (buffer == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read raw data failed");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    std::stringstream ss;
+    ss.write(reinterpret_cast<const char *>(buffer), vecDataSize);
+    if (UnMarshalPolicy(ss, policyVec) != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshal failed");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     std::vector<uint32_t> result;
 
-    int32_t ret = this->UnPersistPolicyByTokenId(tokenId, policyInfoVectorParcel->policyVector, result);
+    int32_t ret = this->UnPersistPolicyByTokenId(tokenId, policyVec, result);
     if (!reply.WriteInt32(ret)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
@@ -224,7 +287,7 @@ int32_t SandboxManagerStub::UnPersistPolicyByTokenIdInner(MessageParcel &data, M
 }
 
 static int32_t ReadSetPolicyParcel(MessageParcel &data, uint32_t &tokenId,
-    sptr<PolicyInfoVectorParcel> &policyInfoVectorParcel, uint64_t &policyFlag, uint64_t &timestamp)
+    std::vector<PolicyInfo> &policyVec, uint64_t &policyFlag, uint64_t &timestamp)
 {
     uint64_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     if (!CheckPermission(callingTokenId, SET_POLICY_PERMISSION_NAME)) {
@@ -241,9 +304,17 @@ static int32_t ReadSetPolicyParcel(MessageParcel &data, uint32_t &tokenId,
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
-    policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
-    if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read policyInfoVectorParcel failed.");
+    auto vecDataSize = data.ReadUint32();
+    const void *buffer = data.ReadRawData(vecDataSize);
+    if (buffer == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read raw data failed");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    std::stringstream ss;
+    ss.write(reinterpret_cast<const char *>(buffer), vecDataSize);
+    if (UnMarshalPolicy(ss, policyVec) != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshal failed");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
@@ -261,13 +332,14 @@ int32_t SandboxManagerStub::SetPolicyInner(MessageParcel &data, MessageParcel &r
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = nullptr;
     uint64_t policyFlag;
     uint64_t timestamp;
-    int32_t readRes = ReadSetPolicyParcel(data, tokenId, policyInfoVectorParcel, policyFlag, timestamp);
+    std::vector<PolicyInfo> policyVec;
+    int32_t readRes = ReadSetPolicyParcel(data, tokenId, policyVec, policyFlag, timestamp);
     if (readRes != SANDBOX_MANAGER_OK) {
         return readRes;
     }
 
     std::vector<uint32_t> result;
-    int32_t ret = this->SetPolicy(tokenId, policyInfoVectorParcel->policyVector, policyFlag, result, timestamp);
+    int32_t ret = this->SetPolicy(tokenId, policyVec, policyFlag, result, timestamp);
     if (!reply.WriteInt32(ret)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write ret failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
@@ -288,12 +360,13 @@ int32_t SandboxManagerStub::SetPolicyAsyncInner(MessageParcel &data, MessageParc
     sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = nullptr;
     uint64_t policyFlag;
     uint64_t timestamp;
-    int32_t readRes = ReadSetPolicyParcel(data, tokenId, policyInfoVectorParcel, policyFlag, timestamp);
+    std::vector<PolicyInfo> policyVec;
+    int32_t readRes = ReadSetPolicyParcel(data, tokenId, policyVec, policyFlag, timestamp);
     if (readRes != SANDBOX_MANAGER_OK) {
         return readRes;
     }
 
-    return this->SetPolicyAsync(tokenId, policyInfoVectorParcel->policyVector, policyFlag, timestamp);
+    return this->SetPolicyAsync(tokenId, policyVec, policyFlag, timestamp);
 }
 
 static int32_t ReadUnSetPolicyParcel(MessageParcel &data, uint32_t &tokenId,
@@ -355,13 +428,22 @@ int32_t SandboxManagerStub::CheckPolicyInner(MessageParcel &data, MessageParcel 
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
-    sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
-    if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read policyInfoVectorParcel failed.");
+    std::vector<PolicyInfo> policyVec;
+    auto vecDataSize = data.ReadUint32();
+    const void *buffer = data.ReadRawData(vecDataSize);
+    if (buffer == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read raw data failed");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    std::stringstream ss;
+    ss.write(reinterpret_cast<const char *>(buffer), vecDataSize);
+    if (UnMarshalPolicy(ss, policyVec) != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshal failed");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     std::vector<bool> result;
-    int32_t ret = this->CheckPolicy(tokenId, policyInfoVectorParcel->policyVector, result);
+    int32_t ret = this->CheckPolicy(tokenId, policyVec, result);
     if (!reply.WriteInt32(ret)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Write ret failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
@@ -401,15 +483,24 @@ int32_t SandboxManagerStub::StartAccessingPolicyInner(MessageParcel &data, Messa
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
-    sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
-    if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager data parcel fail");
+    std::vector<PolicyInfo> policyVec;
+    auto vecDataSize = data.ReadUint32();
+    const void *buffer = data.ReadRawData(vecDataSize);
+    if (buffer == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read raw data failed");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    std::stringstream ss;
+    ss.write(reinterpret_cast<const char *>(buffer), vecDataSize);
+    if (UnMarshalPolicy(ss, policyVec) != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshal failed");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     std::vector<uint32_t> result;
     int32_t ret =
-        this->StartAccessingPolicy(policyInfoVectorParcel->policyVector, result, useCallerToken, tokenId, timestamp);
+        this->StartAccessingPolicy(policyVec, result, useCallerToken, tokenId, timestamp);
     if (!reply.WriteInt32(ret)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
@@ -432,15 +523,24 @@ int32_t SandboxManagerStub::StopAccessingPolicyInner(MessageParcel &data, Messag
         return PERMISSION_DENIED;
     }
 
-    sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
-    if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager data parcel fail");
+    std::vector<PolicyInfo> policyVec;
+    auto vecDataSize = data.ReadUint32();
+    const void *buffer = data.ReadRawData(vecDataSize);
+    if (buffer == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read raw data failed");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    std::stringstream ss;
+    ss.write(reinterpret_cast<const char *>(buffer), vecDataSize);
+    if (UnMarshalPolicy(ss, policyVec) != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshal failed");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     std::vector<uint32_t> result;
 
-    int32_t ret = this->StopAccessingPolicy(policyInfoVectorParcel->policyVector, result);
+    int32_t ret = this->StopAccessingPolicy(policyVec, result);
     if (!reply.WriteInt32(ret)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
@@ -464,14 +564,23 @@ int32_t SandboxManagerStub::CheckPersistPolicyInner(MessageParcel &data, Message
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
-    sptr<PolicyInfoVectorParcel> policyInfoVectorParcel = data.ReadParcelable<PolicyInfoVectorParcel>();
-    if (policyInfoVectorParcel == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager data parcel fail");
+    std::vector<PolicyInfo> policyVec;
+    auto vecDataSize = data.ReadUint32();
+    const void *buffer = data.ReadRawData(vecDataSize);
+    if (buffer == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read raw data failed");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    std::stringstream ss;
+    ss.write(reinterpret_cast<const char *>(buffer), vecDataSize);
+    if (UnMarshalPolicy(ss, policyVec) != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshal failed");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
     std::vector<bool> result;
-    int32_t ret = this->CheckPersistPolicy(tokenId, policyInfoVectorParcel->policyVector, result);
+    int32_t ret = this->CheckPersistPolicy(tokenId, policyVec, result);
     if (!reply.WriteInt32(ret)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply sandbox manager ret parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
