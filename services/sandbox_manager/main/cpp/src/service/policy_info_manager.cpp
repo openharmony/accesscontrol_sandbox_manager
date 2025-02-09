@@ -28,6 +28,7 @@
 #include "generic_values.h"
 #include "policy_field_const.h"
 #include "policy_info.h"
+#include "policy_trie.h"
 #include "sandbox_manager_const.h"
 #include "sandbox_manager_rdb.h"
 #include "sandbox_manager_dfx_helper.h"
@@ -335,12 +336,54 @@ int32_t PolicyInfoManager::MatchPolicy(const uint32_t tokenId, const std::vector
     if (result.size() != policySize) {
         result.resize(policySize);
     }
-    for (size_t i = 0; i < policySize; ++i) {
-        int32_t ret = MatchSinglePolicy(tokenId, policy[i], result[i]);
-        if (ret == SANDBOX_MANAGER_DB_ERR) {
-            return ret;
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "match policy target:%{public}u policySize:%{public}zu", tokenId, policySize);
+    GenericValues conditions;
+    GenericValues symbols;
+
+    conditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(tokenId));
+    symbols.Put(PolicyFiledConst::FIELD_TOKENID, std::string("="));
+
+    std::vector<GenericValues> dbResults;
+    int32_t ret = RangeFind(conditions, symbols, dbResults);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
+        return ret;
+    }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "match policy, find result size:%{public}zu", dbResults.size());
+    if (dbResults.size() == 0) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "target:%{public}u has no policy in db", tokenId);
+        for (auto &value:result) {
+            value = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
+        }
+        return SANDBOX_MANAGER_OK;
+    }
+
+    PolicyTrie trieTree;
+    for (size_t i = 0; i < dbResults.size(); i++) {
+        std::string currPath = dbResults[i].GetString(PolicyFiledConst::FIELD_PATH);
+        uint32_t currMode = static_cast<uint32_t>(dbResults[i].GetInt(PolicyFiledConst::FIELD_MODE));
+        trieTree.InsertPath(currPath, currMode); // same path, mode is set by or operation.
+    }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "match policy, check each policy");
+    for (size_t i = 0; i < policySize; i++) {
+        int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
+        if (checkPolicyRet != SANDBOX_MANAGER_OK) {
+            result[i] = static_cast<uint32_t>(checkPolicyRet);
+            continue;
+        }
+
+        if (trieTree.CheckPath(policy[i].path, policy[i].mode)) {
+            result[i] = SandboxRetType::OPERATE_SUCCESSFULLY;
+        } else {
+            result[i] = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
         }
     }
+
+    trieTree.Clear(); // clear trie child nodes
+    SANDBOXMANAGER_LOG_INFO(LABEL, "match policy target:%{public}u end", tokenId);
     return SANDBOX_MANAGER_OK;
 }
 

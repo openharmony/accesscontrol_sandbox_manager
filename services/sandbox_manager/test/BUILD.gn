@@ -19,6 +19,7 @@ sandbox_manager_service_src = [
   "../main/cpp/src/service/sandbox_manager_stub.cpp",
   "../main/cpp/src/sensitive/sandbox_manager_event_subscriber.cpp",
   "../main/cpp/src/service/policy_info_manager.cpp",
+  "../main/cpp/src/service/policy_trie.cpp",
   "../main/cpp/src/database/policy_field_const.cpp",
   "../main/cpp/src/database/sandbox_manager_rdb.cpp",
   "../main/cpp/src/database/sandbox_manager_rdb_open_callback.cpp",

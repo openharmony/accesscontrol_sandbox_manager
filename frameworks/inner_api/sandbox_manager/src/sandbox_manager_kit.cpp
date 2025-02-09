@@ -216,7 +216,8 @@ int32_t SandboxManagerKit::StopAccessingPolicy(const std::vector<PolicyInfo> &po
 int32_t SandboxManagerKit::CheckPersistPolicy(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Check persist policy target:%{public}u policySize:%{public}zu", tokenId,
+        policy.size());
     size_t policySize = policy.size();
     if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT || tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
