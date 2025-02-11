@@ -59,6 +59,7 @@ if (is_standard_system) {
       "main/cpp/src/mac/mac_adapter.cpp",
       "main/cpp/src/sensitive/sandbox_manager_event_subscriber.cpp",
       "main/cpp/src/service/policy_info_manager.cpp",
+      "main/cpp/src/service/policy_trie.cpp",
       "main/cpp/src/service/sandbox_manager_service.cpp",
       "main/cpp/src/service/sandbox_manager_stub.cpp",
     ]
