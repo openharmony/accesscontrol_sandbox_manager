@@ -52,6 +52,8 @@ public:
 
 private:
     SandboxManagerRdb();
+    int32_t OpenDataBase();
+    void DbInsertFailure(const std::string& tableName, int32_t res);
     inline static int32_t GetConflictResolution(const std::string &duplicateMode,
         NativeRdb::ConflictResolution &solution);
     DISALLOW_COPY_AND_MOVE(SandboxManagerRdb);

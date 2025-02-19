@@ -55,6 +55,14 @@ SandboxManagerRdb& SandboxManagerRdb::GetInstance()
 
 SandboxManagerRdb::SandboxManagerRdb()
 {
+    int32_t ret = OpenDataBase();
+    if (ret != SUCCESS) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Open db failed, errno: %{public}d", ret);
+    }
+}
+ 
+int32_t SandboxManagerRdb::OpenDataBase()
+{
     std::string dbPath = DATABASE_PATH;
     dbPath.append(DATABASE_NAME);
     NativeRdb::RdbStoreConfig config(dbPath);
@@ -70,7 +78,7 @@ SandboxManagerRdb::SandboxManagerRdb()
     db_ = NativeRdb::RdbHelper::GetRdbStore(config, SandboxManagerRdb::DATABASE_VERSION, callback, res);
     if ((res != NativeRdb::E_OK) || (db_ == nullptr)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetRdbStore fail, error code:%{public}d", res);
-        return;
+        return res;
     }
     // Restore if needed
     NativeRdb::RebuiltType rebuildType = NativeRdb::RebuiltType::NONE;
@@ -84,8 +92,10 @@ SandboxManagerRdb::SandboxManagerRdb()
         int32_t restoreRet = db_->Restore(std::string(""), {});
         if (restoreRet != NativeRdb::E_OK) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Rdb restore failed ret:%{public}d", restoreRet);
+            return restoreRet;
         }
     }
+    return SUCCESS;
 }
 
 int32_t SandboxManagerRdb::GetConflictResolution(const std::string &duplicateMode,
@@ -102,6 +112,22 @@ int32_t SandboxManagerRdb::GetConflictResolution(const std::string &duplicateMod
     SANDBOXMANAGER_LOG_ERROR(LABEL, "Duplicate mode should be ignore or replace, input = %{public}s.",
         duplicateMode.c_str());
     return FAILURE;
+}
+
+void SandboxManagerRdb::DbInsertFailure(const std::string& tableName, int32_t res)
+{
+    SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to batch insert into table %{public}s, res is %{public}d.",
+        tableName.c_str(), res);
+    db_->RollBack();
+    if (res != NativeRdb::E_SQLITE_CORRUPT) {
+        return;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Db corrupt detected, attempt to restore");
+    int ret = db_->Restore(std::string(""), {});
+    if (ret != NativeRdb::E_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to restore from db, ret is %{public}d.", ret);
+    }
+    return;
 }
 
 int32_t  SandboxManagerRdb::Add(const DataType type, const std::vector<GenericValues> &values,
@@ -123,8 +149,13 @@ int32_t  SandboxManagerRdb::Add(const DataType type, const std::vector<GenericVa
 
     OHOS::Utils::UniqueWriteGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
     if (db_ == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
-        return FAILURE;
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Db is null, open db first");
+        int32_t err = OpenDataBase();
+        if (err != SUCCESS) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Open database failed, errno: %{public}d", err);
+            return FAILURE;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Open database success.");
     }
     db_->BeginTransaction();
     for (const auto& value : values) {
@@ -136,21 +167,15 @@ int32_t  SandboxManagerRdb::Add(const DataType type, const std::vector<GenericVa
         int64_t rowId = -1;
         res = db_->InsertWithConflictResolution(rowId, tableName, bucket, solution);
         if (res != NativeRdb::E_OK) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to batch insert into table %{public}s, res is %{public}d.",
-                tableName.c_str(), res);
-            db_->RollBack();
-            if (res != NativeRdb::E_SQLITE_CORRUPT) {
-                return FAILURE;
-            }
-            SANDBOXMANAGER_LOG_INFO(LABEL, "Db corrupt detected, attempt to restore");
-            int ret = db_->Restore(std::string(""), {});
-            if (ret != NativeRdb::E_OK) {
-                SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to restore from db, ret is %{public}d.", ret);
-            }
+            DbInsertFailure(tableName, res);
             return FAILURE;
         }
     }
-    db_->Commit();
+    res = db_->Commit();
+    if (res != NativeRdb::E_OK) {
+        DbInsertFailure(tableName, res);
+        return FAILURE;
+    }
     return SUCCESS;
 }
 
@@ -168,8 +193,13 @@ int32_t SandboxManagerRdb::Remove(const DataType type, const GenericValues& cond
     int32_t deletedRows = 0;
     OHOS::Utils::UniqueWriteGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
     if (db_ == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
-        return FAILURE;
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Db is null, open db first");
+        int32_t err = OpenDataBase();
+        if (err != SUCCESS) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Open database failed, errno: %{public}d", err);
+            return FAILURE;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Open database success.");
     }
     int32_t res = db_->Delete(deletedRows, predicates);
     if (res != NativeRdb::E_OK) {
@@ -208,8 +238,13 @@ int32_t SandboxManagerRdb::Modify(const DataType type, const GenericValues& modi
     int32_t changedRows = 0;
     OHOS::Utils::UniqueWriteGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
     if (db_ == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
-        return FAILURE;
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Db is null, open db first");
+        int32_t err = OpenDataBase();
+        if (err != SUCCESS) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Open database failed, errno: %{public}d", err);
+            return FAILURE;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Open database success.");
     }
     int32_t res = db_->Update(changedRows, bucket, predicates);
     if (res != NativeRdb::E_OK) {
@@ -239,6 +274,15 @@ int32_t SandboxManagerRdb::FindSubPath(
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "Find tableName: %{public}s", tableName.c_str());
 
     OHOS::Utils::UniqueReadGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
+    if (db_ == nullptr) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Db is null, open db first");
+        int32_t err = OpenDataBase();
+        if (err != SUCCESS) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Open database failed, errno: %{public}d", err);
+            return FAILURE;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Open database success.");
+    }
     std::vector<NativeRdb::ValueObject> bindArgs;
     std::string like_arg_str = filePath + "/%";
     NativeRdb::ValueObject arg1(like_arg_str);
@@ -278,8 +322,13 @@ int32_t SandboxManagerRdb::Find(const DataType type, const GenericValues& condit
     std::vector<std::string> columns;  // empty columns means query all columns
     OHOS::Utils::UniqueReadGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
     if (db_ == nullptr) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
-        return FAILURE;
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Db is null, open db first");
+        int32_t err = OpenDataBase();
+        if (err != SUCCESS) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Open database failed, errno: %{public}d", err);
+            return FAILURE;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Open database success.");
     }
     auto queryResultSet = db_->Query(predicates, columns);
     if (queryResultSet == nullptr) {
