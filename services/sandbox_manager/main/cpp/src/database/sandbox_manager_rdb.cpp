@@ -98,6 +98,15 @@ int32_t SandboxManagerRdb::OpenDataBase()
     return SUCCESS;
 }
 
+std::shared_ptr<NativeRdb::RdbStore> SandboxManagerRdb::GetRdb()
+{
+    std::lock_guard<std::mutex> lock(dbLock_);
+    if (db_ == nullptr) {
+        OpenDataBase();
+    }
+    return db_;
+}
+
 int32_t SandboxManagerRdb::GetConflictResolution(const std::string &duplicateMode,
     NativeRdb::ConflictResolution &solution)
 {
@@ -148,14 +157,10 @@ int32_t  SandboxManagerRdb::Add(const DataType type, const std::vector<GenericVa
     }
 
     OHOS::Utils::UniqueWriteGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
-    if (db_ == nullptr) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Db is null, open db first");
-        int32_t err = OpenDataBase();
-        if (err != SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Open database failed, errno: %{public}d", err);
-            return FAILURE;
-        }
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Open database success.");
+    std::shared_ptr<NativeRdb::RdbStore> db = GetRdb();
+    if (db == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
+        return FAILURE;
     }
     db_->BeginTransaction();
     for (const auto& value : values) {
@@ -192,14 +197,10 @@ int32_t SandboxManagerRdb::Remove(const DataType type, const GenericValues& cond
 
     int32_t deletedRows = 0;
     OHOS::Utils::UniqueWriteGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
-    if (db_ == nullptr) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Db is null, open db first");
-        int32_t err = OpenDataBase();
-        if (err != SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Open database failed, errno: %{public}d", err);
-            return FAILURE;
-        }
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Open database success.");
+    std::shared_ptr<NativeRdb::RdbStore> db = GetRdb();
+    if (db == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
+        return FAILURE;
     }
     int32_t res = db_->Delete(deletedRows, predicates);
     if (res != NativeRdb::E_OK) {
@@ -237,14 +238,10 @@ int32_t SandboxManagerRdb::Modify(const DataType type, const GenericValues& modi
  
     int32_t changedRows = 0;
     OHOS::Utils::UniqueWriteGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
-    if (db_ == nullptr) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Db is null, open db first");
-        int32_t err = OpenDataBase();
-        if (err != SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Open database failed, errno: %{public}d", err);
-            return FAILURE;
-        }
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Open database success.");
+    std::shared_ptr<NativeRdb::RdbStore> db = GetRdb();
+    if (db == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
+        return FAILURE;
     }
     int32_t res = db_->Update(changedRows, bucket, predicates);
     if (res != NativeRdb::E_OK) {
@@ -274,14 +271,10 @@ int32_t SandboxManagerRdb::FindSubPath(
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "Find tableName: %{public}s", tableName.c_str());
 
     OHOS::Utils::UniqueReadGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
-    if (db_ == nullptr) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Db is null, open db first");
-        int32_t err = OpenDataBase();
-        if (err != SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Open database failed, errno: %{public}d", err);
-            return FAILURE;
-        }
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Open database success.");
+    std::shared_ptr<NativeRdb::RdbStore> db = GetRdb();
+    if (db == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
+        return FAILURE;
     }
     std::vector<NativeRdb::ValueObject> bindArgs;
     std::string like_arg_str = filePath + "/%";
@@ -321,14 +314,10 @@ int32_t SandboxManagerRdb::Find(const DataType type, const GenericValues& condit
 
     std::vector<std::string> columns;  // empty columns means query all columns
     OHOS::Utils::UniqueReadGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
-    if (db_ == nullptr) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Db is null, open db first");
-        int32_t err = OpenDataBase();
-        if (err != SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Open database failed, errno: %{public}d", err);
-            return FAILURE;
-        }
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Open database success.");
+    std::shared_ptr<NativeRdb::RdbStore> db = GetRdb();
+    if (db == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
+        return FAILURE;
     }
     auto queryResultSet = db_->Query(predicates, columns);
     if (queryResultSet == nullptr) {
