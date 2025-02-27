@@ -48,23 +48,22 @@ static bool CheckPermission(const uint32_t tokenId, const std::string &permissio
 static int UnMarshalPolicy(std::stringstream &ss, std::vector<PolicyInfo> &policyVec)
 {
     uint32_t policyNum = 0;
-    char buf[POLICY_PATH_LIMIT + 1] = {0};
     ss.read(reinterpret_cast<char *>(&policyNum), sizeof(policyNum));
     if (policyNum > POLICY_VECTOR_SIZE_LIMIT) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "policy num:%{public}u is invalid", policyNum);
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
 
-    for (int i = 0; i < policyNum; i++) {
+    for (uint32_t i = 0; i < policyNum; i++) {
         uint32_t pathLen = 0;
         ss.read(reinterpret_cast<char *>(&pathLen), sizeof(pathLen));
-        if (pathLen > POLICY_PATH_LIMIT) {
+        if (pathLen > ss.str().length()) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "path eln:%{public}u is invalid", pathLen);
             return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
         }
-        ss.read(buf, pathLen);
         PolicyInfo info;
-        info.path.assign(buf, pathLen);
+        info.path.resize(pathLen);
+        ss.read(info.path.data(), pathLen);
         ss.read(reinterpret_cast<char *>(&info.mode), sizeof(info.mode));
         policyVec.push_back(info);
     }

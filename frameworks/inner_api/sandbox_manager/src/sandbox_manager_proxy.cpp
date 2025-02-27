@@ -49,7 +49,7 @@ static void MarshalPolicy(std::stringstream &ss, const std::vector<PolicyInfo> &
 {
     uint32_t policyNum = policy.size();
     ss.write(reinterpret_cast<const char *>(&policyNum), sizeof(policyNum));
-    for (int i = 0; i < policyNum; i++) {
+    for (uint32_t i = 0; i < policyNum; i++) {
         uint32_t pathLen = policy[i].path.length();
         ss.write(reinterpret_cast<const char *>(&pathLen), sizeof(pathLen));
         ss.write(policy[i].path.c_str(), pathLen);
