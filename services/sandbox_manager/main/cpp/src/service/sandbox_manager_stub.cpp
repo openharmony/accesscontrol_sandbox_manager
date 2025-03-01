@@ -49,10 +49,6 @@ static int UnMarshalPolicy(std::stringstream &ss, std::vector<PolicyInfo> &polic
 {
     uint32_t policyNum = 0;
     ss.read(reinterpret_cast<char *>(&policyNum), sizeof(policyNum));
-    if (policyNum > POLICY_VECTOR_SIZE_LIMIT) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "policy num:%{public}u is invalid", policyNum);
-        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
-    }
 
     for (uint32_t i = 0; i < policyNum; i++) {
         uint32_t pathLen = 0;

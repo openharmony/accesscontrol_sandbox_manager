@@ -48,7 +48,7 @@ namespace {
 const std::string SET_POLICY_PERMISSION = "ohos.permission.SET_SANDBOX_POLICY";
 const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSIST";
 const Security::AccessToken::AccessTokenID INVALID_TOKENID = 0;
-const uint64_t POLICY_VECTOR_SIZE_LIMIT = 500;
+const uint64_t POLICY_VECTOR_SIZE = 5000;
 #ifdef DEC_ENABLED
 const int32_t FOUNDATION_UID = 5523;
 #endif
@@ -734,7 +734,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy014, TestSize.Level1)
               SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, result));
     EXPECT_NE(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, flag));
 
-    for (int i = 0; i < POLICY_VECTOR_SIZE_LIMIT; i++) {
+    for (int i = 0; i < POLICY_VECTOR_SIZE; i++) {
         policy.emplace_back(infoParent);
     }
     tokenId = 0;
@@ -744,11 +744,11 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy014, TestSize.Level1)
               SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, result));
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, flag));
     tokenId = 1;
-    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::PersistPolicy(tokenId, policy, result));
-    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::UnPersistPolicy(tokenId, policy, result));
-    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER,
+    EXPECT_EQ(SandboxManagerErrCode::SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(tokenId, policy, result));
+    EXPECT_EQ(SandboxManagerErrCode::SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(tokenId, policy, result));
+    EXPECT_EQ(SandboxManagerErrCode::SANDBOX_MANAGER_OK,
               SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, result));
-    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, flag));
+    EXPECT_EQ(SandboxManagerErrCode::SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, flag));
 }
 
 /**
@@ -1170,12 +1170,12 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest008, TestSize.Level1)
         .mode = OperateMode::READ_MODE
     };
     policyA.emplace_back(infoParent);
-    for (int i = 0; i < POLICY_VECTOR_SIZE_LIMIT; i++) {
+    for (int i = 0; i < POLICY_VECTOR_SIZE; i++) {
         policyA.emplace_back(infoParent);
     }
-    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER,
+    EXPECT_EQ(SandboxManagerErrCode::SANDBOX_MANAGER_OK,
         SandboxManagerKit::CheckPolicy(g_mockToken, policyA, result));
-    EXPECT_EQ(0, result.size());
+    EXPECT_EQ(POLICY_VECTOR_SIZE + 1, result.size());
 
     PolicyInfo infoParent1 = {
         .path = "/A/B",
@@ -1705,7 +1705,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest004, TestSize.Level1
 {
     std::string filePath = "/A/B";
     std::vector<std::string> filePaths;
-    for (int i = 0; i < POLICY_VECTOR_SIZE_LIMIT; i++) {
+    for (int i = 0; i < POLICY_VECTOR_SIZE; i++) {
         filePaths.emplace_back(filePath);
     }
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));

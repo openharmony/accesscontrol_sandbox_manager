@@ -30,7 +30,6 @@ const uint64_t MODE_FILTER = 0b11;
 const std::string SET_POLICY_PERMISSION_NAME = "ohos.permission.SET_SANDBOX_POLICY";
 const std::string ACCESS_PERSIST_PERMISSION_NAME = "ohos.permission.FILE_ACCESS_PERSIST";
 
-const uint32_t POLICY_VECTOR_SIZE_LIMIT = 500;
 const int32_t FOUNDATION_UID = 5523;
 } // namespace SandboxManager
 } // namespace AccessControl
