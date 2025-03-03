@@ -354,6 +354,10 @@ void SandboxManagerService::OnAddSystemAbility(int32_t systemAbilityId, const st
     }
 }
 
+std::mutex SandboxManagerService::unloadMutex_;
+std::shared_ptr<EventHandler> SandboxManagerService::unloadHandler_ = nullptr;
+std::shared_ptr<EventRunner> SandboxManagerService::unloadRunner_ = nullptr;
+
 bool SandboxManagerService::InitDelayUnloadHandler()
 {
     if ((unloadRunner_ != nullptr) && (unloadHandler_ != nullptr)) {

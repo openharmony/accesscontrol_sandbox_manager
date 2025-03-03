@@ -75,9 +75,9 @@ private:
 
     std::mutex stateMutex_;
     ServiceRunningState state_;
-    std::mutex unloadMutex_;
-    std::shared_ptr<EventHandler> unloadHandler_ = nullptr;
-    std::shared_ptr<EventRunner> unloadRunner_ = nullptr;
+    static std::mutex unloadMutex_;
+    static std::shared_ptr<EventHandler> unloadHandler_;
+    static std::shared_ptr<EventRunner> unloadRunner_;
 };
 } // namespace SandboxManager
 } // namespace AccessControl
