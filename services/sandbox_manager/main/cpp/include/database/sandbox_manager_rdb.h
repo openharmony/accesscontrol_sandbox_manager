@@ -53,12 +53,16 @@ public:
 
 private:
     SandboxManagerRdb();
+    int32_t OpenDataBase();
+    std::shared_ptr<NativeRdb::RdbStore> GetRdb();
+    void DbInsertFailure(const std::string& tableName, int32_t res);
     inline static int32_t GetConflictResolution(const std::string &duplicateMode,
         NativeRdb::ConflictResolution &solution);
     DISALLOW_COPY_AND_MOVE(SandboxManagerRdb);
 
     OHOS::Utils::RWLock rwLock_;
     std::shared_ptr<NativeRdb::RdbStore> db_ = nullptr;
+    std::mutex dbLock_;
     static const int DATABASE_VERSION = 1;
 };
 } // namespace SandboxManager

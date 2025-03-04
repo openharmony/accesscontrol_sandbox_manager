@@ -274,6 +274,29 @@ HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest005, TestSize.Level1)
     EXPECT_EQ(sizeLimit, dbResult.size());
     EXPECT_EQ(8, dbResult[0].GetInt(PolicyFiledConst::FIELD_DEPTH));
 }
+
+/**
+ * @tc.name: SandboxManagerRdbTest006
+ * @tc.desc: Test add func - db_ is null and retry
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest006, TestSize.Level1)
+{
+    SandboxManagerRdb &instance = SandboxManagerRdb::GetInstance();
+    instance.db_ = nullptr;
+    std::vector<GenericValues> values = {g_value1, g_value2, g_value3, g_value4, g_value5};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY,
+        values));
+
+    GenericValues conditions;
+    GenericValues symbols;
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
+        conditions, symbols, dbResult));
+    uint64_t sizeLimit = 5;
+    EXPECT_EQ(sizeLimit, dbResult.size());
+}
 } // SandboxManager
 } // AccessControl
 } // OHOS
