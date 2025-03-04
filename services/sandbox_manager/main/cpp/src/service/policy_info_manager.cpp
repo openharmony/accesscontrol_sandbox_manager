@@ -120,8 +120,11 @@ int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::strin
             continue;
         }
         std::string pathTmp = AdjustPath(path);
-        SandboxManagerRdb::GetInstance().FindSubPath(
+        int32_t ret = SandboxManagerRdb::GetInstance().FindSubPath(
             SANDBOX_MANAGER_PERSISTED_POLICY, pathTmp, results);
+        if (ret != SandboxManagerRdb::SUCCESS) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error.");
+        }
     }
     if (results.empty()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "No persistence policy was found to delete.");
