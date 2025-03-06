@@ -28,6 +28,7 @@ const uint64_t MODE_FILTER = 0b11;
 // 1bit-readbit 2bit- writebit, see OperateMode
 
 const std::string SET_POLICY_PERMISSION_NAME = "ohos.permission.SET_SANDBOX_POLICY";
+const std::string CHECK_POLICY_PERMISSION_NAME = "ohos.permission.CHECK_SANDBOX_POLICY";
 const std::string ACCESS_PERSIST_PERMISSION_NAME = "ohos.permission.FILE_ACCESS_PERSIST";
 
 const int32_t FOUNDATION_UID = 5523;

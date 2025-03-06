@@ -45,6 +45,7 @@ namespace AccessControl {
 namespace SandboxManager {
 namespace {
 const std::string SET_POLICY_PERMISSION = "ohos.permission.SET_SANDBOX_POLICY";
+const std::string CHECK_POLICY_PERMISSION = "ohos.permission.CHECK_SANDBOX_POLICY";
 const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSIST";
 const uint64_t POLICY_VECTOR_SIZE = 5000;
 Security::AccessToken::PermissionStateFull g_testState1 = {
@@ -61,6 +62,13 @@ Security::AccessToken::PermissionStateFull g_testState2 = {
     .grantStatus = {0},
     .grantFlags = {0},
 };
+Security::AccessToken::PermissionStateFull g_testState3 = {
+    .permissionName = CHECK_POLICY_PERMISSION,
+    .isGeneral = true,
+    .resDeviceID = {"1"},
+    .grantStatus = {0},
+    .grantFlags = {0},
+};
 Security::AccessToken::HapInfoParams g_testInfoParms = {
     .userID = 1,
     .bundleName = "sandbox_manager_test",
@@ -72,7 +80,7 @@ Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
     .apl = Security::AccessToken::APL_NORMAL,
     .domain = "test.domain",
     .permList = {},
-    .permStateList = {g_testState1, g_testState2}
+    .permStateList = {g_testState1, g_testState2, g_testState3}
 };
 };
 
