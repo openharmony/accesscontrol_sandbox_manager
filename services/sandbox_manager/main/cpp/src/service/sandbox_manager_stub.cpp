@@ -417,10 +417,15 @@ int32_t SandboxManagerStub::UnSetPolicyAsyncInner(MessageParcel &data, MessagePa
 
 int32_t SandboxManagerStub::CheckPolicyInner(MessageParcel &data, MessageParcel &reply)
 {
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     uint32_t tokenId;
     if (!data.ReadUint32(tokenId)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Read tokenId failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    if ((tokenId != callingTokenId) &&
+        !CheckPermission(callingTokenId, CHECK_POLICY_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
     }
 
     std::vector<PolicyInfo> policyVec;
@@ -553,10 +558,15 @@ int32_t SandboxManagerStub::StopAccessingPolicyInner(MessageParcel &data, Messag
 
 int32_t SandboxManagerStub::CheckPersistPolicyInner(MessageParcel &data, MessageParcel &reply)
 {
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     uint32_t tokenId;
     if (!data.ReadUint32(tokenId)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Reply tokenId parcel fail");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    if ((tokenId != callingTokenId) &&
+        !CheckPermission(callingTokenId, CHECK_POLICY_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
     }
 
     std::vector<PolicyInfo> policyVec;
