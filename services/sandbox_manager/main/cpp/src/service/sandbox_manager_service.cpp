@@ -137,7 +137,7 @@ void SandboxManagerService::OnStart(const SystemAbilityOnDemandReason& startReas
 int32_t SandboxManagerService::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
 {
     size_t filePathSize = filePathList.size();
-    if (filePathSize == 0 || filePathSize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (filePathSize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "FilePath vector size error, size = %{public}zu.", filePathSize);
         return INVALID_PARAMTER;
     }
@@ -148,7 +148,7 @@ int32_t SandboxManagerService::PersistPolicy(const std::vector<PolicyInfo> &poli
 {
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu.", policy.size());
         return INVALID_PARAMTER;
     }
@@ -165,7 +165,7 @@ int32_t SandboxManagerService::UnPersistPolicy(
 {
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size =  %{public}zu.", policy.size());
         return INVALID_PARAMTER;
     }
@@ -177,7 +177,7 @@ int32_t SandboxManagerService::PersistPolicyByTokenId(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
     size_t policySize = policy.size();
-    if ((policySize == 0) || (policySize > POLICY_VECTOR_SIZE_LIMIT) || (tokenId == 0)) {
+    if ((policySize == 0) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(
             LABEL, "Policy vector size error or invalid tokenid, size = %{public}zu, tokenid = %{public}d.",
             policy.size(), tokenId);
@@ -195,7 +195,7 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
     size_t policySize = policy.size();
-    if ((policySize == 0) || (policySize > POLICY_VECTOR_SIZE_LIMIT) || (tokenId == 0)) {
+    if ((policySize == 0) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(
             LABEL, "Policy vector size error or invalid tokenid, size = %{public}zu, tokenid = %{public}d.",
             policy.size(), tokenId);
@@ -209,7 +209,7 @@ int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const std::vector<Pol
                                          uint64_t policyFlag, std::vector<uint32_t> &result, uint64_t timestamp)
 {
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
         return INVALID_PARAMTER;
     }
@@ -256,7 +256,7 @@ int32_t SandboxManagerService::CheckPolicy(uint32_t tokenId, const std::vector<P
                                            std::vector<bool> &result)
 {
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
         return INVALID_PARAMTER;
     }
@@ -278,7 +278,7 @@ int32_t SandboxManagerService::StartAccessingPolicy(const std::vector<PolicyInfo
         callingTokenId = tokenId;
     }
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu", policy.size());
         return INVALID_PARAMTER;
     }
@@ -291,7 +291,7 @@ int32_t SandboxManagerService::StopAccessingPolicy(
 {
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu", policy.size());
         return INVALID_PARAMTER;
     }
@@ -303,7 +303,7 @@ int32_t SandboxManagerService::CheckPersistPolicy(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result)
 {
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT || tokenId == 0) {
+    if (policySize == 0 || tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu, tokenid = %{public}d.",
             policy.size(), tokenId);
         return INVALID_PARAMTER;

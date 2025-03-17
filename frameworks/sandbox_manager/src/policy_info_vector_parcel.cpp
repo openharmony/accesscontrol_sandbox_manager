@@ -24,11 +24,7 @@ namespace SandboxManager {
 bool PolicyInfoVectorParcel::Marshalling(Parcel &out) const
 {
     const std::vector<PolicyInfo> policy = this->policyVector;
-    const uint32_t POLICY_VECTOR_SIZE_LIMIT = 500;
     uint32_t vecSize = policy.size();
-    if (vecSize > POLICY_VECTOR_SIZE_LIMIT) {
-        return false;
-    }
     RETURN_IF_FALSE(out.WriteUint32(vecSize));
 
     for (uint32_t i = 0; i < vecSize; i++) {
@@ -52,12 +48,7 @@ PolicyInfoVectorParcel* PolicyInfoVectorParcel::Unmarshalling(Parcel &in)
         return nullptr;
     }
     uint32_t vecSize;
-    const uint32_t POLICY_VECTOR_SIZE_LIMIT = 500;
     RELEASE_IF_FALSE(in.ReadUint32(vecSize), policyInfoVectorParcel);
-    if (vecSize > POLICY_VECTOR_SIZE_LIMIT) {
-        delete policyInfoVectorParcel;
-        return nullptr;
-    }
     for (uint32_t i = 0; i < vecSize; i++) {
         sptr<PolicyInfoParcel> policyInfoParcel = in.ReadParcelable<PolicyInfoParcel>();
         if (policyInfoParcel == nullptr) {

@@ -28,13 +28,12 @@ namespace {
 static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerKit"};
 }
-const uint64_t POLICY_VECTOR_SIZE_LIMIT = 500;
 const uint32_t POLICY_PATH_LIMIT = 4095;
 
 int32_t SandboxManagerKit::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
 {
     size_t filePathSize = filePathList.size();
-    if ((filePathSize == 0) || (filePathSize > POLICY_VECTOR_SIZE_LIMIT)) {
+    if (filePathSize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "FilePathSize = %{public}zu", filePathSize);
         return SandboxManagerErrCode::INVALID_PARAMTER;
     }
@@ -45,7 +44,7 @@ int32_t SandboxManagerKit::PersistPolicy(const std::vector<PolicyInfo> &policy, 
 {
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
         return SandboxManagerErrCode::INVALID_PARAMTER;
     }
@@ -57,7 +56,7 @@ int32_t SandboxManagerKit::UnPersistPolicy(const std::vector<PolicyInfo> &policy
 {
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
         return SandboxManagerErrCode::INVALID_PARAMTER;
     }
@@ -70,7 +69,7 @@ int32_t SandboxManagerKit::PersistPolicy(
 {
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
     size_t policySize = policy.size();
-    if ((policySize == 0) || (policySize > POLICY_VECTOR_SIZE_LIMIT) || (tokenId == 0)) {
+    if ((policySize == 0) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u, tokenId = %{public}d.",
             static_cast<uint32_t>(policySize), tokenId);
         return SandboxManagerErrCode::INVALID_PARAMTER;
@@ -84,7 +83,7 @@ int32_t SandboxManagerKit::UnPersistPolicy(
 {
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
     size_t policySize = policy.size();
-    if ((policySize == 0) || (policySize > POLICY_VECTOR_SIZE_LIMIT) || (tokenId == 0)) {
+    if ((policySize == 0) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u, tokenId = %{public}d.",
             static_cast<uint32_t>(policySize), tokenId);
         return SandboxManagerErrCode::INVALID_PARAMTER;
@@ -103,7 +102,7 @@ int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
                                      uint64_t policyFlag, std::vector<uint32_t> &result, uint64_t timestamp)
 {
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
         return INVALID_PARAMTER;
     }
@@ -141,7 +140,7 @@ int32_t SandboxManagerKit::SetPolicyAsync(uint32_t tokenId, const std::vector<Po
     uint64_t timestamp)
 {
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
         return INVALID_PARAMTER;
     }
@@ -169,7 +168,7 @@ int32_t SandboxManagerKit::CheckPolicy(uint32_t tokenId, const std::vector<Polic
                                        std::vector<bool> &result)
 {
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
         return INVALID_PARAMTER;
     }
@@ -193,7 +192,7 @@ int32_t SandboxManagerKit::StartAccessingPolicy(const std::vector<PolicyInfo> &p
 {
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
         return SandboxManagerErrCode::INVALID_PARAMTER;
     }
@@ -205,7 +204,7 @@ int32_t SandboxManagerKit::StopAccessingPolicy(const std::vector<PolicyInfo> &po
 {
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT) {
+    if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
         return SandboxManagerErrCode::INVALID_PARAMTER;
     }
@@ -218,7 +217,7 @@ int32_t SandboxManagerKit::CheckPersistPolicy(
 {
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "called");
     size_t policySize = policy.size();
-    if (policySize == 0 || policySize > POLICY_VECTOR_SIZE_LIMIT || tokenId == 0) {
+    if (policySize == 0 || tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
         return SandboxManagerErrCode::INVALID_PARAMTER;
     }
