@@ -36,7 +36,7 @@ namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
 namespace {
-static const uint32_t INVALID_POLICY_SIZE = 501;
+static const uint32_t LARGE_POLICY_SIZE = 550;
 static const uint32_t VALID_POLICY_SIZE = 10;
 const std::string SET_POLICY_PERMISSION = "ohos.permission.SET_SANDBOX_POLICY";
 const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSIST";
@@ -65,13 +65,13 @@ void SandboxManagerKitCoverageTest::TearDown()
 HWTEST_F(SandboxManagerKitCoverageTest, PersistPolicy001, TestSize.Level1)
 {
     std::vector<PolicyInfo> policy;
-    for (uint32_t i = 0; i < INVALID_POLICY_SIZE; i++) {
+    for (uint32_t i = 0; i < LARGE_POLICY_SIZE; i++) {
         PolicyInfo info;
         policy.emplace_back(info);
     }
     std::vector<uint32_t> result;
 
-    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::PersistPolicy(policy, result));
+    EXPECT_EQ(PERMISSION_DENIED, SandboxManagerKit::PersistPolicy(policy, result));
     std::vector<std::string> filePaths;
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
 
@@ -108,13 +108,13 @@ HWTEST_F(SandboxManagerKitCoverageTest, PersistPolicy002, TestSize.Level1)
 HWTEST_F(SandboxManagerKitCoverageTest, UnPersistPolicy001, TestSize.Level1)
 {
     std::vector<PolicyInfo> policy;
-    for (uint32_t i = 0; i < INVALID_POLICY_SIZE; i++) {
+    for (uint32_t i = 0; i < LARGE_POLICY_SIZE; i++) {
         PolicyInfo info;
         policy.emplace_back(info);
     }
     std::vector<uint32_t> result;
 
-    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnPersistPolicy(policy, result));
+    EXPECT_EQ(PERMISSION_DENIED, SandboxManagerKit::UnPersistPolicy(policy, result));
 
     std::vector<PolicyInfo> policyEmpty;
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnPersistPolicy(policyEmpty, result));
@@ -187,13 +187,13 @@ HWTEST_F(SandboxManagerKitCoverageTest, SetPolicy002, TestSize.Level1)
 HWTEST_F(SandboxManagerKitCoverageTest, StartAccessingPolicy001, TestSize.Level1)
 {
     std::vector<PolicyInfo> policy;
-    for (uint32_t i = 0; i < INVALID_POLICY_SIZE; i++) {
+    for (uint32_t i = 0; i < LARGE_POLICY_SIZE; i++) {
         PolicyInfo info;
         policy.emplace_back(info);
     }
     std::vector<uint32_t> result;
 
-    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::StartAccessingPolicy(policy, result));
+    EXPECT_EQ(PERMISSION_DENIED, SandboxManagerKit::StartAccessingPolicy(policy, result));
 
     std::vector<PolicyInfo> policyEmpty;
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::StartAccessingPolicy(policyEmpty, result));
@@ -228,12 +228,12 @@ HWTEST_F(SandboxManagerKitCoverageTest, StartAccessingPolicy002, TestSize.Level1
 HWTEST_F(SandboxManagerKitCoverageTest, StopAccessingPolicy001, TestSize.Level1)
 {
     std::vector<PolicyInfo> policy;
-    for (uint32_t i = 0; i < INVALID_POLICY_SIZE; i++) {
+    for (uint32_t i = 0; i < LARGE_POLICY_SIZE; i++) {
         PolicyInfo info;
         policy.emplace_back(info);
     }
     std::vector<uint32_t> result;
-    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::StopAccessingPolicy(policy, result));
+    EXPECT_EQ(PERMISSION_DENIED, SandboxManagerKit::StopAccessingPolicy(policy, result));
 
     std::vector<PolicyInfo> policyEmpty;
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::StopAccessingPolicy(policyEmpty, result));

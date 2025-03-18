@@ -124,28 +124,30 @@ HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel003, TestSize.Level1)
 {
     PolicyInfoVectorParcel policyInfoVectorParcel;
     std::vector<PolicyInfo> policyVector;
-    for (int i = 0; i < 501; i++) {
+    for (int i = 0; i < 550; i++) {
         policyVector.emplace_back(g_info1);
     }
     policyInfoVectorParcel.policyVector = policyVector;
     Parcel parcel;
-    EXPECT_EQ(false, policyInfoVectorParcel.Marshalling(parcel));
+    EXPECT_EQ(true, policyInfoVectorParcel.Marshalling(parcel));
 
-    parcel.WriteUint32(501);
-    std::shared_ptr<PolicyInfoParcel> readedData(PolicyInfoParcel::Unmarshalling(parcel));
-    EXPECT_EQ(nullptr, readedData);
+    std::shared_ptr<PolicyInfoVectorParcel> readedData(PolicyInfoVectorParcel::Unmarshalling(parcel));
+    ASSERT_NE(nullptr, readedData);
+    for (int i = 0; i < 550; i++) {
+        EXPECT_EQ(g_info1.path, readedData->policyVector[i].path);
+    }
 }
 
 /**
  * @tc.name: PolicyInfoParcel004
- * @tc.desc: Test PolicyInfoVector Marshalling/Unmarshalling, larger than max size
+ * @tc.desc: Test PolicyInfoVector Marshalling/Unmarshalling, no actual policyinfo messages
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel004, TestSize.Level1)
 {
     Parcel parcel;
-    uint32_t maxSize = 500; // 500 is max
+    uint32_t maxSize = 5000;
     EXPECT_EQ(true, parcel.WriteUint32(maxSize + 1));
 
     std::shared_ptr<PolicyInfoVectorParcel> readedData(PolicyInfoVectorParcel::Unmarshalling(parcel));
