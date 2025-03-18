@@ -321,6 +321,52 @@ static int32_t ReadSetPolicyParcel(MessageParcel &data, uint32_t &tokenId,
     return SANDBOX_MANAGER_OK;
 }
 
+/**
+ * Serializes a `std::vector<uint32_t>` into binary data and writes it to an output stream.
+ * @param outputStream The output stream to write the serialized data to.
+ * @param result The `std::vector<uint32_t>` to serialize.
+ * @return Returns a status code indicating whether the operation is successful.
+ */
+static int MarshalResult(std::stringstream &outputStream, const std::vector<uint32_t> &result)
+{
+    uint32_t resultNum = result.size();
+    if (!outputStream.write(reinterpret_cast<const char *>(&resultNum), sizeof(resultNum))) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to write result count to outputStream.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    for (uint32_t i = 0; i < resultNum; i++) {
+        if (!outputStream.write(reinterpret_cast<const char *>(&result[i]), sizeof(uint32_t))) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to write result value to outputStream.");
+            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        }
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
+/**
+ * Serializes a `std::vector<bool>` into binary data and writes it to an output stream.
+ * @param outputStream The output stream to write the serialized data to.
+ * @param result The `std::vector<bool>` to serialize.
+ * @return Returns a status code indicating whether the operation is successful.
+ */
+static int MarshalResult(std::stringstream &outputStream, const std::vector<bool> &result)
+{
+    uint32_t resultNum = result.size();
+    if (!outputStream.write(reinterpret_cast<const char *>(&resultNum), sizeof(resultNum))) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to write result count to outputStream.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    for (uint32_t i = 0; i < resultNum; i++) {
+        // Convert the boolean value to a character ('1' for true, '0' for false)
+        char boolChar = result[i] ? '1' : '0';
+        if (!outputStream.write(&boolChar, sizeof(char))) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to write result value to outputStream.");
+            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        }
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
 int32_t SandboxManagerStub::SetPolicyInner(MessageParcel &data, MessageParcel &reply)
 {
     uint32_t tokenId;
@@ -342,8 +388,20 @@ int32_t SandboxManagerStub::SetPolicyInner(MessageParcel &data, MessageParcel &r
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
-    if (!reply.WriteUInt32Vector(result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write result failed.");
+
+    std::stringstream replyRawString;
+    int32_t marshlResultRet = MarshalResult(replyRawString, result);
+    if (marshlResultRet != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "MarshalResult failed.");
+        return marshlResultRet;
+    }
+    size_t rawStringLength = replyRawString.str().length();
+    if (!reply.WriteUint32(rawStringLength)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write rawStringLength failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    if (!reply.WriteRawData(reinterpret_cast<const void *>(replyRawString.str().data()), rawStringLength)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write raw data failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return SANDBOX_MANAGER_OK;
@@ -451,8 +509,20 @@ int32_t SandboxManagerStub::CheckPolicyInner(MessageParcel &data, MessageParcel 
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
-    if (!reply.WriteBoolVector(result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write result failed.");
+
+    std::stringstream replyRawString;
+    int32_t marshlResultRet = MarshalResult(replyRawString, result);
+    if (marshlResultRet != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "MarshalResult failed.");
+        return marshlResultRet;
+    }
+    size_t rawStringLength = replyRawString.str().length();
+    if (!reply.WriteUint32(rawStringLength)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write rawStringLength failed.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    if (!reply.WriteRawData(reinterpret_cast<const void *>(replyRawString.str().data()), rawStringLength)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write raw data failed.");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
     }
     return SANDBOX_MANAGER_OK;
