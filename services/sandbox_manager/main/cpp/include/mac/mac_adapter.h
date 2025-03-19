@@ -44,7 +44,11 @@ public:
     int32_t CheckSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     int32_t DestroySandboxPolicy(uint32_t tokenId, uint64_t timestamp);
     int32_t UnSetSandboxPolicyByUser(int32_t userId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
-
+#ifndef NOT_RESIDENT
+    int32_t ReadDenyFile(const char *jsonPath, std::string& rawData);
+    int32_t SetDenyCfg(std::string& json);
+    void DenyInit();
+#endif
 private:
     int32_t fd_ = -1;
     bool isMacSupport_ = false;

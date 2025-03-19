@@ -26,18 +26,20 @@
     ],
     "deps": {
       "components": [
+        "ability_base",
+        "access_token",
+        "cJSON",
         "c_utils",
+        "common_event_service",
+        "config_policy",
+        "eventhandler",
         "hilog",
         "hisysevent",
         "ipc",
-        "safwk",
-        "samgr",
-        "access_token",
-        "eventhandler",
-        "common_event_service",
-        "ability_base",
+        "os_account",
         "relational_store",
-        "os_account"
+        "safwk",
+        "samgr"
       ],
       "third_party": []
     },
