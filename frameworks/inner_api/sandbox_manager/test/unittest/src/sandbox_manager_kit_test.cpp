@@ -32,6 +32,7 @@
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_log.h"
 #include "sandbox_manager_kit.h"
+#include "sandbox_test_common.h"
 #include "token_setproc.h"
 #include "mac_adapter.h"
 
@@ -145,6 +146,8 @@ void SandboxManagerKitTest::TearDownTestCase()
 
 void SandboxManagerKitTest::SetUp()
 {
+    int mockRet = MockTokenId("foundation");
+    EXPECT_NE(0, mockRet);
     Security::AccessToken::AccessTokenIDEx tokenIdEx = {0};
     tokenIdEx = Security::AccessToken::AccessTokenKit::AllocHapToken(g_testInfoParms, g_testPolicyPrams);
     EXPECT_NE(0, tokenIdEx.tokenIdExStruct.tokenID);
@@ -1563,8 +1566,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest001, TestSize.Level1
     ASSERT_EQ(1, result.size());
     EXPECT_TRUE(result[0]);
 
-    Security::AccessToken::AccessTokenID tokenID =
-        Security::AccessToken::AccessTokenKit::GetNativeTokenId("file_manager_service");
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
     EXPECT_NE(0, tokenID);
     EXPECT_EQ(0, SetSelfTokenID(tokenID));
 
@@ -1622,8 +1624,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest002, TestSize.Level1
     ASSERT_EQ(1, retType.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
 
-    Security::AccessToken::AccessTokenID tokenID =
-        Security::AccessToken::AccessTokenKit::GetNativeTokenId("file_manager_service");
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
     EXPECT_NE(0, tokenID);
     EXPECT_EQ(0, SetSelfTokenID(tokenID));
 
@@ -1680,8 +1681,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest003, TestSize.Level1
     ASSERT_EQ(1, retType.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
 
-    Security::AccessToken::AccessTokenID tokenID =
-        Security::AccessToken::AccessTokenKit::GetNativeTokenId("file_manager_service");
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
     EXPECT_NE(0, tokenID);
     EXPECT_EQ(0, SetSelfTokenID(tokenID));
 
@@ -1796,8 +1796,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest006, TestSize.Level1
     ASSERT_EQ(1, retType.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
 
-    Security::AccessToken::AccessTokenID tokenID =
-        Security::AccessToken::AccessTokenKit::GetNativeTokenId("file_manager_service");
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
     EXPECT_NE(0, tokenID);
     EXPECT_EQ(0, SetSelfTokenID(tokenID));
 
