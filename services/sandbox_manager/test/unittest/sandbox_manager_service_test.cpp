@@ -36,6 +36,7 @@
 #include "sandbox_manager_service.h"
 #undef private
 #include "sandboxmanager_service_ipc_interface_code.h"
+#include "sandbox_test_common.h"
 #include "token_setproc.h"
 
 using namespace testing::ext;
@@ -123,6 +124,8 @@ void SandboxManagerServiceTest::TearDownTestCase(void)
 
 void SandboxManagerServiceTest::SetUp(void)
 {
+    int mockRet = MockTokenId("foundation");
+    EXPECT_NE(0, mockRet);
     sandboxManagerService_ = DelayedSingleton<SandboxManagerService>::GetInstance();
     ASSERT_NE(nullptr, sandboxManagerService_);
 
