@@ -19,8 +19,11 @@
 #include <cinttypes>
 #include <string>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
+#include "cJSON.h"
+#include "config_policy_utils.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_log.h"
 
@@ -78,6 +81,175 @@ MacAdapter::~MacAdapter()
     isMacSupport_ = false;
 }
 
+#ifndef NOT_RESIDENT
+const std::string DENY_CONFIG_FILE = "etc/sandbox_manager_service/file_deny_policy.json";
+constexpr int MAX_DENY_CONFIG_FILE_SIZE = 5 * 1024 * 1024; // 5M
+constexpr size_t BUFFER_SIZE = 1024;
+
+#define DENY_POLICY_ID 9
+#define DENY_DEC_RULE_CMD _IOWR(SANDBOX_IOCTL_BASE, DENY_POLICY_ID, struct SandboxPolicyInfo)
+#define DEC_DENY_RENAME   (1 << 2)
+#define DEC_DENY_REMOVE   (1 << 3)
+#define DEC_DENY_INHERIT  (1 << 4)
+
+constexpr const char* JSON_ITEM_PATH = "path";
+constexpr const char* JSON_ITEM_RENAME = "rename";
+constexpr const char* JSON_ITEM_DELETE = "delete";
+constexpr const char* JSON_ITEM_INHERIT = "inherit";
+
+int32_t MacAdapter::ReadDenyFile(const char *jsonPath, std::string& rawData)
+{
+    char buf[BUFFER_SIZE] = { 0 };
+    char *path = GetOneCfgFile(jsonPath, buf, BUFFER_SIZE);
+    if (path == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetOneCfgFile failed, cannot find file with %{public}s", jsonPath);
+        return SANDBOX_MANAGER_DENY_ERR;
+    }
+    int32_t fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Open failed errno %{public}d.", errno);
+        return SANDBOX_MANAGER_DENY_ERR;
+    }
+
+    struct stat statBuffer;
+    if (fstat(fd, &statBuffer) != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "fstat failed");
+        close(fd);
+        return SANDBOX_MANAGER_DENY_ERR;
+    }
+
+    if (statBuffer.st_size == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Config file size is zero.");
+        close(fd);
+        return SANDBOX_MANAGER_DENY_ERR;
+    }
+
+    if (statBuffer.st_size > MAX_DENY_CONFIG_FILE_SIZE) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Config file size is too large");
+        close(fd);
+        return SANDBOX_MANAGER_DENY_ERR;
+    }
+    rawData.reserve(statBuffer.st_size);
+    ssize_t readLen = 0;
+    while ((readLen = read(fd, buf, BUFFER_SIZE)) > 0) {
+        rawData.append(buf, readLen);
+    }
+    close(fd);
+    if (readLen == 0) {
+        return SANDBOX_MANAGER_OK;
+    }
+    return SANDBOX_MANAGER_DENY_ERR;
+}
+
+static uint32_t FillInfo(cJSON *root, struct SandboxPolicyInfo &info, int32_t start, int32_t curBatchSize)
+{
+    uint32_t mode = 0;
+
+    for (int32_t i = 0; i < curBatchSize; i++) {
+        cJSON *cjsonItem = cJSON_GetArrayItem(root, i + start);
+        if (cjsonItem == nullptr) {
+            return SANDBOX_MANAGER_DENY_ERR;
+        }
+
+        mode = 0;
+        cJSON *pathNameJson = cJSON_GetObjectItemCaseSensitive(cjsonItem, JSON_ITEM_PATH);
+        if ((pathNameJson == nullptr) || !cJSON_IsString(pathNameJson) || (pathNameJson->valuestring == nullptr)) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "pathname get error");
+            return SANDBOX_MANAGER_DENY_ERR;
+        }
+
+        cJSON *reameJson = cJSON_GetObjectItemCaseSensitive(cjsonItem, JSON_ITEM_RENAME);
+        if ((reameJson == nullptr) || !cJSON_IsNumber(reameJson)) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "rename info get error, path = %{public}s", pathNameJson->valuestring);
+            return SANDBOX_MANAGER_DENY_ERR;
+        }
+        if (reameJson->valueint == 1) {
+            mode |= DEC_DENY_RENAME;
+        }
+
+        cJSON *deleteJson = cJSON_GetObjectItemCaseSensitive(cjsonItem, JSON_ITEM_DELETE);
+        if ((deleteJson == nullptr) || !cJSON_IsNumber(deleteJson)) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "delete info get error, path = %{public}s", pathNameJson->valuestring);
+            return SANDBOX_MANAGER_DENY_ERR;
+        }
+        if (deleteJson->valueint == 1) {
+            mode |= DEC_DENY_REMOVE;
+        }
+
+        cJSON *inheritJson = cJSON_GetObjectItemCaseSensitive(cjsonItem, JSON_ITEM_INHERIT);
+        if ((inheritJson == nullptr) || !cJSON_IsNumber(inheritJson)) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "inherit info get error, path = %{public}s", pathNameJson->valuestring);
+            return SANDBOX_MANAGER_DENY_ERR;
+        }
+        if (inheritJson->valueint == 1) {
+            mode |= DEC_DENY_INHERIT;
+        }
+
+        info.pathInfos[i].path = pathNameJson->valuestring;
+        info.pathInfos[i].pathLen = std::strlen(pathNameJson->valuestring);
+        info.pathInfos[i].mode = mode;
+        SANDBOXMANAGER_LOG_INFO(LABEL, "path = %{public}s, mode = %{public}x", pathNameJson->valuestring, mode);
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t MacAdapter::SetDenyCfg(std::string &rawData)
+{
+    cJSON *root = cJSON_Parse(rawData.c_str());
+    if (root == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "json parse error");
+        return SANDBOX_MANAGER_DENY_ERR;
+    }
+    int32_t arraySize = cJSON_GetArraySize(root);
+    if (arraySize < 0) {
+        cJSON_Delete(root);
+        return SANDBOX_MANAGER_DENY_ERR;
+    }
+    int32_t succSet = 0;
+    int32_t ret;
+    for (int32_t i = 0; i < arraySize; i += MAX_POLICY_NUM) {
+        struct SandboxPolicyInfo info;
+        int32_t curBatchSize = std::min(static_cast<int>(MAX_POLICY_NUM), arraySize - i);
+        ret = FillInfo(root, info, i, curBatchSize);
+        if (ret != SANDBOX_MANAGER_OK) {
+            break;
+        }
+        info.pathNum = curBatchSize;
+        if (ioctl(fd_, DENY_DEC_RULE_CMD, &info) < 0) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL,
+                "Set deny failed errno=%{public}d, path = %{public}s, mode = %{public}x, num = %{public}d",
+                errno, info.pathInfos[i].path, info.pathInfos[i].mode, info.pathNum);
+            break;
+        }
+        succSet += curBatchSize;
+    }
+    cJSON_Delete(root);
+
+    if (arraySize != succSet) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "denyfile has %{public}d. failed from %{public}d", arraySize, succSet);
+        return SANDBOX_MANAGER_DENY_ERR;
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
+void MacAdapter::DenyInit()
+{
+    int32_t ret;
+    std::string inputString;
+    ret = ReadDenyFile(DENY_CONFIG_FILE.c_str(), inputString);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Json read error");
+        return;
+    }
+
+    ret = SetDenyCfg(inputString);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Json set error");
+    }
+    return;
+}
+#endif
+
 void MacAdapter::Init()
 {
     if (access(DEV_NODE, F_OK) == 0) {
@@ -93,6 +265,10 @@ void MacAdapter::Init()
         return;
     }
     SANDBOXMANAGER_LOG_INFO(LABEL, "Open node success.");
+
+#ifndef NOT_RESIDENT
+    DenyInit();
+#endif
     return;
 }
 

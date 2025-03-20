@@ -369,6 +369,148 @@ HWTEST_F(PolicyInfoManagerTest, MacAdapterTest001, TestSize.Level1)
     EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.DestroySandboxPolicy(selfTokenId_, 0));
 }
 
+#ifdef DEC_ENABLED
+#ifndef NOT_RESIDENT
+/**
+ * @tc.name: DenyTest001
+ * @tc.desc: Test DenyTest normal
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, DenyTest001, TestSize.Level1)
+{
+    std::string stringJson1 = R"([{"path":"/data/test", "rename":1, "delete":1, "inherit":1}])";
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.SetDenyCfg(stringJson1));
+}
+
+/**
+ * @tc.name: DenyTest002
+ * @tc.desc: Test DenyTest delete error
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, DenyTest002, TestSize.Level1)
+{
+    std::string stringJson1 = R"([
+        {"path":"/etc/test", "rename":1, "delete":"test", "inherit":1}])";
+    EXPECT_EQ(SANDBOX_MANAGER_DENY_ERR, PolicyInfoManager::GetInstance().macAdapter_.SetDenyCfg(stringJson1));
+}
+
+/**
+ * @tc.name: DenyTest003
+ * @tc.desc: Test DenyTest rename error
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, DenyTest003, TestSize.Level1)
+{
+    std::string stringJson1 = R"([
+        {"path":"/etc/test", "rename":"test", "delete":1, "inherit":1}])";
+    EXPECT_EQ(SANDBOX_MANAGER_DENY_ERR, PolicyInfoManager::GetInstance().macAdapter_.SetDenyCfg(stringJson1));
+}
+
+/**
+ * @tc.name: DenyTest004
+ * @tc.desc: Test DenyTest inherit error
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, DenyTest004, TestSize.Level1)
+{
+    std::string stringJson1 = R"([
+        {"path":"/etc/test", "rename":1, "delete":1, "inherit":"test"}])";
+    EXPECT_EQ(SANDBOX_MANAGER_DENY_ERR, PolicyInfoManager::GetInstance().macAdapter_.SetDenyCfg(stringJson1));
+}
+
+/**
+ * @tc.name: DenyTest005
+ * @tc.desc: Test DenyTest pass error
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, DenyTest005, TestSize.Level1)
+{
+    std::string stringJson1 = R"([
+        {"path":1, "rename":1, "delete":1, "inherit":1}])";
+    EXPECT_EQ(SANDBOX_MANAGER_DENY_ERR, PolicyInfoManager::GetInstance().macAdapter_.SetDenyCfg(stringJson1));
+}
+
+/**
+ * @tc.name: DenyTest006
+ * @tc.desc: Test DenyTest empty json
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, DenyTest006, TestSize.Level1)
+{
+    std::string stringJson1 = R"([])";
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.SetDenyCfg(stringJson1));
+}
+
+/**
+ * @tc.name: DenyTest007
+ * @tc.desc: Test DenyTest long json
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, DenyTest007, TestSize.Level1)
+{
+    std::string stringJson1 = R"([
+        {"path":"/etc/test", "rename":1, "delete":1, "inherit":1},
+        {"path":"/etc/test2", "rename":1, "delete":1, "inherit":1},
+        {"path":"/etc/test3", "rename":1, "delete":1, "inherit":1},
+        {"path":"/etc/test4", "rename":1, "delete":1, "inherit":1},
+        {"path":"/etc/test5", "rename":1, "delete":1, "inherit":1},
+        {"path":"/etc/test6", "rename":1, "delete":1, "inherit":1},
+        {"path":"/etc/test7", "rename":1, "delete":1, "inherit":1},
+        {"path":"/etc/test8", "rename":1, "delete":1, "inherit":1},
+        {"path":"/etc/test9", "rename":1, "delete":1, "inherit":1}
+    ])";
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.SetDenyCfg(stringJson1));
+}
+
+/**
+ * @tc.name: DenyTest008
+ * @tc.desc: Test DenyTest json item lost
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, DenyTest008, TestSize.Level1)
+{
+    std::string stringJson1 = R"([
+        {"path":"/etc/test", "delete":1, "inherit":1}])";
+    EXPECT_EQ(SANDBOX_MANAGER_DENY_ERR, PolicyInfoManager::GetInstance().macAdapter_.SetDenyCfg(stringJson1));
+}
+
+/**
+ * @tc.name: DenyTest009
+ * @tc.desc: Test DenyTest path error
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, DenyTest009, TestSize.Level1)
+{
+    const char *jsonPath = "etc/sandbox_manager_service/test";
+    std::string inputString;
+    EXPECT_EQ(SANDBOX_MANAGER_DENY_ERR,
+        PolicyInfoManager::GetInstance().macAdapter_.ReadDenyFile(jsonPath, inputString));
+}
+
+/**
+ * @tc.name: DenyTest010
+ * @tc.desc: Test DenyTest path right
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, DenyTest010, TestSize.Level1)
+{
+    const char *jsonPath = "etc/sandbox/appdata-sandbox.json";
+    std::string inputString;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.ReadDenyFile(jsonPath, inputString));
+}
+#endif
+#endif
+
 /**
  * @tc.name: PolicyInfoManagerTest012
  * @tc.desc: Test PolicyInfoManager - MAC not supported
