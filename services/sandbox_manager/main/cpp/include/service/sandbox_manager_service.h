@@ -42,42 +42,44 @@ public:
     void OnStart(const SystemAbilityOnDemandReason& startReason) override;
 
     int32_t CleanPersistPolicyByPath(const std::vector<std::string>& filePathList) override;
-    int32_t PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
-    int32_t UnPersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
+    int32_t PersistPolicy(const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData) override;
+    int32_t UnPersistPolicy(const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData) override;
     int32_t PersistPolicyByTokenId(
-        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
+        uint32_t tokenId, const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData) override;
     int32_t UnPersistPolicyByTokenId(
-        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
-    int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                      std::vector<uint32_t> &result, uint64_t timestamp = 0) override;
-    int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy) override;
-    int32_t SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
+        uint32_t tokenId, const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData) override;
+    int32_t SetPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData, uint64_t policyFlag,
+        Uint32VecRawData &resultRawData, uint64_t timestamp = 0) override;
+    int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfoParcel &policyParcel) override;
+    int32_t SetPolicyAsync(uint32_t tokenId, const PolicyVecRawData &policyRawData, uint64_t policyFlag,
         uint64_t timestamp = 0) override;
-    int32_t UnSetPolicyAsync(uint32_t tokenId, const PolicyInfo &policy) override;
-    int32_t CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result) override;
-    int32_t StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+    int32_t UnSetPolicyAsync(uint32_t tokenId, const PolicyInfoParcel &policyParcel) override;
+    int32_t CheckPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData,
+        BoolVecRawData &resultRawData) override;
+    int32_t StartAccessingPolicy(const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData,
         bool useCallerToken = true, uint32_t tokenId = 0, uint64_t timestamp = 0) override;
-    int32_t StopAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result) override;
+    int32_t StopAccessingPolicy(const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData) override;
     int32_t CheckPersistPolicy(
-        uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result) override;
+        uint32_t tokenId, const PolicyVecRawData &policyRawData, BoolVecRawData &resultRawData) override;
     int32_t StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp = 0) override;
     int32_t UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp = 0) override;
     void onRemovePackage(uint32_t tokenId);
-#ifdef NOT_RESIDENT
-    void DelayUnloadService() override;
-#endif
+    bool CheckPermission(const uint32_t tokenId, const std::string &permission);
+    void DelayUnloadService();
 
 private:
     bool Initialize();
     bool InitDelayUnloadHandler();
     void OnAddSystemAbility(int32_t systemAbilityId, const std::string& deviceId) override;
     bool StartByEventAction(const SystemAbilityOnDemandReason& startReason);
+    bool IsFileManagerCalling(uint32_t tokenCaller);
 
     std::mutex stateMutex_;
     ServiceRunningState state_;
     static std::mutex unloadMutex_;
     static std::shared_ptr<EventHandler> unloadHandler_;
     static std::shared_ptr<EventRunner> unloadRunner_;
+    uint32_t tokenFileManagerId_ = 0;
 };
 } // namespace SandboxManager
 } // namespace AccessControl

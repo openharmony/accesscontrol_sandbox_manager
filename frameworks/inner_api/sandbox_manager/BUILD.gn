@@ -16,7 +16,8 @@ import("../../../sandbox_manager.gni")
 
 config("sandbox_manager") {
   visibility = [ ":*" ]
-  include_dirs = [ "${sandbox_manager_path}/interfaces/inner_api/sandbox_manager/include" ]
+  include_dirs =
+      [ "${sandbox_manager_path}/interfaces/inner_api/sandbox_manager/include" ]
 }
 
 if (is_standard_system) {
@@ -53,10 +54,12 @@ if (is_standard_system) {
     sources = [
       "${sandbox_manager_path}/frameworks/inner_api/sandbox_manager/src/sandbox_manager_client.cpp",
       "${sandbox_manager_path}/frameworks/inner_api/sandbox_manager/src/sandbox_manager_kit.cpp",
-      "${sandbox_manager_path}/frameworks/inner_api/sandbox_manager/src/sandbox_manager_proxy.cpp",
     ]
 
-    deps = [ "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx" ]
+    deps = [
+      "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
+      "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_proxy",
+    ]
 
     external_deps = [
       "c_utils:utils",

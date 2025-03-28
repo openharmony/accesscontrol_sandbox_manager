@@ -16,7 +16,6 @@ import("../../../sandbox_manager.gni")
 
 sandbox_manager_service_src = [
   "../main/cpp/src/service/sandbox_manager_service.cpp",
-  "../main/cpp/src/service/sandbox_manager_stub.cpp",
   "../main/cpp/src/sensitive/sandbox_manager_event_subscriber.cpp",
   "../main/cpp/src/service/policy_info_manager.cpp",
   "../main/cpp/src/service/policy_trie.cpp",
@@ -52,7 +51,6 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
   sources = [
     "unittest/policy_info_manager_test.cpp",
     "unittest/sandbox_manager_rdb_test.cpp",
-    "unittest/sandbox_manager_service_test.cpp",
   ]
   sources += sandbox_manager_service_src
 
@@ -65,6 +63,7 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
 
   deps = [
     "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
+    "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_stub",
     "${sandbox_manager_path}/frameworks/sandbox_test_common:sandbox_test_common_source_set",
     "${sandbox_manager_path}/services/common:sandbox_manager_service_common",
     "${sandbox_manager_path}/services/sandbox_manager:sandbox_manager_service",

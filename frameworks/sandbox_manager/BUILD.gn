@@ -11,12 +11,60 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("//build/config/components/idl_tool/idl.gni")
 import("//build/ohos.gni")
 import("../../sandbox_manager.gni")
+
+idl_gen_interface("sandbox_manager_interface") {
+  sources = [ "ISandboxManager.idl" ]
+}
+
+ohos_source_set("sandbox_manager_proxy") {
+  sanitize = {
+    cfi = true
+    cfi_cross_dso = true
+    debug = false
+  }
+  output_values = get_target_outputs(":sandbox_manager_interface")
+  sources = filter_include(output_values, [ "*_proxy.cpp" ])
+  public_configs =
+      [ ":sandbox_manager_communication_adapter_cxx_public_config" ]
+  deps = [ ":sandbox_manager_interface" ]
+  external_deps = [
+    "c_utils:utils",
+    "hilog:libhilog",
+    "ipc:ipc_single",
+    "samgr:samgr_proxy",
+  ]
+  subsystem_name = "accesscontrol"
+  part_name = "sandbox_manager"
+}
+
+ohos_source_set("sandbox_manager_stub") {
+  sanitize = {
+    cfi = true
+    cfi_cross_dso = true
+    debug = false
+  }
+  output_values = get_target_outputs(":sandbox_manager_interface")
+  sources = filter_include(output_values, [ "*_stub.cpp" ])
+  public_configs =
+      [ ":sandbox_manager_communication_adapter_cxx_public_config" ]
+  deps = [ ":sandbox_manager_interface" ]
+  external_deps = [
+    "c_utils:utils",
+    "hilog:libhilog",
+    "ipc:ipc_single",
+    "samgr:samgr_proxy",
+  ]
+  subsystem_name = "accesscontrol"
+  part_name = "sandbox_manager"
+}
 
 config("sandbox_manager_communication_adapter_cxx_public_config") {
   visibility = [ ":*" ]
   include_dirs = [
+    "${target_gen_dir}",
     "include",
     "${sandbox_manager_path}/frameworks/common/include",
     "${sandbox_manager_path}/interfaces/inner_api/sandbox_manager/include",

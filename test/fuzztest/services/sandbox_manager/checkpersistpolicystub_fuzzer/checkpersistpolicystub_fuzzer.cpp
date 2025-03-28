@@ -19,9 +19,8 @@
 #include <cstdint>
 #include <string>
 #include "fuzz_common.h"
-#include "i_sandbox_manager.h"
+#include "isandbox_manager.h"
 #include "policy_info_vector_parcel.h"
-#include "sandboxmanager_service_ipc_interface_code.h"
 #define private public
 #include "sandbox_manager_service.h"
 #undef private
@@ -56,7 +55,7 @@ namespace OHOS {
             return false;
         }
 
-        uint32_t code = static_cast<uint32_t>(SandboxManagerInterfaceCode::CHECK_PERSIST_PERMISSION);
+        uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_CHECK_PERSIST_POLICY);
 
         MessageParcel reply;
         MessageOption option;
