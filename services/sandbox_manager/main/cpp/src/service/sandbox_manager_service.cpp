@@ -26,6 +26,7 @@
 #include "policy_info.h"
 #include "policy_info_manager.h"
 #include "sandbox_manager_const.h"
+#include "sandbox_manager_dfx_helper.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_event_subscriber.h"
 #include "sandbox_manager_log.h"
@@ -42,7 +43,7 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
 }
 
 REGISTER_SYSTEM_ABILITY_BY_ID(SandboxManagerService,
-    SandboxManagerService::SA_ID_SANDBOX_MANAGER_SERVICE, true);
+    SANDBOX_MANAGER_SERVICE_ID, true);
 
 
 SandboxManagerService::SandboxManagerService(int saId, bool runOnCreate)
@@ -52,7 +53,7 @@ SandboxManagerService::SandboxManagerService(int saId, bool runOnCreate)
 }
 
 SandboxManagerService::SandboxManagerService()
-    : SystemAbility(SA_ID_SANDBOX_MANAGER_SERVICE, true), state_(ServiceRunningState::STATE_NOT_START)
+    : SystemAbility(SANDBOX_MANAGER_SERVICE_ID, true), state_(ServiceRunningState::STATE_NOT_START)
 {
     SANDBOXMANAGER_LOG_INFO(LABEL, "SandboxManagerService()");
 }
@@ -82,9 +83,7 @@ void SandboxManagerService::OnStart()
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to publish service! ");
         return;
     }
-#ifdef NOT_RESIDENT
     DelayUnloadService();
-#endif
     SANDBOXMANAGER_LOG_INFO(LABEL, "SandboxManagerService start successful.");
 }
 
@@ -128,14 +127,18 @@ void SandboxManagerService::OnStart(const SystemAbilityOnDemandReason& startReas
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to publish service.");
         return;
     }
-#ifdef NOT_RESIDENT
     DelayUnloadService();
-#endif
     SANDBOXMANAGER_LOG_INFO(LABEL, "SandboxManagerService start successful.");
 }
 
 int32_t SandboxManagerService::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
 {
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!IsFileManagerCalling(callingTokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}d)", callingTokenId);
+        return PERMISSION_DENIED;
+    }
     size_t filePathSize = filePathList.size();
     if (filePathSize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "FilePath vector size error, size = %{public}zu.", filePathSize);
@@ -144,9 +147,15 @@ int32_t SandboxManagerService::CleanPersistPolicyByPath(const std::vector<std::s
     return PolicyInfoManager::GetInstance().CleanPersistPolicyByPath(filePathList);
 }
 
-int32_t SandboxManagerService::PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
+int32_t SandboxManagerService::PersistPolicy(const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData)
 {
+    DelayUnloadService();
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
+    }
+    std::vector<PolicyInfo> policy;
+    policyRawData.Unmarshalling(policy);
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu.", policy.size());
@@ -157,25 +166,51 @@ int32_t SandboxManagerService::PersistPolicy(const std::vector<PolicyInfo> &poli
     if (IPCSkeleton::GetCallingUid() == FOUNDATION_UID) {
         flag = 1;
     }
-    return PolicyInfoManager::GetInstance().AddPolicy(callingTokenId, policy, result, flag);
+
+    std::vector<uint32_t> result;
+    int32_t ret = PolicyInfoManager::GetInstance().AddPolicy(callingTokenId, policy, result, flag);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    resultRawData.Marshalling(result);
+    return SANDBOX_MANAGER_OK;
 }
 
 int32_t SandboxManagerService::UnPersistPolicy(
-    const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
+    const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData)
 {
+    DelayUnloadService();
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
+    }
+    std::vector<PolicyInfo> policy;
+    policyRawData.Unmarshalling(policy);
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size =  %{public}zu.", policy.size());
         return INVALID_PARAMTER;
     }
 
-    return PolicyInfoManager::GetInstance().RemovePolicy(callingTokenId, policy, result);
+    std::vector<uint32_t> result;
+    int32_t ret = PolicyInfoManager::GetInstance().RemovePolicy(callingTokenId, policy, result);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    resultRawData.Marshalling(result);
+    return SANDBOX_MANAGER_OK;
 }
 
 int32_t SandboxManagerService::PersistPolicyByTokenId(
-    uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
+    uint32_t tokenId, const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData)
 {
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
+    }
+    std::vector<PolicyInfo> policy;
+    policyRawData.Unmarshalling(policy);
     size_t policySize = policy.size();
     if ((policySize == 0) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(
@@ -188,12 +223,26 @@ int32_t SandboxManagerService::PersistPolicyByTokenId(
     if (IPCSkeleton::GetCallingUid() == FOUNDATION_UID) {
         flag = 1;
     }
-    return PolicyInfoManager::GetInstance().AddPolicy(tokenId, policy, result, flag);
+
+    std::vector<uint32_t> result;
+    int32_t ret = PolicyInfoManager::GetInstance().AddPolicy(tokenId, policy, result, flag);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    resultRawData.Marshalling(result);
+    return SANDBOX_MANAGER_OK;
 }
 
 int32_t SandboxManagerService::UnPersistPolicyByTokenId(
-    uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
+    uint32_t tokenId, const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData)
 {
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
+    }
+    std::vector<PolicyInfo> policy;
+    policyRawData.Unmarshalling(policy);
     size_t policySize = policy.size();
     if ((policySize == 0) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(
@@ -202,12 +251,25 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
         return INVALID_PARAMTER;
     }
 
-    return PolicyInfoManager::GetInstance().RemovePolicy(tokenId, policy, result);
+    std::vector<uint32_t> result;
+    int32_t ret = PolicyInfoManager::GetInstance().RemovePolicy(tokenId, policy, result);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    resultRawData.Marshalling(result);
+    return SANDBOX_MANAGER_OK;
 }
 
-int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-                                         uint64_t policyFlag, std::vector<uint32_t> &result, uint64_t timestamp)
+int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData,
+                                         uint64_t policyFlag, Uint32VecRawData &resultRawData, uint64_t timestamp)
 {
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, SET_POLICY_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
+    }
+    std::vector<PolicyInfo> policy;
+    policyRawData.Unmarshalling(policy);
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
@@ -221,40 +283,59 @@ int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const std::vector<Pol
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policyFlag failed, policyFlag = %{public}" PRIu64 ".", policyFlag);
         return INVALID_PARAMTER;
     }
-
-    return PolicyInfoManager::GetInstance().SetPolicy(tokenId, policy, policyFlag, result, timestamp);
+    std::vector<uint32_t> result;
+    int32_t ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policy, policyFlag, result, timestamp);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    resultRawData.Marshalling(result);
+    return SANDBOX_MANAGER_OK;
 }
 
-int32_t SandboxManagerService::UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy)
+int32_t SandboxManagerService::UnSetPolicy(uint32_t tokenId, const PolicyInfoParcel &policyParcel)
 {
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, SET_POLICY_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
+    }
     if (tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
         return INVALID_PARAMTER;
     }
-    uint32_t length = policy.path.length();
+    uint32_t length = policyParcel.policyInfo.path.length();
     if (length == 0 || length > POLICY_PATH_LIMIT) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path size check failed, path=%{private}s", policy.path.c_str());
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path size check failed, path=%{private}s",
+            policyParcel.policyInfo.path.c_str());
         return INVALID_PARAMTER;
     }
 
-    return PolicyInfoManager::GetInstance().UnSetPolicy(tokenId, policy);
+    return PolicyInfoManager::GetInstance().UnSetPolicy(tokenId, policyParcel.policyInfo);
 }
 
-int32_t SandboxManagerService::SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+int32_t SandboxManagerService::SetPolicyAsync(uint32_t tokenId, const PolicyVecRawData &policyRawData,
                                               uint64_t policyFlag, uint64_t timestamp)
 {
-    std::vector<uint32_t> result;
-    return SetPolicy(tokenId, policy, policyFlag, result, timestamp);
+    Uint32VecRawData resultRawData;
+    return SetPolicy(tokenId, policyRawData, policyFlag, resultRawData, timestamp);
 }
 
-int32_t SandboxManagerService::UnSetPolicyAsync(uint32_t tokenId, const PolicyInfo &policy)
+int32_t SandboxManagerService::UnSetPolicyAsync(uint32_t tokenId, const PolicyInfoParcel &policyParcel)
 {
-    return UnSetPolicy(tokenId, policy);
+    return UnSetPolicy(tokenId, policyParcel);
 }
 
-int32_t SandboxManagerService::CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-                                           std::vector<bool> &result)
+int32_t SandboxManagerService::CheckPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData,
+    BoolVecRawData &resultRawData)
 {
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if ((tokenId != callingTokenId) &&
+        !CheckPermission(callingTokenId, CHECK_POLICY_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
+    }
+    std::vector<PolicyInfo> policy;
+    policyRawData.Unmarshalling(policy);
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
@@ -264,17 +345,26 @@ int32_t SandboxManagerService::CheckPolicy(uint32_t tokenId, const std::vector<P
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
         return INVALID_PARAMTER;
     }
-
-    return PolicyInfoManager::GetInstance().CheckPolicy(tokenId, policy, result);
+    std::vector<bool> result;
+    int32_t ret = PolicyInfoManager::GetInstance().CheckPolicy(tokenId, policy, result);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    resultRawData.Marshalling(result);
+    return SANDBOX_MANAGER_OK;
 }
 
-int32_t SandboxManagerService::StartAccessingPolicy(const std::vector<PolicyInfo> &policy,
-    std::vector<uint32_t> &result, bool useCallerToken, uint32_t tokenId, uint64_t timestamp)
+int32_t SandboxManagerService::StartAccessingPolicy(const PolicyVecRawData &policyRawData,
+    Uint32VecRawData &resultRawData, bool useCallerToken, uint32_t tokenId, uint64_t timestamp)
 {
-    uint32_t callingTokenId = 0;
-    if (useCallerToken) {
-        callingTokenId = IPCSkeleton::GetCallingTokenID();
-    } else {
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
+    }
+    std::vector<PolicyInfo> policy;
+    policyRawData.Unmarshalling(policy);
+    if (!useCallerToken) {
         callingTokenId = tokenId;
     }
     size_t policySize = policy.size();
@@ -283,25 +373,51 @@ int32_t SandboxManagerService::StartAccessingPolicy(const std::vector<PolicyInfo
         return INVALID_PARAMTER;
     }
 
-    return PolicyInfoManager::GetInstance().StartAccessingPolicy(callingTokenId, policy, result, timestamp);
+    std::vector<uint32_t> result;
+    int32_t ret = PolicyInfoManager::GetInstance().StartAccessingPolicy(callingTokenId, policy, result, timestamp);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    resultRawData.Marshalling(result);
+    return SANDBOX_MANAGER_OK;
 }
 
 int32_t SandboxManagerService::StopAccessingPolicy(
-    const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
+    const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData)
 {
+    DelayUnloadService();
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
+    }
+    std::vector<PolicyInfo> policy;
+    policyRawData.Unmarshalling(policy);
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu", policy.size());
         return INVALID_PARAMTER;
     }
 
-    return PolicyInfoManager::GetInstance().StopAccessingPolicy(callingTokenId, policy, result);
+    std::vector<uint32_t> result;
+    int32_t ret = PolicyInfoManager::GetInstance().StopAccessingPolicy(callingTokenId, policy, result);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    resultRawData.Marshalling(result);
+    return SANDBOX_MANAGER_OK;
 }
 
 int32_t SandboxManagerService::CheckPersistPolicy(
-    uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result)
+    uint32_t tokenId, const PolicyVecRawData &policyRawData, BoolVecRawData &resultRawData)
 {
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if ((tokenId != callingTokenId) &&
+        !CheckPermission(callingTokenId, CHECK_POLICY_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
+    }
+    std::vector<PolicyInfo> policy;
+    policyRawData.Unmarshalling(policy);
     size_t policySize = policy.size();
     if (policySize == 0 || tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu, tokenid = %{public}d.",
@@ -315,15 +431,21 @@ int32_t SandboxManagerService::CheckPersistPolicy(
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
-    result.resize(policySize);
+    std::vector<bool> result(policySize);
     for (size_t i = 0; i < policy.size(); i++) {
         result[i] = (matchResult[i] == OPERATE_SUCCESSFULLY);
     }
+    resultRawData.Marshalling(result);
     return SANDBOX_MANAGER_OK;
 }
 
 int32_t SandboxManagerService::StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp)
 {
+    DelayUnloadService();
+    if (IPCSkeleton::GetCallingUid() != FOUNDATION_UID) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Not foundation userid, permision denied.");
+        return PERMISSION_DENIED;
+    }
     if (tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid Tokenid.");
         return INVALID_PARAMTER;
@@ -333,6 +455,11 @@ int32_t SandboxManagerService::StartAccessingByTokenId(uint32_t tokenId, uint64_
 
 int32_t SandboxManagerService::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp)
 {
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, SET_POLICY_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
+    }
     if (tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid Tokenid.");
         return INVALID_PARAMTER;
@@ -364,7 +491,7 @@ bool SandboxManagerService::InitDelayUnloadHandler()
         SANDBOXMANAGER_LOG_INFO(LABEL, "UnloadRunner_ and UnloadHandler_ already init.");
         return true;
     }
-    unloadRunner_ = EventRunner::Create(SA_ID_SANDBOX_MANAGER_SERVICE, AppExecFwk::ThreadMode::FFRT);
+    unloadRunner_ = EventRunner::Create(SANDBOX_MANAGER_SERVICE_ID, AppExecFwk::ThreadMode::FFRT);
     if (unloadRunner_ == nullptr) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "UnloadRunner_ init failed.");
         return false;
@@ -377,9 +504,9 @@ bool SandboxManagerService::InitDelayUnloadHandler()
     return true;
 }
 
-#ifdef NOT_RESIDENT
 void SandboxManagerService::DelayUnloadService()
 {
+#ifdef NOT_RESIDENT
     std::lock_guard<std::mutex> lock(unloadMutex_);
     if (!InitDelayUnloadHandler()) {
         return;
@@ -390,7 +517,7 @@ void SandboxManagerService::DelayUnloadService()
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Get samgr failed.");
             return;
         }
-        int32_t ret = samgrProxy->UnloadSystemAbility(SA_ID_SANDBOX_MANAGER_SERVICE);
+        int32_t ret = samgrProxy->UnloadSystemAbility(SANDBOX_MANAGER_SERVICE_ID);
         if (ret != ERR_OK) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Unload system ability failed.");
             return;
@@ -399,8 +526,8 @@ void SandboxManagerService::DelayUnloadService()
     unloadHandler_->RemoveTask("SandboxManagerUnload");
     unloadHandler_->PostTask(task, "SandboxManagerUnload", SA_LIFE_TIME);
     SANDBOXMANAGER_LOG_INFO(LABEL, "Delay unload task updated.");
-}
 #endif
+}
 
 bool SandboxManagerService::StartByEventAction(const SystemAbilityOnDemandReason& startReason)
 {
@@ -439,6 +566,27 @@ bool SandboxManagerService::StartByEventAction(const SystemAbilityOnDemandReason
         SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenID = %{public}u.", tokenId);
     }
     return true;
+}
+
+bool SandboxManagerService::CheckPermission(const uint32_t tokenId, const std::string &permission)
+{
+    int32_t ret = Security::AccessToken::AccessTokenKit::VerifyAccessToken(tokenId, permission);
+    if (ret == Security::AccessToken::PermissionState::PERMISSION_GRANTED) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Check permission token:%{public}d pass", tokenId);
+        return true;
+    }
+    SandboxManagerDfxHelper::WritePermissionCheckFailEvent(permission, tokenId);
+    SANDBOXMANAGER_LOG_ERROR(LABEL, "Check permission token:%{public}d fail", tokenId);
+    return false;
+}
+
+bool SandboxManagerService::IsFileManagerCalling(uint32_t tokenCaller)
+{
+    if (tokenFileManagerId_ == 0) {
+        tokenFileManagerId_ = Security::AccessToken::AccessTokenKit::GetNativeTokenId(
+            "file_manager_service");
+    }
+    return tokenCaller == tokenFileManagerId_;
 }
 } // namespace SandboxManager
 } // namespace AccessControl

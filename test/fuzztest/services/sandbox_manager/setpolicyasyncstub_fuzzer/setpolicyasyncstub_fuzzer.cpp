@@ -21,8 +21,7 @@
 #include "alloc_token.h"
 #include "fuzz_common.h"
 #include "policy_info_vector_parcel.h"
-#include "i_sandbox_manager.h"
-#include "sandboxmanager_service_ipc_interface_code.h"
+#include "isandbox_manager.h"
 #define private public
 #include "sandbox_manager_service.h"
 #undef private
@@ -62,7 +61,7 @@ namespace OHOS {
             return false;
         }
 
-        uint32_t code = static_cast<uint32_t>(SandboxManagerInterfaceCode::SET_POLICY_ASYNC);
+        uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_SET_POLICY_ASYNC);
         MessageParcel reply;
         MessageOption option;
         DelayedSingleton<SandboxManagerService>::GetInstance()->Initialize();

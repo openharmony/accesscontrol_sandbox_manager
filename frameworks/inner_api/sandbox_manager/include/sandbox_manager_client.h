@@ -26,7 +26,7 @@
 #ifndef SANDBOXMANAGER_CLIENT_H
 #define SANDBOXMANAGER_CLIENT_H
 
-#include "i_sandbox_manager.h"
+#include "isandbox_manager.h"
 #include "nocopyable.h"
 #include "policy_info.h"
 #include "refbase.h"

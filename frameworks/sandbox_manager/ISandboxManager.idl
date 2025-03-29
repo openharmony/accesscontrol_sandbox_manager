@@ -1,0 +1,38 @@
+/*
+ * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package OHOS.AccessControl.SandboxManager;
+sequenceable OHOS.AccessControl.SandboxManager.PolicyInfoParcel;
+rawdata OHOS.AccessControl.SandboxManager.BoolVecRawData;
+rawdata OHOS.AccessControl.SandboxManager.PolicyVecRawData;
+rawdata OHOS.AccessControl.SandboxManager.Uint32VecRawData;
+
+interface OHOS.AccessControl.SandboxManager.ISandboxManager {
+    [ipccode 0xffb0] void PersistPolicy([in] PolicyVecRawData policyRawData, [out] Uint32VecRawData resultRawData);
+    [ipccode 0xffb1] void UnPersistPolicy([in] PolicyVecRawData policyRawData, [out] Uint32VecRawData resultRawData);
+    [ipccode 0xffb2] void SetPolicy([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData, [in] unsigned long policyFlag, [out] Uint32VecRawData resultRawData, [in] unsigned long timestamp);
+    [ipccode 0xffb3] void UnSetPolicy([in] unsigned int tokenId, [in] PolicyInfoParcel policyParcel);
+    [ipccode 0xffb4, oneway] void SetPolicyAsync([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData, [in] unsigned long policyFlag, [in] unsigned long timestamp);
+    [ipccode 0xffb5, oneway] void UnSetPolicyAsync([in] unsigned int tokenId, [in] PolicyInfoParcel policyParcel);
+    [ipccode 0xffb6] void CheckPolicy([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData, [out] BoolVecRawData resultRawData);
+    [ipccode 0xffb7] void StartAccessingPolicy([in] PolicyVecRawData policyRawData, [out] Uint32VecRawData resultRawData, [in] boolean useCallerToken, [in] unsigned int tokenId, [in] unsigned long timestamp);
+    [ipccode 0xffb8] void StopAccessingPolicy([in] PolicyVecRawData policyRawData, [out] Uint32VecRawData resultRawData);
+    [ipccode 0xffb9] void CheckPersistPolicy([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData, [out] BoolVecRawData resultRawData);
+    [ipccode 0xffba, oneway] void StartAccessingByTokenId([in] unsigned int tokenId, [in] unsigned long timestamp);
+    [ipccode 0xffbb, oneway] void UnSetAllPolicyByToken([in] unsigned int tokenId, [in] unsigned long timestamp);
+    [ipccode 0xffbc] void PersistPolicyByTokenId([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData, [out] Uint32VecRawData resultRawData);
+    [ipccode 0xffbd] void UnPersistPolicyByTokenId([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData, [out] Uint32VecRawData resultRawData);
+    [ipccode 0xffbe, oneway] void CleanPersistPolicyByPath([in] List<String> filePathList);
+}

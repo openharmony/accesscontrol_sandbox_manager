@@ -61,7 +61,6 @@ if (is_standard_system) {
       "main/cpp/src/service/policy_info_manager.cpp",
       "main/cpp/src/service/policy_trie.cpp",
       "main/cpp/src/service/sandbox_manager_service.cpp",
-      "main/cpp/src/service/sandbox_manager_stub.cpp",
     ]
 
     cflags_cc = [ "-DHILOG_ENABLE" ]
@@ -73,6 +72,7 @@ if (is_standard_system) {
 
     deps = [
       "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
+      "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_stub",
       "${sandbox_manager_path}/services/common:sandbox_manager_service_common",
       "${sandbox_manager_path}/services/sandbox_manager:sandbox_manager_service.rc",
     ]
