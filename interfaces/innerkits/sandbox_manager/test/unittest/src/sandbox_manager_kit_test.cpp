@@ -128,6 +128,7 @@ void SandboxManagerKitTest::SetUpTestCase()
     g_selfTokenId = GetSelfTokenID();
     SetDeny("/A");
     SetDeny("/C/D");
+    SetDeny("/data/temp");
 }
 
 void SandboxManagerKitTest::TearDownTestCase()
@@ -821,6 +822,68 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy016, TestSize.Level1)
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, searchPolicy, checkResult1));
     ASSERT_EQ(1, checkResult1.size());
     EXPECT_EQ(true, checkResult1[0]);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: MassiveIPCTest001
+ * @tc.desc: IPC with massive policyinfos.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, MassiveIPCTest001, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policySize = 90000;
+    uint64_t policyFlag = 1;
+
+    for (uint64_t i = 0; i < policySize; i++) {
+        PolicyInfo info;
+        info.mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
+        char path[1024];
+        sprintf_s(path, sizeof(path), "/data/temp/a/b/c/d/e/f/g/h/i/j/persistbytoken/%d", i);
+        info.path.assign(path);
+        policy.emplace_back(info);
+    }
+
+    std::vector<uint32_t> ret;
+    const uint32_t tokenId = 654321; // 123456 is a mocked tokenid.
+    auto start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, ret));
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    std::cout << "SetPolicy cost " << duration.count() << "s" << std::endl;
+
+    ASSERT_EQ(policySize, ret.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, ret[i]);
+    }
+    std::vector<bool> result;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(tokenId, policy, result));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "CheckPolicy cost " << duration.count() << "s" << std::endl;
+
+    ASSERT_EQ(policySize, result.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_TRUE(result[i]);
+    }
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(tokenId, policy[0]));
+
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(tokenId, policy, result));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "CheckPolicy cost " << duration.count() << "s" << std::endl;
+
+    ASSERT_EQ(policySize, result.size());
+    EXPECT_FALSE(result[0]);
+    for (uint64_t i = 1; i < policySize; i++) {
+        EXPECT_TRUE(result[i]);
+    }
 }
 #endif
 

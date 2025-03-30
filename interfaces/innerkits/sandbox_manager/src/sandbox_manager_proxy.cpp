@@ -16,6 +16,7 @@
 #include "sandbox_manager_proxy.h"
 
 #include <cstddef>
+#include <sstream>
 #include <string>
 #include "iremote_object.h"
 #include "iremote_proxy.h"
@@ -262,6 +263,58 @@ static bool WriteSetPolicyParcel(MessageParcel &data, uint32_t tokenId, const st
     return true;
 }
 
+/**
+ * Unmarshals a vector of uint32_t from a stringstream.
+ * @param inputStream The stringstream from which to read the data.
+ * @param result The vector that will hold the unmarshaled data.
+ * @return Returns a status code indicating whether the operation is successful.
+ */
+static int UnMarshalResult(std::stringstream &inputStream, std::vector<uint32_t> &result)
+{
+    uint32_t resultNum = 0;
+    if (!inputStream.read(reinterpret_cast<char *>(&resultNum), sizeof(resultNum))) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to read result count from inputStream.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    for (uint32_t i = 0; i < resultNum; i++) {
+        uint32_t value = 0;
+        if (!inputStream.read(reinterpret_cast<char *>(&value), sizeof(value))) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to read result value from inputStream.");
+            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        }
+        result.emplace_back(value);
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
+/**
+ * Unmarshals a vector of bool values from a stringstream.
+ * The stringstream is expected to contain binary data where '1' represents true and '0' represents false.
+ * @param inputStream The stringstream from which to read the data.
+ * @param result The vector that will hold the unmarshaled data.
+ * @return Returns a status code indicating whether the operation is successful.
+ */
+static int UnMarshalResult(std::stringstream &inputStream, std::vector<bool> &result)
+{
+    uint32_t resultNum = 0;
+    if (!inputStream.read(reinterpret_cast<char *>(&resultNum), sizeof(resultNum))) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to read result count from inputStream.");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    for (uint32_t i = 0; i < resultNum; i++) {
+        char value = 0;
+        if (!inputStream.read(&value, sizeof(value))) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to read result value from inputStream.");
+            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        }
+        bool bitValue = value == '1' ? true : false;
+        result.emplace_back(bitValue);
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
 int32_t SandboxManagerProxy::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                        uint64_t policyFlag, std::vector<uint32_t> &result, uint64_t timestamp)
 {
@@ -285,9 +338,18 @@ int32_t SandboxManagerProxy::SetPolicy(uint32_t tokenId, const std::vector<Polic
     if (remoteRet != SANDBOX_MANAGER_OK) {
         return remoteRet;
     }
-    if (!reply.ReadUInt32Vector(&result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read result failed.");
+    uint32_t rawStringLength = reply.ReadUint32();
+    const void *buffer = reply.ReadRawData(rawStringLength);
+    if (buffer == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read raw data failed");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    std::stringstream replyRawStream;
+    replyRawStream.write(reinterpret_cast<const char *>(buffer), rawStringLength);
+    int32_t unMarshlResultRet = UnMarshalResult(replyRawStream, result);
+    if (unMarshlResultRet != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "UnMarshalResult data failed");
+        return unMarshlResultRet;
     }
     return remoteRet;
 }
@@ -393,9 +455,18 @@ int32_t SandboxManagerProxy::CheckPolicy(uint32_t tokenId, const std::vector<Pol
     if (remoteRet != SANDBOX_MANAGER_OK) {
         return remoteRet;
     }
-    if (!reply.ReadBoolVector(&result)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read result failed.");
+    uint32_t rawStringLength = reply.ReadUint32();
+    const void *buffer = reply.ReadRawData(rawStringLength);
+    if (buffer == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Read raw data failed");
         return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+    std::stringstream replyRawStream;
+    replyRawStream.write(reinterpret_cast<const char *>(buffer), rawStringLength);
+    int32_t unMarshlResultRet = UnMarshalResult(replyRawStream, result);
+    if (unMarshlResultRet != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "UnMarshalResult data failed");
+        return unMarshlResultRet;
     }
     return remoteRet;
 }
