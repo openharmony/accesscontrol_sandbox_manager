@@ -51,6 +51,7 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
   sources = [
     "unittest/policy_info_manager_test.cpp",
     "unittest/sandbox_manager_rdb_test.cpp",
+    "unittest/sandbox_manager_service_test.cpp",
   ]
   sources += sandbox_manager_service_src
 
