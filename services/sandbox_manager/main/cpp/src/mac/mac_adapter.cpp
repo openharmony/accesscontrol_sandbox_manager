@@ -304,8 +304,9 @@ int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std:
             info.pathInfos[i].path = const_cast<char *>(policy[offset + i].path.c_str());
             info.pathInfos[i].pathLen = policy[offset + i].path.length();
             info.pathInfos[i].mode = policy[offset + i].mode;
-            SANDBOXMANAGER_LOG_INFO(LABEL, "Set policy paths target:%{public}u path:%{private}s mode:%{public}d",
-                macParams.tokenId, info.pathInfos[i].path, info.pathInfos[i].mode);
+            std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
+            SANDBOXMANAGER_LOG_INFO(LABEL, "Set policy paths target:%{public}u path:%{public}s mode:%{public}d",
+                macParams.tokenId, maskPath.c_str(), info.pathInfos[i].mode);
         }
 
         if (ioctl(fd_, SET_POLICY_CMD, &info) < 0) {
@@ -314,13 +315,19 @@ int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std:
             return SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
         for (size_t i = 0; i < curBatchSize; ++i) {
-            result[offset + i] = info.pathInfos[i].result ? SANDBOX_MANAGER_OK : POLICY_MAC_FAIL;
+            if (info.pathInfos[i].result == 0) {
+                std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "Set policy failed at %{public}s", maskPath.c_str());
+                result[offset + i] = POLICY_MAC_FAIL;
+            } else {
+                result[offset + i] = SANDBOX_MANAGER_OK;
+            }
         }
     }
     uint32_t failCount = static_cast<uint32_t>(
         std::count_if(result.begin(), result.end(), [](uint32_t res) { return res != SANDBOX_MANAGER_OK; }));
     if (failCount > 0) {
-        SANDBOXMANAGER_LOG_WARN(LABEL, "Set policy has failed items, failCount=%{public}u.", failCount);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Set policy has failed items, failCount=%{public}u.", failCount);
     }
     return SANDBOX_MANAGER_OK;
 }
@@ -356,13 +363,17 @@ int32_t MacAdapter::QuerySandboxPolicy(uint32_t tokenId, const std::vector<Polic
             return SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
         for (size_t i = 0; i < curBatchSize; ++i) {
+            if (info.pathInfos[i].result == 0) {
+                std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "Query policy failed at %{public}s", maskPath.c_str());
+            }
             result[offset + i] = info.pathInfos[i].result;
         }
     }
 
     uint32_t failCount = static_cast<uint32_t>(std::count(result.begin(), result.end(), false));
     if (failCount > 0) {
-        SANDBOXMANAGER_LOG_WARN(LABEL, "Query policy has failed items, failCount=%{public}u.", failCount);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Query policy has failed items, failCount=%{public}u.", failCount);
     }
     return SANDBOX_MANAGER_OK;
 }
@@ -398,13 +409,17 @@ int32_t MacAdapter::CheckSandboxPolicy(uint32_t tokenId, const std::vector<Polic
             return SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
         for (size_t i = 0; i < curBatchSize; ++i) {
+            if (info.pathInfos[i].result == 0) {
+                std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "check policy failed at %{public}s", maskPath.c_str());
+            }
             result[offset + i] = info.pathInfos[i].result;
         }
     }
 
     uint32_t failCount = static_cast<uint32_t>(std::count(result.begin(), result.end(), false));
     if (failCount > 0) {
-        SANDBOXMANAGER_LOG_WARN(LABEL, "Check policy has failed items, failCount=%{public}u.", failCount);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy has failed items, failCount=%{public}u.", failCount);
     }
     return SANDBOX_MANAGER_OK;
 }
@@ -444,13 +459,17 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const std::vector<Polic
             return SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
         for (size_t i = 0; i < curBatchSize; ++i) {
+            if (info.pathInfos[i].result == 0) {
+                std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "Unset policy failed at %{public}s", maskPath.c_str());
+            }
             result[offset + i] = info.pathInfos[i].result;
         }
     }
 
     uint32_t failCount = static_cast<uint32_t>(std::count(result.begin(), result.end(), false));
     if (failCount > 0) {
-        SANDBOXMANAGER_LOG_WARN(LABEL, "Unset policy has failed items, failCount=%{public}u.", failCount);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unset policy has failed items, failCount=%{public}u.", failCount);
     }
     return SANDBOX_MANAGER_OK;
 }
@@ -490,13 +509,17 @@ int32_t MacAdapter::UnSetSandboxPolicyByUser(int32_t userId, const std::vector<P
             return SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
         for (size_t i = 0; i < curBatchSize; ++i) {
+            if (info.pathInfos[i].result == 0) {
+                std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "Unset by user failed at %{public}s", maskPath.c_str());
+            }
             result[offset + i] = info.pathInfos[i].result;
         }
     }
 
     uint32_t failCount = static_cast<uint32_t>(std::count(result.begin(), result.end(), false));
     if (failCount > 0) {
-        SANDBOXMANAGER_LOG_WARN(LABEL, "Unset policy has failed items, failCount=%{public}u.", failCount);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unset policy has failed items, failCount=%{public}u.", failCount);
     }
     return SANDBOX_MANAGER_OK;
 }
@@ -519,7 +542,9 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const PolicyInfo &polic
         info.pathInfos[0].path, info.pathInfos[0].mode);
 
     if (ioctl(fd_, UN_SET_POLICY_CMD, &info) < 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unset policy failed, errno=%{public}d.", errno);
+        std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[0].path);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unset policy failed, errno=%{public}d. path = %{public}s",
+                                 errno, maskPath.c_str());
         return SANDBOX_MANAGER_MAC_IOCTL_ERR;
     }
 

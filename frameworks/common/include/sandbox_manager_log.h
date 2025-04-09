@@ -16,6 +16,19 @@
 #ifndef SANDBOXMANAGER_LOG_H
 #define SANDBOXMANAGER_LOG_H
 
+#include <string>
+namespace OHOS {
+namespace AccessControl {
+namespace SandboxManager {
+
+class SandboxManagerLog {
+public:
+    static std::string MaskRealPath(const char *path);
+};
+} // namespace SandboxManager
+} // namespace AccessControl
+} // namespace OHOS
+
 #ifdef HILOG_ENABLE
 
 #include "hilog/log.h"
