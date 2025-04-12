@@ -137,6 +137,7 @@ void SandboxManagerKitTest::SetUpTestCase()
     g_selfTokenId = GetSelfTokenID();
     SetDeny("/A");
     SetDeny("/C/D");
+    SetDeny("/data/temp");
 }
 
 void SandboxManagerKitTest::TearDownTestCase()
@@ -832,6 +833,438 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy016, TestSize.Level1)
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, searchPolicy, checkResult1));
     ASSERT_EQ(1, checkResult1.size());
     EXPECT_EQ(true, checkResult1[0]);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: MassiveIPCTest001
+ * @tc.desc: IPC with massive policyinfos.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, MassiveIPCTest001, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policySize = 90000;
+    uint64_t policyFlag = 1;
+
+    for (uint64_t i = 0; i < policySize; i++) {
+        PolicyInfo info;
+        info.mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
+        char path[1024];
+        sprintf_s(path, sizeof(path), "/data/temp/a/b/c/d/e/f/g/h/i/j/persistbytoken/%d", i);
+        info.path.assign(path);
+        policy.emplace_back(info);
+    }
+
+    std::vector<uint32_t> ret;
+    const uint32_t tokenId = 654321; // 123456 is a mocked tokenid.
+    auto start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, ret));
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    std::cout << "SetPolicy cost " << duration.count() << "s" << std::endl;
+
+    ASSERT_EQ(policySize, ret.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, ret[i]);
+    }
+    std::vector<bool> result;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(tokenId, policy, result));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "CheckPolicy cost " << duration.count() << "s" << std::endl;
+
+    ASSERT_EQ(policySize, result.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_TRUE(result[i]);
+    }
+
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(tokenId, policy[i]));
+    }
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: MassiveIPCTest002
+ * @tc.desc: IPC with massive policyinfos.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, MassiveIPCTest002, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policySize = 90000;
+    uint64_t policyFlag = 1;
+
+    for (uint64_t i = 0; i < policySize; i++) {
+        PolicyInfo info;
+        info.mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
+        char path[1024];
+        sprintf_s(path, sizeof(path), "/data/temp/a/b/c/d/e/f/g/h/i/j/persistbytoken/%d", i);
+        info.path.assign(path);
+        policy.emplace_back(info);
+    }
+
+    std::vector<uint32_t> ret;
+    const uint32_t tokenId = 654321; // 123456 is a mocked tokenid.
+    auto start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, ret));
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    std::cout << "SetPolicy cost " << duration.count() << "s" << std::endl;
+
+    ASSERT_EQ(policySize, ret.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, ret[i]);
+    }
+
+    std::vector<uint32_t> policyResult;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(tokenId, policy, policyResult));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "PersistPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, policyResult.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[i]);
+    }
+
+    std::vector<bool> checkResult1;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, checkResult1));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "CheckPersistPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, checkResult1.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_TRUE(checkResult1[i]);
+    }
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(tokenId, policy, unPersistResult));
+    ASSERT_EQ(policySize, unPersistResult.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[i]);
+    }
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: MassiveIPCTest003
+ * @tc.desc: IPC with massive policyinfos.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, MassiveIPCTest003, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policySize = 90000;
+    uint64_t policyFlag = 1;
+
+    for (uint64_t i = 0; i < policySize; i++) {
+        PolicyInfo info;
+        info.mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
+        char path[1024];
+        sprintf_s(path, sizeof(path), "/data/temp/a/b/c/d/e/f/g/h/i/j/persistbytoken/%d", i);
+        info.path.assign(path);
+        policy.emplace_back(info);
+    }
+
+    std::vector<uint32_t> ret;
+    const uint32_t tokenId = 654321; // 123456 is a mocked tokenid.
+    auto start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, ret));
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    std::cout << "SetPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, ret.size());
+
+    std::vector<uint32_t> policyResult;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(tokenId, policy, policyResult));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "PersistPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, policyResult.size());
+
+    std::vector<uint32_t> unPersistResult;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(tokenId, policy, unPersistResult));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "UnPersistPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, unPersistResult.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[i]);
+    }
+
+    std::vector<bool> checkResult2;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, checkResult2));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "CheckPersistPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, checkResult2.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_FALSE(checkResult2[i]);
+    }
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: MassiveIPCTest004
+ * @tc.desc: IPC with massive policyinfos.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, MassiveIPCTest004, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policySize = 90000;
+    uint64_t policyFlag = 1;
+
+    for (uint64_t i = 0; i < policySize; i++) {
+        PolicyInfo info;
+        info.mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
+        char path[1024];
+        sprintf_s(path, sizeof(path), "/data/temp/a/b/c/d/e/f/g/h/i/j/persist/%d", i);
+        info.path.assign(path);
+        policy.emplace_back(info);
+    }
+
+    std::vector<uint32_t> ret;
+    auto start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, ret));
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    std::cout << "SetPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, ret.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, ret[i]);
+    }
+
+    std::vector<uint32_t> policyResult;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, policyResult));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "PersistPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, policyResult.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[i]);
+    }
+
+    std::vector<bool> checkResult1;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkResult1));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "CheckPersistPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, checkResult1.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_TRUE(checkResult1[i]);
+    }
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
+    ASSERT_EQ(policySize, unPersistResult.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[i]);
+    }
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: MassiveIPCTest005
+ * @tc.desc: IPC with massive policyinfos.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, MassiveIPCTest005, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policySize = 90000;
+    uint64_t policyFlag = 1;
+
+    for (uint64_t i = 0; i < policySize; i++) {
+        PolicyInfo info;
+        info.mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
+        char path[1024];
+        sprintf_s(path, sizeof(path), "/data/temp/a/b/c/d/e/f/g/h/i/j/persist/%d", i);
+        info.path.assign(path);
+        policy.emplace_back(info);
+    }
+
+    std::vector<uint32_t> ret;
+    auto start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, ret));
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    std::cout << "SetPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, ret.size());
+
+    std::vector<uint32_t> policyResult;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, policyResult));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "PersistPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, policyResult.size());
+
+    std::vector<uint32_t> unPersistResult;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "UnPersistPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, unPersistResult.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[i]);
+    }
+
+    std::vector<bool> checkResult2;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkResult2));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "CheckPersistPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, unPersistResult.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_FALSE(checkResult2[i]);
+    }
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: MassiveIPCTest006
+ * @tc.desc: IPC with massive policyinfos.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, MassiveIPCTest006, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policySize = 90000;
+    uint64_t policyFlag = 1;
+
+    for (uint64_t i = 0; i < policySize; i++) {
+        PolicyInfo info;
+        info.mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
+        char path[1024];
+        sprintf_s(path, sizeof(path), "/data/temp/a/b/c/d/e/f/g/h/i/j/async_accessing/%d", i);
+        info.path.assign(path);
+        policy.emplace_back(info);
+    }
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicyAsync(g_mockToken, policy, policyFlag));
+    sleep(5);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    ASSERT_EQ(policySize, retType.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[i]);
+    }
+
+    auto start = std::chrono::high_resolution_clock::now();
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicyAsync(g_mockToken, policy[0]));
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    std::cout << "UnSetPolicyAsync cost " << duration.count() << "s" << std::endl;
+    sleep(1);
+
+    start  = std::chrono::high_resolution_clock::now();
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(policy, retType));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "StartAccessingPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, retType.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[i]);
+    }
+
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(policySize, result.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_TRUE(result[i]);
+    }
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
+    ASSERT_EQ(policySize, unPersistResult.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[i]);
+    }
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: MassiveIPCTest007
+ * @tc.desc: IPC with massive policyinfos.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, MassiveIPCTest007, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policySize = 90000;
+    uint64_t policyFlag = 1;
+
+    for (uint64_t i = 0; i < policySize; i++) {
+        PolicyInfo info;
+        info.mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
+        char path[1024];
+        sprintf_s(path, sizeof(path), "/data/temp/a/b/c/d/e/f/g/h/i/j/stop_access/%d", i);
+        info.path.assign(path);
+        policy.emplace_back(info);
+    }
+    std::vector<uint32_t> result;
+    auto start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, result));
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    std::cout << "SetPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, result.size());
+
+    std::vector<uint32_t> persistResult;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, persistResult));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "PersistPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, persistResult.size());
+
+    std::vector<uint32_t> startResult;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StopAccessingPolicy(policy, startResult));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "StopAccessingPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, startResult.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, startResult[i]);
+    }
+
+    std::vector<uint32_t> unPersistResult;
+    start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    std::cout << "UnPersistPolicy cost " << duration.count() << "s" << std::endl;
+    ASSERT_EQ(policySize, unPersistResult.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[i]);
+    }
 }
 #endif
 
