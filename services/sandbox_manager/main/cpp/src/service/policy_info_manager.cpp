@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2025 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -406,6 +406,8 @@ int32_t PolicyInfoManager::RemovePolicy(
     uint32_t invalidNum = 0;
     uint32_t failNum = 0;
     uint32_t successNum = 0;
+    std::vector<GenericValues> conditions;
+    conditions.reserve(policySize);
     for (size_t i = 0; i < policySize; ++i) {
         int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
         if (checkPolicyRet != SANDBOX_MANAGER_OK) {
@@ -420,28 +422,39 @@ int32_t PolicyInfoManager::RemovePolicy(
             ++successNum;
             continue;
         }
-        
-        ret = macAdapter_.UnSetSandboxPolicy(tokenId, policy[i]);
+
+        ret = UnsetSandboxPolicyAndRecord(tokenId, policy[i], conditions);
         if (ret != SANDBOX_MANAGER_OK) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter unset error, err code = %{public}d.", ret);
             ++failNum;
             PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
             SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNPERSIST_POLICY, info);
             return ret;
         }
 
-        GenericValues condition;
-        TransferPolicyToGeneric(tokenId, policy[i], condition);
-        ret = SandboxManagerRdb::GetInstance().Remove(
-            SANDBOX_MANAGER_PERSISTED_POLICY, condition);
-        if (ret != SandboxManagerRdb::SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
-            return SANDBOX_MANAGER_DB_ERR;
-        }
         ++successNum;
+    }
+    int32_t ret = SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
+    if (ret != SandboxManagerRdb::SUCCESS) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
+        return SANDBOX_MANAGER_DB_ERR;
     }
     PolicyOperateInfo info(result.size(), successNum, failNum, invalidNum);
     SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNPERSIST_POLICY, info);
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::UnsetSandboxPolicyAndRecord(const uint32_t tokenId, const PolicyInfo &policy,
+    std::vector<GenericValues> &conditions)
+{
+    int32_t ret = macAdapter_.UnSetSandboxPolicy(tokenId, policy);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter unset error, err code = %{public}d.", ret);
+        return ret;
+    }
+
+    GenericValues condition;
+    TransferPolicyToGeneric(tokenId, policy, condition);
+    conditions.emplace_back(condition);
     return SANDBOX_MANAGER_OK;
 }
 
@@ -881,7 +894,6 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path check fail, length = %{public}zu", policy.path.length());
         return SandboxRetType::INVALID_PATH;
     }
-    std::string path = AdjustPath(policy.path);
 
     // mode between 0 and 0b11(READ_MODE+WRITE_MODE)
     if (policy.mode < OperateMode::READ_MODE ||

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2025 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -123,10 +123,8 @@ int32_t SandboxManagerRdb::GetConflictResolution(const std::string &duplicateMod
     return FAILURE;
 }
 
-void SandboxManagerRdb::DbInsertFailure(const std::string& tableName, int32_t res)
+void SandboxManagerRdb::DbOperateFailure(const std::string& tableName, int32_t res)
 {
-    SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to batch insert into table %{public}s, res is %{public}d.",
-        tableName.c_str(), res);
     db_->RollBack();
     if (res != NativeRdb::E_SQLITE_CORRUPT) {
         return;
@@ -172,13 +170,16 @@ int32_t  SandboxManagerRdb::Add(const DataType type, const std::vector<GenericVa
         int64_t rowId = -1;
         res = db_->InsertWithConflictResolution(rowId, tableName, bucket, solution);
         if (res != NativeRdb::E_OK) {
-            DbInsertFailure(tableName, res);
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to batch insert into table %{public}s, res is %{public}d.",
+                tableName.c_str(), res);
+            DbOperateFailure(tableName, res);
             return FAILURE;
         }
     }
     res = db_->Commit();
     if (res != NativeRdb::E_OK) {
-        DbInsertFailure(tableName, res);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db commit failed, res is %{public}d, trying restore db.", res);
+        DbOperateFailure(tableName, res);
         return FAILURE;
     }
     return SUCCESS;
@@ -214,6 +215,44 @@ int32_t SandboxManagerRdb::Remove(const DataType type, const GenericValues& cond
         if (ret != NativeRdb::E_OK) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to restore from db, ret is %{public}d.", ret);
         }
+        return FAILURE;
+    }
+    return SUCCESS;
+}
+
+int32_t SandboxManagerRdb::Remove(const DataType type, const std::vector<GenericValues> &conditions)
+{
+    std::string tableName;
+    GetTableNameByType(type, tableName);
+    if (tableName.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Cannot find tableName by type:%{public}u, please check", type);
+        return FAILURE;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Remove tableName: %{public}s", tableName.c_str());
+
+    OHOS::Utils::UniqueWriteGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
+    std::shared_ptr<NativeRdb::RdbStore> db = GetRdb();
+    if (db == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
+        return FAILURE;
+    }
+    db_->BeginTransaction();
+    for (const auto& condition : conditions) {
+        NativeRdb::RdbPredicates predicates(tableName);
+        ToRdbPredicates(condition, predicates);
+        int32_t deletedRows = 0;
+        int32_t res = db_->Delete(deletedRows, predicates);
+        if (res != NativeRdb::E_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to delete record from table %{public}s, res is %{public}d.",
+                tableName.c_str(), res);
+            DbOperateFailure(tableName, res);
+            return FAILURE;
+        }
+    }
+    int32_t res = db_->Commit();
+    if (res != NativeRdb::E_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db commit failed, res is %{public}d, trying restore db.", res);
+        DbOperateFailure(tableName, res);
         return FAILURE;
     }
     return SUCCESS;
