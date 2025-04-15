@@ -512,6 +512,230 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest010, TestSize.Level1)
 #endif
 
 /**
+ * @tc.name: MaskRealPath001
+ * @tc.desc: normal path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath001, TestSize.Level1)
+{
+    std::string input1 = "/aa/bb/cc/dd.txt";
+    std::string expect = "/a***/b***/c***/d***";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath002
+ * @tc.desc: normal path short name
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath002, TestSize.Level1)
+{
+    std::string input1 = "/aa/bb/cc/d.txt";
+    std::string expect = "/a***/b***/c***/d***";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath003
+ * @tc.desc: short path  and short name
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath003, TestSize.Level1)
+{
+    std::string input1 = "/aa/dd.txt";
+    std::string expect = "/a***/d***";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath004
+ * @tc.desc: path with more '/'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath004, TestSize.Level1)
+{
+    std::string input1 = "/aa/////bb/cc/dd.txt";
+    std::string expect = "/a***/////b***/c***/d***";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath005
+ * @tc.desc: path begin without '/'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath005, TestSize.Level1)
+{
+    std::string input1 = "aa/bb";
+    std::string expect = "a***/b***";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath006
+ * @tc.desc: path without info
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath006, TestSize.Level1)
+{
+    std::string input1 = "";
+    std::string expect = "empty path";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath007
+ * @tc.desc: path only '/'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath007, TestSize.Level1)
+{
+    std::string input1 = "/";
+    std::string expect = "/";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath008
+ * @tc.desc: path only '.'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath008, TestSize.Level1)
+{
+    std::string input1 = ".";
+    std::string expect = ".";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath009
+ * @tc.desc: path start with '.'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath009, TestSize.Level1)
+{
+    std::string input1 = "/./test";
+    std::string expect = "/./t***";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath010
+ * @tc.desc: path start with '..'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath010, TestSize.Level1)
+{
+    std::string input1 = "/../test";
+    std::string expect = "/../t***";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath011
+ * @tc.desc: path with '.'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath011, TestSize.Level1)
+{
+    std::string input1 = "/aa/../d.txt";
+    std::string expect = "/a***/../d***";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath012
+ * @tc.desc: path with '.' and ".."
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath012, TestSize.Level1)
+{
+    std::string input1 = "/aa/.././bb/cc/dd.txt";
+    std::string expect = "/a***/.././b***/c***/d***";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath013
+ * @tc.desc: file name with more '.'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath013, TestSize.Level1)
+{
+    std::string input1 = "/aa/.././cc/aa.bb.txt";
+    std::string expect = "/a***/.././c***/a***";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath014
+ * @tc.desc: file name start with '.'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath014, TestSize.Level1)
+{
+    std::string input1 = "/aa/.././cc/.aa.bb.txt";
+    std::string expect = "/a***/.././c***/.***";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath015
+ * @tc.desc: path end with one '/'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath015, TestSize.Level1)
+{
+    std::string input1 = "/aa/.././cc/";
+    std::string expect = "/a***/.././c***/";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
+ * @tc.name: MaskRealPath016
+ * @tc.desc: path end with more '/'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath016, TestSize.Level1)
+{
+    std::string input1 = "/aa/////";
+    std::string expect = "/a***/////";
+    std::string path = SandboxManagerLog::MaskRealPath(input1.c_str());
+    EXPECT_EQ(true, expect == path);
+}
+
+/**
  * @tc.name: PolicyInfoManagerTest012
  * @tc.desc: Test PolicyInfoManager - MAC not supported
  * @tc.type: FUNC
