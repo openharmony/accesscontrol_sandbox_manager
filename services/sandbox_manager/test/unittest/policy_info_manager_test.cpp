@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2025 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -109,7 +109,7 @@ void PrintDbRecords()
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest002, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest002, TestSize.Level0)
 {
     PolicyInfo info;
     uint64_t sizeLimit = 1;
@@ -161,7 +161,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest002, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest004, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest004, TestSize.Level0)
 {
     PolicyInfo info;
     uint64_t sizeLimit = 1;
@@ -313,7 +313,7 @@ HWTEST_F(PolicyInfoManagerTest, GenericValuesTest001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, CleanPersistPolicyByPathTest001, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, CleanPersistPolicyByPathTest001, TestSize.Level0)
 {
     PolicyInfo info;
     uint64_t sizeLimit = 1;
@@ -377,7 +377,7 @@ HWTEST_F(PolicyInfoManagerTest, MacAdapterTest001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, DenyTest001, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, DenyTest001, TestSize.Level0)
 {
     std::string stringJson1 = R"([{"path":"/data/test", "rename":1, "delete":1, "inherit":1}])";
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.SetDenyCfg(stringJson1));
@@ -389,7 +389,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, DenyTest002, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, DenyTest002, TestSize.Level0)
 {
     std::string stringJson1 = R"([
         {"path":"/etc/test", "rename":1, "delete":"test", "inherit":1}])";
@@ -402,7 +402,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest002, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, DenyTest003, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, DenyTest003, TestSize.Level0)
 {
     std::string stringJson1 = R"([
         {"path":"/etc/test", "rename":"test", "delete":1, "inherit":1}])";
@@ -415,7 +415,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest003, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, DenyTest004, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, DenyTest004, TestSize.Level0)
 {
     std::string stringJson1 = R"([
         {"path":"/etc/test", "rename":1, "delete":1, "inherit":"test"}])";
@@ -428,7 +428,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest004, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, DenyTest005, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, DenyTest005, TestSize.Level0)
 {
     std::string stringJson1 = R"([
         {"path":1, "rename":1, "delete":1, "inherit":1}])";
@@ -441,7 +441,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest005, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, DenyTest006, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, DenyTest006, TestSize.Level0)
 {
     std::string stringJson1 = R"([])";
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.SetDenyCfg(stringJson1));
@@ -453,7 +453,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest006, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, DenyTest007, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, DenyTest007, TestSize.Level0)
 {
     std::string stringJson1 = R"([
         {"path":"/etc/test", "rename":1, "delete":1, "inherit":1},
@@ -475,7 +475,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest007, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, DenyTest008, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, DenyTest008, TestSize.Level0)
 {
     std::string stringJson1 = R"([
         {"path":"/etc/test", "delete":1, "inherit":1}])";
@@ -488,7 +488,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest008, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, DenyTest009, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, DenyTest009, TestSize.Level0)
 {
     const char *jsonPath = "etc/sandbox_manager_service/test";
     std::string inputString;
@@ -502,7 +502,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest009, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, DenyTest010, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, DenyTest010, TestSize.Level0)
 {
     const char *jsonPath = "etc/sandbox/appdata-sandbox.json";
     std::string inputString;

@@ -235,6 +235,15 @@ private:
      */
     int32_t CheckPolicyValidity(const PolicyInfo &policy);
     /**
+     * @brief unset sandboxpolicy and record conditions
+     * @param tokenId a given tokenId
+     * @param policy a policy to be unset
+     * @param conditions conditions to be record
+     * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
+     */
+    int32_t UnsetSandboxPolicyAndRecord(const uint32_t tokenId, const PolicyInfo &policy,
+        std::vector<GenericValues> &conditions);
+    /**
      * @brief remove policies not belong to the user
      * @param results input policies to check
      * @param userId delete policies not belong to this user

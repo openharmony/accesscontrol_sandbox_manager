@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Huawei Device Co., Ltd.
+ * Copyright (c) 2023-2025 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -44,6 +44,8 @@ public:
 
     int32_t Remove(const DataType type, const GenericValues &conditions);
 
+    int32_t Remove(const DataType type, const std::vector<GenericValues> &conditions);
+
     int32_t Modify(const DataType type, const GenericValues &modifyValues, const GenericValues &conditions);
 
     int32_t FindSubPath(const DataType type, const std::string& filePath, std::vector<GenericValues>& results);
@@ -54,7 +56,7 @@ private:
     SandboxManagerRdb();
     int32_t OpenDataBase();
     std::shared_ptr<NativeRdb::RdbStore> GetRdb();
-    void DbInsertFailure(const std::string& tableName, int32_t res);
+    void DbOperateFailure(const std::string& tableName, int32_t res);
     inline static int32_t GetConflictResolution(const std::string &duplicateMode,
         NativeRdb::ConflictResolution &solution);
     DISALLOW_COPY_AND_MOVE(SandboxManagerRdb);
