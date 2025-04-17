@@ -2006,6 +2006,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest001, TestSize.Level1
     std::vector<std::string> filePaths;
     filePaths.emplace_back(infoParent.path);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
     sleep(1);
     std::vector<bool> result1;
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result1));
@@ -2065,6 +2066,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest002, TestSize.Level1
     infoParent.path = "/A/B";
     filePaths.emplace_back(infoParent.path);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
     sleep(1);
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
     ASSERT_EQ(1, result.size());
@@ -2121,6 +2123,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest003, TestSize.Level1
     std::vector<std::string> filePaths;
     filePaths.emplace_back(infoParent.path);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
     sleep(1);
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policyB, result));
     ASSERT_EQ(1, result.size());
@@ -2239,6 +2242,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest006, TestSize.Level1
     filePaths.emplace_back(infoParentC.path);
     filePaths.emplace_back(infoParentB.path);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
     sleep(1);
 
     std::vector<PolicyInfo> policyCheck;
@@ -2470,6 +2474,67 @@ HWTEST_F(SandboxManagerKitTest, UserIdTest001, TestSize.Level1)
     EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(101, policy, boolRes));
     EXPECT_TRUE(boolRes[0]);
 }
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: ohos.permission.CHECK_SANDBOX_POLICY test001
+ * @tc.desc: Permissions required for checking non-self temporary authorization and persistent authorization
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, CheckSandboxPolicyPermissionsTest001, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    const uint32_t tokenId = 123456; // 123456 is a mocked tokenid.
+    policy.emplace_back(infoParent);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(tokenId, policy, retType));
+    ASSERT_EQ(1, retType.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(tokenId, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_TRUE(result[0]);
+
+    std::vector<bool> result1;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, result1));
+    ASSERT_EQ(1, result1.size());
+    EXPECT_TRUE(result1[0]);
+
+    Security::AccessToken::AccessTokenID tokenFileManagerID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenFileManagerID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenFileManagerID));
+
+    std::vector<bool> result2;
+    ASSERT_EQ(PERMISSION_DENIED, SandboxManagerKit::CheckPolicy(tokenId, policy, result2));
+    ASSERT_EQ(0, result2.size());
+
+    std::vector<bool> result3;
+    ASSERT_EQ(PERMISSION_DENIED, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, result3));
+    ASSERT_EQ(0, result3.size());
+
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(tokenId, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_TRUE(result[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, result1));
+    ASSERT_EQ(1, result1.size());
+    EXPECT_TRUE(result1[0]);
+}
+#endif
 
 #endif
 } // SandboxManager
