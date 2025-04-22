@@ -32,7 +32,7 @@ public:
      * @param Policy vector of string, file path
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
-    static int32_t CleanPersistPolicyByPath(const std::vector<std::string>& filePathList);
+    static int32_t CleanPersistPolicyByPath(const std::vector<std::string> &filePathList);
     /**
      * @brief Persist policys with caller's tokenId
      * @param policy vector of PolicyInfo, see policy_info.h
@@ -186,6 +186,13 @@ public:
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
     static int32_t UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp);
+    /**
+     * @brief Clear the policys of a given userid
+     * @param userId a given userid
+     * @param Policy vector of string, file path
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList);
 };
 } // SandboxManager
 } // AccessControl

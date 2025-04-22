@@ -30,7 +30,7 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
 }
 const uint32_t POLICY_PATH_LIMIT = 4095;
 
-int32_t SandboxManagerKit::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
+int32_t SandboxManagerKit::CleanPersistPolicyByPath(const std::vector<std::string> &filePathList)
 {
     size_t filePathSize = filePathList.size();
     if (filePathSize == 0) {
@@ -254,6 +254,15 @@ int32_t SandboxManagerKit::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t time
         return SandboxManagerErrCode::INVALID_PARAMTER;
     }
     return SandboxManagerClient::GetInstance().UnSetAllPolicyByToken(tokenId, timestamp);
+}
+
+int32_t SandboxManagerKit::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
+{
+    if (filePathList.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "filePathList empty");
+        return SandboxManagerErrCode::INVALID_PARAMTER;
+    }
+    return SandboxManagerClient::GetInstance().CleanPolicyByUserId(userId, filePathList);
 }
 } // SandboxManager
 } // AccessControl

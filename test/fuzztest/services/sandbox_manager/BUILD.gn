@@ -22,6 +22,7 @@ group("fuzztest") {
     "checkpersistpolicystub_fuzzer:CheckPersistPolicyStubFuzzTest",
     "checkpolicystub_fuzzer:CheckPolicyStubFuzzTest",
     "cleanpersistpolicybypathstub_fuzzer:CleanPersistPolicyByPathStubFuzzTest",
+    "cleanpolicybyuseridstub_fuzzer:CleanPolicyByUserIdStubFuzzTest",
     "persistpolicystub_fuzzer:PersistPolicyStubFuzzTest",
     "persistpolicytokenstub_fuzzer:PersistPolicyTokenStubFuzzTest",
     "setpolicyasyncstub_fuzzer:SetPolicyAsyncStubFuzzTest",

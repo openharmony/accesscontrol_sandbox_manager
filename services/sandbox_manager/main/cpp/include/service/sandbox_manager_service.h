@@ -41,7 +41,8 @@ public:
     void OnStop() override;
     void OnStart(const SystemAbilityOnDemandReason& startReason) override;
 
-    int32_t CleanPersistPolicyByPath(const std::vector<std::string>& filePathList) override;
+    int32_t CleanPersistPolicyByPath(const std::vector<std::string> &filePathList) override;
+    int32_t CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList) override;
     int32_t PersistPolicy(const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData) override;
     int32_t UnPersistPolicy(const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData) override;
     int32_t PersistPolicyByTokenId(

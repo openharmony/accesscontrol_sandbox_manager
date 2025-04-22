@@ -64,6 +64,7 @@ ohos_unittest("libsandbox_manager_sdk_test") {
     "config_policy:configpolicy_util",
     "hilog:libhilog",
     "ipc:ipc_single",
+    "os_account:os_account_innerkits",
     "samgr:samgr_proxy",
   ]
 }
