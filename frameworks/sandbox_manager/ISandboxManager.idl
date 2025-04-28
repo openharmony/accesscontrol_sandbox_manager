@@ -35,4 +35,5 @@ interface OHOS.AccessControl.SandboxManager.ISandboxManager {
     [ipccode 0xffbc] void PersistPolicyByTokenId([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData, [out] Uint32VecRawData resultRawData);
     [ipccode 0xffbd] void UnPersistPolicyByTokenId([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData, [out] Uint32VecRawData resultRawData);
     [ipccode 0xffbe, oneway] void CleanPersistPolicyByPath([in] List<String> filePathList);
+    [ipccode 0xffbf, oneway] void CleanPolicyByUserId([in] unsigned int userId, [in] List<String> filePathList);
 }

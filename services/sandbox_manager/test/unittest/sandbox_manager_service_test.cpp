@@ -38,6 +38,7 @@
 #include "system_ability_definition.h"
 #include "sandbox_test_common.h"
 #include "token_setproc.h"
+#include "os_account_manager.h"
 
 using namespace testing::ext;
 
@@ -495,12 +496,12 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest013, TestSize.Level
 }
 
 /**
- * @tc.name: SandboxManagerStub014
+ * @tc.name: SandboxManagerStub001
  * @tc.desc: Test CleanPersistPolicyByPath
  * @tc.type: FUNC
  * @tc.require:
  */
- HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub014, TestSize.Level1)
+ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub001, TestSize.Level1)
 {
     std::vector<std::string> paths = {};
     uint32_t fileManagerToken = Security::AccessToken::AccessTokenKit::GetNativeTokenId("file_manager_service");
@@ -511,6 +512,32 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest013, TestSize.Level
     // success
     std::vector<std::string> paths1 = {"/A/B" };
     EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->CleanPersistPolicyByPath(paths1));
+    SetSelfTokenID(selfTokenId_);
+}
+
+/**
+ * @tc.name: SandboxManagerStub002
+ * @tc.desc: Test CleanPolicyByUserId
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub002, TestSize.Level1)
+{
+    std::vector<std::string> paths = {};
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        userId = 0; // set default userId
+    }
+    uint32_t fileManagerToken = Security::AccessToken::AccessTokenKit::GetNativeTokenId("file_manager_service");
+    EXPECT_EQ(PERMISSION_DENIED, sandboxManagerService_->CleanPolicyByUserId(userId, paths));
+    SetSelfTokenID(fileManagerToken);
+
+    int32_t otherUserId = userId++;
+    EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->CleanPolicyByUserId(otherUserId, paths));
+    // success
+    std::vector<std::string> paths1 = {"/A/B" };
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->CleanPolicyByUserId(userId, paths1));
     SetSelfTokenID(selfTokenId_);
 }
 

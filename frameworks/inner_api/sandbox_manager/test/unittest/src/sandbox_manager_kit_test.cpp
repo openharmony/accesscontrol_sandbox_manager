@@ -35,6 +35,7 @@
 #include "sandbox_test_common.h"
 #include "token_setproc.h"
 #include "mac_adapter.h"
+#include "os_account_manager.h"
 
 #define HM_DEC_IOCTL_BASE 's'
 #define HM_DENY_POLICY_ID 6
@@ -92,6 +93,10 @@ Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
     .permList = {},
     .permStateList = {g_testState1, g_testState2, g_testState3}
 };
+};
+
+static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
+    LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerKitTest"
 };
 
 struct PathInfo {
@@ -2242,6 +2247,327 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest006, TestSize.Level0
     filePaths.emplace_back(infoParentC.path);
     filePaths.emplace_back(infoParentB.path);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    sleep(1);
+
+    std::vector<PolicyInfo> policyCheck;
+    std::vector<bool> checkrResult;
+    infoParentB.path = "/A/C";
+    policyCheck.emplace_back(infoParentB);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policyCheck, checkrResult));
+    ASSERT_EQ(1, checkrResult.size());
+    EXPECT_TRUE(checkrResult[0]);
+}
+#endif
+
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: CleanPolicyByUserIdTest001
+ * @tc.desc: Clean persist policy by path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest001, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policy.emplace_back(infoParent);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    ASSERT_EQ(1, retType.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_TRUE(result[0]);
+
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "CleanPolicyByUserIdTest, get user id failed error=%{public}d", ret);
+        userId = 0; // set default userId
+    }
+    std::vector<std::string> filePaths;
+    filePaths.emplace_back(infoParent.path);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPolicyByUserId(userId, filePaths));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    sleep(1);
+    std::vector<bool> result1;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result1));
+    ASSERT_EQ(1, result1.size());
+    EXPECT_FALSE(result1[0]);
+    std::vector<bool> result2;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, result2));
+    ASSERT_EQ(1, result2.size());
+    EXPECT_FALSE(result2[0]);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: CleanPolicyByUserIdTest002
+ * @tc.desc: Clean child persist policy by path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest002, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policy.emplace_back(infoParent);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_TRUE(result[0]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    ASSERT_EQ(1, retType.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+
+    infoParent.path = "/A/B/C";
+    std::vector<PolicyInfo> policyB;
+    policyB.emplace_back(infoParent);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policyB, retType));
+    ASSERT_EQ(1, retType.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "CleanPolicyByUserIdTest, get user id failed error=%{public}d", ret);
+        userId = 0; // set default userId
+    }
+    std::vector<std::string> filePaths;
+    infoParent.path = "/A/B";
+    filePaths.emplace_back(infoParent.path);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPolicyByUserId(userId, filePaths));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    sleep(1);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_FALSE(result[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_FALSE(result[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policyB, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_FALSE(result[0]);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: CleanPolicyByUserIdTest003
+ * @tc.desc: Clean child persist policy by path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest003, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policy.emplace_back(infoParent);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_TRUE(result[0]);
+
+    std::vector<uint32_t> retType;
+    infoParent.path = "/A/B/C";
+    std::vector<PolicyInfo> policyB;
+    policyB.emplace_back(infoParent);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policyB, retType));
+    ASSERT_EQ(1, retType.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "CleanPolicyByUserIdTest, get user id failed error=%{public}d", ret);
+        userId = 0; // set default userId
+    }
+    std::vector<std::string> filePaths;
+    filePaths.emplace_back(infoParent.path);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPolicyByUserId(userId, filePaths));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    sleep(1);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policyB, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_TRUE(result[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policyB, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_FALSE(result[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_FALSE(result[0]);
+}
+#endif
+
+/**
+ * @tc.name: CleanPolicyByUserIdTest004
+ * @tc.desc: Clean persist policy by path with invalid path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest004, TestSize.Level1)
+{
+    std::string filePath = "/A/B";
+    std::vector<std::string> filePaths;
+    for (int i = 0; i < POLICY_VECTOR_SIZE; i++) {
+        filePaths.emplace_back(filePath);
+    }
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "CleanPolicyByUserIdTest, get user id failed error=%{public}d", ret);
+        userId = 0; // set default userId
+    }
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPolicyByUserId(userId, filePaths));
+}
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: CleanPolicyByUserIdTest005
+ * @tc.desc: Clean persist policy by path with invalid path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest005, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policy.emplace_back(infoParent);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_TRUE(result[0]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    ASSERT_EQ(1, retType.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "CleanPolicyByUserIdTest, get user id failed error=%{public}d", ret);
+        userId = 0; // set default userId
+    }
+    std::vector<std::string> filePaths;
+    filePaths.emplace_back(infoParent.path);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPolicyByUserId(userId, filePaths));
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: CleanPolicyByUserIdTest006
+ * @tc.desc: Clean persist policy by path with invalid path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest006, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParentA = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE
+    };
+    PolicyInfo infoParentB = {
+        .path = "/A/C",
+        .mode = OperateMode::READ_MODE
+    };
+    PolicyInfo infoParentC = {
+        .path = "/A/B/C",
+        .mode = OperateMode::WRITE_MODE
+    };
+    policy.emplace_back(infoParentA);
+    policy.emplace_back(infoParentB);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    ASSERT_EQ(2, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    std::vector<uint32_t> retType;
+    std::vector<PolicyInfo> policyB;
+    policyB.emplace_back(infoParentB);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policyB, retType));
+    ASSERT_EQ(1, retType.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "CleanPolicyByUserIdTest, get user id failed error=%{public}d", ret);
+        userId = 0; // set default userId
+    }
+    std::vector<std::string> filePaths;
+    infoParentC.path = "/A/B/C 2";
+    infoParentB.path = "/A/C 1";
+    filePaths.emplace_back(infoParentC.path);
+    filePaths.emplace_back(infoParentB.path);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPolicyByUserId(userId, filePaths));
     EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
     sleep(1);
 

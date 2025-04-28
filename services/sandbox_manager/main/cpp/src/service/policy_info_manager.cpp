@@ -117,7 +117,7 @@ void PolicyInfoManager::RemoveResultByUserId(std::vector<GenericValues> &results
     }
 }
 
-int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
+int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::string> &filePathList)
 {
     // clean MAC
     int32_t userId = 0;
@@ -156,6 +156,48 @@ int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::strin
 
     //clear the persistence policy
     for (const auto& res: results) {
+        int32_t ret = SandboxManagerRdb::GetInstance().Remove(
+            SANDBOX_MANAGER_PERSISTED_POLICY, res);
+        if (ret != SandboxManagerRdb::SUCCESS) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Delete fail!");
+        }
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "clean policy by userId:%{public}d", userId);
+    CleanPolicyOnMac(filePathList, userId);
+    std::vector<GenericValues> results;
+    for (const std::string& path : filePathList) {
+        uint32_t length = path.length();
+        if ((length == 0) || (length > POLICY_PATH_LIMIT)) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path check fail, length = %{public}zu.", path.length());
+            continue;
+        }
+        std::string pathTmp = AdjustPath(path);
+        int32_t ret = SandboxManagerRdb::GetInstance().FindSubPath(
+            SANDBOX_MANAGER_PERSISTED_POLICY, pathTmp, results);
+        if (ret != SandboxManagerRdb::SUCCESS) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error.");
+        }
+    }
+    if (results.empty()) {
+        PolicyOperateInfo info(0, 0, 0, 0);
+        SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(
+            OperateTypeEnum::CLEAN_PERSIST_POLICY_BY_PATH, info);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "No persistence policy was found to delete.");
+        return SANDBOX_MANAGER_OK;
+    }
+
+    RemoveResultByUserId(results, userId);
+
+    //clear the persistence policy
+    for (const auto& res: results) {
+        std::string currPath = res.GetString(PolicyFiledConst::FIELD_PATH);
+        std::string maskPath = SandboxManagerLog::MaskRealPath(currPath.c_str());
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Delete policy %{public}s", maskPath.c_str());
         int32_t ret = SandboxManagerRdb::GetInstance().Remove(
             SANDBOX_MANAGER_PERSISTED_POLICY, res);
         if (ret != SandboxManagerRdb::SUCCESS) {
@@ -236,7 +278,7 @@ int32_t PolicyInfoManager::AddToDatabaseIfNotDuplicate(const uint32_t tokenId, c
         SANDBOXMANAGER_LOG_INFO(LABEL, "No policies need to add.");
         return SANDBOX_MANAGER_OK;
     }
-    
+
     for (size_t each : passIndexes) {
         GenericValues condition;
         TransferPolicyToGeneric(tokenId, policies[each], condition);

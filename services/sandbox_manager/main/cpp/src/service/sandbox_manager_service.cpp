@@ -131,7 +131,7 @@ void SandboxManagerService::OnStart(const SystemAbilityOnDemandReason& startReas
     SANDBOXMANAGER_LOG_INFO(LABEL, "SandboxManagerService start successful.");
 }
 
-int32_t SandboxManagerService::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
+int32_t SandboxManagerService::CleanPersistPolicyByPath(const std::vector<std::string> &filePathList)
 {
     DelayUnloadService();
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
@@ -145,6 +145,22 @@ int32_t SandboxManagerService::CleanPersistPolicyByPath(const std::vector<std::s
         return INVALID_PARAMTER;
     }
     return PolicyInfoManager::GetInstance().CleanPersistPolicyByPath(filePathList);
+}
+
+int32_t SandboxManagerService::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
+{
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!IsFileManagerCalling(callingTokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}d)", callingTokenId);
+        return PERMISSION_DENIED;
+    }
+
+    if (filePathList.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "FilePath vector empty");
+        return INVALID_PARAMTER;
+    }
+    return PolicyInfoManager::GetInstance().CleanPolicyByUserId(userId, filePathList);
 }
 
 int32_t SandboxManagerService::PersistPolicy(const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData)

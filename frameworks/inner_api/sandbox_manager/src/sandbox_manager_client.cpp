@@ -59,10 +59,17 @@ SandboxManagerClient::SandboxManagerClient()
 SandboxManagerClient::~SandboxManagerClient()
 {}
 
-int32_t SandboxManagerClient::CleanPersistPolicyByPath(const std::vector<std::string>& filePathList)
+int32_t SandboxManagerClient::CleanPersistPolicyByPath(const std::vector<std::string> &filePathList)
 {
     std::function<int32_t(sptr<ISandboxManager> &)> func =
         [&](sptr<ISandboxManager> &proxy) { return proxy->CleanPersistPolicyByPath(filePathList); };
+    return CallProxyWithRetry(func, __FUNCTION__);
+}
+
+int32_t SandboxManagerClient::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
+{
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->CleanPolicyByUserId(userId, filePathList); };
     return CallProxyWithRetry(func, __FUNCTION__);
 }
 

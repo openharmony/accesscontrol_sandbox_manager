@@ -39,7 +39,7 @@ public:
     static SandboxManagerClient &GetInstance();
     virtual ~SandboxManagerClient();
 
-    int32_t CleanPersistPolicyByPath(const std::vector<std::string>& filePathList);
+    int32_t CleanPersistPolicyByPath(const std::vector<std::string> &filePathList);
     int32_t PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     int32_t UnPersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
@@ -59,7 +59,7 @@ public:
         uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     int32_t StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp);
     int32_t UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp);
-
+    int32_t CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList);
 private:
     SandboxManagerClient();
     DISALLOW_COPY_AND_MOVE(SandboxManagerClient);

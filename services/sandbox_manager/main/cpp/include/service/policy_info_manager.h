@@ -38,7 +38,14 @@ public:
      * @param policy vector of string, file path
      * @return SANDBOX_MANAGER_OK
      */
-    int32_t CleanPersistPolicyByPath(const std::vector<std::string>& filePaths);
+    int32_t CleanPersistPolicyByPath(const std::vector<std::string> &filePaths);
+     /**
+     * @brief Clear the policys of a given userid
+     * @param userId a given userid
+     * @param policy vector of string, file path
+     * @return SANDBOX_MANAGER_OK
+     */
+    int32_t CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePaths);
     /**
      * @brief Insert policys to database
      * @param tokenId token id of the object
