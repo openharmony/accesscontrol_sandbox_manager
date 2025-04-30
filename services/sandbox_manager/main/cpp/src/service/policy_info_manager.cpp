@@ -35,6 +35,7 @@
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_log.h"
 #include "os_account_manager.h"
+#include "media_path_support.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -207,8 +208,8 @@ int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vecto
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-    std::vector<uint32_t> &result, const uint32_t flag)
+int32_t PolicyInfoManager::AddNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+    std::vector<uint32_t> &result, const uint32_t flag, std::vector<size_t> &queryPolicyIndex, uint32_t invalidNum)
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
@@ -216,10 +217,7 @@ int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const std::vector<P
         return SANDBOX_MANAGER_OK;
     }
     size_t policySize = policy.size();
-    result.resize(policySize);
-    // check validity
-    std::vector<size_t> queryPolicyIndex;
-    uint32_t invalidNum = FilterValidPolicyInBatch(policy, result, queryPolicyIndex);
+
     // query mac kernel
     size_t queryPolicyIndexSize = queryPolicyIndex.size();
     std::vector<bool> queryResults(queryPolicyIndexSize);
@@ -256,8 +254,8 @@ int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const std::vector<P
     return SANDBOX_MANAGER_OK;
 }
 
-uint32_t PolicyInfoManager::FilterValidPolicyInBatch(
-    const std::vector<PolicyInfo> &policies, std::vector<uint32_t> &results, std::vector<size_t> &passIndexes)
+uint32_t PolicyInfoManager::FilterValidPolicyInBatch(const std::vector<PolicyInfo> &policies,
+    std::vector<uint32_t> &results, std::vector<size_t> &passIndexes, std::vector<size_t> &mediaIndexes)
 {
     size_t policySize = policies.size();
     for (size_t i = 0; i < policySize; ++i) {
@@ -266,9 +264,13 @@ uint32_t PolicyInfoManager::FilterValidPolicyInBatch(
             results[i] = static_cast<uint32_t>(checkPolicyRet);
             continue;
         }
-        passIndexes.emplace_back(i);
+        if (SandboxManagerMedia::GetInstance().IsMediaPolicy(policies[i].path)) {
+            mediaIndexes.emplace_back(i);
+        } else {
+            passIndexes.emplace_back(i);
+        }
     }
-    return policySize - passIndexes.size();
+    return policySize - passIndexes.size() - mediaIndexes.size();
 }
 int32_t PolicyInfoManager::AddToDatabaseIfNotDuplicate(const uint32_t tokenId, const std::vector<PolicyInfo> &policies,
     const std::vector<size_t> &passIndexes, const uint32_t flag, std::vector<uint32_t> &results)
@@ -374,7 +376,7 @@ int32_t PolicyInfoManager::MatchSinglePolicy(const uint32_t tokenId, const Polic
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t PolicyInfoManager::MatchPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+int32_t PolicyInfoManager::MatchNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
     std::vector<uint32_t> &result)
 {
     size_t policySize = policy.size();
@@ -449,11 +451,18 @@ int32_t PolicyInfoManager::RemovePolicy(
     uint32_t failNum = 0;
     uint32_t successNum = 0;
     std::vector<GenericValues> conditions;
+    std::vector<PolicyInfo> mediaPolicy;
+    mediaPolicy.reserve(policySize);
     conditions.reserve(policySize);
     for (size_t i = 0; i < policySize; ++i) {
         int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
         if (checkPolicyRet != SANDBOX_MANAGER_OK) {
             result[i] = static_cast<uint32_t>(checkPolicyRet);
+            ++invalidNum;
+            continue;
+        }
+        if (SandboxManagerMedia::GetInstance().IsMediaPolicy(policy[i].path)) {
+            mediaPolicy.emplace_back(policy[i]);
             ++invalidNum;
             continue;
         }
@@ -475,13 +484,26 @@ int32_t PolicyInfoManager::RemovePolicy(
 
         ++successNum;
     }
-    int32_t ret = SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
-    if (ret != SandboxManagerRdb::SUCCESS) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
-        return SANDBOX_MANAGER_DB_ERR;
+
+    int32_t ret;
+    if (!conditions.empty()) {
+        ret = SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
+        if (ret != SandboxManagerRdb::SUCCESS) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
+            return SANDBOX_MANAGER_DB_ERR;
+        }
+        PolicyOperateInfo info(result.size(), successNum, failNum, invalidNum);
+        SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNPERSIST_POLICY, info);
     }
-    PolicyOperateInfo info(result.size(), successNum, failNum, invalidNum);
-    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNPERSIST_POLICY, info);
+
+    if (!mediaPolicy.empty()) {
+        ret = SandboxManagerMedia::GetInstance().RemoveMediaPolicy(tokenId, mediaPolicy);
+        if (ret != SandboxManagerRdb::SUCCESS) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "remove media operate error");
+            return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+        }
+    }
+
     return SANDBOX_MANAGER_OK;
 }
 
@@ -690,7 +712,7 @@ int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId, uint6
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t PolicyInfoManager::StartAccessingPolicy(
+int32_t PolicyInfoManager::StartAccessingNormalPolicy(
     const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results, uint64_t timestamp)
 {
     if (!macAdapter_.IsMacSupport()) {
@@ -699,7 +721,6 @@ int32_t PolicyInfoManager::StartAccessingPolicy(
         return SANDBOX_MANAGER_OK;
     }
     size_t policySize = policy.size();
-    results.resize(policySize);
     // check database, check validity in MatchPolicy
     std::vector<uint32_t> matchResults(policySize);
     int32_t ret = MatchPolicy(tokenId, policy, matchResults);
@@ -746,7 +767,7 @@ int32_t PolicyInfoManager::StartAccessingPolicy(
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t PolicyInfoManager::StopAccessingPolicy(
+int32_t PolicyInfoManager::StopAccessingNormalPolicy(
     const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results)
 {
     if (!macAdapter_.IsMacSupport()) {
@@ -755,7 +776,6 @@ int32_t PolicyInfoManager::StopAccessingPolicy(
         return SANDBOX_MANAGER_OK;
     }
     size_t policySize = policy.size();
-    results.resize(policySize);
     // check database, check validity in MatchPolicy
     std::vector<uint32_t> matchResults(policy.size());
     int32_t ret = MatchPolicy(tokenId, policy, matchResults);
@@ -942,6 +962,183 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
         policy.mode > OperateMode::READ_MODE + OperateMode::WRITE_MODE) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy mode check fail: %{public}" PRIu64, policy.mode);
         return SandboxRetType::INVALID_MODE;
+    }
+
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+    std::vector<uint32_t> &results, const uint32_t flag)
+{
+    size_t policySize = policy.size();
+    results.resize(policySize);
+    // check validity
+    std::vector<size_t> queryPolicyIndex;
+    std::vector<size_t> mediaPolicyIndex;
+    uint32_t invalidNum = FilterValidPolicyInBatch(policy, results, queryPolicyIndex, mediaPolicyIndex);
+
+    int32_t ret;
+    if (!mediaPolicyIndex.empty()) {
+        size_t mediaPolicyIndexSize = mediaPolicyIndex.size();
+        std::vector<uint32_t> mediaResults(mediaPolicyIndexSize);
+        ret = SandboxManagerMedia::GetInstance().AddMediaPolicy(tokenId, policy, mediaPolicyIndex, mediaResults);
+        if (ret != SANDBOX_MANAGER_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "AddMediaPolicy failed.");
+            results.clear();
+            return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+        }
+        for (size_t i = 0; i < mediaPolicyIndexSize; ++i) {
+            results[mediaPolicyIndex[i]] = mediaResults[i];
+        }
+    }
+
+    if (!queryPolicyIndex.empty()) {
+        size_t queryPolicyIndexSize = queryPolicyIndex.size();
+        std::vector<uint32_t> queryResults(queryPolicyIndexSize);
+        ret = AddNormalPolicy(tokenId, policy, queryResults, flag, queryPolicyIndex, invalidNum);
+        if (ret != SANDBOX_MANAGER_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "AddNormalPolicy failed.");
+            results.clear();
+            return ret;
+        }
+        for (size_t i = 0; i < queryPolicyIndexSize; ++i) {
+            results[queryPolicyIndex[i]] = queryResults[i];
+        }
+    }
+
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::GetMediaPolicyCommonWork(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+    std::vector<uint32_t> &results, std::vector<size_t> &validIndex, std::vector<PolicyInfo> &normalPolicy)
+{
+    size_t policySize = policy.size();
+    std::vector<size_t> validMediaIndex;
+    std::vector<PolicyInfo> mediaPolicy;
+    validMediaIndex.reserve(policySize);
+    mediaPolicy.reserve(policySize);
+    for (size_t i = 0; i < policySize; ++i) {
+        if (SandboxManagerMedia::GetInstance().IsMediaPolicy(policy[i].path)) {
+            validMediaIndex.emplace_back(i);
+            mediaPolicy.emplace_back(policy[i]);
+        } else {
+            validIndex.emplace_back(i);
+            normalPolicy.emplace_back(policy[i]);
+        }
+    }
+
+    if (!mediaPolicy.empty()) {
+        std::vector<bool> checkMediaResult(validMediaIndex.size(), false);
+        int32_t ret = SandboxManagerMedia::GetInstance().GetMediaPermission(tokenId, mediaPolicy, checkMediaResult);
+        if (ret != SANDBOX_MANAGER_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "GetMeidaPermission failed.");
+            results.clear();
+            return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+        }
+        size_t resultIndex = 0;
+        for (const auto &index : validMediaIndex) {
+            if (checkMediaResult[resultIndex++] == true) {
+                results[index] = SandboxRetType::OPERATE_SUCCESSFULLY;
+            } else {
+                results[index] = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
+            }
+        }
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::StartAccessingPolicy(
+    const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results, uint64_t timestamp)
+{
+    size_t policySize = policy.size();
+    results.resize(policySize);
+
+    std::vector<size_t> validIndex;
+    std::vector<PolicyInfo> normalPolicy;
+    validIndex.reserve(policySize);
+    normalPolicy.reserve(policySize);
+    int32_t ret = GetMediaPolicyCommonWork(tokenId, policy, results, validIndex, normalPolicy);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+    }
+
+    if (!normalPolicy.empty()) {
+        std::vector<uint32_t> checkNormalResult(validIndex.size(), false);
+        ret = StartAccessingNormalPolicy(tokenId, normalPolicy, checkNormalResult, timestamp);
+        if (ret != SANDBOX_MANAGER_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "StartAccessingPolicy failed.");
+            results.clear();
+            return ret;
+        }
+        size_t resultIndex = 0;
+        for (const auto &index : validIndex) {
+            results[index] = checkNormalResult[resultIndex++];
+        }
+    }
+    return ret;
+}
+
+int32_t PolicyInfoManager::StopAccessingPolicy(
+    const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results)
+{
+    size_t policySize = policy.size();
+    results.resize(policySize);
+
+    std::vector<size_t> validIndex;
+    std::vector<PolicyInfo> normalPolicy;
+    validIndex.reserve(policySize);
+    normalPolicy.reserve(policySize);
+    int32_t ret = GetMediaPolicyCommonWork(tokenId, policy, results, validIndex, normalPolicy);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+    }
+
+    if (!normalPolicy.empty()) {
+        std::vector<uint32_t> checkNormalResult(validIndex.size(), false);
+        ret = StopAccessingNormalPolicy(tokenId, normalPolicy, checkNormalResult);
+        if (ret != SANDBOX_MANAGER_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "StopAccessingNormalPolicy failed.");
+            results.clear();
+            return ret;
+        }
+        size_t resultIndex = 0;
+        for (const auto &index : validIndex) {
+            results[index] = checkNormalResult[resultIndex++];
+        }
+    }
+
+    return ret;
+}
+
+int32_t PolicyInfoManager::MatchPolicy(
+    const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results)
+{
+    size_t policySize = policy.size();
+    if (results.size() != policySize) {
+        results.resize(policySize);
+    }
+
+    results.resize(policy.size(), false);
+    std::vector<size_t> validIndex;
+    std::vector<PolicyInfo> validPolicies;
+
+    int32_t ret = GetMediaPolicyCommonWork(tokenId, policy, results, validIndex, validPolicies);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+    }
+
+    if (!validPolicies.empty()) {
+        std::vector<uint32_t> checkNormalResult(validIndex.size(), false);
+        ret = MatchNormalPolicy(tokenId, validPolicies, checkNormalResult);
+        if (ret != SANDBOX_MANAGER_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "MatchNormalPolicy failed.");
+            results.clear();
+            return ret;
+        }
+        size_t resultIndex = 0;
+        for (const auto &index : validIndex) {
+            results[index] = checkNormalResult[resultIndex++];
+        }
     }
     return SANDBOX_MANAGER_OK;
 }

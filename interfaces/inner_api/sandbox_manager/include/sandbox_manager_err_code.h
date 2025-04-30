@@ -34,6 +34,7 @@ enum SandboxManagerErrCode : int32_t {
     SANDBOX_MANAGER_MAC_NOT_INIT,
     SANDBOX_MANAGER_MAC_IOCTL_ERR,
     SANDBOX_MANAGER_DENY_ERR,
+    SANDBOX_MANAGER_MEDIA_CALL_ERR,
 };
 } // SandboxManager
 } // AccessControl

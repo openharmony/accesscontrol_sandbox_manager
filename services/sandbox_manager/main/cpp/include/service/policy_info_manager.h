@@ -172,10 +172,11 @@ private:
      * @param policies input policy, see policy_info.h
      * @param result output result
      * @param passIndexes index of policy which is valid
+     * @param mediaIndexes index of media policy which is valid
      * @return uint32_t invalid policy count
      */
-    uint32_t FilterValidPolicyInBatch(
-        const std::vector<PolicyInfo> &policies, std::vector<uint32_t> &results, std::vector<size_t> &passIndexes);
+    uint32_t FilterValidPolicyInBatch(const std::vector<PolicyInfo> &policies, std::vector<uint32_t> &results,
+        std::vector<size_t> &passIndexes, std::vector<size_t> &mediaIndexes);
     /**
      * @brief AddToDatabaseIfNotDuplicate by remove deplicate records
      * @param tokenId token id of the object
@@ -268,6 +269,16 @@ private:
 
 private:
     MacAdapter macAdapter_;
+    int32_t AddNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+        std::vector<uint32_t> &result, const uint32_t flag, std::vector<size_t> &queryPolicyIndex, uint32_t invalidNum);
+    int32_t StartAccessingNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+        std::vector<uint32_t> &results, uint64_t timestamp);
+    int32_t MatchNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+        std::vector<uint32_t> &result);
+    int32_t StopAccessingNormalPolicy(
+        const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results);
+    int32_t GetMediaPolicyCommonWork(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+        std::vector<uint32_t> &results, std::vector<size_t> &validIndex, std::vector<PolicyInfo> &normalPolicy);
 };
 } // namespace SandboxManager
 } // namespace AccessControl

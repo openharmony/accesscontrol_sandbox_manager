@@ -24,6 +24,7 @@ sandbox_manager_service_src = [
   "../main/cpp/src/database/sandbox_manager_rdb_open_callback.cpp",
   "../main/cpp/src/database/sandbox_manager_rdb_utils.cpp",
   "../main/cpp/src/mac/mac_adapter.cpp",
+  "../main/cpp/src/media/media_path_support.cpp",
 ]
 
 ohos_unittest("libsandbox_manager_service_standard_test") {
@@ -46,6 +47,7 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/sensitive",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/service",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/mac",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/media",
   ]
 
   sources = [
@@ -80,9 +82,11 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
     "common_event_service:cesfwk_core",
     "common_event_service:cesfwk_innerkits",
     "config_policy:configpolicy_util",
+    "data_share:datashare_consumer",
     "eventhandler:libeventhandler",
     "hilog:libhilog",
     "ipc:ipc_core",
+    "media_library:media_library_extend_manager",
     "os_account:os_account_innerkits",
     "relational_store:native_rdb",
     "safwk:system_ability_fwk",
