@@ -452,8 +452,10 @@ int32_t PolicyInfoManager::RemovePolicy(
     uint32_t successNum = 0;
     std::vector<GenericValues> conditions;
     std::vector<PolicyInfo> mediaPolicy;
+    std::vector<size_t> validMediaIndex;
     mediaPolicy.reserve(policySize);
     conditions.reserve(policySize);
+    validMediaIndex.reserve(policySize);
     for (size_t i = 0; i < policySize; ++i) {
         int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
         if (checkPolicyRet != SANDBOX_MANAGER_OK) {
@@ -463,6 +465,7 @@ int32_t PolicyInfoManager::RemovePolicy(
         }
         if (SandboxManagerMedia::GetInstance().IsMediaPolicy(policy[i].path)) {
             mediaPolicy.emplace_back(policy[i]);
+            validMediaIndex.emplace_back(i);
             ++invalidNum;
             continue;
         }
@@ -473,7 +476,6 @@ int32_t PolicyInfoManager::RemovePolicy(
             ++successNum;
             continue;
         }
-
         ret = UnsetSandboxPolicyAndRecord(tokenId, policy[i], conditions);
         if (ret != SANDBOX_MANAGER_OK) {
             ++failNum;
@@ -497,13 +499,17 @@ int32_t PolicyInfoManager::RemovePolicy(
     }
 
     if (!mediaPolicy.empty()) {
-        ret = SandboxManagerMedia::GetInstance().RemoveMediaPolicy(tokenId, mediaPolicy);
+        std::vector<uint32_t> checkMediaResult(validMediaIndex.size(), 0);
+        ret = SandboxManagerMedia::GetInstance().RemoveMediaPolicy(tokenId, mediaPolicy, checkMediaResult);
         if (ret != SandboxManagerRdb::SUCCESS) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "remove media operate error");
-            return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+            return ret;
+        }
+        size_t resultIndex = 0;
+        for (const auto &index : validMediaIndex) {
+            result[index] = checkMediaResult[resultIndex++];
         }
     }
-
     return SANDBOX_MANAGER_OK;
 }
 
@@ -985,7 +991,7 @@ int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const std::vector<P
         if (ret != SANDBOX_MANAGER_OK) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "AddMediaPolicy failed.");
             results.clear();
-            return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+            return ret;
         }
         for (size_t i = 0; i < mediaPolicyIndexSize; ++i) {
             results[mediaPolicyIndex[i]] = mediaResults[i];
@@ -1033,7 +1039,7 @@ int32_t PolicyInfoManager::GetMediaPolicyCommonWork(const uint32_t tokenId, cons
         if (ret != SANDBOX_MANAGER_OK) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "GetMeidaPermission failed.");
             results.clear();
-            return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+            return ret;
         }
         size_t resultIndex = 0;
         for (const auto &index : validMediaIndex) {
@@ -1059,7 +1065,7 @@ int32_t PolicyInfoManager::StartAccessingPolicy(
     normalPolicy.reserve(policySize);
     int32_t ret = GetMediaPolicyCommonWork(tokenId, policy, results, validIndex, normalPolicy);
     if (ret != SANDBOX_MANAGER_OK) {
-        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+        return ret;
     }
 
     if (!normalPolicy.empty()) {
@@ -1090,7 +1096,7 @@ int32_t PolicyInfoManager::StopAccessingPolicy(
     normalPolicy.reserve(policySize);
     int32_t ret = GetMediaPolicyCommonWork(tokenId, policy, results, validIndex, normalPolicy);
     if (ret != SANDBOX_MANAGER_OK) {
-        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+        return ret;
     }
 
     if (!normalPolicy.empty()) {
@@ -1124,7 +1130,7 @@ int32_t PolicyInfoManager::MatchPolicy(
 
     int32_t ret = GetMediaPolicyCommonWork(tokenId, policy, results, validIndex, validPolicies);
     if (ret != SANDBOX_MANAGER_OK) {
-        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+        return ret;
     }
 
     if (!validPolicies.empty()) {

@@ -36,9 +36,13 @@ public:
     int32_t CheckPolicyBeforeGrant(uint32_t tokenId, std::vector<std::string> &mediaPaths,
         std::vector<std::string> &needGrantUris, std::vector<uint32_t> &mode, std::vector<bool> &mediaBool,
         std::vector<Media::PhotoPermissionType> &type);
+    int32_t CheckPolicyBeforeCancel(uint32_t tokenId, std::vector<std::string> &mediaPaths,
+        std::vector<std::string> &needCancelUris, std::vector<uint32_t> &mode, std::vector<bool> &mediaBool,
+        std::vector<Media::OperationMode> &operationMode);
     int32_t AddMediaPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &mediaPolicy,
         std::vector<size_t> &mediaPolicyIndex, std::vector<uint32_t> &mediaResults);
-    int32_t RemoveMediaPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &mediaPolicy);
+    int32_t RemoveMediaPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &mediaPolicy,
+        std::vector<uint32_t> &result);
     /**
      * @brief called by StartAccessingPolicy/StopAccessingPolicy/MatchPolicy
      * @param tokenId token id of the object
