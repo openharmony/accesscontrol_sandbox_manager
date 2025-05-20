@@ -98,6 +98,25 @@ int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
     return SetPolicy(tokenId, policy, policyFlag, result, 0);
 }
 
+int32_t SandboxManagerKit::SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
+    const std::vector<PolicyInfo> &policy, uint64_t policyFlag, std::vector<uint32_t> &result)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "set policy by bundle name.");
+
+    size_t policySize = policy.size();
+    if (policySize == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
+        return INVALID_PARAMTER;
+    }
+
+    if ((policyFlag != 0) && (policyFlag != 1)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policyFlag failed, policyFlag = %{public}" PRIu64 ".", policyFlag);
+        return INVALID_PARAMTER;
+    }
+    return SandboxManagerClient::GetInstance().SetPolicyByBundleName(bundleName,
+        appCloneIndex, policy, policyFlag, result);
+}
+
 int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                      uint64_t policyFlag, std::vector<uint32_t> &result, uint64_t timestamp)
 {
