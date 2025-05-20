@@ -23,6 +23,7 @@
 #include "common_event_support.h"
 #include "ipc_skeleton.h"
 #include "iservice_registry.h"
+#include "os_account_manager.h"
 #include "policy_info.h"
 #include "policy_info_manager.h"
 #include "sandbox_manager_const.h"
@@ -163,6 +164,51 @@ int32_t SandboxManagerService::CleanPolicyByUserId(uint32_t userId, const std::v
     return PolicyInfoManager::GetInstance().CleanPolicyByUserId(userId, filePathList);
 }
 
+
+int32_t SandboxManagerService::SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
+    const PolicyVecRawData &policyRawData, uint64_t policyFlag, Uint32VecRawData &resultRawData)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "set policy by bundle:%{public}s", bundleName.c_str());
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, FILE_ACCESS_PERMISSION_NAME)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
+        return PERMISSION_DENIED;
+    }
+    std::vector<PolicyInfo> policy;
+    policyRawData.Unmarshalling(policy);
+    size_t policySize = policy.size();
+    if (policySize == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
+        return INVALID_PARAMTER;
+    }
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "grantPermission failed, get user id failed error=%{public}d", ret);
+        return INVALID_PARAMTER;
+    }
+
+    uint32_t tokenId = Security::AccessToken::AccessTokenKit::GetHapTokenID(userId, bundleName, appCloneIndex);
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "grantPermission failed, get token id failed");
+        return INVALID_PARAMTER;
+    }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "set policy targetId:%{public}u", tokenId);
+
+    if ((policyFlag != 0) && (policyFlag != 1)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policyFlag failed, policyFlag = %{public}" PRIu64 ".", policyFlag);
+        return INVALID_PARAMTER;
+    }
+    std::vector<uint32_t> result;
+    ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policy, policyFlag, result);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    resultRawData.Marshalling(result);
+    return SANDBOX_MANAGER_OK;
+}
 int32_t SandboxManagerService::PersistPolicy(const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData)
 {
     DelayUnloadService();

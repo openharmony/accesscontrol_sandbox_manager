@@ -67,7 +67,8 @@ public:
     void onRemovePackage(uint32_t tokenId);
     bool CheckPermission(const uint32_t tokenId, const std::string &permission);
     void DelayUnloadService();
-
+    int32_t SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
+        const PolicyVecRawData &policyRawData, uint64_t policyFlag, Uint32VecRawData &resultRawData) override;
 private:
     bool Initialize();
     bool InitDelayUnloadHandler();

@@ -42,6 +42,10 @@ const uint32_t IS_POLICY_ALLOWED_TO_BE_PRESISTED = 1 << 0;
 typedef enum OperateMode {
     READ_MODE = 1 << 0,
     WRITE_MODE = 1 << 1,
+    CREATE_MODE = 1 << 2,
+    DELETE_MODE = 1 << 3,
+    RENAME_MODE = 1 << 4,
+    MAX_MODE = 1 << 5,
 } OperateMode;
 } // namespace SandboxManager
 } // namespace AccessControl

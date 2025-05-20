@@ -60,6 +60,9 @@ public:
     int32_t StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp);
     int32_t UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp);
     int32_t CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList);
+    int32_t SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
+        const std::vector<PolicyInfo> &policy, uint64_t policyFlag, std::vector<uint32_t> &result);
+
 private:
     SandboxManagerClient();
     DISALLOW_COPY_AND_MOVE(SandboxManagerClient);

@@ -73,6 +73,25 @@ int32_t SandboxManagerClient::CleanPolicyByUserId(uint32_t userId, const std::ve
     return CallProxyWithRetry(func, __FUNCTION__);
 }
 
+int32_t SandboxManagerClient::SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
+    const std::vector<PolicyInfo> &policy, uint64_t policyFlag, std::vector<uint32_t> &result)
+{
+    PolicyVecRawData policyRawData;
+    policyRawData.Marshalling(policy);
+
+    result.clear();
+    Uint32VecRawData resultRawData;
+    std::function<int32_t(sptr<ISandboxManager> &)> func = [&](sptr<ISandboxManager> &proxy) {
+        return proxy->SetPolicyByBundleName(bundleName, appCloneIndex, policyRawData, policyFlag, resultRawData);
+    };
+    int32_t ret = CallProxyWithRetry(func, __FUNCTION__);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    resultRawData.Unmarshalling(result);
+    return ret;
+}
+
 int32_t SandboxManagerClient::PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
     PolicyVecRawData policyRawData;

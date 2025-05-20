@@ -44,6 +44,8 @@
         "OHOS::AccessControl::SandboxManager::SandboxManagerKit::UnSetAllPolicyByToken(unsigned int, unsigned long)";
         "OHOS::AccessControl::SandboxManager::SandboxManagerKit::UnSetAllPolicyByToken(unsigned int, unsigned long long)";
         "OHOS::AccessControl::SandboxManager::SandboxManagerKit::CleanPolicyByUserId(unsigned int, std::__h::vector<std::__h::basic_string<char, std::__h::char_traits<char>, std::__h::allocator<char>>, std::__h::allocator<std::__h::basic_string<char, std::__h::char_traits<char>, std::__h::allocator<char>>>> const&)";
+        "OHOS::AccessControl::SandboxManager::SandboxManagerKit::SetPolicyByBundleName(std::__h::basic_string<char, std::__h::char_traits<char>, std::__h::allocator<char>> const&, int, std::__h::vector<OHOS::AccessControl::SandboxManager::PolicyInfo, std::__h::allocator<OHOS::AccessControl::SandboxManager::PolicyInfo>> const&, unsigned long, std::__h::vector<unsigned int, std::__h::allocator<unsigned int>>&)";
+        "OHOS::AccessControl::SandboxManager::SandboxManagerKit::SetPolicyByBundleName(std::__h::basic_string<char, std::__h::char_traits<char>, std::__h::allocator<char>> const&, int, std::__h::vector<OHOS::AccessControl::SandboxManager::PolicyInfo, std::__h::allocator<OHOS::AccessControl::SandboxManager::PolicyInfo>> const&, unsigned long long, std::__h::vector<unsigned int, std::__h::allocator<unsigned int>>&)";
         "";
         "";
     };
