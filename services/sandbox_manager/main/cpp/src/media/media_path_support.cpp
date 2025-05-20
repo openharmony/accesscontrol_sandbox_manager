@@ -124,12 +124,15 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeGrant(uint32_t tokenId, std::vecto
     std::vector<std::string> uris;
     uris.reserve(mediaPolicySize);
 
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GetUrisFromFusePaths, mediaPathSize:%{public}zu", mediaPaths.size());
     int32_t ret = media_->GetUrisFromFusePaths(mediaPaths, uris);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetUrisFromFusePaths error, err code:%{public}d", ret);
         return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
 
+    SANDBOXMANAGER_LOG_INFO(LABEL, "CheckUrisPermission, uriSize:%{public}zu, typeSize:%{public}zu",
+        uris.size(), mode.size());
     ret = media_->CheckPhotoUriPermission(tokenId, uris, mediaBool, mode);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Checkphotouripermission error, err code:%{public}d", ret);
@@ -164,6 +167,7 @@ int32_t SandboxManagerMedia::AddMediaPolicy(uint32_t tokenId, const std::vector<
             return SANDBOX_MANAGER_MEDIA_CALL_ERR;
         }
     }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "AddMediaPolicy, tokenId:%{public}u", tokenId);
     size_t mediaPolicyIndexSize = PolicyIndex.size();
     std::vector<std::string> mediaPaths;
     std::vector<uint32_t> mediaMode;
@@ -186,6 +190,8 @@ int32_t SandboxManagerMedia::AddMediaPolicy(uint32_t tokenId, const std::vector<
     }
 
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Grant, callerId:%{public}u, uriSize:%{public}zu, typeSize:%{public}zu",
+        callingTokenId, needGrantUris.size(), type.size());
     ret = media_->GrantPhotoUriPermission(callingTokenId, tokenId, needGrantUris,
         type, Media::HideSensitiveType::ALL_DESENSITIZE);
     if (ret != SANDBOX_MANAGER_OK) {
@@ -210,6 +216,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeCancel(uint32_t tokenId, std::vect
     std::vector<std::string> uris;
     uris.reserve(mediaPolicySize);
 
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GetUrisFromFusePaths, mediaPathSize:%{public}zu", mediaPaths.size());
     int32_t ret = media_->GetUrisFromFusePaths(mediaPaths, uris);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetUrisFromFusePaths error, err code:%{public}d", ret);
@@ -222,6 +229,9 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeCancel(uint32_t tokenId, std::vect
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GetUrisPermission, uriSize:%{public}zu, typeSize:%{public}zu",
+        uris.size(), photoPermissionType.size());
     ret = media_->GetPhotoUrisPermission(tokenId, uris, photoPermissionType, mediaBool);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetPhotoUrisPermission error, err code:%{public}d", ret);
@@ -256,6 +266,7 @@ int32_t SandboxManagerMedia::RemoveMediaPolicy(uint32_t tokenId, const std::vect
             return SANDBOX_MANAGER_MEDIA_CALL_ERR;
         }
     }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "RemoveMediaPolicy, tokenId:%{public}u", tokenId);
     size_t mediaPolicySize = policy.size();
     std::vector<std::string> mediaPaths;
     std::vector<std::string> uris;
@@ -279,7 +290,10 @@ int32_t SandboxManagerMedia::RemoveMediaPolicy(uint32_t tokenId, const std::vect
 
     if (needCancelUris.size() != 0) {
         uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
-        ret = media_->CancelPhotoUriPermission(callingTokenId, tokenId, needCancelUris, CANCEL_PERSIST_FLAG, operationMode);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Cancel, callerId:%{public}u, uriSize:%{public}zu, modeSize:%{public}zu",
+            callingTokenId, needCancelUris.size(), operationMode.size());
+        ret = media_->CancelPhotoUriPermission(callingTokenId, tokenId, needCancelUris,
+            CANCEL_PERSIST_FLAG, operationMode);
         if (ret != SANDBOX_MANAGER_OK) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "RemoveMediaPolicy persist error, err code:%{public}d", ret);
             return SANDBOX_MANAGER_MEDIA_CALL_ERR;
@@ -304,6 +318,7 @@ int32_t SandboxManagerMedia::GetMediaPermission(uint32_t tokenId, const std::vec
             return SANDBOX_MANAGER_MEDIA_CALL_ERR;
         }
     }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GetMediaPermission, tokenId:%{public}u", tokenId);
     size_t mediaPolicySize = policy.size();
     std::vector<std::string> mediaPaths;
     std::vector<std::string> uris;
@@ -311,12 +326,12 @@ int32_t SandboxManagerMedia::GetMediaPermission(uint32_t tokenId, const std::vec
     mediaPaths.reserve(mediaPolicySize);
     uris.reserve(mediaPolicySize);
     mediaMode.reserve(mediaPolicySize);
-
     for (size_t i = 0; i < mediaPolicySize; ++i) {
         mediaPaths.emplace_back(policy[i].path);
         mediaMode.emplace_back(policy[i].mode);
     }
 
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GetUrisFromFusePaths, mediaPathSize:%{public}zu", mediaPaths.size());
     int32_t ret = media_->GetUrisFromFusePaths(mediaPaths, uris);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetUrisFromFusePaths error, err code:%{public}d", ret);
@@ -329,6 +344,9 @@ int32_t SandboxManagerMedia::GetMediaPermission(uint32_t tokenId, const std::vec
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GetUrisPermission, uriSize:%{public}zu, typeSize:%{public}zu",
+        uris.size(), photoPermissionType.size());
     ret = media_->GetPhotoUrisPermission(tokenId, uris, photoPermissionType, results);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetPhotoUrisPermission error, err code:%{public}d", ret);
