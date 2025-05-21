@@ -88,8 +88,7 @@ int32_t SandboxManagerMedia::OperateModeToPhotoPermissionType(std::vector<uint32
         } else if (mode[i] == OperateMode::WRITE_MODE) {
             out.emplace_back(Media::PhotoPermissionType::PERSIST_WRITE_IMAGEVIDEO);
         } else if (mode[i] == OperateMode::WRITE_MODE + OperateMode::READ_MODE) {
-            /* PERSIST_WRITE_IMAGEVIDEO means both rw*/
-            out.emplace_back(Media::PhotoPermissionType::PERSIST_WRITE_IMAGEVIDEO);
+            out.emplace_back(Media::PhotoPermissionType::GRANT_PERSIST_READWRITE_IMAGEVIDEO);
         } else {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "OperateModeToPhotoPermissionType error, err mode = %{public}d", mode[i]);
             return INVALID_PARAMTER;
