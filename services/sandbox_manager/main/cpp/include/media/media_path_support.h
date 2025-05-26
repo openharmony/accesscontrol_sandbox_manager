@@ -53,6 +53,8 @@ public:
     int32_t GetMediaPermission(uint32_t tokenId, const std::vector<PolicyInfo> &mediaPolicy,
         std::vector<bool> &mediaResults);
 private:
+    template <typename T>
+    void MediaDfx(std::vector<std::string> &uri, std::vector<T> &mode);
     Media::MediaLibraryExtendManager *media_ = nullptr;
 };
 } // namespace SandboxManager

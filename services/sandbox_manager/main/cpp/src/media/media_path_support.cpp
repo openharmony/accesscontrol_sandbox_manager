@@ -43,6 +43,15 @@ inline static const std::string MEDIA_PATH_1 = "/data/storage/el2/media";
 inline static const bool CANCEL_PERSIST_FLAG = true; // true means persist
 }
 
+template <typename T>
+void SandboxManagerMedia::MediaDfx(std::vector<std::string> &uri, std::vector<T> &mode)
+{
+    for (size_t i = 0; i < uri.size(); ++i) {
+        std::string maskPath = SandboxManagerLog::MaskRealPath(uri[i].c_str());
+        SANDBOXMANAGER_LOG_INFO(LABEL, "uris:%{public}s, mode:%{public}d", maskPath.c_str(), mode[i]);
+    }
+}
+
 SandboxManagerMedia &SandboxManagerMedia::GetInstance()
 {
     static SandboxManagerMedia *instance = nullptr;
@@ -132,6 +141,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeGrant(uint32_t tokenId, std::vecto
 
     SANDBOXMANAGER_LOG_INFO(LABEL, "CheckUrisPermission, uriSize:%{public}zu, typeSize:%{public}zu",
         uris.size(), mode.size());
+    MediaDfx(uris, mode);
     ret = media_->CheckPhotoUriPermission(tokenId, uris, mediaBool, mode);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Checkphotouripermission error, err code:%{public}d", ret);
@@ -145,10 +155,9 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeGrant(uint32_t tokenId, std::vecto
             needGrantMode.emplace_back(mode[i]);
         } else {
             std::string maskPath = SandboxManagerLog::MaskRealPath(uris[i].c_str());
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "media Uris:%{public}s, had no policy", maskPath.c_str());
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Uris:%{public}s, had no policy%{public}d", maskPath.c_str(), mode[i]);
         }
     }
-
     ret = OperateModeToPhotoPermissionType(needGrantMode, type);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
@@ -188,14 +197,17 @@ int32_t SandboxManagerMedia::AddMediaPolicy(uint32_t tokenId, const std::vector<
         return ret;
     }
 
-    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
-    SANDBOXMANAGER_LOG_INFO(LABEL, "Grant, callerId:%{public}u, uriSize:%{public}zu, typeSize:%{public}zu",
-        callingTokenId, needGrantUris.size(), type.size());
-    ret = media_->GrantPhotoUriPermission(callingTokenId, tokenId, needGrantUris,
-        type, Media::HideSensitiveType::ALL_DESENSITIZE);
-    if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "GrantPhotoUriPermission error, err code = %{public}d", ret);
-        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+    if (needGrantUris.size() != 0) {
+        uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Grant, callerId:%{public}u, uriSize:%{public}zu, typeSize:%{public}zu",
+            callingTokenId, needGrantUris.size(), type.size());
+        MediaDfx(needGrantUris, type);
+        ret = media_->GrantPhotoUriPermission(callingTokenId, tokenId, needGrantUris,
+            type, Media::HideSensitiveType::ALL_DESENSITIZE);
+        if (ret != SANDBOX_MANAGER_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "GrantPhotoUriPermission error, err code = %{public}d", ret);
+            return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+        }
     }
     for (size_t i = 0; i < mediaPolicyIndexSize; ++i) {
         if (mediaBool[i] == true) {
@@ -214,7 +226,6 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeCancel(uint32_t tokenId, std::vect
     size_t mediaPolicySize = mediaPaths.size();
     std::vector<std::string> uris;
     uris.reserve(mediaPolicySize);
-
     SANDBOXMANAGER_LOG_INFO(LABEL, "GetUrisFromFusePaths, mediaPathSize:%{public}zu", mediaPaths.size());
     int32_t ret = media_->GetUrisFromFusePaths(mediaPaths, uris);
     if (ret != SANDBOX_MANAGER_OK) {
@@ -231,6 +242,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeCancel(uint32_t tokenId, std::vect
 
     SANDBOXMANAGER_LOG_INFO(LABEL, "GetUrisPermission, uriSize:%{public}zu, typeSize:%{public}zu",
         uris.size(), photoPermissionType.size());
+    MediaDfx(uris, photoPermissionType);
     ret = media_->GetPhotoUrisPermission(tokenId, uris, photoPermissionType, mediaBool);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetPhotoUrisPermission error, err code:%{public}d", ret);
@@ -244,7 +256,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeCancel(uint32_t tokenId, std::vect
             needCancelMode.emplace_back(mode[i]);
         } else {
             std::string maskPath = SandboxManagerLog::MaskRealPath(uris[i].c_str());
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "media Uris:%{public}s, had no policy", maskPath.c_str());
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Uris:%{public}s, had no policy%{public}d", maskPath.c_str(), mode[i]);
         }
     }
 
@@ -291,6 +303,7 @@ int32_t SandboxManagerMedia::RemoveMediaPolicy(uint32_t tokenId, const std::vect
         uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
         SANDBOXMANAGER_LOG_INFO(LABEL, "Cancel, callerId:%{public}u, uriSize:%{public}zu, modeSize:%{public}zu",
             callingTokenId, needCancelUris.size(), operationMode.size());
+        MediaDfx(needCancelUris, operationMode);
         ret = media_->CancelPhotoUriPermission(callingTokenId, tokenId, needCancelUris,
             CANCEL_PERSIST_FLAG, operationMode);
         if (ret != SANDBOX_MANAGER_OK) {
@@ -346,6 +359,7 @@ int32_t SandboxManagerMedia::GetMediaPermission(uint32_t tokenId, const std::vec
 
     SANDBOXMANAGER_LOG_INFO(LABEL, "GetUrisPermission, uriSize:%{public}zu, typeSize:%{public}zu",
         uris.size(), photoPermissionType.size());
+    MediaDfx(uris, photoPermissionType);
     ret = media_->GetPhotoUrisPermission(tokenId, uris, photoPermissionType, results);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetPhotoUrisPermission error, err code:%{public}d", ret);
