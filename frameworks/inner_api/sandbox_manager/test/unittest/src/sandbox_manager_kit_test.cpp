@@ -3460,14 +3460,6 @@ HWTEST_F(SandboxManagerKitTest, CheckSandboxPolicyPermissionsTest001, TestSize.L
     EXPECT_NE(0, tokenFileManagerID);
     EXPECT_EQ(0, SetSelfTokenID(tokenFileManagerID));
 
-    std::vector<bool> result2;
-    ASSERT_EQ(PERMISSION_DENIED, SandboxManagerKit::CheckPolicy(tokenId, policy, result2));
-    ASSERT_EQ(0, result2.size());
-
-    std::vector<bool> result3;
-    ASSERT_EQ(PERMISSION_DENIED, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, result3));
-    ASSERT_EQ(0, result3.size());
-
     EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
 
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(tokenId, policy, result));

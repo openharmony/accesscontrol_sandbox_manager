@@ -963,6 +963,14 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
         return SandboxRetType::INVALID_PATH;
     }
 
+    // media mode between 0 and 0b11(READ_MODE+WRITE_MODE)
+    if (SandboxManagerMedia::GetInstance().IsMediaPolicy(policy.path)) {
+        if (policy.mode < OperateMode::READ_MODE ||
+            policy.mode > OperateMode::READ_MODE + OperateMode::WRITE_MODE) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Media uri policy check fail: %{public}" PRIu64, policy.mode);
+            return SandboxRetType::INVALID_MODE;
+        }
+    }
     // mode between 0 and 0b11(READ_MODE+WRITE_MODE)
     if (policy.mode < OperateMode::READ_MODE || policy.mode >= OperateMode::MAX_MODE) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy mode check fail: %{public}" PRIu64, policy.mode);
