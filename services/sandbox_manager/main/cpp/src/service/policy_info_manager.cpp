@@ -542,6 +542,31 @@ MacParams PolicyInfoManager::GetMacParams(uint32_t tokenId, uint64_t policyFlag,
     return macParams;
 }
 
+int32_t PolicyInfoManager::CheckBeforeSetPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+    std::vector<size_t> &validIndex, std::vector<PolicyInfo> &validPolicies)
+{
+    uint32_t invalidNum = 0;
+    size_t policySize = policy.size();
+    for (size_t index = 0; index < policySize; ++index) {
+        int32_t res = CheckPolicyValidity(policy[index]);
+        if (res != SANDBOX_MANAGER_OK) {
+            result[index] = static_cast<uint32_t>(res);
+            ++invalidNum;
+            continue;
+        }
+        res = CheckPathIsBlocked(policy[index].path);
+        if (res != SANDBOX_MANAGER_OK) {
+            result[index] = static_cast<uint32_t>(res);
+            ++invalidNum;
+            continue;
+        }
+        validIndex.emplace_back(index);
+        validPolicies.emplace_back(policy[index]);
+    }
+
+    return invalidNum;
+}
+
 int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
                                      std::vector<uint32_t> &result, uint64_t timestamp)
 {
@@ -557,17 +582,8 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
     uint32_t invalidNum = 0;
     uint32_t failNum = 0;
     uint32_t successNum = 0;
-    for (size_t index = 0; index < policySize; ++index) {
-        int32_t res = CheckPolicyValidity(policy[index]);
-        if (res == SANDBOX_MANAGER_OK) {
-            validIndex.emplace_back(index);
-            validPolicies.emplace_back(policy[index]);
-        } else {
-            result[index] = static_cast<uint32_t>(res);
-            ++invalidNum;
-        }
-    }
 
+    invalidNum = CheckBeforeSetPolicy(policy, result, validIndex, validPolicies);
     if (validPolicies.empty()) {
         SANDBOXMANAGER_LOG_WARN(LABEL, "No valid policy to set.");
         PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
@@ -977,6 +993,29 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
         return SandboxRetType::INVALID_MODE;
     }
 
+    return SANDBOX_MANAGER_OK;
+}
+
+const std::unordered_set<std::string> g_blockPathList = {
+    "/storage/User/currentUser/appdata",
+    "/storage/User/currentUser/appdata/el1",
+    "/storage/User/currentUser/appdata/el2",
+    "/storage/User/currentUser/appdata/el3",
+    "/storage/User/currentUser/appdata/el4",
+    "/storage/User/currentUser/appdata/el5",
+    "/storage/User/currentUser/appdata/el1/base",
+    "/storage/User/currentUser/appdata/el2/base",
+    "/storage/User/currentUser/appdata/el3/base",
+    "/storage/User/currentUser/appdata/el4/base",
+    "/storage/User/currentUser/appdata/el5/base",
+};
+
+int32_t PolicyInfoManager::CheckPathIsBlocked(const std::string &path)
+{
+    if (g_blockPathList.count(path) != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path is in blocklist");
+        return SandboxRetType::INVALID_PATH;
+    }
     return SANDBOX_MANAGER_OK;
 }
 
