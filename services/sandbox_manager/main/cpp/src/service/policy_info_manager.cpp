@@ -36,6 +36,7 @@
 #include "sandbox_manager_log.h"
 #include "os_account_manager.h"
 #include "media_path_support.h"
+#include "data_size_report_adapter.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -1018,7 +1019,7 @@ int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const std::vector<P
             results[queryPolicyIndex[i]] = queryResults[i];
         }
     }
-
+    ReportUserDataSize();
     return SANDBOX_MANAGER_OK;
 }
 

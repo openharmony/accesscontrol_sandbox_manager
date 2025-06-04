@@ -18,6 +18,7 @@ sandbox_manager_include_dirs = [
   "${sandbox_manager_path}/frameworks/sandbox_manager/include",
   "${sandbox_manager_path}/interfaces/inner_api/sandbox_manager/include",
   "${sandbox_manager_path}/services/common/database/include",
+  "${sandbox_manager_path}/services/common/utils",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/database",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/sensitive",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/service",
@@ -30,6 +31,7 @@ sandbox_manager_include_dirs = [
 sandbox_manager_sources = [
   "${sandbox_manager_path}/services/common/database/src/generic_values.cpp",
   "${sandbox_manager_path}/services/common/database/src/variant_value.cpp",
+  "${sandbox_manager_path}/services/common/utils/data_size_report_adapter.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/policy_field_const.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/sandbox_manager_rdb.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/sandbox_manager_rdb_open_callback.cpp",
@@ -64,6 +66,7 @@ sandbox_manager_external_deps = [
   "config_policy:configpolicy_util",
   "data_share:datashare_consumer",
   "hilog:libhilog",
+  "hisysevent:libhisysevent",
   "ipc:ipc_core",
   "media_library:media_library_extend_manager",
   "os_account:os_account_innerkits",

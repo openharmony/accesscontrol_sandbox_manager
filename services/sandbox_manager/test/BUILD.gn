@@ -15,6 +15,7 @@ import("//build/test.gni")
 import("../../../sandbox_manager.gni")
 
 sandbox_manager_service_src = [
+    "${sandbox_manager_path}/services/common/utils/data_size_report_adapter.cpp",
   "../main/cpp/src/service/sandbox_manager_service.cpp",
   "../main/cpp/src/sensitive/sandbox_manager_event_subscriber.cpp",
   "../main/cpp/src/service/policy_info_manager.cpp",
@@ -43,6 +44,7 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
     "${sandbox_manager_path}/frameworks/sandbox_test_common/include",
     "${sandbox_manager_path}/frameworks/common/include",
     "${sandbox_manager_path}/services/common/database/include",
+    "${sandbox_manager_path}/services/common/utils",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/database",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/sensitive",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/service",
@@ -85,6 +87,7 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
     "data_share:datashare_consumer",
     "eventhandler:libeventhandler",
     "hilog:libhilog",
+    "hisysevent:libhisysevent",
     "ipc:ipc_core",
     "media_library:media_library_extend_manager",
     "os_account:os_account_innerkits",
