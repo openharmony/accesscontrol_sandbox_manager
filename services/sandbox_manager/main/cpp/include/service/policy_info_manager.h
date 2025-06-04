@@ -243,6 +243,12 @@ private:
      */
     int32_t CheckPolicyValidity(const PolicyInfo &policy);
     /**
+     * @brief check path is in blocklist
+     * @param path input path
+     * @return INVALID_PATH / SANDBOX_MANAGER_OK
+     */
+    int32_t CheckPathIsBlocked(const std::string &path);
+    /**
      * @brief unset sandboxpolicy and record conditions
      * @param tokenId a given tokenId
      * @param policy a policy to be unset
@@ -279,6 +285,8 @@ private:
         const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results);
     int32_t GetMediaPolicyCommonWork(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &results, std::vector<size_t> &validIndex, std::vector<PolicyInfo> &normalPolicy);
+    int32_t CheckBeforeSetPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+        std::vector<size_t> &validIndex, std::vector<PolicyInfo> &validPolicies);
 };
 } // namespace SandboxManager
 } // namespace AccessControl
