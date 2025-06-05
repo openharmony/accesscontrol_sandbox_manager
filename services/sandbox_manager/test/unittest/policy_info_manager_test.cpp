@@ -167,7 +167,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest003, TestSize.Level0)
     std::vector<PolicyInfo> policy;
     policy.emplace_back(info);
 
-    info.path = "/storage/User/currentUser/appdata/el2";
+    info.path = "/storage/Users/currentUser/appdata/el2";
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
@@ -175,19 +175,29 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest003, TestSize.Level0)
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 
-    info.path = "/storage/User/currentUser/appdata/el3/base";
+    info.path = "/storage/Users/currentUser/appdata/el3/base";
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 
-    info.path = "/storage/User/currentUser/appdata/el6";
+    info.path = "/storage/Users/currentUser/appdata/el6";
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+
+    info.path = "/storage/Users/currentUser/appdata/el3";
+    size_t insert_pos = info.path.length();
+    info.path.insert(insert_pos, 1, '\0');
+    info.path += "/test";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    policy[0] = info;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 }
 #endif
 
@@ -295,13 +305,14 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest007, TestSize.Level1)
  */
 HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest008, TestSize.Level1)
 {
-    std::string path1 = "/storage/User/currentUser/appdata";
-    std::string path2 = "/storage/User/currentUser/appdata/el1";
-    std::string path3 = "/storage/User/currentUser/appdata/el2/base";
-    std::string path4 = "/storage/User/currentUser/appdata/test";
-    std::string path5 = "/storage/User/currentUser/appdata/el1/test";
-    std::string path6 = "/storage/User/currentUser/appdata/el2/base/test";
-    std::string path7 = "/storage/User/currentUser/appdata/el6";
+    std::string path1 = "/storage/Users/currentUser/appdata";
+    std::string path2 = "/storage/Users/currentUser/appdata/el1";
+    std::string path3 = "/storage/Users/currentUser/appdata/el2/base";
+    std::string path4 = "/storage/Users/currentUser/appdata/test";
+    std::string path5 = "/storage/Users/currentUser/appdata/el1/test";
+    std::string path6 = "/storage/Users/currentUser/appdata/el2/base/test";
+    std::string path7 = "/storage/Users/currentUser/appdata/el6";
+    std::string path8 = "/storage/Users/currentUser/appdata/el5/";
 
     EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path1));
     EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path2));
@@ -310,6 +321,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest008, TestSize.Level1)
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path5));
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path6));
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path7));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path8));
 }
 
 /**
