@@ -998,23 +998,33 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
 }
 
 const std::unordered_set<std::string> g_blockPathList = {
-    "/storage/User/currentUser/appdata",
-    "/storage/User/currentUser/appdata/el1",
-    "/storage/User/currentUser/appdata/el2",
-    "/storage/User/currentUser/appdata/el3",
-    "/storage/User/currentUser/appdata/el4",
-    "/storage/User/currentUser/appdata/el5",
-    "/storage/User/currentUser/appdata/el1/base",
-    "/storage/User/currentUser/appdata/el2/base",
-    "/storage/User/currentUser/appdata/el3/base",
-    "/storage/User/currentUser/appdata/el4/base",
-    "/storage/User/currentUser/appdata/el5/base",
+    "/storage/Users/currentUser/appdata",
+    "/storage/Users/currentUser/appdata/el1",
+    "/storage/Users/currentUser/appdata/el2",
+    "/storage/Users/currentUser/appdata/el3",
+    "/storage/Users/currentUser/appdata/el4",
+    "/storage/Users/currentUser/appdata/el5",
+    "/storage/Users/currentUser/appdata/el1/base",
+    "/storage/Users/currentUser/appdata/el2/base",
+    "/storage/Users/currentUser/appdata/el3/base",
+    "/storage/Users/currentUser/appdata/el4/base",
+    "/storage/Users/currentUser/appdata/el5/base",
 };
 
 int32_t PolicyInfoManager::CheckPathIsBlocked(const std::string &path)
 {
-    if (g_blockPathList.count(path) != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path is in blocklist");
+    uint32_t length = path.length();
+    const char* cStr = path.c_str();
+    uint32_t cStrLength = strlen(cStr);
+    if (length != cStrLength) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "path have a terminator: %{public}s, pathLen:%{public}u, cstrLen:%{public}u",
+            path.c_str(), length, cStrLength);
+        return SandboxRetType::INVALID_PATH;
+    }
+
+    std::string pathTmp = AdjustPath(path);
+    if (g_blockPathList.count(pathTmp) != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "path not allowed to set policy: %{public}s", path.c_str());
         return SandboxRetType::INVALID_PATH;
     }
     return SANDBOX_MANAGER_OK;
