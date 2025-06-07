@@ -45,7 +45,9 @@ typedef enum OperateMode {
     CREATE_MODE = 1 << 2,
     DELETE_MODE = 1 << 3,
     RENAME_MODE = 1 << 4,
-    MAX_MODE = 1 << 5,
+    DENY_READ_MODE = 1 << 5,
+    DENY_WRITE_MODE = 1 << 6,
+    MAX_MODE = 1 << 7,
 } OperateMode;
 } // namespace SandboxManager
 } // namespace AccessControl
