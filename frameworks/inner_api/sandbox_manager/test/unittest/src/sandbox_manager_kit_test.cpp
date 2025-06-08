@@ -16,6 +16,7 @@
 #include "sandbox_manager_kit_test.h"
 
 #include <cstdint>
+#include <dirent.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -3470,6 +3471,84 @@ HWTEST_F(SandboxManagerKitTest, CheckSandboxPolicyPermissionsTest001, TestSize.L
     ASSERT_EQ(1, result1.size());
     EXPECT_TRUE(result1[0]);
 }
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: PhysicalPathDenyTest001
+ * @tc.desc: test deny physical path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, PhysicalPathDenyTest001, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/data/service/el1/100/",
+        .mode = OperateMode::DENY_READ_MODE
+    };
+    const uint32_t tokenId = g_mockToken;
+    policy.emplace_back(info1);
+
+    const char *DISTRIBUTE_PATH = "/data/service/el1/100/distributeddata";
+    DIR *dir = opendir(DISTRIBUTE_PATH);
+    ASSERT_NE(dir, nullptr);
+    closedir(dir);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    dir = opendir(DISTRIBUTE_PATH);
+    ASSERT_EQ(dir, nullptr);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(tokenId, info1));
+    dir = opendir(DISTRIBUTE_PATH);
+    ASSERT_NE(dir, nullptr);
+    closedir(dir);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, policyResult));
+    dir = opendir(DISTRIBUTE_PATH);
+    ASSERT_EQ(dir, nullptr);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetAllPolicyByToken(g_mockToken));
+    dir = opendir(DISTRIBUTE_PATH);
+    ASSERT_NE(dir, nullptr);
+    closedir(dir);
+}
+
+/**
+ * @tc.name: PhysicalPathDenyTest002
+ * @tc.desc: test deny physical path with invalid mode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, PhysicalPathDenyTest002, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/data/service/el1/100/",
+        .mode = OperateMode::MAX_MODE
+    };
+
+    PolicyInfo info2 = {
+        .path = "/data/service/el1/100/",
+        .mode = 0
+    };
+    const uint32_t tokenId = g_mockToken;
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, policyResult));
+    ASSERT_EQ(2, policyResult.size());
+    EXPECT_EQ(INVALID_MODE, policyResult[0]);
+    EXPECT_EQ(INVALID_MODE, policyResult[1]);
+}
+
 #endif
 
 #endif
