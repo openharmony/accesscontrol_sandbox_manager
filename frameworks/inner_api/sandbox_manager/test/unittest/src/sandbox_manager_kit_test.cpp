@@ -51,6 +51,7 @@ namespace {
 const std::string SET_POLICY_PERMISSION = "ohos.permission.SET_SANDBOX_POLICY";
 const std::string CHECK_POLICY_PERMISSION = "ohos.permission.CHECK_SANDBOX_POLICY";
 const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSIST";
+const std::string FILE_ACCESS_PERMISSION = "ohos.permission.FILE_ACCESS_MANAGER";
 const Security::AccessToken::AccessTokenID INVALID_TOKENID = 0;
 const uint64_t POLICY_VECTOR_SIZE = 5000;
 #ifdef DEC_ENABLED
@@ -84,6 +85,13 @@ Security::AccessToken::PermissionStateFull g_testState3 = {
     .grantStatus = {0},
     .grantFlags = {0},
 };
+Security::AccessToken::PermissionStateFull g_testState4 = {
+    .permissionName = FILE_ACCESS_PERMISSION,
+    .isGeneral = true,
+    .resDeviceID = {"1"},
+    .grantStatus = {0},
+    .grantFlags = {0},
+};
 Security::AccessToken::HapInfoParams g_testInfoParms = {
     .userID = 100,
     .bundleName = "sandbox_manager_test",
@@ -95,7 +103,7 @@ Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
     .apl = Security::AccessToken::APL_NORMAL,
     .domain = "test.domain",
     .permList = {},
-    .permStateList = {g_testState1, g_testState2, g_testState3}
+    .permStateList = {g_testState1, g_testState2, g_testState3, g_testState4}
 };
 };
 
@@ -3549,6 +3557,168 @@ HWTEST_F(SandboxManagerKitTest, PhysicalPathDenyTest002, TestSize.Level1)
     EXPECT_EQ(INVALID_MODE, policyResult[1]);
 }
 
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: SetPolicyByBundleNameTest001
+ * @tc.desc: set policy by bundle name, and other basic operations.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest001, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::CREATE_MODE
+    };
+
+    std::string bundleName = "sandbox_manager_test";
+    const uint32_t tokenId = g_mockToken;
+    ASSERT_NE(tokenId, 0);
+
+    policy.emplace_back(infoParent);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicyByBundleName(bundleName, 0,
+        policy, policyFlag, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(tokenId, policy, retType));
+    ASSERT_EQ(1, retType.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(tokenId, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_TRUE(result[0]);
+
+    std::vector<bool> result1;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, result1));
+    ASSERT_EQ(1, result1.size());
+    EXPECT_TRUE(result1[0]);
+
+    std::vector<uint32_t> startResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(policy, startResult));
+    EXPECT_EQ(1, startResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, startResult[0]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(tokenId, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_FALSE(result[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, result1));
+    ASSERT_EQ(1, result1.size());
+    EXPECT_FALSE(result1[0]);
+}
+
+/**
+ * @tc.name: SetPolicyByBundleNameTest002
+ * @tc.desc: set policy by bundle name with invalid params
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest002, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/A/B",
+        .mode = OperateMode::MAX_MODE
+    };
+
+    PolicyInfo info2 = {
+        .path = "/A/B",
+        .mode = 0
+    };
+
+    PolicyInfo info3 = {
+        .path = "A/B",
+        .mode = OperateMode::CREATE_MODE
+    };
+
+    std::string bundleName = "sandbox_manager_test";
+    const uint32_t tokenId = g_mockToken;
+    ASSERT_NE(tokenId, 0);
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+    policy.emplace_back(info3);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicyByBundleName(bundleName, 0,
+        policy, policyFlag, policyResult));
+    ASSERT_EQ(3, policyResult.size());
+    EXPECT_EQ(INVALID_MODE, policyResult[0]);
+    EXPECT_EQ(INVALID_MODE, policyResult[1]);
+    EXPECT_EQ(POLICY_MAC_FAIL, policyResult[2]);
+
+    ASSERT_EQ(INVALID_PARAMTER, SandboxManagerKit::SetPolicyByBundleName(bundleName, 1,
+        policy, policyFlag, policyResult));
+    ASSERT_EQ(INVALID_PARAMTER, SandboxManagerKit::SetPolicyByBundleName("invalid_bundlename", 0,
+        policy, policyFlag, policyResult));
+    ASSERT_EQ(INVALID_PARAMTER, SandboxManagerKit::SetPolicyByBundleName(bundleName, 0, policy, 3, policyResult));
+    policy.clear();
+    ASSERT_EQ(INVALID_PARAMTER, SandboxManagerKit::SetPolicyByBundleName(bundleName, 0,
+        policy, policyFlag, policyResult));
+}
+
+/**
+ * @tc.name: SetPolicyByBundleNameTest003
+ * @tc.desc: set and persist with different new modes
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest003, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser/Documents/A.txt",
+        .mode = OperateMode::WRITE_MODE | OperateMode::CREATE_MODE
+    };
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser/Documents/B.txt",
+        .mode = OperateMode::READ_MODE | OperateMode::CREATE_MODE
+    };
+
+    std::string bundleName = "sandbox_manager_test";
+    const uint32_t tokenId = g_mockToken;
+    ASSERT_NE(tokenId, 0);
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicyByBundleName(bundleName, 0,
+        policy, policyFlag, policyResult));
+    ASSERT_EQ(2, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[1]);
+    policy[0].mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
+    policy[1].mode = OperateMode::READ_MODE;
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(tokenId, policy, retType));
+    ASSERT_EQ(2, retType.size());
+    EXPECT_EQ(FORBIDDEN_TO_BE_PERSISTED, retType[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[1]);
+
+    std::vector<uint32_t> startResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(policy, startResult));
+    EXPECT_EQ(2, startResult.size());
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, startResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, startResult[1]);
+}
 #endif
 
 #endif
