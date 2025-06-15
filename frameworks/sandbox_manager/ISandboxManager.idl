@@ -18,6 +18,7 @@ sequenceable OHOS.AccessControl.SandboxManager.PolicyInfoParcel;
 rawdata OHOS.AccessControl.SandboxManager.BoolVecRawData;
 rawdata OHOS.AccessControl.SandboxManager.PolicyVecRawData;
 rawdata OHOS.AccessControl.SandboxManager.Uint32VecRawData;
+option_stub_hooks on;
 
 interface OHOS.AccessControl.SandboxManager.ISandboxManager {
     [ipccode 0xffb0] void PersistPolicy([in] PolicyVecRawData policyRawData, [out] Uint32VecRawData resultRawData);

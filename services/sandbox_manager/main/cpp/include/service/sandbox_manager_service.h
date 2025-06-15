@@ -40,6 +40,9 @@ public:
     void OnStart() override;
     void OnStop() override;
     void OnStart(const SystemAbilityOnDemandReason& startReason) override;
+#ifdef MEMORY_MANAGER_ENABLE
+    int32_t OnIdle(const SystemAbilityOnDemandReason &idleReason) override;
+#endif
 
     int32_t CleanPersistPolicyByPath(const std::vector<std::string> &filePathList) override;
     int32_t CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList) override;
@@ -69,6 +72,8 @@ public:
     void DelayUnloadService();
     int32_t SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
         const PolicyVecRawData &policyRawData, uint64_t policyFlag, Uint32VecRawData &resultRawData) override;
+    int32_t CallbackEnter(uint32_t code) override;
+    int32_t CallbackExit(uint32_t code, int32_t result) override;
 private:
     bool Initialize();
     bool InitDelayUnloadHandler();

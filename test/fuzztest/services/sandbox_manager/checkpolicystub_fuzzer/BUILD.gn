@@ -41,5 +41,5 @@ ohos_fuzztest("CheckPolicyStubFuzzTest") {
 
   configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 
-  cflags_cc = [ "-DHILOG_ENABLE" ]
+  cflags_cc = sandbox_manager_flag_cc
 }
