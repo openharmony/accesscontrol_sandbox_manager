@@ -119,7 +119,7 @@ void SandboxManagerRdbTest::TearDown(void)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest001, TestSize.Level0)
 {
     std::vector<GenericValues> values = {g_value1, g_value2, g_value3, g_value4, g_value5};
     EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY,
@@ -140,7 +140,7 @@ HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest002, TestSize.Level1)
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest002, TestSize.Level0)
 {
     std::vector<GenericValues> values = {g_value1, g_value2, g_value3, g_value4, g_value5};
     EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY,
@@ -188,7 +188,7 @@ HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest002, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest003, TestSize.Level1)
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest003, TestSize.Level0)
 {
     std::vector<GenericValues> values = {g_value1, g_value2, g_value3, g_value4, g_value5};
     EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY,
@@ -212,7 +212,7 @@ HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest003, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest004, TestSize.Level1)
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest004, TestSize.Level0)
 {
     std::vector<GenericValues> values = {g_value1, g_value2, g_value3, g_value4, g_value5};
     EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY,
@@ -243,7 +243,7 @@ HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest004, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require: IMPORTANT: modify cannot change primary key (tokenid depth path)
  */
-HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest005, TestSize.Level1)
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest005, TestSize.Level0)
 {
     std::vector<GenericValues> values = {g_value1, g_value2, g_value3, g_value4, g_value5};
     EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY,
@@ -281,7 +281,7 @@ HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest005, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest006, TestSize.Level1)
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest006, TestSize.Level0)
 {
     SandboxManagerRdb &instance = SandboxManagerRdb::GetInstance();
     instance.db_ = nullptr;
