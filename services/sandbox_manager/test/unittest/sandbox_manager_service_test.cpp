@@ -137,7 +137,7 @@ void SandboxManagerServiceTest::TearDown(void)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     PolicyVecRawData policyRawData;
@@ -162,7 +162,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest001, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest002, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest002, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     PolicyVecRawData policyRawData;
@@ -204,7 +204,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest002, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest003, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest003, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     PolicyVecRawData policyRawData;
@@ -230,7 +230,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest003, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest004, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest004, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     PolicyVecRawData policyRawData;
@@ -255,7 +255,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest004, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest005, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest005, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     PolicyVecRawData policyRawData;
@@ -283,7 +283,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest005, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest006, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest006, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     PolicyVecRawData policyRawData;
@@ -309,7 +309,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest006, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest007, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest007, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     policy.resize(1);
@@ -327,7 +327,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest007, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest008, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest008, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     PolicyVecRawData policyRawData;
@@ -381,7 +381,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest008, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest009, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest009, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     policy.resize(1);
@@ -403,7 +403,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest009, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest010, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest010, TestSize.Level0)
 {
     ASSERT_TRUE(sandboxManagerService_->Initialize());
     sandboxManagerService_->OnAddSystemAbility(COMMON_EVENT_SERVICE_ID, "test");
@@ -453,7 +453,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest010, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest011, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest011, TestSize.Level0)
 {
     uint32_t selfUid = getuid();
     EXPECT_EQ(PERMISSION_DENIED, sandboxManagerService_->StartAccessingByTokenId(0, 1));
@@ -468,7 +468,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest011, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest012, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest012, TestSize.Level0)
 {
     SetSelfTokenID(sysGrantToken_);
     EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->UnSetAllPolicyByToken(0, 1));
@@ -482,7 +482,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest012, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest013, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest013, TestSize.Level0)
 {
     SetSelfTokenID(sysGrantToken_);
     PolicyInfo policy {
@@ -501,7 +501,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest013, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
- HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub001, TestSize.Level1)
+ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub001, TestSize.Level0)
 {
     std::vector<std::string> paths = {};
     uint32_t fileManagerToken = Security::AccessToken::AccessTokenKit::GetNativeTokenId("file_manager_service");
@@ -521,7 +521,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest013, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
- HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub002, TestSize.Level1)
+ HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub002, TestSize.Level0)
 {
     std::vector<std::string> paths = {};
     int32_t userId = 0;
@@ -547,7 +547,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest013, TestSize.Level
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerServiceTest, SandboxManagerSubscriberTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerSubscriberTest001, TestSize.Level0)
 {
     ASSERT_EQ(true, SandboxManagerCommonEventSubscriber::RegisterEvent());
     ASSERT_EQ(true, SandboxManagerCommonEventSubscriber::RegisterEvent());

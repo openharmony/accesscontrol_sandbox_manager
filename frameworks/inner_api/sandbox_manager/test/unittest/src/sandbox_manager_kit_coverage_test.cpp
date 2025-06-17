@@ -62,7 +62,7 @@ void SandboxManagerKitCoverageTest::TearDown()
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitCoverageTest, PersistPolicy001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitCoverageTest, PersistPolicy001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     for (uint32_t i = 0; i < LARGE_POLICY_SIZE; i++) {
@@ -86,7 +86,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, PersistPolicy001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitCoverageTest, PersistPolicy002, TestSize.Level1)
+HWTEST_F(SandboxManagerKitCoverageTest, PersistPolicy002, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     for (uint32_t i = 0; i < VALID_POLICY_SIZE; i++) {
@@ -105,7 +105,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, PersistPolicy002, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitCoverageTest, UnPersistPolicy001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitCoverageTest, UnPersistPolicy001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     for (uint32_t i = 0; i < LARGE_POLICY_SIZE; i++) {
@@ -127,7 +127,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, UnPersistPolicy001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitCoverageTest, UnPersistPolicy002, TestSize.Level1)
+HWTEST_F(SandboxManagerKitCoverageTest, UnPersistPolicy002, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     for (uint32_t i = 0; i < VALID_POLICY_SIZE; i++) {
@@ -146,7 +146,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, UnPersistPolicy002, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitCoverageTest, SetPolicy001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitCoverageTest, SetPolicy001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     for (uint32_t i = 0; i < VALID_POLICY_SIZE; i++) {
@@ -165,7 +165,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, SetPolicy001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitCoverageTest, SetPolicy002, TestSize.Level1)
+HWTEST_F(SandboxManagerKitCoverageTest, SetPolicy002, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     for (uint32_t i = 0; i < VALID_POLICY_SIZE; i++) {
@@ -184,7 +184,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, SetPolicy002, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitCoverageTest, StartAccessingPolicy001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitCoverageTest, StartAccessingPolicy001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     for (uint32_t i = 0; i < LARGE_POLICY_SIZE; i++) {
@@ -206,7 +206,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, StartAccessingPolicy001, TestSize.Level1
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitCoverageTest, StartAccessingPolicy002, TestSize.Level1)
+HWTEST_F(SandboxManagerKitCoverageTest, StartAccessingPolicy002, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     for (uint32_t i = 0; i < VALID_POLICY_SIZE; i++) {
@@ -225,7 +225,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, StartAccessingPolicy002, TestSize.Level1
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitCoverageTest, StopAccessingPolicy001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitCoverageTest, StopAccessingPolicy001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     for (uint32_t i = 0; i < LARGE_POLICY_SIZE; i++) {
@@ -246,7 +246,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, StopAccessingPolicy001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitCoverageTest, StopAccessingPolicy002, TestSize.Level1)
+HWTEST_F(SandboxManagerKitCoverageTest, StopAccessingPolicy002, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     for (uint32_t i = 0; i < VALID_POLICY_SIZE; i++) {
@@ -265,7 +265,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, StopAccessingPolicy002, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitCoverageTest, UnSetAllPolicyByTokenTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitCoverageTest, UnSetAllPolicyByTokenTest001, TestSize.Level0)
 {
     uint32_t invalidToken = 0;
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetAllPolicyByToken(invalidToken));
@@ -277,7 +277,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, UnSetAllPolicyByTokenTest001, TestSize.L
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitCoverageTest, UnSetPolicyTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitCoverageTest, UnSetPolicyTest001, TestSize.Level0)
 {
     PolicyInfo invalidPolicy {
         .mode = 0,
@@ -294,7 +294,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, UnSetPolicyTest001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitCoverageTest, SetPolicyAsync001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitCoverageTest, SetPolicyAsync001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     for (uint32_t i = 0; i < VALID_POLICY_SIZE; i++) {

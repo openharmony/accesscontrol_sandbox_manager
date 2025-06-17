@@ -748,7 +748,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy013, TestSize.Level0)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PersistPolicy014, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, PersistPolicy014, TestSize.Level0)
 {
     uint32_t tokenId = 0;
     std::vector<PolicyInfo> policy;
@@ -805,7 +805,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy014, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PersistPolicy015, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, PersistPolicy015, TestSize.Level0)
 {
     uint32_t tokenId = 0;
     std::vector<PolicyInfo> policy;
@@ -879,7 +879,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy016, TestSize.Level0)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PersistPolicy017, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, PersistPolicy017, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setPersistResult;
@@ -905,7 +905,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy017, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PersistPolicy018, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, PersistPolicy018, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -949,7 +949,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy018, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PersistPolicy019, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, PersistPolicy019, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -993,7 +993,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy019, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PersistPolicy020, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, PersistPolicy020, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -1021,7 +1021,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy020, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PersistPolicy021, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, PersistPolicy021, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -1483,7 +1483,7 @@ HWTEST_F(SandboxManagerKitTest, MassiveIPCTest007, TestSize.Level0)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CheckPerformanceTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CheckPerformanceTest001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policySize = 50000;
@@ -1944,7 +1944,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest009, TestSize.Level0)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CheckPolicyTest010, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CheckPolicyTest010, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -1984,7 +1984,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest010, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CheckPolicyTest011, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CheckPolicyTest011, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -2005,7 +2005,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest011, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CheckPolicyTest012, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CheckPolicyTest012, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -2028,7 +2028,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest012, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CheckPolicyTest013, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CheckPolicyTest013, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -2058,7 +2058,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest013, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CheckPolicyTest014, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CheckPolicyTest014, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -2088,7 +2088,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest014, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CheckPolicyTest015, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CheckPolicyTest015, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -2116,7 +2116,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest015, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CheckPolicyTest016, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CheckPolicyTest016, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -2140,7 +2140,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest016, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CheckPolicyTest017, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CheckPolicyTest017, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -2164,7 +2164,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest017, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PolicyFlagTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, PolicyFlagTest001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -2185,7 +2185,7 @@ HWTEST_F(SandboxManagerKitTest, PolicyFlagTest001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PathLengthTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, PathLengthTest001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -2353,7 +2353,7 @@ HWTEST_F(SandboxManagerKitTest, UnSetPolicyTest004, TestSize.Level0)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, UnSetPolicyTest005, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, UnSetPolicyTest005, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -2397,7 +2397,7 @@ HWTEST_F(SandboxManagerKitTest, UnSetPolicyTest005, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
@@ -2530,7 +2530,7 @@ HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest004, TestSize.Level0)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest005, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest005, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     std::vector<uint32_t> setResult;
@@ -2737,7 +2737,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest003, TestSize.Level0
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest004, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest004, TestSize.Level0)
 {
     std::string filePath = "/A/B";
     std::vector<std::string> filePaths;
@@ -2855,7 +2855,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest006, TestSize.Level0
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
@@ -2912,7 +2912,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest002, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest002, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
@@ -2980,7 +2980,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest002, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest003, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest003, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
@@ -3042,7 +3042,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest003, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest004, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest004, TestSize.Level0)
 {
     std::string filePath = "/A/B";
     std::vector<std::string> filePaths;
@@ -3065,7 +3065,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest004, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest005, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest005, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
@@ -3108,7 +3108,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest005, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest006, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest006, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
@@ -3174,7 +3174,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest006, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, StartAccessingByTokenIdTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, StartAccessingByTokenIdTest001, TestSize.Level0)
 {
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::StartAccessingByTokenId(0));
 }
@@ -3185,7 +3185,7 @@ HWTEST_F(SandboxManagerKitTest, StartAccessingByTokenIdTest001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, StartAccessingByTokenIdTest002, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, StartAccessingByTokenIdTest002, TestSize.Level0)
 {
     ASSERT_EQ(0, SetSelfTokenID(g_selfTokenId));
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingByTokenId(g_selfTokenId));
@@ -3286,7 +3286,7 @@ HWTEST_F(SandboxManagerKitTest, UnSetAllPolicyByTokenTest001, TestSize.Level0)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, UnSetAllPolicyByTokenTest002, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, UnSetAllPolicyByTokenTest002, TestSize.Level0)
 {
     std::vector<PolicyInfo> policys;
     uint64_t policyFlag = 1;
@@ -3435,7 +3435,7 @@ HWTEST_F(SandboxManagerKitTest, UserIdTest001, TestSize.Level0)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, CheckSandboxPolicyPermissionsTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, CheckSandboxPolicyPermissionsTest001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
@@ -3488,7 +3488,7 @@ HWTEST_F(SandboxManagerKitTest, CheckSandboxPolicyPermissionsTest001, TestSize.L
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PhysicalPathDenyTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, PhysicalPathDenyTest001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
@@ -3533,7 +3533,7 @@ HWTEST_F(SandboxManagerKitTest, PhysicalPathDenyTest001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PhysicalPathDenyTest002, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, PhysicalPathDenyTest002, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
@@ -3566,7 +3566,7 @@ HWTEST_F(SandboxManagerKitTest, PhysicalPathDenyTest002, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest001, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
@@ -3626,7 +3626,7 @@ HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest002, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest002, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
@@ -3677,7 +3677,7 @@ HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest002, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest003, TestSize.Level1)
+HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest003, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;

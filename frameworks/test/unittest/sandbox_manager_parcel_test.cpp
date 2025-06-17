@@ -69,7 +69,7 @@ void SandboxManagerParcelTest::TearDown(void)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel001, TestSize.Level1)
+HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel001, TestSize.Level0)
 {
     PolicyInfoParcel policyInfoParcel;
     policyInfoParcel.policyInfo = g_info1;
@@ -90,7 +90,7 @@ HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel002, TestSize.Level1)
+HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel002, TestSize.Level0)
 {
     PolicyInfoVectorParcel policyInfoVectorParcel;
     std::vector<PolicyInfo> policyVector;
@@ -120,7 +120,7 @@ HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel002, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel003, TestSize.Level1)
+HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel003, TestSize.Level0)
 {
     PolicyInfoVectorParcel policyInfoVectorParcel;
     std::vector<PolicyInfo> policyVector;
@@ -144,7 +144,7 @@ HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel003, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel004, TestSize.Level1)
+HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel004, TestSize.Level0)
 {
     Parcel parcel;
     uint32_t maxSize = 5000;
