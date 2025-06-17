@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Huawei Device Co., Ltd.
+ * Copyright (c) 2025 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -13,31 +13,44 @@
  * limitations under the License.
  */
 
-#include "checkpolicy_fuzzer.h"
+#include "setpolicybybundlename_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
 #include <string>
+#include "alloc_token.h"
 #include "fuzz_common.h"
 #include "sandbox_manager_kit.h"
+#include "sandbox_test_common.h"
 #include "token_setproc.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
-    bool CheckPersistPolicyFuzzTest(const uint8_t *data, size_t size)
+    bool SetPolicyByBundleNameTest(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
 
         std::vector<PolicyInfo> policyVec;
-        std::vector<bool> result;
+        std::vector<uint32_t> result;
+        std::string bundleName;
+        int32_t appCloneIndex;
         PolicyInfoRandomGenerator gen(data, size);
+        gen.GenerateString(bundleName);
+        appCloneIndex = gen.GetData<int32_t>();
         gen.GeneratePolicyInfoVec(policyVec);
-      
-        SandboxManagerKit::CheckPolicy(GetSelfTokenID(), policyVec, result);
+
+        SandboxManagerKit::SetPolicy(GetSelfTokenID(), policyVec, 1, result);
+        SandboxManagerKit::SetPolicyByBundleName(bundleName, appCloneIndex, policyVec, 1, result);
         return true;
+    }
+
+    bool SetPolicyByBundleNameFuzzTest(const uint8_t *data, size_t size)
+    {
+        MockTokenId("foundation");
+        return AllocTokenWithFuzz(data, size, SetPolicyByBundleNameTest);
     }
 }
 
@@ -45,6 +58,6 @@ namespace OHOS {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     /* Run your code on data */
-    OHOS::CheckPersistPolicyFuzzTest(data, size);
+    OHOS::SetPolicyByBundleNameFuzzTest(data, size);
     return 0;
 }

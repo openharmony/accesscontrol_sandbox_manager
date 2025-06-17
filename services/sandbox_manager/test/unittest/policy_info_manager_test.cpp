@@ -255,7 +255,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest004, TestSize.Level0)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest006, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest006, TestSize.Level0)
 {
     EXPECT_EQ(true, PolicyInfoManager::GetInstance().RemoveBundlePolicy(selfTokenId_));
 
@@ -279,7 +279,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest006, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest007, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest007, TestSize.Level0)
 {
     PolicyInfo searchPolicy {
         .path = "/test/",
@@ -303,7 +303,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest007, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest008, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest008, TestSize.Level0)
 {
     std::string path1 = "/storage/Users/currentUser/appdata";
     std::string path2 = "/storage/Users/currentUser/appdata/el1";
@@ -326,11 +326,11 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest008, TestSize.Level1)
 
 /**
  * @tc.name: PolicyInfoManagerTest011
- * @tc.desc: Test MatchSinglePolicy
+ * @tc.desc: Test CheckPolicyValidity
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest011, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest011, TestSize.Level0)
 {
     PolicyInfo err1 {
         .path = "",
@@ -360,7 +360,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest011, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, GenericValuesTest001, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, GenericValuesTest001, TestSize.Level0)
 {
     GenericValues conditions;
     int32_t result = -1;
@@ -407,16 +407,18 @@ HWTEST_F(PolicyInfoManagerTest, CleanPersistPolicyByPathTest001, TestSize.Level0
     EXPECT_EQ(sizeLimit, result11.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result11[0]);
 
-    uint32_t matchResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchSinglePolicy(selfTokenId_, info, matchResult));
-    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, matchResult);
+    std::vector<uint32_t> result13;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policy, result13));
+    EXPECT_EQ(sizeLimit, result13.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result13[0]);
 
     std::vector<std::string> paths;
     paths.emplace_back(info.path);
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CleanPersistPolicyByPath(paths));
 
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchSinglePolicy(selfTokenId_, info, matchResult));
-    EXPECT_EQ(SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED, matchResult);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policy, result13));
+    EXPECT_EQ(sizeLimit, result13.size());
+    EXPECT_EQ(SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED, result13[0]);
 }
 #endif
 
@@ -426,7 +428,7 @@ HWTEST_F(PolicyInfoManagerTest, CleanPersistPolicyByPathTest001, TestSize.Level0
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MacAdapterTest001, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MacAdapterTest001, TestSize.Level0)
 {
     MacAdapter macAdapter;
     std::vector<PolicyInfo> policy;
@@ -591,7 +593,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest010, TestSize.Level0)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath001, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath001, TestSize.Level0)
 {
     std::string input1 = "/aa/bb/cc/dd.txt";
     std::string expect = "/a***/b***/c***/d***";
@@ -605,7 +607,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath001, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath002, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath002, TestSize.Level0)
 {
     std::string input1 = "/aa/bb/cc/d.txt";
     std::string expect = "/a***/b***/c***/d***";
@@ -619,7 +621,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath002, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath003, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath003, TestSize.Level0)
 {
     std::string input1 = "/aa/dd.txt";
     std::string expect = "/a***/d***";
@@ -633,7 +635,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath003, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath004, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath004, TestSize.Level0)
 {
     std::string input1 = "/aa/////bb/cc/dd.txt";
     std::string expect = "/a***/////b***/c***/d***";
@@ -647,7 +649,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath004, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath005, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath005, TestSize.Level0)
 {
     std::string input1 = "aa/bb";
     std::string expect = "a***/b***";
@@ -661,7 +663,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath005, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath006, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath006, TestSize.Level0)
 {
     std::string input1 = "";
     std::string expect = "empty path";
@@ -675,7 +677,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath006, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath007, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath007, TestSize.Level0)
 {
     std::string input1 = "/";
     std::string expect = "/";
@@ -689,7 +691,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath007, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath008, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath008, TestSize.Level0)
 {
     std::string input1 = ".";
     std::string expect = ".";
@@ -703,7 +705,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath008, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath009, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath009, TestSize.Level0)
 {
     std::string input1 = "/./test";
     std::string expect = "/./t***";
@@ -717,7 +719,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath009, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath010, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath010, TestSize.Level0)
 {
     std::string input1 = "/../test";
     std::string expect = "/../t***";
@@ -731,7 +733,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath010, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath011, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath011, TestSize.Level0)
 {
     std::string input1 = "/aa/../d.txt";
     std::string expect = "/a***/../d***";
@@ -745,7 +747,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath011, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath012, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath012, TestSize.Level0)
 {
     std::string input1 = "/aa/.././bb/cc/dd.txt";
     std::string expect = "/a***/.././b***/c***/d***";
@@ -759,7 +761,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath012, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath013, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath013, TestSize.Level0)
 {
     std::string input1 = "/aa/.././cc/aa.bb.txt";
     std::string expect = "/a***/.././c***/a***";
@@ -773,7 +775,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath013, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath014, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath014, TestSize.Level0)
 {
     std::string input1 = "/aa/.././cc/.aa.bb.txt";
     std::string expect = "/a***/.././c***/.***";
@@ -787,7 +789,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath014, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath015, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath015, TestSize.Level0)
 {
     std::string input1 = "/aa/.././cc/";
     std::string expect = "/a***/.././c***/";
@@ -801,7 +803,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath015, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, MaskRealPath016, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, MaskRealPath016, TestSize.Level0)
 {
     std::string input1 = "/aa/////";
     std::string expect = "/a***/////";
@@ -815,7 +817,7 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath016, TestSize.Level1)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest012, TestSize.Level1)
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest012, TestSize.Level0)
 {
     MacAdapter original = PolicyInfoManager::GetInstance().macAdapter_;
     MacAdapter mockMacAdapter;

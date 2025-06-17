@@ -19,7 +19,10 @@ ohos_fuzztest("UnsetPolicyFuzzTest") {
   module_out_path = module_output_path_interface_sandbox
   fuzz_config_file = "."
 
-  include_dirs = [ "../../../common" ]
+  include_dirs = [
+    "../../../common",
+    "${sandbox_manager_path}/frameworks/sandbox_test_common/include",
+  ]
   cflags = [
     "-g",
     "-O0",
@@ -32,7 +35,10 @@ ohos_fuzztest("UnsetPolicyFuzzTest") {
     "unsetpolilcy_fuzzer.cpp",
   ]
 
-  deps = [ "${sandbox_manager_path}/frameworks/inner_api/sandbox_manager:libsandbox_manager_sdk" ]
+  deps = [
+    "${sandbox_manager_path}/frameworks/inner_api/sandbox_manager:libsandbox_manager_sdk",
+    "${sandbox_manager_path}/frameworks/sandbox_test_common:sandbox_test_common_source_set",
+  ]
 
   configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 
