@@ -21,6 +21,7 @@
 #include "alloc_token.h"
 #include "fuzz_common.h"
 #include "sandbox_manager_kit.h"
+#include "sandbox_test_common.h"
 #include "token_setproc.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
@@ -45,6 +46,7 @@ namespace OHOS {
 
     bool PersistPolicyTokenFuzzTest(const uint8_t *data, size_t size)
     {
+        MockTokenId("foundation");
         return AllocTokenWithFuzz(data, size, PersistPolicyToken);
     }
 }

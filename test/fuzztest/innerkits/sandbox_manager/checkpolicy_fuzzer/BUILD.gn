@@ -36,6 +36,9 @@ ohos_fuzztest("CheckPolicyFuzzTest") {
   configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 
   external_deps = [
+    "access_token:libaccesstoken_sdk",
+    "access_token:libnativetoken",
+    "access_token:libtoken_setproc",
     "c_utils:utils",
     "hilog:libhilog",
   ]

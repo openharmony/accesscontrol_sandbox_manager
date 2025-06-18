@@ -35,5 +35,6 @@ group("fuzztest") {
     "unsetallpolicybytoken_fuzzer:UnsetAllPolicyByTokenFuzzTest",
     "unsetpolicy_fuzzer:UnsetPolicyFuzzTest",
     "unsetpolicyasync_fuzzer:UnsetPolicyAsyncFuzzTest",
+    "setpolicybybundlename_fuzzer:SetPolicyByBundleNameFuzzTest",
   ]
 }
