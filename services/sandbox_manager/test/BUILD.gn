@@ -28,6 +28,14 @@ sandbox_manager_service_src = [
   "../main/cpp/src/media/media_path_support.cpp",
 ]
 
+sandbox_manager_service_mock_src = [
+  "mock/src/media_path_mock.cpp"
+]
+
+sandbox_manager_service_mock_include = [
+  "mock/include"
+]
+
 ohos_unittest("libsandbox_manager_service_standard_test") {
   subsystem_name = "accesscontrol"
   module_out_path = "sandbox_manager/sandbox_manager"
@@ -51,13 +59,16 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/mac",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/media",
   ]
+  include_dirs += sandbox_manager_service_mock_include
 
   sources = [
     "unittest/policy_info_manager_test.cpp",
     "unittest/sandbox_manager_rdb_test.cpp",
     "unittest/sandbox_manager_service_test.cpp",
+    "unittest/media_path_mock_test.cpp",
   ]
   sources += sandbox_manager_service_src
+  sources += sandbox_manager_service_mock_src
 
   configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 
@@ -84,12 +95,10 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
     "common_event_service:cesfwk_core",
     "common_event_service:cesfwk_innerkits",
     "config_policy:configpolicy_util",
-    "data_share:datashare_consumer",
     "eventhandler:libeventhandler",
     "hilog:libhilog",
     "hisysevent:libhisysevent",
     "ipc:ipc_core",
-    "media_library:media_library_extend_manager",
     "os_account:os_account_innerkits",
     "relational_store:native_rdb",
     "safwk:system_ability_fwk",
