@@ -269,8 +269,10 @@ private:
         const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results);
     int32_t GetMediaPolicyCommonWork(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &results, std::vector<size_t> &validIndex, std::vector<PolicyInfo> &normalPolicy);
-    int32_t CheckBeforeSetPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+    uint32_t CheckBeforeSetPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
         std::vector<size_t> &validIndex, std::vector<PolicyInfo> &validPolicies);
+    std::vector<std::string> splitPath(const std::string &path);
+    bool CheckPathWithinRule(const std::string &path);
 };
 } // namespace SandboxManager
 } // namespace AccessControl
