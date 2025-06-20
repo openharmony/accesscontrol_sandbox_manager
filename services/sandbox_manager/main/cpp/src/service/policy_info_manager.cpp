@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -473,7 +474,7 @@ MacParams PolicyInfoManager::GetMacParams(uint32_t tokenId, uint64_t policyFlag,
     return macParams;
 }
 
-int32_t PolicyInfoManager::CheckBeforeSetPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+uint32_t PolicyInfoManager::CheckBeforeSetPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
     std::vector<size_t> &validIndex, std::vector<PolicyInfo> &validPolicies)
 {
     uint32_t invalidNum = 0;
@@ -927,24 +928,69 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
     return SANDBOX_MANAGER_OK;
 }
 
-const std::unordered_set<std::string> g_blockPathList = {
-    "/storage/Users/currentUser/appdata",
-    "/storage/Users/currentUser/appdata/el1",
-    "/storage/Users/currentUser/appdata/el2",
-    "/storage/Users/currentUser/appdata/el3",
-    "/storage/Users/currentUser/appdata/el4",
-    "/storage/Users/currentUser/appdata/el5",
-    "/storage/Users/currentUser/appdata/el1/base",
-    "/storage/Users/currentUser/appdata/el2/base",
-    "/storage/Users/currentUser/appdata/el3/base",
-    "/storage/Users/currentUser/appdata/el4/base",
-    "/storage/Users/currentUser/appdata/el5/base",
-};
+// components num of "/storage/Users/currentUser/appdata/*/*"
+#define MAX_CHECK_COM_NUM 6
+#define SECOND_PATH_SEGMENT 2
+const std::string ROOT_PATH = "/storage";
+const std::string APPDATA_PATH = "/storage/Users/currentUser/appdata";
+
+std::vector<std::string> PolicyInfoManager::splitPath(const std::string &path)
+{
+    std::vector<std::string> components;
+    std::stringstream ss(path);
+    std::string component;
+    int comNum = 0;
+    while (std::getline(ss, component, '/')) {
+        if (!component.empty()) {
+            components.push_back(component);
+        }
+        if (comNum > MAX_CHECK_COM_NUM) {
+            break;
+        }
+        comNum++;
+    }
+    return components;
+}
+
+bool PolicyInfoManager::CheckPathWithinRule(const std::string &path)
+{
+    size_t ROOT_PATH_SIZE = ROOT_PATH.length();
+    // Check if the path starts with "/storage"
+    if (path.substr(0, ROOT_PATH_SIZE) != ROOT_PATH) {
+        return true;
+    }
+
+    std::vector<std::string> components = splitPath(path);
+    //  check whether path is "/storage" or "/storage/*"
+    if (components.size() <= SECOND_PATH_SEGMENT) {
+        return false;
+    }
+
+    // Check if the path is "/storage/Users/" and ensure it is followed by "currentUser"
+    if (components[0] == "storage" && components[1] == "Users") {
+        if (components[SECOND_PATH_SEGMENT] != "currentUser") {
+            return false; // such as "/storage/Users/a"
+        }
+    }
+
+    // check whether path is longer than "/storage/Users/currentUser/appdata/*/*"
+    if (components.size() > MAX_CHECK_COM_NUM) {
+        return true;
+    }
+
+    // Check if the path is /storage/Users/currentUser/appdata and ensure it has more than 2 levels
+    size_t APPDATA_PATH_SIZE = APPDATA_PATH.length();
+    if ((path.size() >= APPDATA_PATH_SIZE) && (path.substr(0, APPDATA_PATH_SIZE) == APPDATA_PATH)) {
+        return false;
+    }
+
+    return true;
+}
 
 int32_t PolicyInfoManager::CheckPathIsBlocked(const std::string &path)
 {
     uint32_t length = path.length();
-    const char* cStr = path.c_str();
+    const char *cStr = path.c_str();
     uint32_t cStrLength = strlen(cStr);
     if (length != cStrLength) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "path have a terminator: %{public}s, pathLen:%{public}u, cstrLen:%{public}u",
@@ -953,7 +999,8 @@ int32_t PolicyInfoManager::CheckPathIsBlocked(const std::string &path)
     }
 
     std::string pathTmp = AdjustPath(path);
-    if (g_blockPathList.count(pathTmp) != 0) {
+    int ret = CheckPathWithinRule(pathTmp);
+    if (ret != true) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "path not allowed to set policy: %{public}s", path.c_str());
         return SandboxRetType::INVALID_PATH;
     }

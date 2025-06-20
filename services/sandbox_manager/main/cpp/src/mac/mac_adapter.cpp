@@ -209,7 +209,7 @@ int32_t MacAdapter::SetDenyCfg(std::string &rawData)
     int32_t ret;
     for (int32_t i = 0; i < arraySize; i += MAX_POLICY_NUM) {
         struct SandboxPolicyInfo info;
-        int32_t curBatchSize = std::min(static_cast<int>(MAX_POLICY_NUM), arraySize - i);
+        size_t curBatchSize = std::min(static_cast<int>(MAX_POLICY_NUM), arraySize - i);
         ret = FillInfo(root, info, i, curBatchSize);
         if (ret != SANDBOX_MANAGER_OK) {
             break;
