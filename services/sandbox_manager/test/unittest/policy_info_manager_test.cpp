@@ -23,7 +23,6 @@
 #include "accesstoken_kit.h"
 #include "generic_values.h"
 #include "hap_token_info.h"
-#include "mac_adapter.h"
 #include "policy_field_const.h"
 #include "policy_info.h"
 #define private public
@@ -73,7 +72,13 @@ void PolicyInfoManagerTest::SetUp(void)
 }
 
 void PolicyInfoManagerTest::TearDown(void)
-{}
+{
+    if (PolicyInfoManager::GetInstance().macAdapter_.fd_ > 0) {
+        close(PolicyInfoManager::GetInstance().macAdapter_.fd_);
+        PolicyInfoManager::GetInstance().macAdapter_.fd_ = -1;
+        PolicyInfoManager::GetInstance().macAdapter_.isMacSupport_ = false;
+    }
+}
 
 void PrintDbRecords()
 {
