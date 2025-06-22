@@ -62,6 +62,8 @@ struct SandboxPolicyInfo {
 #define CHECK_POLICY 4
 #define DESTROY_POLICY 5
 #define DEL_POLICY_BY_USER 7
+#define DENY_POLICY_ID 9
+#define DEL_DENY_POLICY_ID 10
 
 #define SET_POLICY_CMD _IOWR(SANDBOX_IOCTL_BASE, SET_POLICY, struct SandboxPolicyInfo)
 #define UN_SET_POLICY_CMD _IOWR(SANDBOX_IOCTL_BASE, UN_SET_POLICY, struct SandboxPolicyInfo)
@@ -69,7 +71,8 @@ struct SandboxPolicyInfo {
 #define CHECK_POLICY_CMD _IOWR(SANDBOX_IOCTL_BASE, CHECK_POLICY, struct SandboxPolicyInfo)
 #define DESTROY_POLICY_CMD _IOWR(SANDBOX_IOCTL_BASE, DESTROY_POLICY, struct SandboxPolicyInfo)
 #define DEL_DEC_POLICY_BY_USER_CMD _IOWR(SANDBOX_IOCTL_BASE, DEL_POLICY_BY_USER, struct SandboxPolicyInfo)
-
+#define DENY_DEC_RULE_CMD _IOWR(SANDBOX_IOCTL_BASE, DENY_POLICY_ID, struct SandboxPolicyInfo)
+#define DEL_DENY_DEC_RULE_CMD _IOWR(SANDBOX_IOCTL_BASE, DEL_DENY_POLICY_ID, struct SandboxPolicyInfo)
 MacAdapter::MacAdapter() {}
 
 MacAdapter::~MacAdapter()
@@ -86,8 +89,6 @@ const std::string DENY_CONFIG_FILE = "etc/sandbox_manager_service/file_deny_poli
 constexpr int MAX_DENY_CONFIG_FILE_SIZE = 5 * 1024 * 1024; // 5M
 constexpr size_t BUFFER_SIZE = 1024;
 
-#define DENY_POLICY_ID 9
-#define DENY_DEC_RULE_CMD _IOWR(SANDBOX_IOCTL_BASE, DENY_POLICY_ID, struct SandboxPolicyInfo)
 #define DEC_DENY_RENAME   (1 << 2)
 #define DEC_DENY_REMOVE   (1 << 3)
 #define DEC_DENY_INHERIT  (1 << 4)
@@ -277,6 +278,15 @@ bool MacAdapter::IsMacSupport()
     return isMacSupport_;
 }
 
+void MacAdapter::CheckResult(std::vector<uint32_t> &result)
+{
+    uint32_t failCount = static_cast<uint32_t>(
+        std::count_if(result.begin(), result.end(), [](uint32_t res) { return res != SANDBOX_MANAGER_OK; }));
+    if (failCount > 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Set policy has failed items, failCount=%{public}u.", failCount);
+    }
+}
+
 int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
     MacParams &macParams)
 {
@@ -300,16 +310,20 @@ int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std:
         info.timestamp = macParams.timestamp;
         info.userId = macParams.userId;
 
+        uint32_t cmd = SET_POLICY_CMD;
         for (size_t i = 0; i < curBatchSize; ++i) {
             info.pathInfos[i].path = const_cast<char *>(policy[offset + i].path.c_str());
             info.pathInfos[i].pathLen = policy[offset + i].path.length();
             info.pathInfos[i].mode = policy[offset + i].mode;
+            if ((info.pathInfos[i].mode & (OperateMode::DENY_READ_MODE | OperateMode::DENY_WRITE_MODE)) != 0) {
+                cmd = DENY_DEC_RULE_CMD;
+            }
             std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
             SANDBOXMANAGER_LOG_INFO(LABEL, "Set policy paths target:%{public}u path:%{public}s mode:%{public}d",
                 macParams.tokenId, maskPath.c_str(), info.pathInfos[i].mode);
         }
 
-        if (ioctl(fd_, SET_POLICY_CMD, &info) < 0) {
+        if (ioctl(fd_, cmd, &info) < 0) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Set policy failed at batch %{public}zu, errno=%{public}d.",
                                      offset / MAX_POLICY_NUM, errno);
             return SANDBOX_MANAGER_MAC_IOCTL_ERR;
@@ -324,11 +338,8 @@ int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std:
             }
         }
     }
-    uint32_t failCount = static_cast<uint32_t>(
-        std::count_if(result.begin(), result.end(), [](uint32_t res) { return res != SANDBOX_MANAGER_OK; }));
-    if (failCount > 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Set policy has failed items, failCount=%{public}u.", failCount);
-    }
+
+    CheckResult(result);
     return SANDBOX_MANAGER_OK;
 }
 
@@ -541,7 +552,11 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const PolicyInfo &polic
     SANDBOXMANAGER_LOG_INFO(LABEL, "Unset sandbox policy target:%{public}u path:%{private}s mode:%{public}d", tokenId,
         info.pathInfos[0].path, info.pathInfos[0].mode);
 
-    if (ioctl(fd_, UN_SET_POLICY_CMD, &info) < 0) {
+    uint32_t cmd = UN_SET_POLICY_CMD;
+    if ((policy.mode & (OperateMode::DENY_READ_MODE | OperateMode::DENY_WRITE_MODE)) != 0) {
+        cmd = DEL_DENY_DEC_RULE_CMD;
+    }
+    if (ioctl(fd_, cmd, &info) < 0) {
         std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[0].path);
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Unset policy failed, errno=%{public}d. path = %{public}s",
                                  errno, maskPath.c_str());
