@@ -652,7 +652,7 @@ int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId, uint6
         policys[i] = policy;
     }
     std::vector<uint32_t> macResults(searchSize);
-    MacParams macParams = GetMacParams(tokenId, 0, timestamp);
+    MacParams macParams = GetMacParams(tokenId, IS_POLICY_ALLOWED_TO_BE_PRESISTED, timestamp);
     ret = macAdapter_.SetSandboxPolicy(policys, macResults, macParams);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter set policy error, err code = %{public}d.", ret);
