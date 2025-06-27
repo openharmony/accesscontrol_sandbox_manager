@@ -13,33 +13,45 @@
  * limitations under the License.
  */
 
-#include "setpolicystub_fuzzer.h"
+#include "setpolicybybundlenamestub_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
 #include <string>
-#include "alloc_token.h"
+#include "accesstoken_kit.h"
 #include "fuzz_common.h"
-#include "policy_info_vector_parcel.h"
 #include "isandbox_manager.h"
+#include "policy_info_vector_parcel.h"
 #define private public
 #include "sandbox_manager_service.h"
 #undef private
+#include "token_setproc.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
-    bool SetPolicyStub(const uint8_t *data, size_t size)
+namespace {
+static uint32_t SELF_TOKEN = 0;
+static uint32_t FILE_MANAGER_TOKEN = 0;
+};
+    bool SetPolicyByBundleNameStubFuzzTest(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
 
-        std::vector<PolicyInfo> policyVec;
-        PolicyInfoRandomGenerator gen(data, size);
-        uint32_t tokenId = gen.GetData<uint32_t>();
-        uint64_t policyFlag = gen.GetData<uint64_t>() % 2; // 2 is flag max
+        FILE_MANAGER_TOKEN = Security::AccessToken::AccessTokenKit::GetNativeTokenId(
+            "file_manager_service");
+        SELF_TOKEN = GetSelfTokenID();
+        SetSelfTokenID(FILE_MANAGER_TOKEN);
 
+        std::vector<PolicyInfo> policyVec;
+        std::string name;
+        PolicyInfoRandomGenerator gen(data, size);
+
+        uint64_t policyFlag = gen.GetData<uint64_t>() % 2; // 2 is flag max
+        int32_t appCloneIndex = gen.GetData<int32_t>();
+        gen.GenerateString(name);
         gen.GeneratePolicyInfoVec(policyVec);
 
         MessageParcel datas;
@@ -47,7 +59,11 @@ namespace OHOS {
             return false;
         }
 
-        if (!datas.WriteUint32(tokenId)) {
+        if (!datas.WriteString16(Str8ToStr16(name))) {
+            return false;
+        }
+
+        if (!datas.WriteInt32(appCloneIndex)) {
             return false;
         }
 
@@ -65,17 +81,13 @@ namespace OHOS {
             return false;
         }
 
-        uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_SET_POLICY);
+        uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_SET_POLICY_BY_BUNDLE_NAME);
         MessageParcel reply;
         MessageOption option;
         DelayedSingleton<SandboxManagerService>::GetInstance()->Initialize();
         DelayedSingleton<SandboxManagerService>::GetInstance()->OnRemoteRequest(code, datas, reply, option);
+        SetSelfTokenID(SELF_TOKEN);
         return true;
-    }
-
-    bool SetPolicyStubFuzzTest(const uint8_t *data, size_t size)
-    {
-        return AllocTokenWithFuzz(data, size, SetPolicyStub);
     }
 }
 
@@ -83,6 +95,6 @@ namespace OHOS {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     /* Run your code on data */
-    OHOS::SetPolicyStubFuzzTest(data, size);
+    OHOS::SetPolicyByBundleNameStubFuzzTest(data, size);
     return 0;
 }

@@ -13,55 +13,43 @@
  * limitations under the License.
  */
 
-#include "checkpolicystub_fuzzer.h"
+#include "startbyeventaction_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
 #include <string>
+#include "alloc_token.h"
 #include "fuzz_common.h"
 #include "isandbox_manager.h"
-#include "policy_info_vector_parcel.h"
+#include "policy_info_parcel.h"
 #define private public
 #include "sandbox_manager_service.h"
 #undef private
-#include "accesstoken_kit.h"
-#include "token_setproc.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
-    bool CheckPolicyStubFuzzTest(const uint8_t *data, size_t size)
+    bool StartByEventActionFuzzTest(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
-
-        std::vector<PolicyInfo> policyVec;
         PolicyInfoRandomGenerator gen(data, size);
-        uint32_t tokenId = GetSelfTokenID();
-        gen.GeneratePolicyInfoVec(policyVec);
+        std::string name;
+        std::string name1;
+        std::string name2;
+        gen.GenerateString(name);
+        gen.GenerateString(name1);
+        gen.GenerateString(name2);
 
-        MessageParcel datas;
-        if (!datas.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
-            return false;
-        }
+        SystemAbilityOnDemandReason startReason;
+        startReason.SetName(name.c_str());
+        DelayedSingleton<SandboxManagerService>::GetInstance()->StartByEventAction(startReason);
 
-        if (!datas.WriteUint32(tokenId)) {
-            return false;
-        }
-
-        PolicyInfoVectorParcel policyInfoParcel;
-        policyInfoParcel.policyVector = policyVec;
-        if (!datas.WriteParcelable(&policyInfoParcel)) {
-            return false;
-        }
-
-        uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_CHECK_POLICY);
-
-        MessageParcel reply;
-        MessageOption option;
-        DelayedSingleton<SandboxManagerService>::GetInstance()->Initialize();
-        DelayedSingleton<SandboxManagerService>::GetInstance()->OnRemoteRequest(code, datas, reply, option);
+        std::map<std::string, std::string> want = {{name1.c_str(), name2.c_str()}};
+        OnDemandReasonExtraData extraData2(0, "test", want);
+        startReason.SetExtraData(extraData2);
+        DelayedSingleton<SandboxManagerService>::GetInstance()->StartByEventAction(startReason);
         return true;
     }
 }
@@ -70,6 +58,6 @@ namespace OHOS {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     /* Run your code on data */
-    OHOS::CheckPolicyStubFuzzTest(data, size);
+    OHOS::StartByEventActionFuzzTest(data, size);
     return 0;
 }

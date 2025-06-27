@@ -24,6 +24,8 @@
 #define private public
 #include "sandbox_manager_service.h"
 #undef private
+#include "accesstoken_kit.h"
+#include "token_setproc.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
 
@@ -37,7 +39,7 @@ namespace OHOS {
         std::vector<PolicyInfo> policyVec;
         std::vector<bool> result;
         PolicyInfoRandomGenerator gen(data, size);
-        uint32_t tokenId = gen.GetData<uint32_t>();
+        uint32_t tokenId = GetSelfTokenID();
         gen.GeneratePolicyInfoVec(policyVec);
 
         MessageParcel datas;
