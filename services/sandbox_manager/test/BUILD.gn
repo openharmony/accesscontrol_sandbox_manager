@@ -15,7 +15,7 @@ import("//build/test.gni")
 import("../../../sandbox_manager.gni")
 
 sandbox_manager_service_src = [
-    "${sandbox_manager_path}/services/common/utils/data_size_report_adapter.cpp",
+  "${sandbox_manager_path}/services/common/utils/data_size_report_adapter.cpp",
   "../main/cpp/src/service/sandbox_manager_service.cpp",
   "../main/cpp/src/sensitive/sandbox_manager_event_subscriber.cpp",
   "../main/cpp/src/service/policy_info_manager.cpp",
@@ -27,6 +27,10 @@ sandbox_manager_service_src = [
   "../main/cpp/src/mac/mac_adapter.cpp",
   "../main/cpp/src/media/media_path_support.cpp",
 ]
+
+if (!sandbox_manager_process_resident) {
+  sandbox_manager_service_src += [ "${sandbox_manager_path}/services/common/utils/sandbox_memory_manager.cpp" ]
+}
 
 sandbox_manager_service_mock_src = [
   "mock/src/media_path_mock.cpp"
@@ -104,6 +108,10 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
     "safwk:system_ability_fwk",
     "samgr:samgr_proxy",
   ]
+
+  if (!sandbox_manager_process_resident) {
+    cflags_cc += [ "-DMEMORY_MANAGER_ENABLE" ]
+  }
 }
 
 group("unittest") {

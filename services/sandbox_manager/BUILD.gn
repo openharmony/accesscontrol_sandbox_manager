@@ -69,6 +69,7 @@ if (is_standard_system) {
     cflags_cc = [ "-DHILOG_ENABLE" ]
     if (!sandbox_manager_process_resident) {
       cflags_cc += [ "-DNOT_RESIDENT" ]
+      cflags_cc += [ "-DMEMORY_MANAGER_ENABLE" ]
     }
 
     configs = [ "${sandbox_manager_path}/config:coverage_flags" ]

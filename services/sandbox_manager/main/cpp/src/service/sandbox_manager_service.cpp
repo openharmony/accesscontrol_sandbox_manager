@@ -31,6 +31,9 @@
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_event_subscriber.h"
 #include "sandbox_manager_log.h"
+#ifdef MEMORY_MANAGER_ENABLE
+#include "sandbox_memory_manager.h"
+#endif
 #include "system_ability_definition.h"
 
 namespace OHOS {
@@ -41,6 +44,10 @@ namespace {
 static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerService"
 };
+#ifdef MEMORY_MANAGER_ENABLE
+static constexpr int32_t SA_READY_TO_UNLOAD = 0;
+static constexpr int32_t SA_REFUSE_TO_UNLOAD = -1;
+#endif
 }
 
 REGISTER_SYSTEM_ABILITY_BY_ID(SandboxManagerService,
@@ -64,6 +71,38 @@ SandboxManagerService::~SandboxManagerService()
     SANDBOXMANAGER_LOG_INFO(LABEL, "~SandboxManagerService()");
 }
 
+// CallbackEnter, if "option_stub_hooks on", is called per IPC call at entrance of OnRemoteRequest
+int32_t SandboxManagerService::CallbackEnter(uint32_t code)
+{
+#ifdef MEMORY_MANAGER_ENABLE
+    SandboxMemoryManager::GetInstance().AddFunctionRuningNum();
+#endif
+    return ERR_OK;
+}
+
+// CallbackExit, if "option_stub_hooks on", is called per IPC call at exit of OnRemoteRequest
+int32_t SandboxManagerService::CallbackExit(uint32_t code, int32_t result)
+{
+#ifdef MEMORY_MANAGER_ENABLE
+    SandboxMemoryManager::GetInstance().DecreaseFunctionRuningNum();
+#endif
+    return ERR_OK;
+}
+
+#ifdef MEMORY_MANAGER_ENABLE
+int32_t SandboxManagerService::OnIdle(const SystemAbilityOnDemandReason &idleReason)
+{
+    if (SandboxMemoryManager::GetInstance().IsDelayedToUnload() ||
+        SandboxMemoryManager::GetInstance().IsAllowedUnloadService()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "IdleReason name=%{public}s, value=%{public}s.",
+            idleReason.GetName().c_str(), idleReason.GetValue().c_str());
+        return SA_READY_TO_UNLOAD;
+    }
+
+    return SA_REFUSE_TO_UNLOAD;
+}
+#endif
+
 void SandboxManagerService::OnStart()
 {
     {
@@ -77,6 +116,9 @@ void SandboxManagerService::OnStart()
             return;
         }
         state_ = ServiceRunningState::STATE_RUNNING;
+#ifdef MEMORY_MANAGER_ENABLE
+        SandboxMemoryManager::GetInstance().SetIsDelayedToUnload(false);
+#endif
         SANDBOXMANAGER_LOG_INFO(LABEL, "SandboxManagerService is starting.");
     }
     bool ret = Publish(DelayedSingleton<SandboxManagerService>::GetInstance().get());
@@ -579,6 +621,9 @@ void SandboxManagerService::DelayUnloadService()
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Get samgr failed.");
             return;
         }
+#ifdef MEMORY_MANAGER_ENABLE
+        SandboxMemoryManager::GetInstance().SetIsDelayedToUnload(true);
+#endif
         int32_t ret = samgrProxy->UnloadSystemAbility(SANDBOX_MANAGER_SERVICE_ID);
         if (ret != ERR_OK) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Unload system ability failed.");

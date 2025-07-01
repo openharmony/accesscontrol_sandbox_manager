@@ -74,3 +74,8 @@ sandbox_manager_external_deps = [
   "safwk:system_ability_fwk",
   "samgr:samgr_proxy",
 ]
+
+sandbox_manager_flag_cc = [ "-DHILOG_ENABLE" ]
+if (!sandbox_manager_process_resident) {
+  sandbox_manager_flag_cc += [ "-DMEMORY_MANAGER_ENABLE" ]
+}

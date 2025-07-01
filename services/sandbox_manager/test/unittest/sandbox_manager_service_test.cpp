@@ -34,6 +34,9 @@
 #include "sandbox_manager_event_subscriber.h"
 #include "policy_info_manager.h"
 #include "sandbox_manager_service.h"
+#ifdef MEMORY_MANAGER_ENABLE
+#include "sandbox_memory_manager.h"
+#endif // MEMORY_MANAGER_ENABLE
 #undef private
 #include "system_ability_definition.h"
 #include "sandbox_test_common.h"
@@ -50,6 +53,12 @@ const std::string SET_POLICY_PERMISSION = "ohos.permission.SET_SANDBOX_POLICY";
 const std::string CHECK_POLICY_PERMISSION = "ohos.permission.CHECK_SANDBOX_POLICY";
 const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSIST";
 const uint64_t POLICY_VECTOR_SIZE = 5000;
+#ifdef MEMORY_MANAGER_ENABLE
+constexpr int32_t MAX_RUNNING_NUM = 256;
+constexpr int64_t EXTRA_PARAM = 3;
+constexpr int32_t SA_READY_TO_UNLOAD = 0;
+constexpr int32_t SA_REFUSE_TO_UNLOAD = -1;
+#endif
 Security::AccessToken::PermissionStateFull g_testState1 = {
     .permissionName = SET_POLICY_PERMISSION,
     .isGeneral = true,
@@ -554,6 +563,42 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerSubscriberTest001, TestSize.Le
     ASSERT_EQ(true, SandboxManagerCommonEventSubscriber::UnRegisterEvent());
     ASSERT_EQ(false, SandboxManagerCommonEventSubscriber::UnRegisterEvent());
 }
+
+#ifdef MEMORY_MANAGER_ENABLE
+/**
+ * @tc.name: MemoryManagerTest001
+ * @tc.desc: test AddFunctionRuningNum and DecreaseFunctionRuningNum.
+ * @tc.type: FUNC
+ * @tc.require: issueICIZZE
+ */
+HWTEST_F(SandboxManagerServiceTest, MemoryManagerTest001, TestSize.Level1)
+{
+    SandboxMemoryManager::GetInstance().SetIsDelayedToUnload(false);
+    SystemAbilityOnDemandReason reason(OnDemandReasonId::PARAM, "test", "true", EXTRA_PARAM);
+    for (int32_t i = 0; i <= MAX_RUNNING_NUM + 1; i++) {
+        SandboxMemoryManager::GetInstance().AddFunctionRuningNum();
+    }
+    EXPECT_EQ(SA_REFUSE_TO_UNLOAD, sandboxManagerService_->OnIdle(reason));
+    for (int32_t i = 0; i <= MAX_RUNNING_NUM + 1; i++) {
+        SandboxMemoryManager::GetInstance().DecreaseFunctionRuningNum();
+    }
+    EXPECT_EQ(SA_READY_TO_UNLOAD, sandboxManagerService_->OnIdle(reason));
+}
+
+/**
+ * @tc.name: MemoryManagerTest002
+ * @tc.desc: test SetIsDelayedToUnload and IsDelayedToUnload.
+ * @tc.type: FUNC
+ * @tc.require: issueICIZZE
+ */
+HWTEST_F(SandboxManagerServiceTest, MemoryManagerTest002, TestSize.Level1)
+{
+    SandboxMemoryManager::GetInstance().SetIsDelayedToUnload(true);
+    SystemAbilityOnDemandReason reason(OnDemandReasonId::PARAM, "test", "true", EXTRA_PARAM);
+    EXPECT_EQ(SA_READY_TO_UNLOAD, sandboxManagerService_->OnIdle(reason));
+    SandboxMemoryManager::GetInstance().SetIsDelayedToUnload(false);
+}
+#endif
 } // SandboxManager
 } // AccessControl
 } // OHOS
