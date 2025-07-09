@@ -22,6 +22,7 @@
 namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
+const uint32_t POLICY_VEC_MAX_NUM = 300000;
 struct PolicyVecRawData {
     uint32_t size;
     const void* data;
@@ -51,16 +52,28 @@ struct PolicyVecRawData {
         uint32_t ssLength = static_cast<uint32_t>(ss.tellp());
         uint32_t policyNum = 0;
         ss.read(reinterpret_cast<char *>(&policyNum), sizeof(policyNum));
+        if (ss.fail() || ss.eof() || (policyNum > POLICY_VEC_MAX_NUM)) {
+            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        }
         for (uint32_t i = 0; i < policyNum; i++) {
             uint32_t pathLen = 0;
             ss.read(reinterpret_cast<char *>(&pathLen), sizeof(pathLen));
+            if (ss.fail() || ss.eof()) {
+                return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+            }
             if (pathLen > ssLength - static_cast<uint32_t>(ss.tellg())) {
                 return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
             }
             PolicyInfo info;
             info.path.resize(pathLen);
             ss.read(info.path.data(), pathLen);
+            if (ss.fail() || ss.eof()) {
+                return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+            }
             ss.read(reinterpret_cast<char *>(&info.mode), sizeof(info.mode));
+            if (ss.fail() || ss.eof()) {
+                return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+            }
             out.push_back(info);
         }
         return SANDBOX_MANAGER_OK;

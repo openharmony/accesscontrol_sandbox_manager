@@ -53,6 +53,7 @@ const std::string SET_POLICY_PERMISSION = "ohos.permission.SET_SANDBOX_POLICY";
 const std::string CHECK_POLICY_PERMISSION = "ohos.permission.CHECK_SANDBOX_POLICY";
 const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSIST";
 const uint64_t POLICY_VECTOR_SIZE = 5000;
+const uint64_t POLICY_VECTOR_LARGE_SIZE = 400000;
 #ifdef MEMORY_MANAGER_ENABLE
 constexpr int32_t MAX_RUNNING_NUM = 256;
 constexpr int64_t EXTRA_PARAM = 3;
@@ -597,6 +598,73 @@ HWTEST_F(SandboxManagerServiceTest, MemoryManagerTest002, TestSize.Level1)
     SystemAbilityOnDemandReason reason(OnDemandReasonId::PARAM, "test", "true", EXTRA_PARAM);
     EXPECT_EQ(SA_READY_TO_UNLOAD, sandboxManagerService_->OnIdle(reason));
     SandboxMemoryManager::GetInstance().SetIsDelayedToUnload(false);
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest001
+ * @tc.desc: Test Marshalling - large input
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    policy.resize(POLICY_VECTOR_SIZE + 1);
+    PolicyVecRawData policyRawData;
+    policyRawData.Marshalling(policy);
+    Uint32VecRawData resultRawData;
+    uint64_t policyFlag = 0;
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        sandboxManagerService_->SetPolicy(selfTokenId_, policyRawData, policyFlag, resultRawData));
+
+    policy.resize(POLICY_VECTOR_LARGE_SIZE + 1);
+    PolicyVecRawData policyRawData1;
+    policyRawData1.Marshalling(policy);
+    std::vector<uint32_t> result1;
+    Uint32VecRawData resultRawData1;
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
+        sandboxManagerService_->SetPolicy(selfTokenId_, policyRawData1, policyFlag, resultRawData1));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest002
+ * @tc.desc: Test Marshalling - large input
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest002, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    policy.resize(POLICY_VECTOR_SIZE + 1);
+    PolicyVecRawData policyRawData;
+    policyRawData.Marshalling(policy);
+    Uint32VecRawData resultRawData;
+    uint64_t policyFlag = 0;
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        sandboxManagerService_->SetPolicy(selfTokenId_, policyRawData, policyFlag, resultRawData));
+
+    PolicyVecRawData policyRawData1;
+    std::stringstream ss;
+    uint32_t policyNum = POLICY_VECTOR_SIZE;
+    ss.write(reinterpret_cast<const char *>(&policyNum), sizeof(policyNum));
+    PolicyInfo info;
+    info.path = "/data/log";
+    info.mode = OperateMode::READ_MODE;
+    for (uint32_t i = 0; i < POLICY_VECTOR_SIZE; i++) {
+        uint32_t pathLen = info.path.length() * POLICY_VECTOR_SIZE;
+        ss.write(reinterpret_cast<const char *>(&pathLen), sizeof(pathLen));
+        pathLen = info.path.length();
+        ss.write(info.path.c_str(), pathLen);
+        ss.write(reinterpret_cast<const char *>(&info.mode), sizeof(info.mode));
+    }
+    policyRawData1.serializedData = ss.str();
+    policyRawData1.data = reinterpret_cast<const void *>(policyRawData1.serializedData.data());
+    policyRawData1.size = policyRawData1.serializedData.length();
+
+    std::vector<uint32_t> result1;
+    Uint32VecRawData resultRawData1;
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
+        sandboxManagerService_->SetPolicy(selfTokenId_, policyRawData1, policyFlag, resultRawData1));
 }
 #endif
 } // SandboxManager
