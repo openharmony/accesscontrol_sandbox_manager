@@ -599,6 +599,7 @@ HWTEST_F(SandboxManagerServiceTest, MemoryManagerTest002, TestSize.Level1)
     EXPECT_EQ(SA_READY_TO_UNLOAD, sandboxManagerService_->OnIdle(reason));
     SandboxMemoryManager::GetInstance().SetIsDelayedToUnload(false);
 }
+#endif
 
 /**
  * @tc.name: SandboxManagerServiceRawDataTest001
@@ -666,7 +667,39 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest002, TestSiz
     EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
         sandboxManagerService_->SetPolicy(selfTokenId_, policyRawData1, policyFlag, resultRawData1));
 }
-#endif
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest003
+ * @tc.desc: Test Marshalling - large input coverage
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest003, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    policy.resize(POLICY_VECTOR_LARGE_SIZE + 1);
+    PolicyVecRawData policyRawData1;
+    Uint32VecRawData resultRawData1;
+    BoolVecRawData resultRawData2;
+    policyRawData1.Marshalling(policy);
+    uint64_t tokenId = 1;
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
+        sandboxManagerService_->PersistPolicy(policyRawData1, resultRawData1));
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
+        sandboxManagerService_->UnPersistPolicy(policyRawData1, resultRawData1));
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
+        sandboxManagerService_->PersistPolicyByTokenId(tokenId, policyRawData1, resultRawData1));
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
+        sandboxManagerService_->UnPersistPolicyByTokenId(tokenId, policyRawData1, resultRawData1));
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
+        sandboxManagerService_->CheckPolicy(selfTokenId_, policyRawData1, resultRawData2));
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
+        sandboxManagerService_->CheckPersistPolicy(selfTokenId_, policyRawData1, resultRawData2));
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
+        sandboxManagerService_->StartAccessingPolicy(policyRawData1, resultRawData1));
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
+        sandboxManagerService_->StopAccessingPolicy(policyRawData1, resultRawData1));
+}
 } // SandboxManager
 } // AccessControl
 } // OHOS

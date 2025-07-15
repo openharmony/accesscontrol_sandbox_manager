@@ -926,6 +926,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest012, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_));
 
     PolicyInfoManager::GetInstance().macAdapter_ = original;
+    original = mockMacAdapter;
 }
 } // SandboxManager
 } // AccessControl
