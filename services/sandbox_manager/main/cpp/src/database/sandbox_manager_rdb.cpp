@@ -102,7 +102,11 @@ std::shared_ptr<NativeRdb::RdbStore> SandboxManagerRdb::GetRdb()
 {
     std::lock_guard<std::mutex> lock(dbLock_);
     if (db_ == nullptr) {
-        OpenDataBase();
+        int32_t ret = OpenDataBase();
+        if (ret != SUCCESS) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Open db failed, errno: %{public}d", ret);
+            db_ = nullptr;
+        }
     }
     return db_;
 }

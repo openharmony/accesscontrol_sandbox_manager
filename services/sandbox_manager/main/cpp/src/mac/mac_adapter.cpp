@@ -217,9 +217,11 @@ int32_t MacAdapter::SetDenyCfg(std::string &rawData)
         }
         info.pathNum = curBatchSize;
         if (ioctl(fd_, DENY_DEC_RULE_CMD, &info) < 0) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL,
-                "Set deny failed errno=%{public}d, path = %{public}s, mode = %{public}x, num = %{public}d",
-                errno, info.pathInfos[i].path, info.pathInfos[i].mode, info.pathNum);
+            for (size_t j = 0; j < curBatchSize; j++) {
+                SANDBOXMANAGER_LOG_ERROR(LABEL,
+                    "Set deny failed errno=%{public}d, path = %{public}s, mode = %{public}x, num = %{public}d",
+                    errno, info.pathInfos[j].path, info.pathInfos[j].mode, info.pathNum);
+            }
             break;
         }
         succSet += curBatchSize;
@@ -310,7 +312,7 @@ int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std:
         info.timestamp = macParams.timestamp;
         info.userId = macParams.userId;
 
-        uint32_t cmd = SET_POLICY_CMD;
+        int32_t cmd = SET_POLICY_CMD;
         for (size_t i = 0; i < curBatchSize; ++i) {
             info.pathInfos[i].path = const_cast<char *>(policy[offset + i].path.c_str());
             info.pathInfos[i].pathLen = policy[offset + i].path.length();
@@ -552,7 +554,7 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const PolicyInfo &polic
     SANDBOXMANAGER_LOG_INFO(LABEL, "Unset sandbox policy target:%{public}u path:%{private}s mode:%{public}d", tokenId,
         info.pathInfos[0].path, info.pathInfos[0].mode);
 
-    uint32_t cmd = UN_SET_POLICY_CMD;
+    int32_t cmd = UN_SET_POLICY_CMD;
     if ((policy.mode & (OperateMode::DENY_READ_MODE | OperateMode::DENY_WRITE_MODE)) != 0) {
         cmd = DEL_DENY_DEC_RULE_CMD;
     }

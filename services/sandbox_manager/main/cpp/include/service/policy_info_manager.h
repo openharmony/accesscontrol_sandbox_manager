@@ -147,10 +147,9 @@ private:
      * @brief find a record with same token and policy path (mode not inclued)
      * @param tokenId token id of the object
      * @param policy search policy
-     * @param result search result
      * @return SANDBOX_MANAGER_DB_ERR / SANDBOX_MANAGER_DB_RETURN_EMPTY / SANDBOX_MANAGER_OK
      */
-    int32_t ExactFind(const uint32_t tokenId,  const PolicyInfo &policy, PolicyInfo &result);
+    int32_t ExactFind(const uint32_t tokenId,  const PolicyInfo &policy);
     /**
      * @brief check policy validity in batch
      * @param policies input policy, see policy_info.h
@@ -261,6 +260,8 @@ private:
     MacAdapter macAdapter_;
     int32_t AddNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &result, const uint32_t flag, std::vector<size_t> &queryPolicyIndex, uint32_t invalidNum);
+    int32_t RemoveNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+        std::vector<uint32_t> &result, std::vector<PolicyInfo> &mediaPolicy, std::vector<size_t> &validMediaIndex);
     int32_t StartAccessingNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &results, uint64_t timestamp);
     int32_t MatchNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,

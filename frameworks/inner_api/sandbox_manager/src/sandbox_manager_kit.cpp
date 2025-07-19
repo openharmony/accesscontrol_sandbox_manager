@@ -120,6 +120,7 @@ int32_t SandboxManagerKit::SetPolicyByBundleName(const std::string &bundleName, 
 int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                      uint64_t policyFlag, std::vector<uint32_t> &result, uint64_t timestamp)
 {
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
@@ -158,6 +159,7 @@ int32_t SandboxManagerKit::SetPolicyAsync(uint32_t tokenId, const std::vector<Po
 int32_t SandboxManagerKit::SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
     uint64_t timestamp)
 {
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);

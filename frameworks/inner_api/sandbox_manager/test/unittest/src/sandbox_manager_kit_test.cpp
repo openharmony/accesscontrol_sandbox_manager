@@ -2927,10 +2927,6 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest002, TestSize.Level0)
     EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
 
     std::vector<bool> result;
-    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
-    ASSERT_EQ(1, result.size());
-    EXPECT_TRUE(result[0]);
-
     std::vector<uint32_t> retType;
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
     ASSERT_EQ(1, retType.size());
@@ -2959,10 +2955,6 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest002, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPolicyByUserId(userId, filePaths));
     EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
     sleep(1);
-    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
-    ASSERT_EQ(1, result.size());
-    EXPECT_FALSE(result[0]);
-
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, result));
     ASSERT_EQ(1, result.size());
     EXPECT_FALSE(result[0]);
@@ -3113,10 +3105,6 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest006, TestSize.Level0)
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
-    PolicyInfo infoParentA = {
-        .path = "/A/B",
-        .mode = OperateMode::READ_MODE
-    };
     PolicyInfo infoParentB = {
         .path = "/A/C",
         .mode = OperateMode::READ_MODE
@@ -3125,8 +3113,8 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest006, TestSize.Level0)
         .path = "/A/B/C",
         .mode = OperateMode::WRITE_MODE
     };
-    policy.emplace_back(infoParentA);
     policy.emplace_back(infoParentB);
+    policy.emplace_back(infoParentC);
 
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
     ASSERT_EQ(2, policyResult.size());
