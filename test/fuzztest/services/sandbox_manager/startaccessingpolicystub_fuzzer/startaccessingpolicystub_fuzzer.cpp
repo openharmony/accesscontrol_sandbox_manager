@@ -25,6 +25,8 @@
 #define private public
 #include "sandbox_manager_service.h"
 #undef private
+#include "accesstoken_kit.h"
+#include "token_setproc.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
 
@@ -39,18 +41,36 @@ namespace OHOS {
         std::vector<uint32_t> result;
         PolicyInfoRandomGenerator gen(data, size);
         gen.GeneratePolicyInfoVec(policyVec);
+        uint32_t tokenId = GetSelfTokenID();
 
         MessageParcel datas;
         if (!datas.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
             return false;
         }
 
-        PolicyInfoVectorParcel policyInfoParcel;
-        policyInfoParcel.policyVector = policyVec;
-        if (!datas.WriteParcelable(&policyInfoParcel)) {
+        PolicyVecRawData policyRawData;
+        policyRawData.Marshalling(policyVec);
+        if (!datas.WriteUint32(policyRawData.size)) {
             return false;
         }
-            
+
+        if (!datas.WriteRawData(policyRawData.data, policyRawData.size)) {
+            return false;
+        }
+
+        uint32_t useCallerToken = gen.GetData<uint32_t>();
+        if (!datas.WriteUint32(useCallerToken)) {
+            return false;
+        }
+
+        if (!datas.WriteUint32(tokenId)) {
+            return false;
+        }
+
+        uint32_t timestamp = gen.GetData<uint64_t>();
+        if (!datas.WriteUint64(timestamp)) {
+            return false;
+        }
         uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_START_ACCESSING_POLICY);
 
         MessageParcel reply;
