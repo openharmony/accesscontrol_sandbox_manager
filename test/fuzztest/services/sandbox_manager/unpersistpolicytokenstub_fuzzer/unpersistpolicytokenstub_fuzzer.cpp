@@ -41,6 +41,8 @@ namespace OHOS {
         uint32_t tokenId = gen.GetData<uint32_t>();
         gen.GeneratePolicyInfoVec(policyVec);
 
+        PolicyVecRawData policyRawData;
+        policyRawData.Marshalling(policyVec);
         MessageParcel datas;
         if (!datas.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
             return false;
@@ -50,12 +52,13 @@ namespace OHOS {
             return false;
         }
 
-        PolicyInfoVectorParcel policyInfoParcel;
-        policyInfoParcel.policyVector = policyVec;
-        if (!datas.WriteParcelable(&policyInfoParcel)) {
+        if (!datas.WriteUint32(policyRawData.size)) {
             return false;
         }
 
+        if (!datas.WriteRawData(policyRawData.data, policyRawData.size)) {
+            return false;
+        }
         uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_UN_PERSIST_POLICY_BY_TOKEN_ID);
 
         MessageParcel reply;

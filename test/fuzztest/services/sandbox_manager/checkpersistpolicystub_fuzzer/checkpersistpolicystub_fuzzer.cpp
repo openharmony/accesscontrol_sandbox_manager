@@ -47,13 +47,17 @@ namespace OHOS {
             return false;
         }
 
+        PolicyVecRawData policyRawData;
+        policyRawData.Marshalling(policyVec);
         if (!datas.WriteUint32(tokenId)) {
             return false;
         }
 
-        PolicyInfoVectorParcel policyInfoParcel;
-        policyInfoParcel.policyVector = policyVec;
-        if (!datas.WriteParcelable(&policyInfoParcel)) {
+        if (!datas.WriteUint32(policyRawData.size)) {
+            return false;
+        }
+
+        if (!datas.WriteRawData(policyRawData.data, policyRawData.size)) {
             return false;
         }
 
