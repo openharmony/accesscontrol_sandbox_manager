@@ -699,7 +699,10 @@ bool SandboxManagerService::StartByEventAction(const SystemAbilityOnDemandReason
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Receive invalid tokenId.");
             return false;
         }
-        PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId);
+        if (PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId) == false) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "RemoveBundlePolicy failed, tokenID = %{public}u.", tokenId);
+            return false;
+        }
         SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenID = %{public}u.", tokenId);
     }
     return true;
