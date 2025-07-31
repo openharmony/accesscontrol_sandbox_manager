@@ -622,7 +622,7 @@ std::shared_ptr<EventRunner> SandboxManagerService::unloadRunner_ = nullptr;
 bool SandboxManagerService::InitDelayUnloadHandler()
 {
     if ((unloadRunner_ != nullptr) && (unloadHandler_ != nullptr)) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "UnloadRunner_ and UnloadHandler_ already init.");
+        SANDBOXMANAGER_LOG_DEBUG(LABEL, "UnloadRunner_ and UnloadHandler_ already init.");
         return true;
     }
     unloadRunner_ = EventRunner::Create(SANDBOX_MANAGER_SERVICE_ID, AppExecFwk::ThreadMode::FFRT);
@@ -662,7 +662,7 @@ void SandboxManagerService::DelayUnloadService()
     };
     unloadHandler_->RemoveTask("SandboxManagerUnload");
     unloadHandler_->PostTask(task, "SandboxManagerUnload", SA_LIFE_TIME);
-    SANDBOXMANAGER_LOG_INFO(LABEL, "Delay unload task updated.");
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Delay unload task updated.");
 #endif
 }
 

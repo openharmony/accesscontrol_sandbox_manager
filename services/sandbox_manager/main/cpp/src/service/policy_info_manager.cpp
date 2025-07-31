@@ -69,7 +69,6 @@ void PolicyInfoManager::Init()
 
 void PolicyInfoManager::CleanPolicyOnMac(const std::vector<std::string> &filePathList, int32_t userId)
 {
-    SANDBOXMANAGER_LOG_INFO(LABEL, "Clean policy on Mac by userId:%{private}d", userId);
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
         return;

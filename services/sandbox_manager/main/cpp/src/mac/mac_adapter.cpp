@@ -490,8 +490,6 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const std::vector<Polic
 int32_t MacAdapter::UnSetSandboxPolicyByUser(int32_t userId, const std::vector<PolicyInfo> &policy,
     std::vector<bool> &result)
 {
-    SANDBOXMANAGER_LOG_INFO(LABEL, "Unset sandbox policy by userId:%{private}d", userId);
-
     if (fd_ < 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Not init yet.");
         return SANDBOX_MANAGER_MAC_NOT_INIT;
@@ -512,7 +510,7 @@ int32_t MacAdapter::UnSetSandboxPolicyByUser(int32_t userId, const std::vector<P
             info.pathInfos[i].path = const_cast<char *>(policy[offset + i].path.c_str());
             info.pathInfos[i].pathLen = policy[offset + i].path.length();
             info.pathInfos[i].mode = policy[offset + i].mode;
-            SANDBOXMANAGER_LOG_INFO(LABEL, "Unset policy paths userId:%{private}d path:%{private}s mode:%{public}d",
+            SANDBOXMANAGER_LOG_DEBUG(LABEL, "Unset policy paths userId:%{private}d path:%{private}s mode:%{public}d",
                 userId, info.pathInfos[i].path, info.pathInfos[i].mode);
         }
 
@@ -524,7 +522,8 @@ int32_t MacAdapter::UnSetSandboxPolicyByUser(int32_t userId, const std::vector<P
         for (size_t i = 0; i < curBatchSize; ++i) {
             if (info.pathInfos[i].result == 0) {
                 std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
-                SANDBOXMANAGER_LOG_ERROR(LABEL, "Unset by user failed at %{public}s", maskPath.c_str());
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "Unset by user failed at %{public}s, mode:%{public}d",
+                    maskPath.c_str(), info.pathInfos[i].mode);
             }
             result[offset + i] = info.pathInfos[i].result;
         }
