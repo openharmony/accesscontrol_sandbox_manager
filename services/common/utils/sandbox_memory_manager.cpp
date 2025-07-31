@@ -34,8 +34,7 @@ SandboxMemoryManager& SandboxMemoryManager::GetInstance()
     if (instance == nullptr) {
         std::lock_guard<std::recursive_mutex> lock(g_instanceMutex);
         if (instance == nullptr) {
-            SandboxMemoryManager* tmp = new (std::nothrow) SandboxMemoryManager();
-            instance = std::move(tmp);
+            instance = new SandboxMemoryManager();
         }
     }
     return *instance;
