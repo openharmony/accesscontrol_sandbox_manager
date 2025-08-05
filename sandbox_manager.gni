@@ -18,4 +18,5 @@ module_output_path_service_sandbox = "sandbox_manager/sandbox_manager/service/"
 declare_args() {
   sandbox_manager_process_resident = false
   sandbox_manager_with_dec = false
+  sandbox_manager_dec_ext = false
 }
