@@ -80,6 +80,7 @@ private:
     void OnAddSystemAbility(int32_t systemAbilityId, const std::string& deviceId) override;
     bool StartByEventAction(const SystemAbilityOnDemandReason& startReason);
     bool IsFileManagerCalling(uint32_t tokenCaller);
+    bool PackageChangedEventAction(const SystemAbilityOnDemandReason &startReason);
 
     std::mutex stateMutex_;
     ServiceRunningState state_;

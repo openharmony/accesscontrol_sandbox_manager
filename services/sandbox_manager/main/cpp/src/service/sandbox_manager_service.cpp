@@ -666,6 +666,53 @@ void SandboxManagerService::DelayUnloadService()
 #endif
 }
 
+bool SandboxManagerService::PackageChangedEventAction(const SystemAbilityOnDemandReason &startReason)
+{
+    auto wantMap = startReason.GetExtraData().GetWant();
+    std::string bundleName;
+    int32_t userId;
+    for (auto i = wantMap.begin(); i != wantMap.end(); ++i) {
+        std::string key = std::string(i->first.data());
+        std::string value = std::string(i->second.data());
+        if (key == "bundleName") {
+            if (value.empty()) {
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "Error empty bundleName received.");
+                return false;
+            }
+            bundleName = value;
+        }
+        if (key == "userId") {
+            if (value.empty()) {
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "Error empty userId received.");
+                return false;
+            }
+            if (std::isdigit(value[0]) == 0) {
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid digit userId string received.");
+                return false;
+            }
+            size_t idx = 0;
+            userId = std::stoul(value, &idx);
+            if (idx != value.length()) {
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "Convert failed, userId = %{public}s.", value.c_str());
+                return false;
+            }
+            if (userId == 0) {
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "Receive invalid userId.");
+                return false;
+            }
+        }
+    }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "bundleName = %{public}s.%{public}d", bundleName.c_str(), userId);
+    int32_t ret = PolicyInfoManager::GetInstance().CleanPolicyByPackageChanged(bundleName, userId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "%{public}s  clean policy failed", bundleName.c_str());
+        return false;
+    }
+
+    return true;
+}
+
 bool SandboxManagerService::StartByEventAction(const SystemAbilityOnDemandReason& startReason)
 {
     std::string reasonName = startReason.GetName();
@@ -704,6 +751,9 @@ bool SandboxManagerService::StartByEventAction(const SystemAbilityOnDemandReason
             return false;
         }
         SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenID = %{public}u.", tokenId);
+    }
+    if (reasonName == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_CHANGED) {
+        return PackageChangedEventAction(startReason);
     }
     return true;
 }

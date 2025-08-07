@@ -38,6 +38,10 @@
 #include "os_account_manager.h"
 #include "media_path_support.h"
 #include "data_size_report_adapter.h"
+#include "bundle_mgr_interface.h"
+#include "dec_api.h"
+#include "iservice_registry.h"
+#include "system_ability_definition.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -1187,6 +1191,78 @@ int32_t PolicyInfoManager::MatchPolicy(
         size_t resultIndex = 0;
         for (const auto &index : validIndex) {
             results[index] = checkNormalResult[resultIndex++];
+        }
+    }
+    return SANDBOX_MANAGER_OK;
+}
+int32_t PolicyInfoManager::CleanPolicyByPathlist(uint32_t tokenId, std::vector<std::string> &list)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "pathlist size = %{public}zu", list.size());
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> u32Res;
+    for (std::string &p : list) {
+        PolicyInfo info;
+        info.path = p;
+        SANDBOXMANAGER_LOG_INFO(LABEL, "path = %{public}s", p.c_str());
+        /* The default config of appspawn is read and write */
+        info.mode = OperateMode::WRITE_MODE + OperateMode::READ_MODE;
+        policy.emplace_back(info);
+        (void)UnSetPolicy(tokenId, info);
+    }
+
+    return RemovePolicy(tokenId, policy, u32Res);
+}
+
+static sptr<AppExecFwk::IBundleMgr> GetBundleMgrsa()
+{
+    auto systemAbilityManager = SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
+    if (systemAbilityManager == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetBundleMgr GetSystemAbilityManager is null.");
+        return nullptr;
+    }
+    auto bundleMgrSa = systemAbilityManager->GetSystemAbility(BUNDLE_MGR_SERVICE_SYS_ABILITY_ID);
+    if (bundleMgrSa == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetBundleMgr GetSystemAbility is null.");
+        return nullptr;
+    }
+
+    return iface_cast<AppExecFwk::IBundleMgr>(bundleMgrSa);
+}
+
+int32_t PolicyInfoManager::CleanPolicyByPackageChanged(const std::string &bundleName, int32_t userID)
+{
+    auto bundleMgr = GetBundleMgrsa();
+    if (bundleMgr == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Get bundleMgr failed.");
+        return PERMISSION_DENIED;
+    }
+
+    std::vector<int32_t> appIndexes;
+    ErrCode err = bundleMgr->GetCloneAppIndexes(bundleName, appIndexes, userID);
+    if (err != ERR_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "get appindex error %{public}s, err: %{public}d", bundleName.c_str(), err);
+        return PERMISSION_DENIED;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "get appindex size = %{public}zu", appIndexes.size());
+    appIndexes.emplace_back(0);
+
+    std::map<std::string, std::vector<std::string>> decPathMap = GetDecPathMap();
+    for (int32_t appIndex : appIndexes) {
+        uint32_t tokenId =  Security::AccessToken::AccessTokenKit::GetHapTokenID(userID, bundleName, appIndex);
+        if (tokenId == Security::AccessToken::INVALID_TOKENID) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "GetHapTokenID failed uid = %{public}d, %{public}s",
+                userID, bundleName.c_str());
+            continue;
+        }
+        for (auto &[permission, pathList] : decPathMap) {
+            SANDBOXMANAGER_LOG_INFO(LABEL, "check %{public}s permission", permission.c_str());
+            int ret = Security::AccessToken::AccessTokenKit::VerifyAccessToken(tokenId, permission);
+            if (ret != Security::AccessToken::PERMISSION_GRANTED) {
+                SANDBOXMANAGER_LOG_INFO(LABEL, "need clean %{public}s permission", permission.c_str());
+                (void)CleanPolicyByPathlist(tokenId, pathList);
+            } else {
+                SANDBOXMANAGER_LOG_INFO(LABEL, "no need clean %{public}s permission", permission.c_str());
+            }
         }
     }
     return SANDBOX_MANAGER_OK;

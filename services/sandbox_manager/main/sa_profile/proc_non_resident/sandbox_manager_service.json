@@ -18,6 +18,9 @@
             },
             {
                 "name": "usual.event.PACKAGE_DATA_CLEARED"
+            },
+            {
+                "name": "usual.event.PACKAGE_CHANGED"
             }]
         },
         "stop-on-demand": {
