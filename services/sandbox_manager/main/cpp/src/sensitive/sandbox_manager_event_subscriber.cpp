@@ -19,6 +19,7 @@
 #include <string>
 #include "policy_info_manager.h"
 #include "sandbox_manager_log.h"
+#include "accesstoken_kit.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -43,6 +44,7 @@ bool SandboxManagerCommonEventSubscriber::RegisterEvent()
     skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_REMOVED);
     skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_FULLY_REMOVED);
     skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_DATA_CLEARED);
+    skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_CHANGED);
     EventFwk::CommonEventSubscribeInfo subscribeInfo(*skill);
     auto info = std::make_shared<EventFwk::CommonEventSubscribeInfo>(*skill);
     g_subscriber = std::make_shared<SandboxManagerCommonEventSubscriber>(*info);
@@ -84,6 +86,13 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEvent(const EventFwk::CommonE
         }
         PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId);
         SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenid = %{public}d.", tokenId);
+    }
+
+    if (action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_CHANGED) {
+        std::string bundleName = want.GetElement().GetBundleName();
+        int32_t userID = want.GetParams().GetIntParam("userId", -1);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceive Package changed %{public}s, %{public}d", bundleName.c_str(), userID);
+        (void)PolicyInfoManager::GetInstance().CleanPolicyByPackageChanged(bundleName, userID);
     }
 }
 } // namespace SandboxManager

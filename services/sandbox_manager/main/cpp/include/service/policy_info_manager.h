@@ -136,6 +136,13 @@ public:
      * @return int32_t
      */
     int32_t UnSetAllPolicyByToken(const uint32_t tokenId, uint64_t timestamp = 0);
+    /**
+     * @brief clean policys when package changed
+     * @param bundleName bundle name
+     * @param userID a given userid
+     * @return int32_t
+     */
+    int32_t CleanPolicyByPackageChanged(const std::string &bundleName, int32_t userID);
 private:
     /**
      * @brief Clean policy list on MAC
@@ -274,6 +281,7 @@ private:
         std::vector<size_t> &validIndex, std::vector<PolicyInfo> &validPolicies);
     std::vector<std::string> splitPath(const std::string &path);
     bool CheckPathWithinRule(const std::string &path);
+    int32_t CleanPolicyByPathlist(uint32_t tokenId, std::vector<std::string> &list);
 };
 } // namespace SandboxManager
 } // namespace AccessControl
