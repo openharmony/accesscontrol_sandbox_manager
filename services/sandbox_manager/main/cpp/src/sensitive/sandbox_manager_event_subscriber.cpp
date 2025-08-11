@@ -91,6 +91,10 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEvent(const EventFwk::CommonE
     if (action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_CHANGED) {
         std::string bundleName = want.GetElement().GetBundleName();
         int32_t userID = want.GetParams().GetIntParam("userId", -1);
+        if ((userID == -1) || (bundleName.empty())) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "On ReceivePackage changed failed by error input.");
+            return;
+        }
         SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceive Package changed %{public}s, %{public}d", bundleName.c_str(), userID);
         (void)PolicyInfoManager::GetInstance().CleanPolicyByPackageChanged(bundleName, userID);
     }

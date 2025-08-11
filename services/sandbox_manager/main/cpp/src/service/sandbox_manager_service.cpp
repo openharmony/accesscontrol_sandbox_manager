@@ -670,7 +670,7 @@ bool SandboxManagerService::PackageChangedEventAction(const SystemAbilityOnDeman
 {
     auto wantMap = startReason.GetExtraData().GetWant();
     std::string bundleName;
-    int32_t userId;
+    int32_t userId = -1;
     for (auto i = wantMap.begin(); i != wantMap.end(); ++i) {
         std::string key = std::string(i->first.data());
         std::string value = std::string(i->second.data());
@@ -691,7 +691,7 @@ bool SandboxManagerService::PackageChangedEventAction(const SystemAbilityOnDeman
                 return false;
             }
             size_t idx = 0;
-            userId = std::stoul(value, &idx);
+            userId = std::stoi(value, &idx);
             if (idx != value.length()) {
                 SANDBOXMANAGER_LOG_ERROR(LABEL, "Convert failed, userId = %{public}s.", value.c_str());
                 return false;
@@ -701,6 +701,11 @@ bool SandboxManagerService::PackageChangedEventAction(const SystemAbilityOnDeman
                 return false;
             }
         }
+    }
+
+    if ((userId == -1) || (bundleName.empty())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "PackageChangedEventAction failed by error input.");
+        return false;
     }
 
     SANDBOXMANAGER_LOG_INFO(LABEL, "bundleName = %{public}s.%{public}d", bundleName.c_str(), userId);

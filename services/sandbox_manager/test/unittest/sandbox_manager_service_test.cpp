@@ -506,6 +506,40 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest013, TestSize.Level
 }
 
 /**
+ * @tc.name: SandboxManagerServiceTest014
+ * @tc.desc: Test COMMON_EVENT_PACKAGE_CHANGED
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest014, TestSize.Level0)
+{
+    ASSERT_TRUE(sandboxManagerService_->Initialize());
+    sandboxManagerService_->OnAddSystemAbility(COMMON_EVENT_SERVICE_ID, "test");
+    sandboxManagerService_->OnAddSystemAbility(0, "test");
+    SystemAbilityOnDemandReason startReason;
+    startReason.SetName(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_CHANGED);
+    std::map<std::string, std::string> want = {{"test", ""}};
+    OnDemandReasonExtraData extraData1(0, "test", want);
+    startReason.SetExtraData(extraData1);
+    EXPECT_FALSE(sandboxManagerService_->StartByEventAction(startReason));
+
+    want = {{"bundleName", ""}};
+    OnDemandReasonExtraData extraData2(0, "test", want);
+    startReason.SetExtraData(extraData2);
+    EXPECT_FALSE(sandboxManagerService_->StartByEventAction(startReason));
+
+    want = {{"userId", "test"}};
+    OnDemandReasonExtraData extraData3(0, "test", want);
+    startReason.SetExtraData(extraData3);
+    EXPECT_FALSE(sandboxManagerService_->StartByEventAction(startReason));
+
+    want = {{"userId", "0"}};
+    OnDemandReasonExtraData extraData4(0, "test", want);
+    startReason.SetExtraData(extraData4);
+    EXPECT_FALSE(sandboxManagerService_->StartByEventAction(startReason));
+}
+
+/**
  * @tc.name: SandboxManagerStub001
  * @tc.desc: Test CleanPersistPolicyByPath
  * @tc.type: FUNC
