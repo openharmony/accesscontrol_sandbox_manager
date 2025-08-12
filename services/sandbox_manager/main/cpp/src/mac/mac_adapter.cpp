@@ -89,9 +89,9 @@ const std::string DENY_CONFIG_FILE = "etc/sandbox_manager_service/file_deny_poli
 constexpr int MAX_DENY_CONFIG_FILE_SIZE = 5 * 1024 * 1024; // 5M
 constexpr size_t BUFFER_SIZE = 1024;
 
-#define DEC_DENY_RENAME   (1 << 2)
-#define DEC_DENY_REMOVE   (1 << 3)
-#define DEC_DENY_INHERIT  (1 << 4)
+#define DEC_DENY_RENAME   (1 << 7)
+#define DEC_DENY_REMOVE   (1 << 8)
+#define DEC_DENY_INHERIT  (1 << 9)
 
 constexpr const char* JSON_ITEM_PATH = "path";
 constexpr const char* JSON_ITEM_RENAME = "rename";
