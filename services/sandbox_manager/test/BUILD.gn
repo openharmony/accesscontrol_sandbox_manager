@@ -117,7 +117,41 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
   }
 }
 
+ohos_unittest("libsandbox_dec_test") {
+  subsystem_name = "accesscontrol"
+  module_out_path = "sandbox_manager/sandbox_manager"
+
+  include_dirs = [ "mock/include" ]
+
+  external_deps = [
+    "access_token:libtoken_setproc",
+    "c_utils:utils",
+  ]
+
+  if (!sandbox_manager_dec_ext) {
+    sources = [
+      "unittest/dec_testcase.cpp",
+      "mock/src/dec_test.cpp",
+    ]
+  } else {
+    sources = [
+      "unittest/dec_testcase_ext.cpp",
+      "mock/src/dec_test.cpp",
+    ]
+  }
+
+  configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
+
+  cflags_cc = [ "-DHILOG_ENABLE" ]
+  if (sandbox_manager_with_dec) {
+    cflags_cc += [ "-DDEC_ENABLED" ]
+  }
+}
+
 group("unittest") {
   testonly = true
-  deps = [ ":libsandbox_manager_service_standard_test" ]
+  deps = [
+    ":libsandbox_manager_service_standard_test",
+    ":libsandbox_dec_test",
+  ]
 }

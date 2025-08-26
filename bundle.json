@@ -16,7 +16,8 @@
     "features": [
       "sandbox_manager_feature_coverage",
       "sandbox_manager_process_resident",
-      "sandbox_manager_with_dec"
+      "sandbox_manager_with_dec",
+      "sandbox_manager_dec_ext"
     ],
     "adapted_system_type": [ "standard" ],
     "rom": "10000KB",
