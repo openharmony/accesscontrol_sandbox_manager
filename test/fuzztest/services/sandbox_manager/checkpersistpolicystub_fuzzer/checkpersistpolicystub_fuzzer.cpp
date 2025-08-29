@@ -25,6 +25,7 @@
 #include "sandbox_manager_service.h"
 #undef private
 #include "accesstoken_kit.h"
+#include "sandbox_manager_kit.h"
 #include "token_setproc.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
@@ -59,6 +60,15 @@ namespace OHOS {
 
         if (!datas.WriteRawData(policyRawData.data, policyRawData.size)) {
             return false;
+        }
+
+        // for test all branch, need write something in rdb
+        uint8_t isWriteRdb = gen.GetData<uint8_t>();
+        if (isWriteRdb & 1) {
+            uint64_t policyFlag = 1;
+            std::vector<uint32_t> policyResult;
+            SandboxManagerKit::SetPolicy(tokenId, policyVec, policyFlag, policyResult);
+            SandboxManagerKit::PersistPolicy(policyVec, policyResult);
         }
 
         uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_CHECK_PERSIST_POLICY);

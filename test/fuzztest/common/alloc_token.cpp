@@ -26,6 +26,7 @@
 namespace OHOS {
     const std::string SET_POLICY_PERMISSION = "ohos.permission.SET_SANDBOX_POLICY";
     const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSIST";
+    const std::string FILE_ACCESS_PERMISSION_NAME = "ohos.permission.FILE_ACCESS_MANAGER";
     uint64_t g_mockToken;
     Security::AccessToken::PermissionStateFull g_testState1 = {
         .permissionName = SET_POLICY_PERMISSION,
@@ -36,6 +37,13 @@ namespace OHOS {
     };
     Security::AccessToken::PermissionStateFull g_testState2 = {
         .permissionName = ACCESS_PERSIST_PERMISSION,
+        .isGeneral = true,
+        .resDeviceID = {"1"},
+        .grantStatus = {0},
+        .grantFlags = {0},
+    };
+    Security::AccessToken::PermissionStateFull g_testState3 = {
+        .permissionName = FILE_ACCESS_PERMISSION_NAME,
         .isGeneral = true,
         .resDeviceID = {"1"},
         .grantStatus = {0},
@@ -52,7 +60,7 @@ namespace OHOS {
         .apl = Security::AccessToken::APL_NORMAL,
         .domain = "test.domain",
         .permList = {},
-        .permStateList = {g_testState1, g_testState2}
+        .permStateList = {g_testState1, g_testState2, g_testState3}
     };
 
     bool AllocTokenWithFuzz(const uint8_t *data, size_t size, bool(*func)(const uint8_t *, size_t))
