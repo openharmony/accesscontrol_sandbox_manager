@@ -25,6 +25,7 @@
 #define private public
 #include "sandbox_manager_service.h"
 #undef private
+#include "sandbox_manager_kit.h"
 #include "token_setproc.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
@@ -62,6 +63,20 @@ static uint32_t FILE_MANAGER_TOKEN = 0;
             return false;
         }
 
+        // for test all branch, need write something in rdb
+        uint8_t isWriteRdb = gen.GetData<uint8_t>();
+        if (isWriteRdb & 1) {
+            std::vector<PolicyInfo> policy;
+            uint64_t policyFlag = 1;
+            std::vector<uint32_t> policyResult;
+            PolicyInfo infoParent = {
+                .path = "/A/B",
+                .mode = OperateMode::READ_MODE
+            };
+            policy.emplace_back(infoParent);
+            SandboxManagerKit::SetPolicy(GetSelfTokenID(), policy, policyFlag, policyResult);
+            SandboxManagerKit::PersistPolicy(policy, policyResult);
+        }
         uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_CLEAN_POLICY_BY_USER_ID);
 
         MessageParcel reply;
