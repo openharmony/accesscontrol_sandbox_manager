@@ -70,6 +70,10 @@ bool GetInterval(time_t lastTime, time_t nowTime)
 void ReportUserDataSize()
 {
     time_t nowTime = time(nullptr);
+    if (nowTime == -1) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "nowTime get failed!");
+        return;
+    }
     if (GetInterval(g_lastTime, nowTime)) {
         g_lastTime = nowTime;
         std::thread task(ReportTask);

@@ -179,7 +179,7 @@ int32_t SandboxManagerService::CleanPersistPolicyByPath(const std::vector<std::s
     DelayUnloadService();
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     if (!IsFileManagerCalling(callingTokenId)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}d)", callingTokenId);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
         return PERMISSION_DENIED;
     }
     size_t filePathSize = filePathList.size();
@@ -195,7 +195,7 @@ int32_t SandboxManagerService::CleanPolicyByUserId(uint32_t userId, const std::v
     DelayUnloadService();
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     if (!IsFileManagerCalling(callingTokenId)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}d)", callingTokenId);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
         return PERMISSION_DENIED;
     }
 
@@ -330,7 +330,7 @@ int32_t SandboxManagerService::PersistPolicyByTokenId(
     size_t policySize = policy.size();
     if ((policySize == 0) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(
-            LABEL, "Policy vector size error or invalid tokenid, size = %{public}zu, tokenid = %{public}d.",
+            LABEL, "Policy vector size error or invalid tokenid, size = %{public}zu, tokenid = %{public}u.",
             policy.size(), tokenId);
         return INVALID_PARAMTER;
     }
@@ -365,7 +365,7 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
     size_t policySize = policy.size();
     if ((policySize == 0) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(
-            LABEL, "Policy vector size error or invalid tokenid, size = %{public}zu, tokenid = %{public}d.",
+            LABEL, "Policy vector size error or invalid tokenid, size = %{public}zu, tokenid = %{public}u.",
             policy.size(), tokenId);
         return INVALID_PARAMTER;
     }
@@ -554,7 +554,7 @@ int32_t SandboxManagerService::CheckPersistPolicy(
     }
     size_t policySize = policy.size();
     if (policySize == 0 || tokenId == 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu, tokenid = %{public}d.",
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy vector size error, size = %{public}zu, tokenid = %{public}u.",
             policy.size(), tokenId);
         return INVALID_PARAMTER;
     }
@@ -767,11 +767,11 @@ bool SandboxManagerService::CheckPermission(const uint32_t tokenId, const std::s
 {
     int32_t ret = Security::AccessToken::AccessTokenKit::VerifyAccessToken(tokenId, permission);
     if (ret == Security::AccessToken::PermissionState::PERMISSION_GRANTED) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Check permission token:%{public}d pass", tokenId);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Check permission token:%{public}u pass", tokenId);
         return true;
     }
     SandboxManagerDfxHelper::WritePermissionCheckFailEvent(permission, tokenId);
-    SANDBOXMANAGER_LOG_ERROR(LABEL, "Check permission token:%{public}d fail", tokenId);
+    SANDBOXMANAGER_LOG_ERROR(LABEL, "Check permission token:%{public}u fail", tokenId);
     return false;
 }
 
