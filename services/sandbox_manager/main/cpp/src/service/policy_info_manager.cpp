@@ -20,7 +20,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -360,6 +359,8 @@ int32_t PolicyInfoManager::MatchNormalPolicy(const uint32_t tokenId, const std::
         if (trieTree.CheckPath(policy[i].path, policy[i].mode)) {
             result[i] = SandboxRetType::OPERATE_SUCCESSFULLY;
         } else {
+            std::string maskPath = SandboxManagerLog::MaskRealPath(policy[i].path.c_str());
+            SANDBOXMANAGER_LOG_INFO(LABEL, "target:%{public}u path:%{public}s no persisted", tokenId, maskPath.c_str());
             result[i] = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
         }
     }
@@ -500,12 +501,7 @@ uint32_t PolicyInfoManager::CheckBeforeSetPolicy(const std::vector<PolicyInfo> &
             ++invalidNum;
             continue;
         }
-        res = CheckPathIsBlocked(policy[index].path);
-        if (res != SANDBOX_MANAGER_OK) {
-            result[index] = static_cast<uint32_t>(res);
-            ++invalidNum;
-            continue;
-        }
+
         validIndex.emplace_back(index);
         validPolicies.emplace_back(policy[index]);
     }
@@ -938,85 +934,6 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
         return SandboxRetType::INVALID_MODE;
     }
 
-    return SANDBOX_MANAGER_OK;
-}
-
-// components num of "/storage/Users/currentUser/appdata/*/*"
-#define MAX_CHECK_COM_NUM 6
-#define SECOND_PATH_SEGMENT 2
-const std::string ROOT_PATH = "/storage";
-const std::string APPDATA_PATH = "/storage/Users/currentUser/appdata";
-
-std::vector<std::string> PolicyInfoManager::splitPath(const std::string &path)
-{
-    std::vector<std::string> components;
-    std::stringstream ss(path);
-    std::string component;
-    int comNum = 0;
-    while (std::getline(ss, component, '/')) {
-        if (!component.empty()) {
-            components.push_back(component);
-        }
-        if (comNum > MAX_CHECK_COM_NUM) {
-            break;
-        }
-        comNum++;
-    }
-    return components;
-}
-
-bool PolicyInfoManager::CheckPathWithinRule(const std::string &path)
-{
-    size_t ROOT_PATH_SIZE = ROOT_PATH.length();
-    // Check if the path starts with "/storage"
-    if (path.substr(0, ROOT_PATH_SIZE) != ROOT_PATH) {
-        return true;
-    }
-
-    std::vector<std::string> components = splitPath(path);
-    //  check whether path is "/storage" or "/storage/*"
-    if (components.size() <= SECOND_PATH_SEGMENT) {
-        return false;
-    }
-
-    // Check if the path is "/storage/Users/" and ensure it is followed by "currentUser"
-    if (components[0] == "storage" && components[1] == "Users") {
-        if (components[SECOND_PATH_SEGMENT] != "currentUser") {
-            return false; // such as "/storage/Users/a"
-        }
-    }
-
-    // check whether path is longer than "/storage/Users/currentUser/appdata/*/*"
-    if (components.size() > MAX_CHECK_COM_NUM) {
-        return true;
-    }
-
-    // Check if the path is /storage/Users/currentUser/appdata and ensure it has more than 2 levels
-    size_t APPDATA_PATH_SIZE = APPDATA_PATH.length();
-    if ((path.size() >= APPDATA_PATH_SIZE) && (path.substr(0, APPDATA_PATH_SIZE) == APPDATA_PATH)) {
-        return false;
-    }
-
-    return true;
-}
-
-int32_t PolicyInfoManager::CheckPathIsBlocked(const std::string &path)
-{
-    uint32_t length = path.length();
-    const char *cStr = path.c_str();
-    uint32_t cStrLength = strlen(cStr);
-    if (length != cStrLength) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "path have a terminator: %{public}s, pathLen:%{public}u, cstrLen:%{public}u",
-            path.c_str(), length, cStrLength);
-        return SandboxRetType::INVALID_PATH;
-    }
-
-    std::string pathTmp = AdjustPath(path);
-    int ret = CheckPathWithinRule(pathTmp);
-    if (ret != true) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "path not allowed to set policy: %{public}s", path.c_str());
-        return SandboxRetType::INVALID_PATH;
-    }
     return SANDBOX_MANAGER_OK;
 }
 
