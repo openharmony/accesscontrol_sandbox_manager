@@ -1229,6 +1229,10 @@ static sptr<AppExecFwk::IBundleMgr> GetBundleMgrsa()
     return iface_cast<AppExecFwk::IBundleMgr>(bundleMgrSa);
 }
 
+std::map<std::string, std::vector<std::string>> DEC_PATH_MAP = {
+    {"ohos.permission.SANDBOX_ACCESS_MANAGER", {"/storage/Users/currentUser/appdata"}}
+};
+
 int32_t PolicyInfoManager::CleanPolicyByPackageChanged(const std::string &bundleName, int32_t userID)
 {
     auto bundleMgr = GetBundleMgrsa();
@@ -1246,7 +1250,7 @@ int32_t PolicyInfoManager::CleanPolicyByPackageChanged(const std::string &bundle
     SANDBOXMANAGER_LOG_INFO(LABEL, "get appindex size = %{public}zu", appIndexes.size());
     appIndexes.emplace_back(0);
 
-    std::map<std::string, std::vector<std::string>> decPathMap = GetDecPathMap();
+    std::map<std::string, std::vector<std::string>> decPathMap = DEC_PATH_MAP;
     for (int32_t appIndex : appIndexes) {
         uint32_t tokenId =  Security::AccessToken::AccessTokenKit::GetHapTokenID(userID, bundleName, appIndex);
         if (tokenId == Security::AccessToken::INVALID_TOKENID) {
