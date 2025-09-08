@@ -27,6 +27,7 @@
 #include "permission_def.h"
 #include "permission_state_full.h"
 #include "policy_info.h"
+#include "securec.h"
 #define private public
 #include "sandbox_manager_client.h"
 #undef private
