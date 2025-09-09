@@ -81,11 +81,11 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEvent(const EventFwk::CommonE
         action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_DATA_CLEARED) {
         uint32_t tokenId = static_cast<uint32_t>(want.GetParams().GetIntParam("accessTokenId", 0));
         if (tokenId == 0) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Error tokenid = %{public}d.", tokenId);
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Error tokenid = %{public}u.", tokenId);
             return;
         }
         PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId);
-        SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenid = %{public}d.", tokenId);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenid = %{public}u.", tokenId);
     }
 
     if (action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_CHANGED) {

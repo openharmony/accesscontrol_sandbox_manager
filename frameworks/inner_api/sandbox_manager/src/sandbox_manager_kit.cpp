@@ -70,7 +70,7 @@ int32_t SandboxManagerKit::PersistPolicy(
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
     size_t policySize = policy.size();
     if ((policySize == 0) || (tokenId == 0)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u, tokenId = %{public}d.",
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u, tokenId = %{public}u.",
             static_cast<uint32_t>(policySize), tokenId);
         return SandboxManagerErrCode::INVALID_PARAMTER;
     }
@@ -84,7 +84,7 @@ int32_t SandboxManagerKit::UnPersistPolicy(
     SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
     size_t policySize = policy.size();
     if ((policySize == 0) || (tokenId == 0)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u, tokenId = %{public}d.",
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u, tokenId = %{public}u.",
             static_cast<uint32_t>(policySize), tokenId);
         return SandboxManagerErrCode::INVALID_PARAMTER;
     }
@@ -254,7 +254,7 @@ int32_t SandboxManagerKit::StartAccessingByTokenId(uint32_t tokenId)
 
 int32_t SandboxManagerKit::StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp)
 {
-    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}d.", tokenId);
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u.", tokenId);
     if (tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid input token.");
         return SandboxManagerErrCode::INVALID_PARAMTER;
@@ -269,7 +269,7 @@ int32_t SandboxManagerKit::UnSetAllPolicyByToken(uint32_t tokenId)
 
 int32_t SandboxManagerKit::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp)
 {
-    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}d.", tokenId);
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u.", tokenId);
     if (tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid input token.");
         return SandboxManagerErrCode::INVALID_PARAMTER;

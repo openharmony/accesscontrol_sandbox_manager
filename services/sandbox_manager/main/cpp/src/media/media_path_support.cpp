@@ -99,7 +99,7 @@ int32_t SandboxManagerMedia::OperateModeToPhotoPermissionType(std::vector<uint32
         } else if (mode[i] == OperateMode::WRITE_MODE + OperateMode::READ_MODE) {
             out.emplace_back(Media::PhotoPermissionType::GRANT_PERSIST_READWRITE_IMAGEVIDEO);
         } else {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "OperateModeToPhotoPermissionType error, err mode = %{public}d", mode[i]);
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "OperateModeToPhotoPermissionType error, err mode = %{public}u", mode[i]);
             return INVALID_PARAMTER;
         }
     }
@@ -117,7 +117,7 @@ int32_t SandboxManagerMedia::OperateModeToMediaOperationMode(std::vector<uint32_
         } else if (mode[i] == OperateMode::WRITE_MODE + OperateMode::READ_MODE) {
             out.emplace_back(Media::OperationMode::READ_WRITE_MODE);
         } else {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "OperateModeToMediaOperationMode error, err mode = %{public}d", mode[i]);
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "OperateModeToMediaOperationMode error, err mode = %{public}u", mode[i]);
             return INVALID_PARAMTER;
         }
     }
@@ -155,7 +155,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeGrant(uint32_t tokenId, std::vecto
             needGrantMode.emplace_back(mode[i]);
         } else {
             std::string maskPath = SandboxManagerLog::MaskRealPath(uris[i].c_str());
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Uris:%{public}s, had no policy%{public}d", maskPath.c_str(), mode[i]);
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Uris:%{public}s, had no policy%{public}u", maskPath.c_str(), mode[i]);
         }
     }
     ret = OperateModeToPhotoPermissionType(needGrantMode, type);
@@ -256,7 +256,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeCancel(uint32_t tokenId, std::vect
             needCancelMode.emplace_back(mode[i]);
         } else {
             std::string maskPath = SandboxManagerLog::MaskRealPath(uris[i].c_str());
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Uris:%{public}s, had no policy%{public}d", maskPath.c_str(), mode[i]);
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Uris:%{public}s, had no policy%{public}u", maskPath.c_str(), mode[i]);
         }
     }
 
