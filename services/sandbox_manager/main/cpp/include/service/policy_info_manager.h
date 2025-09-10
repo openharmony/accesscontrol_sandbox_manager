@@ -233,12 +233,6 @@ private:
      */
     int32_t CheckPolicyValidity(const PolicyInfo &policy);
     /**
-     * @brief check path is in blocklist
-     * @param path input path
-     * @return INVALID_PATH / SANDBOX_MANAGER_OK
-     */
-    int32_t CheckPathIsBlocked(const std::string &path);
-    /**
      * @brief unset sandboxpolicy and record conditions
      * @param tokenId a given tokenId
      * @param policy a policy to be unset
@@ -279,8 +273,6 @@ private:
         std::vector<uint32_t> &results, std::vector<size_t> &validIndex, std::vector<PolicyInfo> &normalPolicy);
     uint32_t CheckBeforeSetPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
         std::vector<size_t> &validIndex, std::vector<PolicyInfo> &validPolicies);
-    std::vector<std::string> splitPath(const std::string &path);
-    bool CheckPathWithinRule(const std::string &path);
     int32_t CleanPolicyByPathlist(uint32_t tokenId, std::vector<std::string> &list);
 };
 } // namespace SandboxManager

@@ -1488,7 +1488,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPerformanceTest001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policySize = 50000;
- 
+
     for (uint64_t i = 0;i < policySize; i++) {
         PolicyInfo info;
         info.mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
@@ -1924,7 +1924,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest009, TestSize.Level0)
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyA, policyFlag, policyResult));
     ASSERT_EQ(1, policyResult.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
- 
+
     std::vector<bool> result;
     std::vector<PolicyInfo> policyB;
     policyB.emplace_back(infoParentA);
@@ -3709,6 +3709,170 @@ HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest003, TestSize.Level0)
     EXPECT_EQ(OPERATE_SUCCESSFULLY, startResult[1]);
 }
 #endif
+
+/**
+ * @tc.name: TestAccessing001
+ * @tc.desc: test accessing appdata
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, TestAccessingPolicy001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser/",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policy.emplace_back(info1);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    ASSERT_EQ(1, retType.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.ohos.dlpmanager/haps/entry/files",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    PolicyInfo info3 = {
+        .path = "/storage/Users/currentUser/appdata/",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    std::vector<PolicyInfo> accessPolicy;
+    accessPolicy.emplace_back(info2);
+    accessPolicy.emplace_back(info3);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(accessPolicy, retType));
+    ASSERT_EQ(2, retType.size());
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, retType[0]);
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, retType[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(g_mockToken, policy, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: TestAccessing002
+ * @tc.desc: test accessing appdata
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, TestAccessingPolicy002, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.ohos.dlpmanager/haps/entry",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser/appdata/",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+
+    PolicyInfo info3 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.ohos.dlpmanager/haps/entry/files",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    std::vector<PolicyInfo> accessPolicy;
+    accessPolicy.emplace_back(info1);
+    accessPolicy.emplace_back(info2);
+    accessPolicy.emplace_back(info3);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(INVALID_PATH, policyResult[1]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+    EXPECT_EQ(FORBIDDEN_TO_BE_PERSISTED, retType[1]);
+
+    std::vector<uint32_t> retType1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(accessPolicy, retType1));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType1[0]);
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, retType1[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType1[2]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(g_mockToken, policy, unPersistResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[1]);
+}
+
+/**
+ * @tc.name: TestAccessing003
+ * @tc.desc: test accessing appdata
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, TestAccessingPolicy003, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.ohos.dlpmanager",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+
+    PolicyInfo info3 = {
+        .path = "/storage/Users/currentUser/appdata",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    PolicyInfo info4 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.ohos.dlpmanager/haps",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    std::vector<PolicyInfo> accessPolicy;
+    accessPolicy.emplace_back(info3);
+    accessPolicy.emplace_back(info4);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[1]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[1]);
+
+    std::vector<uint32_t> retType1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(accessPolicy, retType1));
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, retType1[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType1[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(g_mockToken, policy, unPersistResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
+
 
 #endif
 } // SandboxManager

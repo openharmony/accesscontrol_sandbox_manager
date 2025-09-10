@@ -20,6 +20,11 @@
 #include <vector>
 #include "policy_trie.h"
 
+static const int DENIED_PATHS_DEEP = 4;
+const std::unordered_map<std::string, int> PolicyTrie::DENIED_PATHS = {
+    {"/storage/Users/currentUser/appdata", DENIED_PATHS_DEEP}
+};
+
 void PolicyTrie::Clear()
 {
     PolicyTrie *root = this;
@@ -92,15 +97,27 @@ bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode)
     std::vector<std::string> pathSegments = SplitPath(path);
     PolicyTrie *curNode = root;
 
+    int needLevel = 0;
+    for (auto &[denyPath, level] : DENIED_PATHS) {
+        if (path.compare(0, denyPath.length(), denyPath) == 0 &&
+            (path.length() == denyPath.length() || path[denyPath.length()] == '/')) {
+            needLevel = level;
+        }
+    }
+
+    int curLevel = 0;
     for (const std::string &segment : pathSegments) {
         if (curNode == nullptr || curNode->children_.count(segment) == 0) {
             return false;
         }
+        curLevel++;
         if (curNode->children_[segment]->isEndOfPath_) {
-            return IsPolicyMatch(curNode->children_[segment]->mode_, mode);
-        } else {
-            curNode = curNode->children_[segment];
+            if (curLevel >= needLevel) {
+                return IsPolicyMatch(curNode->children_[segment]->mode_, mode);
+            }
         }
+
+        curNode = curNode->children_[segment];
     }
     return false;
 }
