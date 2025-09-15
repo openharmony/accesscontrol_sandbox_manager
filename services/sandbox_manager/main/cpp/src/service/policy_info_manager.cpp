@@ -212,6 +212,15 @@ int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vecto
     return SANDBOX_MANAGER_OK;
 }
 
+static void WriteDfxInner(const OperateTypeEnum operateType, PolicyOperateInfo &info, size_t succNum,
+    size_t failNum, size_t invalidNum)
+{
+    info.successNum = succNum;
+    info.failNum = failNum;
+    info.invalidNum = invalidNum;
+    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(operateType, info);
+}
+
 int32_t PolicyInfoManager::AddNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
     std::vector<uint32_t> &result, const uint32_t flag, std::vector<size_t> &queryPolicyIndex, uint32_t invalidNum)
 {
@@ -221,18 +230,20 @@ int32_t PolicyInfoManager::AddNormalPolicy(const uint32_t tokenId, const std::ve
         return SANDBOX_MANAGER_OK;
     }
     size_t policySize = policy.size();
-
     // query mac kernel
     size_t queryPolicyIndexSize = queryPolicyIndex.size();
     std::vector<bool> queryResults(queryPolicyIndexSize);
     std::vector<PolicyInfo> queryPolicys(queryPolicyIndexSize);
+    PolicyOperateInfo info(queryPolicyIndexSize, 0, 0, 0);
     std::transform(queryPolicyIndex.begin(), queryPolicyIndex.end(),
-        queryPolicys.begin(), [policy](const size_t index) { return policy[index]; });
+        queryPolicys.begin(), [&info, policy](size_t index) {
+        SandboxManagerDfxHelper::OperateInfoSetByMode(info, policy[index].mode);
+        return policy[index];
+    });
     int32_t ret = macAdapter_.QuerySandboxPolicy(tokenId, queryPolicys, queryResults);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter query error, err code = %{public}d", ret);
-        PolicyOperateInfo info(policySize, 0, policySize - invalidNum, invalidNum);
-        SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::PERSIST_POLICY, info);
+        WriteDfxInner(OperateTypeEnum::PERSIST_POLICY, info, 0, policySize - invalidNum, invalidNum);
         result.clear();
         return ret;
     }
@@ -253,8 +264,7 @@ int32_t PolicyInfoManager::AddNormalPolicy(const uint32_t tokenId, const std::ve
         result.clear();
         return ret;
     }
-    PolicyOperateInfo info(policySize, addPolicyIndex.size(), failNum, invalidNum);
-    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::PERSIST_POLICY, info);
+    WriteDfxInner(OperateTypeEnum::PERSIST_POLICY, info, addPolicyIndex.size(), failNum, invalidNum);
     return SANDBOX_MANAGER_OK;
 }
 
@@ -370,6 +380,16 @@ int32_t PolicyInfoManager::MatchNormalPolicy(const uint32_t tokenId, const std::
     return SANDBOX_MANAGER_OK;
 }
 
+static void WriteRemoveDfxInfo(uint32_t policySize, uint32_t succ, uint32_t fail, uint32_t invalid,
+    PolicyOperateInfo info)
+{
+    info.policyNum = policySize;
+    info.successNum = succ;
+    info.failNum = fail;
+    info.invalidNum = invalid;
+    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNPERSIST_POLICY, info);
+}
+
 int32_t PolicyInfoManager::RemoveNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
     std::vector<uint32_t> &result, std::vector<PolicyInfo> &mediaPolicy, std::vector<size_t> &validMediaIndex)
 {
@@ -379,6 +399,7 @@ int32_t PolicyInfoManager::RemoveNormalPolicy(const uint32_t tokenId, const std:
     uint32_t successNum = 0;
     std::vector<GenericValues> conditions;
     conditions.reserve(policySize);
+    PolicyOperateInfo info(0, 0, 0, 0);
 
     for (size_t i = 0; i < policySize; ++i) {
         int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
@@ -402,11 +423,10 @@ int32_t PolicyInfoManager::RemoveNormalPolicy(const uint32_t tokenId, const std:
         ret = UnsetSandboxPolicyAndRecord(tokenId, policy[i], conditions);
         if (ret != SANDBOX_MANAGER_OK) {
             ++failNum;
-            PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
-            SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNPERSIST_POLICY, info);
+            WriteRemoveDfxInfo(policySize, successNum, failNum, invalidNum, info);
             return ret;
         }
-
+        SandboxManagerDfxHelper::OperateInfoSetByMode(info, policy[i].mode);
         ++successNum;
     }
     if (!conditions.empty()) {
@@ -415,8 +435,7 @@ int32_t PolicyInfoManager::RemoveNormalPolicy(const uint32_t tokenId, const std:
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
             return SANDBOX_MANAGER_DB_ERR;
         }
-        PolicyOperateInfo info(result.size(), successNum, failNum, invalidNum);
-        SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNPERSIST_POLICY, info);
+        WriteRemoveDfxInfo(conditions.size(), successNum, failNum, invalidNum, info);
     }
     return SANDBOX_MANAGER_OK;
 }
@@ -676,6 +695,23 @@ int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId, uint6
     return SANDBOX_MANAGER_OK;
 }
 
+static uint32_t SetStartResultInner(std::vector<uint32_t> &results, std::vector<uint32_t> &macResults,
+    std::vector<size_t> &accessingIndex)
+{
+    uint32_t successNum = 0;
+    size_t accessingIndexSize = accessingIndex.size();
+    for (size_t i = 0; i < accessingIndexSize; ++i) {
+        if (macResults[i] == SANDBOX_MANAGER_OK) {
+            results[accessingIndex[i]] = SandboxRetType::OPERATE_SUCCESSFULLY;
+            ++successNum;
+        } else {
+            results[accessingIndex[i]] = SandboxRetType::POLICY_MAC_FAIL;
+        }
+    }
+
+    return successNum;
+}
+
 int32_t PolicyInfoManager::StartAccessingNormalPolicy(
     const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results, uint64_t timestamp)
 {
@@ -706,8 +742,12 @@ int32_t PolicyInfoManager::StartAccessingNormalPolicy(
     }
     size_t accessingIndexSize = accessingIndex.size();
     std::vector<PolicyInfo> accessingPolicy(accessingIndexSize);
+    PolicyOperateInfo info(policySize, 0, 0, 0);
     std::transform(accessingIndex.begin(), accessingIndex.end(),
-        accessingPolicy.begin(), [policy](size_t index) { return policy[index]; });
+        accessingPolicy.begin(), [&info, policy](size_t index) {
+        SandboxManagerDfxHelper::OperateInfoSetByMode(info, policy[index].mode);
+        return policy[index];
+    });
     std::vector<uint32_t> macResults(accessingIndexSize);
     MacParams macParams = GetMacParams(tokenId, 0, timestamp);
     ret = macAdapter_.SetSandboxPolicy(accessingPolicy, macResults, macParams);
@@ -716,19 +756,28 @@ int32_t PolicyInfoManager::StartAccessingNormalPolicy(
         results.clear();
         return ret;
     }
-    // write ok flag
+
+    uint32_t successNum = SetStartResultInner(results, macResults, accessingIndex);
+    WriteDfxInner(OperateTypeEnum::START_ACCESSING_POLICY, info, successNum,
+        accessingIndexSize - successNum, invalidNum);
+    return SANDBOX_MANAGER_OK;
+}
+
+static uint32_t SetStopResultInner(std::vector<uint32_t> &results, std::vector<bool> &macResults,
+    std::vector<size_t> &accessingIndex)
+{
     uint32_t successNum = 0;
+    size_t accessingIndexSize = accessingIndex.size();
     for (size_t i = 0; i < accessingIndexSize; ++i) {
-        if (macResults[i] == SANDBOX_MANAGER_OK) {
+        if (macResults[i]) {
             results[accessingIndex[i]] = SandboxRetType::OPERATE_SUCCESSFULLY;
             ++successNum;
         } else {
             results[accessingIndex[i]] = SandboxRetType::POLICY_MAC_FAIL;
         }
     }
-    PolicyOperateInfo info(policySize, successNum, accessingIndexSize - successNum, invalidNum);
-    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::START_ACCESSING_POLICY, info);
-    return SANDBOX_MANAGER_OK;
+
+    return successNum;
 }
 
 int32_t PolicyInfoManager::StopAccessingNormalPolicy(
@@ -761,8 +810,13 @@ int32_t PolicyInfoManager::StopAccessingNormalPolicy(
     }
     size_t accessingIndexSize = accessingIndex.size();
     std::vector<PolicyInfo> accessingPolicy(accessingIndexSize);
+    PolicyOperateInfo info(policySize, 0, 0, 0);
     std::transform(accessingIndex.begin(), accessingIndex.end(),
-        accessingPolicy.begin(), [policy](size_t index) { return policy[index]; });
+        accessingPolicy.begin(), [&info, policy](size_t index) {
+        SandboxManagerDfxHelper::OperateInfoSetByMode(info, policy[index].mode);
+        return policy[index];
+    });
+
     std::vector<bool> macResults(accessingIndexSize);
     ret = macAdapter_.UnSetSandboxPolicy(tokenId, accessingPolicy, macResults);
     if (ret != SANDBOX_MANAGER_OK) {
@@ -770,18 +824,10 @@ int32_t PolicyInfoManager::StopAccessingNormalPolicy(
         results.clear();
         return ret;
     }
-    // write ok flag
-    uint32_t successNum = 0;
-    for (size_t i = 0; i < accessingIndexSize; ++i) {
-        if (macResults[i]) {
-            results[accessingIndex[i]] = SandboxRetType::OPERATE_SUCCESSFULLY;
-            ++successNum;
-        } else {
-            results[accessingIndex[i]] = SandboxRetType::POLICY_MAC_FAIL;
-        }
-    }
-    PolicyOperateInfo info(policySize, successNum, accessingIndexSize - successNum, invalidNum);
-    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::STOP_ACCESSING_POLICY, info);
+
+    uint32_t successNum = SetStopResultInner(results, macResults, accessingIndex);
+    WriteDfxInner(OperateTypeEnum::STOP_ACCESSING_POLICY, info, successNum,
+        accessingIndexSize - successNum, invalidNum);
     return SANDBOX_MANAGER_OK;
 }
 
