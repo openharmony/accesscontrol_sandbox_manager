@@ -52,6 +52,17 @@ const static std::map<int32_t, std::string> OPERATE_TYPE_MAP = {
     {OperateTypeEnum::UNPERSIST_POLICY, "unpersist_policy"},
 };
 
+enum OperateDomainEnum: int32_t {
+    GENERIC,
+    MEDIA,
+};
+
+const static std::map<int32_t, std::string> OPERATE_DOMAIN_MAP = {
+    // temporary policy
+    {OperateDomainEnum::GENERIC, "[g]"},
+    {OperateDomainEnum::MEDIA, "[m]"},
+};
+
 class PolicyOperateInfo {
 public:
     PolicyOperateInfo(
@@ -64,6 +75,10 @@ public:
     uint32_t successNum;
     uint32_t failNum;
     uint32_t invalidNum;
+    uint32_t rModeNum;
+    uint32_t wModeNum;
+    uint32_t rwModeNum;
+    OperateDomainEnum domain;
 };
 
 class SandboxManagerDfxHelper {
@@ -72,6 +87,7 @@ public:
         const uint32_t callerTokenid = 0, const uint32_t callerPid = 0);
     static void WritePersistPolicyOperateSucc(const OperateTypeEnum operateType, const PolicyOperateInfo &info);
     static void WriteTempPolicyOperateSucc(const OperateTypeEnum operateType, const PolicyOperateInfo &info);
+    static void OperateInfoSetByMode(PolicyOperateInfo &info, uint32_t mode);
 };
 } // SandboxManager
 } // AccessControl

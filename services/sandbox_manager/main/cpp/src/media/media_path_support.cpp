@@ -26,6 +26,7 @@
 #include "policy_field_const.h"
 #include "policy_info.h"
 #include "sandbox_manager_const.h"
+#include "sandbox_manager_dfx_helper.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_log.h"
 #include "ipc_skeleton.h"
@@ -166,6 +167,33 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeGrant(uint32_t tokenId, std::vecto
     return SANDBOX_MANAGER_OK;
 }
 
+static void SetAddResultAndWriteDfx(PolicyOperateInfo &info, std::vector<uint32_t> &results, size_t mediaPolicySize,
+    std::vector<bool> &mediaBool, OperateTypeEnum operation)
+{
+    uint32_t succ = 0;
+    uint32_t retType;
+    if (operation == OperateTypeEnum::PERSIST_POLICY) {
+        retType = SandboxRetType::FORBIDDEN_TO_BE_PERSISTED;
+    } else {
+        retType = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
+    }
+
+    for (size_t i = 0; i < mediaPolicySize; ++i) {
+        if (mediaBool[i] == true) {
+            results[i] = SandboxRetType::OPERATE_SUCCESSFULLY;
+            succ++;
+        } else {
+            results[i] = retType;
+        }
+    }
+    info.domain = OperateDomainEnum::MEDIA;
+    info.policyNum = mediaPolicySize;
+    info.successNum = succ;
+    info.failNum = mediaPolicySize - succ;
+    info.invalidNum = 0;
+    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(operation, info);
+}
+
 int32_t SandboxManagerMedia::AddMediaPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
     std::vector<size_t> &PolicyIndex, std::vector<uint32_t> &results)
 {
@@ -177,6 +205,7 @@ int32_t SandboxManagerMedia::AddMediaPolicy(uint32_t tokenId, const std::vector<
     }
     SANDBOXMANAGER_LOG_INFO(LABEL, "AddMediaPolicy, tokenId:%{public}u", tokenId);
     size_t mediaPolicyIndexSize = PolicyIndex.size();
+    PolicyOperateInfo info(0, 0, 0, 0);
     std::vector<std::string> mediaPaths;
     std::vector<uint32_t> mediaMode;
     mediaPaths.reserve(mediaPolicyIndexSize);
@@ -185,6 +214,7 @@ int32_t SandboxManagerMedia::AddMediaPolicy(uint32_t tokenId, const std::vector<
         size_t num = PolicyIndex[i];
         mediaPaths.emplace_back(policy[num].path);
         mediaMode.emplace_back(policy[num].mode);
+        SandboxManagerDfxHelper::OperateInfoSetByMode(info, policy[num].mode);
     }
 
     std::vector<bool> mediaBool;
@@ -209,13 +239,7 @@ int32_t SandboxManagerMedia::AddMediaPolicy(uint32_t tokenId, const std::vector<
             return SANDBOX_MANAGER_MEDIA_CALL_ERR;
         }
     }
-    for (size_t i = 0; i < mediaPolicyIndexSize; ++i) {
-        if (mediaBool[i] == true) {
-            results[i] = SandboxRetType::OPERATE_SUCCESSFULLY;
-        } else {
-            results[i] = SandboxRetType::FORBIDDEN_TO_BE_PERSISTED;
-        }
-    }
+    SetAddResultAndWriteDfx(info, results, mediaPolicyIndexSize, mediaBool, OperateTypeEnum::PERSIST_POLICY);
     return SANDBOX_MANAGER_OK;
 }
 
@@ -279,6 +303,7 @@ int32_t SandboxManagerMedia::RemoveMediaPolicy(uint32_t tokenId, const std::vect
     }
     SANDBOXMANAGER_LOG_INFO(LABEL, "RemoveMediaPolicy, tokenId:%{public}u", tokenId);
     size_t mediaPolicySize = policy.size();
+    PolicyOperateInfo info(0, 0, 0, 0);
     std::vector<std::string> mediaPaths;
     std::vector<std::string> uris;
     std::vector<uint32_t> mediaMode;
@@ -287,6 +312,7 @@ int32_t SandboxManagerMedia::RemoveMediaPolicy(uint32_t tokenId, const std::vect
     for (size_t i = 0; i < mediaPolicySize; ++i) {
         mediaPaths.emplace_back(policy[i].path);
         mediaMode.emplace_back(policy[i].mode);
+        SandboxManagerDfxHelper::OperateInfoSetByMode(info, policy[i].mode);
     }
 
     std::vector<bool> mediaBool;
@@ -311,13 +337,8 @@ int32_t SandboxManagerMedia::RemoveMediaPolicy(uint32_t tokenId, const std::vect
             return SANDBOX_MANAGER_MEDIA_CALL_ERR;
         }
     }
-    for (size_t i = 0; i < mediaPolicySize; ++i) {
-        if (mediaBool[i] == true) {
-            result[i] = SandboxRetType::OPERATE_SUCCESSFULLY;
-        } else {
-            result[i] = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
-        }
-    }
+
+    SetAddResultAndWriteDfx(info, result, mediaPolicySize, mediaBool, OperateTypeEnum::UNPERSIST_POLICY);
     return SANDBOX_MANAGER_OK;
 }
 
