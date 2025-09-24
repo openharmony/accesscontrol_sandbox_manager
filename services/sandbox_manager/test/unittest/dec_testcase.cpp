@@ -28,6 +28,26 @@ const uint64_t TIMESTAMP4 = 5;
 
 using namespace testing::ext;
 
+const char* const TEST_BASE_PATH =
+    "testdirdirtestdirdirtestdirdirtestdirdirtestdirdirr/"
+    "testdirdirtestdirdirtestdirdirtestdirdirtestdirdirr/";
+const char* const PATH_PREFIX = "/data/mntdecpaths/testdirdir/testdir/";
+const char* const SUFFIX = "dir";
+
+std::string CreatePath()
+{
+    std::string path{};
+    path += PATH_PREFIX;
+    const int BASE_COUNT = 39;
+    for (int i = 0; i < BASE_COUNT; ++i) {
+        path += TEST_BASE_PATH;
+    }
+    path += SUFFIX;
+    return path;
+}
+const std::string TEST_LONG_PATH_4096 = CreatePath();
+const std::string TEST_LONG_PATH_4097 = TEST_LONG_PATH_4096 + 'a';
+
 namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
@@ -311,10 +331,14 @@ HWTEST_F(DecTestCase, testpaths007, TestSize.Level0)
     system("mkdir -p /data/mntdecpaths");
     system("mount -t sharefs /data/dec /data/mntdecpaths -o override_support_delete -o user_id=100");
     EXPECT_EQ(ConstraintPath("/data/mntdecpaths/"), 0);
+    EXPECT_EQ(ConstraintPath(TEST_LONG_PATH_4096), 0);
+    EXPECT_EQ(ConstraintPath(TEST_LONG_PATH_4097), -1);
     EXPECT_EQ(SetPath(TOKEN_ID, "/data/mntdecpaths/test//.mp4", DEC_MODE_RW, true, 0, USER_ID), -1);
     EXPECT_EQ(SetPath(TOKEN_ID, "/data/mntdecpaths/dir1/../test.mp4", DEC_MODE_RW, true, 0, USER_ID), -1);
     EXPECT_EQ(SetPath(TOKEN_ID, "/data/mntdecpaths/dir1/./test.mp4", DEC_MODE_RW, true, 0, USER_ID), -1);
     EXPECT_EQ(SetPath(TOKEN_ID, "data/mntdecpaths/dir1/./test.mp4", DEC_MODE_RW, true, 0, USER_ID), -1);
+    EXPECT_EQ(SetPath(TOKEN_ID, TEST_LONG_PATH_4096, DEC_MODE_RW, true, 0, USER_ID), 0);
+    EXPECT_EQ(SetPath(TOKEN_ID, TEST_LONG_PATH_4097, DEC_MODE_RW, true, 0, USER_ID), -1);
     EXPECT_EQ(SetPath(TOKEN_ID, "/data/mntdecpaths/dir1/.../", DEC_MODE_RW, true, 0, USER_ID), 0);
     EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdecpaths/dir1/.../test.mp4"), 0);
     system("umount /data/mntdecpaths -l");
@@ -554,6 +578,42 @@ HWTEST_F(DecTestCase, testRootPath016, TestSize.Level0)
     EXPECT_EQ(DestroyByTokenid(TOKEN_ID, 0), 0);
     system("umount /data/mntdec -l");
     system("rm -rf /data/dec");
+}
+
+/**
+ * @tc.name: testUserId017
+ * @tc.desc: Test UserIdTest
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(DecTestCase, testUserId017, TestSize.Level0)
+{
+    system("rm -rf /data/UserIdTest");
+    system("mkdir -p /data/UserIdTest/a");
+    system("touch /data/UserIdTest/a/test.txt");
+    system("mkdir -p /data/mntUserIdTest/");
+    system("mount -t sharefs /data/UserIdTest /data/mntUserIdTest -o override_support_delete -o user_id=100");
+    EXPECT_EQ(ConstraintPath("/data/mntUserIdTest/"), 0);
+    EXPECT_EQ(SetPath(TOKEN_ID, "/data/mntUserIdTest/", DEC_MODE_RW, true, 0, USER_ID), 0);
+    EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntUserIdTest/a", 0), 0);
+    EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntUserIdTest/a/test.txt", 0), 0);
+    EXPECT_EQ(TestReadDir(TOKEN_ID, "/data/mntUserIdTest/a"), 0);
+    EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntUserIdTest/a/test.txt"), 0);
+    EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntUserIdTest/a/test.txt"), 0);
+    EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntUserIdTest/a/test.txt"), 0);
+    EXPECT_EQ(TestRemoveDir(TOKEN_ID, "/data/mntUserIdTest/a"), 0);
+
+    EXPECT_EQ(DeletePathByUser(USER_ID, "/data/mntUserIdTest/"), 0);
+    EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntUserIdTest/a", 0), -1);
+    EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntUserIdTest/a/test.txt", 0), -1);
+    EXPECT_EQ(TestReadDir(TOKEN_ID, "/data/mntUserIdTest/a"), -1);
+    EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntUserIdTest/a/test.txt"), -1);
+    EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntUserIdTest/a/test.txt"), -1);
+    EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntUserIdTest/a/test.txt"), -1);
+    EXPECT_EQ(TestRemoveDir(TOKEN_ID, "/data/mntUserIdTest/a"), -1);
+    system("umount /data/mntUserIdTest -l");
+    system("rm -rf /data/UserIdTest");
+    system("rm -rf /data/mntUserIdTest/");
 }
 } // SandboxManager
 } // AccessControl
