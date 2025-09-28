@@ -18,7 +18,6 @@
 
 #include <cstdint>
 #include <stack>
-#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -34,7 +33,7 @@ private:
     inline static const uint64_t MODE_FILTER = 0b11;
     std::vector<std::string> SplitPath(const std::string &path);
     bool IsPolicyMatch(uint64_t referMode, uint64_t searchMode);
-    static const std::unordered_map<std::string, int> DENIED_PATHS;
+
     std::unordered_map<std::string, PolicyTrie *> children_;
     bool isEndOfPath_ = false;
     uint64_t mode_ = 0;

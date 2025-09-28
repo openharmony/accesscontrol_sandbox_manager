@@ -369,54 +369,15 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest008, TestSize.Level0)
     std::string path6 = "/storage/Users/currentUser/appdata/el6/test";
     std::string path7 = "/storage/Users/currentUser/appdata/el1/base/test";
     std::string path8 = "/storage/Users/currentUser/appdata/";
-    std::string path9 = "/storage/Users/currentUser/appdataY";
-    std::string pathA = "/storage/Users/currentUser/appdataY/";
-    std::string pathB = "/storage/Users/currentUser/appdat";
-    std::string pathC = "/storage/Users/currentUser/appdat/";
 
-    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path1));
-    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path2));
-    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path3));
-    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path4));
-    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path5));
-    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path6));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path7));
-    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path8));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path9));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(pathA));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(pathB));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(pathC));
-}
-
-/**
- * @tc.name: PolicyInfoManagerTest009
- * @tc.desc: Test CheckPathIsBlocked
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest009, TestSize.Level0)
-{
-    std::string path1 = "/storage/";
-    std::string path2 = "/storage/Users";
-    std::string path3 = "/storage";
-
-    std::string path4 = "/storageY/";
-    std::string path5 = "/storageY/Users";
-    std::string path6 = "/storageY";
-
-    std::string path7 = "/storag/";
-    std::string path8 = "/storag/Users";
-    std::string path9 = "/storag";
-
-    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path1));
-    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path2));
-    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path3));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path4));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path5));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path6));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path7));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path8));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.CheckPathIsBlocked(path9));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path1));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path2));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path3));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path4));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path5));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path6));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path7));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().CheckPathIsBlocked(path8));
 }
 
 /**
@@ -967,45 +928,6 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest012, TestSize.Level0)
     PolicyInfoManager::GetInstance().macAdapter_ = original;
     original = mockMacAdapter;
 }
-
-#ifdef DEC_ENABLED
-/**
- * @tc.name: PolicyInfoManagerTest014
- * @tc.desc: Test block list
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest014, TestSize.Level0)
-{
-    PolicyInfo info;
-    std::vector<PolicyInfo> policy;
-
-    PolicyInfo info1 = {
-        .path = "/storage/Users/currentUser/appdata/el2/base/test/haps/test1",
-        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
-    };
-
-    PolicyInfo info2 = {
-        .path = "/storage/Users/currentUser/appdata/",
-        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
-    };
-    PolicyInfo info3 = {
-        .path = "/storage/Users/currentUser/appdata/el2/base/test/haps/test2",
-        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
-    };
-
-    policy.emplace_back(info1);
-    policy.emplace_back(info2);
-    policy.emplace_back(info3);
-    std::vector<uint32_t> setResult;
-
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
-    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
-    EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[1]);
-    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[2]);
-}
-#endif
-
 } // SandboxManager
 } // AccessControl
 } // OHOS

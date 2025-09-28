@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <fcntl.h>
 #include <cinttypes>
-#include <sstream>
 #include <string>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -290,147 +289,6 @@ void MacAdapter::CheckResult(std::vector<uint32_t> &result)
     }
 }
 
-// components num of "/storage/Users/currentUser/appdata/*/*"
-#define MAX_CHECK_COM_NUM 6
-#define SECOND_PATH_SEGMENT 2
-const std::string ROOT_PATH = "/storage";
-const std::string APPDATA_PATH = "/storage/Users/currentUser/appdata";
-const std::string ROOT_PATH_WITH_SLASH = "/storage/";
-const std::string APPDATA_PATH_WITH_SLASH = "/storage/Users/currentUser/appdata/";
-
-std::vector<std::string> MacAdapter::splitPath(const std::string &path)
-{
-    std::vector<std::string> components;
-    std::stringstream ss(path);
-    std::string component;
-    int comNum = 0;
-    while (std::getline(ss, component, '/')) {
-        if (!component.empty()) {
-            components.push_back(component);
-        }
-        if (comNum > MAX_CHECK_COM_NUM) {
-            break;
-        }
-        comNum++;
-    }
-    return components;
-}
-
-bool MacAdapter::CheckPathWithinRule(const std::string &path)
-{
-    if ((path == ROOT_PATH) || (path == APPDATA_PATH)) {
-        return false;
-    }
-
-    size_t ROOT_PATH_SIZE = ROOT_PATH_WITH_SLASH.length();
-    // Check if the path starts with "/storage/"
-    if (path.substr(0, ROOT_PATH_SIZE) != ROOT_PATH_WITH_SLASH) {
-        return true;
-    }
-
-    std::vector<std::string> components = splitPath(path);
-    //  check whether path is "/storage" or "/storage/*"
-    if (components.size() <= SECOND_PATH_SEGMENT) {
-        return false;
-    }
-
-    // Check if the path is "/storage/Users/" and ensure it is followed by "currentUser"
-    if (components[0] == "storage" && components[1] == "Users") {
-        if (components[SECOND_PATH_SEGMENT] != "currentUser") {
-            return false; // such as "/storage/Users/a"
-        }
-    }
-
-    // check whether path is longer than "/storage/Users/currentUser/appdata/*/*"
-    if (components.size() > MAX_CHECK_COM_NUM) {
-        return true;
-    }
-
-    // Check if the path is /storage/Users/currentUser/appdata/ and ensure it has more than 2 levels
-    size_t APPDATA_PATH_SIZE = APPDATA_PATH_WITH_SLASH.length();
-    if ((path.size() >= APPDATA_PATH_SIZE) && (path.substr(0, APPDATA_PATH_SIZE) == APPDATA_PATH_WITH_SLASH)) {
-        return false;
-    }
-
-    return true;
-}
-
-static std::string AdjustPath(const std::string &path)
-{
-    if (path.empty()) {
-        return path;
-    }
-    // delete '/' at the end of string
-    std::string retPath = path;
-    if (retPath.back() == '/') {
-        retPath.pop_back();
-    }
-    return retPath;
-}
-
-int32_t MacAdapter::CheckPathIsBlocked(const std::string &path)
-{
-    uint32_t length = path.length();
-    const char *cStr = path.c_str();
-    uint32_t cStrLength = strlen(cStr);
-    if (length != cStrLength) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "path have a terminator: %{public}s, pathLen:%{public}u, cstrLen:%{public}u",
-            path.c_str(), length, cStrLength);
-        return SandboxRetType::INVALID_PATH;
-    }
-
-    std::string pathTmp = AdjustPath(path);
-    int ret = CheckPathWithinRule(pathTmp);
-    if (ret != true) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "path not allowed to set policy: %{public}s", path.c_str());
-        return SandboxRetType::INVALID_PATH;
-    }
-    return SANDBOX_MANAGER_OK;
-}
-
-int32_t MacAdapter::SetSandboxPolicyInner(size_t offset, size_t curBatchSize, const std::vector<PolicyInfo> &policy,
-    std::vector<uint32_t> &result, struct SandboxPolicyInfo &info)
-{
-    size_t validPathIndex = 0;
-    int32_t cmd = SET_POLICY_CMD;
-    std::vector<size_t> validInd;
-    for (size_t i = 0; i < curBatchSize; ++i) {
-        if (CheckPathIsBlocked(policy[offset + i].path) != SANDBOX_MANAGER_OK) {
-            info.pathNum--;
-            result[offset + i] = INVALID_PATH;
-            continue;
-        }
-        validInd.emplace_back(offset + i);
-        info.pathInfos[validPathIndex].path = const_cast<char *>(policy[offset + i].path.c_str());
-        info.pathInfos[validPathIndex].pathLen = policy[offset + i].path.length();
-        info.pathInfos[validPathIndex].mode = policy[offset + i].mode;
-        if ((info.pathInfos[validPathIndex].mode & (OperateMode::DENY_READ_MODE | OperateMode::DENY_WRITE_MODE)) != 0) {
-            cmd = DENY_DEC_RULE_CMD;
-        }
-        std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[validPathIndex].path);
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Set policy paths path:%{public}s mode:%{public}u",
-            maskPath.c_str(), info.pathInfos[validPathIndex].mode);
-        validPathIndex++;
-    }
-
-    if ((info.pathNum > 0) && (ioctl(fd_, cmd, &info) < 0)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Set policy failed at batch %{public}zu, errno=%{public}d.",
-            offset / MAX_POLICY_NUM, errno);
-        return SANDBOX_MANAGER_MAC_IOCTL_ERR;
-    }
-    for (size_t i = 0; i < validPathIndex; ++i) {
-        size_t resultIndex = validInd[i];
-        if (info.pathInfos[i].result == 0) {
-            std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Set policy failed at %{public}s", maskPath.c_str());
-            result[resultIndex] = POLICY_MAC_FAIL;
-        } else {
-            result[resultIndex] = SANDBOX_MANAGER_OK;
-        }
-    }
-    return SANDBOX_MANAGER_OK;
-}
-
 int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
     MacParams &macParams)
 {
@@ -443,17 +301,43 @@ int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std:
     }
 
     size_t policyNum = policy.size();
+
     for (size_t offset = 0; offset < policyNum; offset += MAX_POLICY_NUM) {
         size_t curBatchSize = std::min(MAX_POLICY_NUM, policyNum - offset);
+
         struct SandboxPolicyInfo info;
         info.tokenId = macParams.tokenId;
         info.pathNum = curBatchSize;
         info.persist = macParams.policyFlag == 1 ? true : false;
         info.timestamp = macParams.timestamp;
         info.userId = macParams.userId;
-        int32_t ret = SetSandboxPolicyInner(offset, curBatchSize, policy, result, info);
-        if (ret != SANDBOX_MANAGER_OK) {
-            return ret;
+
+        int32_t cmd = SET_POLICY_CMD;
+        for (size_t i = 0; i < curBatchSize; ++i) {
+            info.pathInfos[i].path = const_cast<char *>(policy[offset + i].path.c_str());
+            info.pathInfos[i].pathLen = policy[offset + i].path.length();
+            info.pathInfos[i].mode = policy[offset + i].mode;
+            if ((info.pathInfos[i].mode & (OperateMode::DENY_READ_MODE | OperateMode::DENY_WRITE_MODE)) != 0) {
+                cmd = DENY_DEC_RULE_CMD;
+            }
+            std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
+            SANDBOXMANAGER_LOG_INFO(LABEL, "Set policy paths target:%{public}u path:%{public}s mode:%{public}d",
+                macParams.tokenId, maskPath.c_str(), info.pathInfos[i].mode);
+        }
+
+        if (ioctl(fd_, cmd, &info) < 0) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Set policy failed at batch %{public}zu, errno=%{public}d.",
+                                     offset / MAX_POLICY_NUM, errno);
+            return SANDBOX_MANAGER_MAC_IOCTL_ERR;
+        }
+        for (size_t i = 0; i < curBatchSize; ++i) {
+            if (info.pathInfos[i].result == 0) {
+                std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "Set policy failed at %{public}s", maskPath.c_str());
+                result[offset + i] = POLICY_MAC_FAIL;
+            } else {
+                result[offset + i] = SANDBOX_MANAGER_OK;
+            }
         }
     }
 
