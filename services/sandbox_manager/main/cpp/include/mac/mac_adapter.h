@@ -45,17 +45,12 @@ public:
     int32_t DestroySandboxPolicy(uint32_t tokenId, uint64_t timestamp);
     int32_t UnSetSandboxPolicyByUser(int32_t userId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     void CheckResult(std::vector<uint32_t> &result);
-    int32_t CheckPathIsBlocked(const std::string &path);
 #ifndef NOT_RESIDENT
     int32_t ReadDenyFile(const char *jsonPath, std::string& rawData);
     int32_t SetDenyCfg(std::string& json);
     void DenyInit();
 #endif
 private:
-    std::vector<std::string> splitPath(const std::string &path);
-    bool CheckPathWithinRule(const std::string &path);
-    int32_t SetSandboxPolicyInner(size_t offset, size_t curBatchSize, const std::vector<PolicyInfo> &policy,
-        std::vector<uint32_t> &result, struct SandboxPolicyInfo &info);
     int32_t fd_ = -1;
     bool isMacSupport_ = false;
 };
