@@ -3710,6 +3710,215 @@ HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest003, TestSize.Level0)
 }
 #endif
 
+/**
+ * @tc.name: Test SetPolicy input bundleName001
+ * @tc.desc: test SetPolicy input  bundleNames
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, TestSetPolicyInputBundleName001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.test",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::SELF_PATH
+    };
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.test/",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::SELF_PATH
+    };
+
+    PolicyInfo info3 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.test/a",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::SELF_PATH
+    };
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+    policy.emplace_back(info3);
+
+    SetInfo setInfo;
+    setInfo.bundleName = "com.test";
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult, setInfo));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[2]);
+}
+
+/**
+ * @tc.name: Test SetPolicy input bundleName002
+ * @tc.desc: test SetPolicy input  bundleNames
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, TestSetPolicyInputBundleName002, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.tes",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::SELF_PATH
+    };
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.testt",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::SELF_PATH
+    };
+
+    PolicyInfo info3 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.testt/a",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::SELF_PATH
+    };
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+    policy.emplace_back(info3);
+
+    SetInfo setInfo;
+    setInfo.bundleName = "com.test";
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult, setInfo));
+    EXPECT_EQ(INVALID_PATH, policyResult[0]);
+    EXPECT_EQ(INVALID_PATH, policyResult[1]);
+    EXPECT_EQ(INVALID_PATH, policyResult[2]);
+}
+
+/**
+ * @tc.name: Test SetPolicy input bundleName003
+ * @tc.desc: test SetPolicy input  bundleNames
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, TestSetPolicyInputBundleName003, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::SELF_PATH
+    };
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::SELF_PATH
+    };
+
+    PolicyInfo info3 = {
+        .path = "/a/b",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::SELF_PATH
+    };
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+    policy.emplace_back(info3);
+
+    SetInfo setInfo;
+    setInfo.bundleName = "com.test";
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult, setInfo));
+    EXPECT_EQ(INVALID_PATH, policyResult[0]);
+    EXPECT_EQ(INVALID_PATH, policyResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[2]);
+}
+
+/**
+ * @tc.name: Test SetPolicy input bundleName004
+ * @tc.desc: test SetPolicy input  bundleNames
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, TestSetPolicyInputBundleName004, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.tes",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::SELF_PATH
+    };
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.testt",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::SELF_PATH
+    };
+
+    PolicyInfo info3 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.testt/a",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::SELF_PATH
+    };
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+    policy.emplace_back(info3);
+
+    SetInfo setInfo;
+    setInfo.bundleName = "";
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult, setInfo));
+    EXPECT_EQ(INVALID_PATH, policyResult[0]);
+    EXPECT_EQ(INVALID_PATH, policyResult[1]);
+    EXPECT_EQ(INVALID_PATH, policyResult[2]);
+}
+
+/**
+ * @tc.name: Test SetPolicy input bundleName005
+ * @tc.desc: test SetPolicy input  bundleNames
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, TestSetPolicyInputBundleName005, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.tes",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::UNKNOWN
+    };
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.testt",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::AUTHORIZATION_PATH
+    };
+
+    PolicyInfo info3 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/com.testt/a",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        .type = PolicyType::OTHERS_PATH
+    };
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+    policy.emplace_back(info3);
+
+    SetInfo setInfo;
+    setInfo.bundleName = "";
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult, setInfo));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[2]);
+}
 #endif
 } // SandboxManager
 } // AccessControl

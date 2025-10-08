@@ -95,6 +95,7 @@ ohos_shared_library("sandbox_manager_communication_adapter_cxx") {
 
   sources = [
     "src/policy_info_parcel.cpp",
+    "src/set_info_parcel.cpp",
     "src/policy_info_vector_parcel.cpp",
     "src/sandbox_manager_dfx_helper.cpp",
     "src/sandbox_manager_log.cpp",

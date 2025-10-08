@@ -15,6 +15,7 @@
 
 package OHOS.AccessControl.SandboxManager;
 sequenceable OHOS.AccessControl.SandboxManager.PolicyInfoParcel;
+sequenceable OHOS.AccessControl.SandboxManager.SetInfoParcel;
 rawdata OHOS.AccessControl.SandboxManager.BoolVecRawData;
 rawdata OHOS.AccessControl.SandboxManager.PolicyVecRawData;
 rawdata OHOS.AccessControl.SandboxManager.Uint32VecRawData;
@@ -23,7 +24,7 @@ option_stub_hooks on;
 interface OHOS.AccessControl.SandboxManager.ISandboxManager {
     [ipccode 0xffb0] void PersistPolicy([in] PolicyVecRawData policyRawData, [out] Uint32VecRawData resultRawData);
     [ipccode 0xffb1] void UnPersistPolicy([in] PolicyVecRawData policyRawData, [out] Uint32VecRawData resultRawData);
-    [ipccode 0xffb2] void SetPolicy([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData, [in] unsigned long policyFlag, [out] Uint32VecRawData resultRawData, [in] unsigned long timestamp);
+    [ipccode 0xffb2] void SetPolicy([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData, [in] unsigned long policyFlag, [out] Uint32VecRawData resultRawData, [in] SetInfoParcel setInfoParcel);
     [ipccode 0xffb3] void UnSetPolicy([in] unsigned int tokenId, [in] PolicyInfoParcel policyParcel);
     [ipccode 0xffb4, oneway] void SetPolicyAsync([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData, [in] unsigned long policyFlag, [in] unsigned long timestamp);
     [ipccode 0xffb5, oneway] void UnSetPolicyAsync([in] unsigned int tokenId, [in] PolicyInfoParcel policyParcel);

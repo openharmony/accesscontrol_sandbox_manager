@@ -43,7 +43,7 @@ public:
     int32_t PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     int32_t UnPersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                      std::vector<uint32_t> &result, uint64_t timestamp);
+                      std::vector<uint32_t> &result, const SetInfo &info);
     int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy);
     int32_t SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
         uint64_t timestamp);

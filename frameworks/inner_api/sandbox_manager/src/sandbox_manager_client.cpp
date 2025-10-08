@@ -157,15 +157,19 @@ int32_t SandboxManagerClient::UnPersistPolicyByTokenId(
 }
 
 int32_t SandboxManagerClient::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-                                        uint64_t policyFlag, std::vector<uint32_t> &result, uint64_t timestamp)
+                                        uint64_t policyFlag, std::vector<uint32_t> &result, const SetInfo &setInfo)
 {
     PolicyVecRawData policyRawData;
     policyRawData.Marshalling(policy);
 
     result.clear();
     Uint32VecRawData resultRawData;
+
+    SetInfoParcel setInfoParcel;
+    setInfoParcel.setInfo = setInfo;
+
     std::function<int32_t(sptr<ISandboxManager> &)> func = [&](sptr<ISandboxManager> &proxy) {
-        return proxy->SetPolicy(tokenId, policyRawData, policyFlag, resultRawData, timestamp);
+        return proxy->SetPolicy(tokenId, policyRawData, policyFlag, resultRawData, setInfoParcel);
     };
     int32_t ret = CallProxyWithRetry(func, __FUNCTION__);
     if (ret != SANDBOX_MANAGER_OK) {

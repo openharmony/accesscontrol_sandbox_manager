@@ -79,6 +79,16 @@ public:
      * @param tokenId a given tokenId
      * @param policy vector of PolicyInfo, see policy_info.h
      * @param policyFlag flag of policy
+     * @param setInfo extra info of SetInfo, see policy_info.h
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
+                             std::vector<uint32_t> &result, const SetInfo &setInfo);
+    /**
+     * @brief Set policys with a given tokenId to MAC layer
+     * @param tokenId a given tokenId
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @param policyFlag flag of policy
      * @param timestamp timestamp of policy
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */

@@ -53,7 +53,7 @@ public:
     int32_t UnPersistPolicyByTokenId(
         uint32_t tokenId, const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData) override;
     int32_t SetPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData, uint64_t policyFlag,
-        Uint32VecRawData &resultRawData, uint64_t timestamp = 0) override;
+        Uint32VecRawData &resultRawData, const SetInfoParcel &setInfoParcel = SetInfoParcel()) override;
     int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfoParcel &policyParcel) override;
     int32_t SetPolicyAsync(uint32_t tokenId, const PolicyVecRawData &policyRawData, uint64_t policyFlag,
         uint64_t timestamp = 0) override;

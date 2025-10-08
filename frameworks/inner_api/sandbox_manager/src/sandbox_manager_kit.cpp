@@ -95,7 +95,37 @@ int32_t SandboxManagerKit::UnPersistPolicy(
 int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                      uint64_t policyFlag, std::vector<uint32_t> &result)
 {
-    return SetPolicy(tokenId, policy, policyFlag, result, 0);
+    SetInfo info;
+    return SetPolicy(tokenId, policy, policyFlag, result, info);
+}
+
+int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+                                     uint64_t policyFlag, std::vector<uint32_t> &result, uint64_t timestamp)
+{
+    SetInfo info;
+    info.timestamp = timestamp;
+    return SandboxManagerClient::GetInstance().SetPolicy(tokenId, policy, policyFlag, result, info);
+}
+
+int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+                                     uint64_t policyFlag, std::vector<uint32_t> &result, const SetInfo &setInfo)
+{
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
+    size_t policySize = policy.size();
+    if (policySize == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
+        return INVALID_PARAMTER;
+    }
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
+        return INVALID_PARAMTER;
+    }
+    if ((policyFlag != 0) && (policyFlag != 1)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policyFlag failed, policyFlag = %{public}" PRIu64 ".", policyFlag);
+        return INVALID_PARAMTER;
+    }
+
+    return SandboxManagerClient::GetInstance().SetPolicy(tokenId, policy, policyFlag, result, setInfo);
 }
 
 int32_t SandboxManagerKit::SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
@@ -115,26 +145,6 @@ int32_t SandboxManagerKit::SetPolicyByBundleName(const std::string &bundleName, 
     }
     return SandboxManagerClient::GetInstance().SetPolicyByBundleName(bundleName,
         appCloneIndex, policy, policyFlag, result);
-}
-
-int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-                                     uint64_t policyFlag, std::vector<uint32_t> &result, uint64_t timestamp)
-{
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
-    size_t policySize = policy.size();
-    if (policySize == 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
-        return INVALID_PARAMTER;
-    }
-    if (tokenId == 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
-        return INVALID_PARAMTER;
-    }
-    if ((policyFlag != 0) && (policyFlag != 1)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policyFlag failed, policyFlag = %{public}" PRIu64 ".", policyFlag);
-        return INVALID_PARAMTER;
-    }
-    return SandboxManagerClient::GetInstance().SetPolicy(tokenId, policy, policyFlag, result, timestamp);
 }
 
 int32_t SandboxManagerKit::UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy)
