@@ -540,6 +540,32 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest014, TestSize.Level
 }
 
 /**
+ * @tc.name: SandboxManagerServiceBundleNameTest001
+ * @tc.desc: Test SetPolicy - with input BundleName
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceBundleNameTest001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    policy.resize(POLICY_VECTOR_SIZE + 1);
+    PolicyVecRawData policyRawData;
+    policyRawData.Marshalling(policy);
+    Uint32VecRawData resultRawData;
+    uint64_t policyFlag = 0;
+    uint64_t sizeLimit = POLICY_VECTOR_SIZE + 1;
+
+    SetInfo setInfo = SetInfo();
+    SetInfoParcel setInfoParcel;
+    setInfoParcel.setInfo = setInfo;
+    std::vector<uint32_t> result;
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        sandboxManagerService_->SetPolicy(selfTokenId_, policyRawData, policyFlag, resultRawData, setInfoParcel));
+    resultRawData.Unmarshalling(result);
+    EXPECT_EQ(sizeLimit, result.size());
+}
+
+/**
  * @tc.name: SandboxManagerStub001
  * @tc.desc: Test CleanPersistPolicyByPath
  * @tc.type: FUNC

@@ -508,7 +508,7 @@ MacParams PolicyInfoManager::GetMacParams(uint32_t tokenId, uint64_t policyFlag,
 }
 
 uint32_t PolicyInfoManager::CheckBeforeSetPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
-    std::vector<size_t> &validIndex, std::vector<PolicyInfo> &validPolicies)
+    std::vector<size_t> &validIndex, std::vector<PolicyInfo> &validPolicies, const SetInfo &setInfo)
 {
     uint32_t invalidNum = 0;
     size_t policySize = policy.size();
@@ -519,7 +519,7 @@ uint32_t PolicyInfoManager::CheckBeforeSetPolicy(const std::vector<PolicyInfo> &
             ++invalidNum;
             continue;
         }
-        res = CheckPathIsBlocked(policy[index].path);
+        res = CheckPathIsBlocked(policy[index].path, policy[index].type, setInfo.bundleName);
         if (res != SANDBOX_MANAGER_OK) {
             result[index] = static_cast<uint32_t>(res);
             ++invalidNum;
@@ -533,7 +533,7 @@ uint32_t PolicyInfoManager::CheckBeforeSetPolicy(const std::vector<PolicyInfo> &
 }
 
 int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                                     std::vector<uint32_t> &result, uint64_t timestamp)
+                                     std::vector<uint32_t> &result, const SetInfo &setInfo)
 {
     size_t policySize = policy.size();
     if (!macAdapter_.IsMacSupport()) {
@@ -548,7 +548,7 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
     uint32_t failNum = 0;
     uint32_t successNum = 0;
 
-    invalidNum = CheckBeforeSetPolicy(policy, result, validIndex, validPolicies);
+    invalidNum = CheckBeforeSetPolicy(policy, result, validIndex, validPolicies, setInfo);
     if (validPolicies.empty()) {
         SANDBOXMANAGER_LOG_WARN(LABEL, "No valid policy to set.");
         PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
@@ -557,7 +557,7 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
     }
 
     std::vector<uint32_t> setResult(validPolicies.size(), SANDBOX_MANAGER_OK);
-    MacParams macParams = GetMacParams(tokenId, policyFlag, timestamp);
+    MacParams macParams = GetMacParams(tokenId, policyFlag, setInfo.timestamp);
     int32_t ret = macAdapter_.SetSandboxPolicy(validPolicies, setResult, macParams);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Set sandbox policy failed, error=%{public}d.", ret);
@@ -992,6 +992,8 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
 #define SECOND_PATH_SEGMENT 2
 const std::string ROOT_PATH = "/storage";
 const std::string APPDATA_PATH = "/storage/Users/currentUser/appdata";
+const std::string ROOT_PATH_WITH_SLASH = "/storage/";
+const std::string APPDATA_PATH_WITH_SLASH = "/storage/Users/currentUser/appdata/";
 
 std::vector<std::string> PolicyInfoManager::splitPath(const std::string &path)
 {
@@ -1011,11 +1013,46 @@ std::vector<std::string> PolicyInfoManager::splitPath(const std::string &path)
     return components;
 }
 
-bool PolicyInfoManager::CheckPathWithinRule(const std::string &path)
+bool PolicyInfoManager::CheckPathWithinBundleName(const std::string &path, const std::string &bundleName,
+    std::vector<std::string> &components)
 {
-    size_t ROOT_PATH_SIZE = ROOT_PATH.length();
+    // self path must check bundleName
+    if (bundleName.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "selfpath need input bundlename");
+        return false;
+    }
+
+    size_t APPDATA_PATH_SIZE = APPDATA_PATH_WITH_SLASH.length();
+    // Paths not starting with '/storage/Users/currentUser/appdata/' are forbidden
+    if (path.substr(0, APPDATA_PATH_SIZE) != APPDATA_PATH_WITH_SLASH) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "selfpath need start with appdata");
+        return false;
+    }
+
+    if (components.size() <= MAX_CHECK_COM_NUM) {
+        std::string maskPath = SandboxManagerLog::MaskRealPath(path.c_str());
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "selfpath %{public}s size error", maskPath.c_str());
+        return false;
+    }
+
+    if (components[MAX_CHECK_COM_NUM] != bundleName) {
+        std::string maskPath = SandboxManagerLog::MaskRealPath(path.c_str());
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "check path %{public}s by bundle failed", maskPath.c_str());
+        return false;
+    }
+
+    return true;
+}
+
+bool PolicyInfoManager::CheckPathWithinRule(const std::string &path, uint64_t type, const std::string &bundleName)
+{
+    if ((path == ROOT_PATH) || (path == APPDATA_PATH)) {
+        return false;
+    }
+
+    size_t ROOT_PATH_SIZE = ROOT_PATH_WITH_SLASH.length();
     // Check if the path starts with "/storage"
-    if (path.substr(0, ROOT_PATH_SIZE) != ROOT_PATH) {
+    if (path.substr(0, ROOT_PATH_SIZE) != ROOT_PATH_WITH_SLASH) {
         return true;
     }
 
@@ -1032,21 +1069,25 @@ bool PolicyInfoManager::CheckPathWithinRule(const std::string &path)
         }
     }
 
+    if (type == PolicyType::SELF_PATH) {
+        return CheckPathWithinBundleName(path, bundleName, components);
+    }
+
     // check whether path is longer than "/storage/Users/currentUser/appdata/*/*"
     if (components.size() > MAX_CHECK_COM_NUM) {
         return true;
     }
 
     // Check if the path is /storage/Users/currentUser/appdata and ensure it has more than 2 levels
-    size_t APPDATA_PATH_SIZE = APPDATA_PATH.length();
-    if ((path.size() >= APPDATA_PATH_SIZE) && (path.substr(0, APPDATA_PATH_SIZE) == APPDATA_PATH)) {
+    size_t APPDATA_PATH_SIZE = APPDATA_PATH_WITH_SLASH.length();
+    if ((path.size() >= APPDATA_PATH_SIZE) && (path.substr(0, APPDATA_PATH_SIZE) == APPDATA_PATH_WITH_SLASH)) {
         return false;
     }
 
     return true;
 }
 
-int32_t PolicyInfoManager::CheckPathIsBlocked(const std::string &path)
+int32_t PolicyInfoManager::CheckPathIsBlocked(const std::string &path, uint64_t type, const std::string &bundleName)
 {
     uint32_t length = path.length();
     const char *cStr = path.c_str();
@@ -1058,7 +1099,7 @@ int32_t PolicyInfoManager::CheckPathIsBlocked(const std::string &path)
     }
 
     std::string pathTmp = AdjustPath(path);
-    int ret = CheckPathWithinRule(pathTmp);
+    int ret = CheckPathWithinRule(pathTmp, type, bundleName);
     if (ret != true) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "path not allowed to set policy: %{public}s", path.c_str());
         return SandboxRetType::INVALID_PATH;

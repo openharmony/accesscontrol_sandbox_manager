@@ -38,6 +38,7 @@ struct PolicyVecRawData {
             ss.write(reinterpret_cast<const char *>(&pathLen), sizeof(pathLen));
             ss.write(in[i].path.c_str(), pathLen);
             ss.write(reinterpret_cast<const char *>(&in[i].mode), sizeof(in[i].mode));
+            ss.write(reinterpret_cast<const char *>(&in[i].type), sizeof(in[i].type));
         }
         serializedData = ss.str();
         data = reinterpret_cast<const void *>(serializedData.data());
@@ -71,6 +72,10 @@ struct PolicyVecRawData {
                 return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
             }
             ss.read(reinterpret_cast<char *>(&info.mode), sizeof(info.mode));
+            if (ss.fail() || ss.eof()) {
+                return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+            }
+            ss.read(reinterpret_cast<char *>(&info.type), sizeof(info.type));
             if (ss.fail() || ss.eof()) {
                 return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
             }

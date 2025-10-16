@@ -381,6 +381,41 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest008, TestSize.Level0)
 }
 
 /**
+ * @tc.name: PolicyInfoManagerTest009
+ * @tc.desc: Test CheckPathIsBlocked
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest009, TestSize.Level0)
+{
+    std::string path1 = "/storage/Users/currentUser/appdata";
+    std::string path2 = "/storage/Users/currentUser/appdata/el1/base/com.test";
+    std::string path3 = "/storage/Users/currentUser/appdata/el1/base/com.test";
+    std::string path4 = "/storage/Users/currentUser/appdata/el1/base/com.test";
+    std::string path5 = "/storage/Users/currentUser/appdata/el1/base/com.test";
+    std::string path6 = "/storage/Users/currentUser/appdata/el1/base/com.test";
+    std::string path7 = "/storage/Users/currentUser/appdata/el1/base/com.test";
+    std::string path8 = "/storage/Users/currentUser/appdata/el1/base/com.test/a";
+
+    EXPECT_EQ(SandboxRetType::INVALID_PATH,
+        PolicyInfoManager::GetInstance().CheckPathIsBlocked(path1, PolicyType::SELF_PATH));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH,
+        PolicyInfoManager::GetInstance().CheckPathIsBlocked(path2, PolicyType::SELF_PATH));
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().CheckPathIsBlocked(path3, PolicyType::UNKNOWN, "com.test"));
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().CheckPathIsBlocked(path4, PolicyType::UNKNOWN, ""));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH,
+        PolicyInfoManager::GetInstance().CheckPathIsBlocked(path5, PolicyType::SELF_PATH, "com.testt"));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH,
+        PolicyInfoManager::GetInstance().CheckPathIsBlocked(path6, PolicyType::SELF_PATH, ""));
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().CheckPathIsBlocked(path7, PolicyType::SELF_PATH, "com.test"));
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().CheckPathIsBlocked(path8, PolicyType::SELF_PATH, "com.test"));
+}
+
+/**
  * @tc.name: PolicyInfoManagerTest011
  * @tc.desc: Test CheckPolicyValidity
  * @tc.type: FUNC

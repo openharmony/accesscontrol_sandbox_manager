@@ -380,7 +380,7 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
 }
 
 int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData,
-                                         uint64_t policyFlag, Uint32VecRawData &resultRawData, uint64_t timestamp)
+    uint64_t policyFlag, Uint32VecRawData &resultRawData, const SetInfoParcel &setInfoParcel)
 {
     DelayUnloadService();
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
@@ -406,7 +406,7 @@ int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const PolicyVecRawDat
         return INVALID_PARAMTER;
     }
     std::vector<uint32_t> result;
-    ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policy, policyFlag, result, timestamp);
+    ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policy, policyFlag, result, setInfoParcel.setInfo);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -439,7 +439,9 @@ int32_t SandboxManagerService::SetPolicyAsync(uint32_t tokenId, const PolicyVecR
                                               uint64_t policyFlag, uint64_t timestamp)
 {
     Uint32VecRawData resultRawData;
-    return SetPolicy(tokenId, policyRawData, policyFlag, resultRawData, timestamp);
+    SetInfoParcel setInfoParcel;
+    setInfoParcel.setInfo.timestamp = timestamp;
+    return SetPolicy(tokenId, policyRawData, policyFlag, resultRawData, setInfoParcel);
 }
 
 int32_t SandboxManagerService::UnSetPolicyAsync(uint32_t tokenId, const PolicyInfoParcel &policyParcel)

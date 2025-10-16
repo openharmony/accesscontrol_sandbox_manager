@@ -77,11 +77,11 @@ public:
      * @param tokenId token id of the object
      * @param policy vector of PolicyInfo, see policy_info.h
      * @param result set result of each policy
-     * @param timestamp timestamp of policy
+     * @param setpolicy extra info of SetInfo, see policy_info.h
      * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
      */
     int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                      std::vector<uint32_t> &result, uint64_t timestamp = 0);
+                      std::vector<uint32_t> &result, const SetInfo &info = SetInfo());
     /**
      * @brief unset policies of a certain tokenId
      * @param tokenId token id of the object
@@ -237,7 +237,7 @@ private:
      * @param path input path
      * @return INVALID_PATH / SANDBOX_MANAGER_OK
      */
-    int32_t CheckPathIsBlocked(const std::string &path);
+    int32_t CheckPathIsBlocked(const std::string &path, uint64_t type = 0, const std::string &bundleName = "");
     /**
      * @brief unset sandboxpolicy and record conditions
      * @param tokenId a given tokenId
@@ -278,9 +278,11 @@ private:
     int32_t GetMediaPolicyCommonWork(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &results, std::vector<size_t> &validIndex, std::vector<PolicyInfo> &normalPolicy);
     uint32_t CheckBeforeSetPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
-        std::vector<size_t> &validIndex, std::vector<PolicyInfo> &validPolicies);
+        std::vector<size_t> &validIndex, std::vector<PolicyInfo> &validPolicies, const SetInfo &setInfo);
     std::vector<std::string> splitPath(const std::string &path);
-    bool CheckPathWithinRule(const std::string &path);
+    bool CheckPathWithinBundleName(const std::string &path, const std::string &bundleName,
+        std::vector<std::string> &components);
+    bool CheckPathWithinRule(const std::string &path, uint64_t type, const std::string &bundleName);
     int32_t CleanPolicyByPathlist(uint32_t tokenId, std::vector<std::string> &list);
 };
 } // namespace SandboxManager
