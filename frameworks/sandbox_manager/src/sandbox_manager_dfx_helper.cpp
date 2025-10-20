@@ -113,6 +113,22 @@ void SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(
         "TOTAL_NUM", info.policyNum, "SUCCESS_NUM", info.successNum,
         "FAIL_NUM", info.failNum, "INVALID_NUM", info.invalidNum);
 }
+
+void SandboxManagerDfxHelper::WriteIncompatibleCall(
+    const uint32_t tokenid, std::string &reason, uint8_t type)
+{
+    std::string bundleName;
+    Security::AccessToken::HapTokenInfo hapTokenInfoRes;
+    int ret = Security::AccessToken::AccessTokenKit::GetHapTokenInfo(tokenid, hapTokenInfoRes);
+    if (ret != 0) {
+        bundleName = "not_get";
+    } else {
+        bundleName = hapTokenInfoRes.bundleName;
+    }
+    HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::ACCESS_TOKEN, "INCOMPATIBLE_CALL",
+        HiviewDFX::HiSysEvent::EventType::FAULT, "CMDLINE", bundleName,
+        "REASON", reason, "PATH_TYPE", type);
+}
 }
 }
 }

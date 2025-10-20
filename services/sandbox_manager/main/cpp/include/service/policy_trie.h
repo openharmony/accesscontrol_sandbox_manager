@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <stack>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -28,12 +29,14 @@ public:
 
     void Clear();
     void InsertPath(const std::string &path, uint64_t mode);
-    bool CheckPath(const std::string &path, uint64_t mode);
+    bool CheckPath(const std::string &path, uint64_t mode, const uint32_t tokenId);
 private:
     inline static const uint64_t MODE_FILTER = 0b11;
+    bool CheckPathNew(const std::string &path, uint64_t mode);
+    bool CheckPathOld(const std::string &path, uint64_t mode);
     std::vector<std::string> SplitPath(const std::string &path);
     bool IsPolicyMatch(uint64_t referMode, uint64_t searchMode);
-
+    static const std::unordered_map<std::string, int> DENIED_PATHS;
     std::unordered_map<std::string, PolicyTrie *> children_;
     bool isEndOfPath_ = false;
     uint64_t mode_ = 0;

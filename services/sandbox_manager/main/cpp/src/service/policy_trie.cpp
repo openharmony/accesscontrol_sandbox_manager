@@ -19,6 +19,12 @@
 #include <unordered_map>
 #include <vector>
 #include "policy_trie.h"
+#include "sandbox_manager_dfx_helper.h"
+ 
+static const int DENIED_PATHS_DEEP = 4;
+const std::unordered_map<std::string, int> PolicyTrie::DENIED_PATHS = {
+    {"/storage/Users/currentUser/appdata", DENIED_PATHS_DEEP}
+};
 
 void PolicyTrie::Clear()
 {
@@ -86,7 +92,47 @@ bool PolicyTrie::IsPolicyMatch(uint64_t referMode, uint64_t searchMode)
     return modeMatch;
 }
 
-bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode)
+bool PolicyTrie::CheckPathNew(const std::string &path, uint64_t mode)
+{
+    PolicyTrie *root = this;
+    std::vector<std::string> pathSegments = SplitPath(path);
+    PolicyTrie *curNode = root;
+
+    int needLevel = 0;
+    for (auto &[denyPath, level] : DENIED_PATHS) {
+        if (path.compare(0, denyPath.length(), denyPath) == 0 &&
+            (path.length() == denyPath.length() || path[denyPath.length()] == '/')) {
+            needLevel = level;
+        }
+    }
+
+    int32_t curLevel = 0;
+    // Accessing through the parent path needs to be restricted.
+    bool AccessingByParent = true;
+    bool flag = false;
+    for (const std::string &segment : pathSegments) {
+        if (curNode == nullptr || curNode->children_.count(segment) == 0) {
+            break;
+        }
+        curLevel++;
+        if (curNode->children_[segment]->isEndOfPath_) {
+            if (curLevel >= needLevel) {
+                AccessingByParent = false;
+            }
+            flag = IsPolicyMatch(curNode->children_[segment]->mode_, mode);
+        }
+
+        curNode = curNode->children_[segment];
+    }
+ 
+    if (AccessingByParent == true) {
+        return false;
+    }
+
+    return flag;
+}
+
+bool PolicyTrie::CheckPathOld(const std::string &path, uint64_t mode)
 {
     PolicyTrie *root = this;
     std::vector<std::string> pathSegments = SplitPath(path);
@@ -103,4 +149,16 @@ bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode)
         }
     }
     return false;
+}
+
+bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode, const uint32_t tokenId)
+{
+    bool retNew = CheckPathNew(path, mode);
+    bool retOld = CheckPathOld(path, mode);
+    if (retNew != retOld) {
+        std::string reason = "StartAccessingPolicy " + path;
+        OHOS::AccessControl::SandboxManager::SandboxManagerDfxHelper::WriteIncompatibleCall(tokenId, reason, 0);
+    }
+
+    return retOld;
 }

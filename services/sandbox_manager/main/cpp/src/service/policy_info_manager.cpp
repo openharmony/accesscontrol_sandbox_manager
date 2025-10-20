@@ -367,7 +367,7 @@ int32_t PolicyInfoManager::MatchNormalPolicy(const uint32_t tokenId, const std::
             continue;
         }
 
-        if (trieTree.CheckPath(policy[i].path, policy[i].mode)) {
+        if (trieTree.CheckPath(policy[i].path, policy[i].mode, tokenId)) {
             result[i] = SandboxRetType::OPERATE_SUCCESSFULLY;
         } else {
             result[i] = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
