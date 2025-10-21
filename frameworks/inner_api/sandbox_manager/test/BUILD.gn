@@ -39,12 +39,16 @@ ohos_unittest("libsandbox_manager_sdk_test") {
   sources = [
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/mac/mac_adapter.cpp",
     "unittest/src/sandbox_manager_kit_coverage_test.cpp",
+    "unittest/src/sandbox_manager_kit_supplemental_test.cpp",
     "unittest/src/sandbox_manager_kit_test.cpp",
   ]
 
   cflags_cc = [ "-DHILOG_ENABLE" ]
   if (sandbox_manager_with_dec) {
     cflags_cc += [ "-DDEC_ENABLED" ]
+  }
+  if (sandbox_manager_dec_ext) {
+    cflags_cc += [ "-DDEC_EXT" ]
   }
   configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 
