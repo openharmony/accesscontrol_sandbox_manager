@@ -304,6 +304,44 @@ HWTEST_F(SandboxManagerKitCoverageTest, SetPolicyAsync001, TestSize.Level0)
     uint64_t policyFlag = 0xff; // oxff is invalid input
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::SetPolicyAsync(GetSelfTokenID(), policy, policyFlag));
 }
+
+/**
+ * @tc.name: CheckPolicy001
+ * @tc.desc: CheckPolicy other tokenID without permission.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitCoverageTest, CheckPolicy001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    for (uint32_t i = 0; i < VALID_POLICY_SIZE; i++) {
+        PolicyInfo info;
+        policy.emplace_back(info);
+    }
+    std::vector<bool> result;
+    EXPECT_EQ(PERMISSION_DENIED, SandboxManagerKit::CheckPolicy(GetSelfTokenID() + 1, policy, result));
+}
+
+/**
+ * @tc.name: SetPolicyByBundleNameTest001
+ * @tc.desc: SetPolicyByBundleName without permission.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitCoverageTest, SetPolicyByBundleNameTest001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::CREATE_MODE
+    };
+    std::string bundleName = "sandbox_test";
+    policy.emplace_back(infoParent);
+    ASSERT_EQ(PERMISSION_DENIED, SandboxManagerKit::SetPolicyByBundleName(bundleName, 0,
+        policy, policyFlag, policyResult));
+}
 } //SandboxManager
 } //AccessControl
 } // OHOS
