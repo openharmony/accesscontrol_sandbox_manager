@@ -52,6 +52,7 @@ const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSI
 const std::string FILE_ACCESS_PERMISSION = "ohos.permission.FILE_ACCESS_MANAGER";
 #ifdef DEC_ENABLED
 const uint32_t INVALID_OPERATE_MODE = 0;
+const double SET_POLICY_MAX_TIME_SEC = 15.0;
 #endif
 const size_t MAX_POLICY_NUM = 8;
 const int DEC_POLICY_HEADER_RESERVED = 64;
@@ -525,7 +526,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PersistPolicyCoverage004, TestSize.L
 
     std::vector<PolicyInfo> policyChildren;
     PolicyInfo infoChildren = {
-        .path = "/A/B",
+        .path = "/A/B/C",
         .mode = OperateMode::WRITE_MODE
     };
     policyChildren.emplace_back(infoChildren);
@@ -592,6 +593,43 @@ HWTEST_F(SandboxManagerKitSupplementalTest, CleanPolicyByUserIdCoverage001, Test
 
     filePaths.emplace_back(infoParent.path);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPolicyByUserId(-1, filePaths));
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: MassiveIPCTest001
+ * @tc.desc: SetPolicy test time.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, MassiveIPCTest001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policySize = 200000;
+    uint64_t policyFlag = 1;
+
+    for (uint64_t i = 0; i < policySize; i++) {
+        PolicyInfo info;
+        info.mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
+        char path[1024];
+        sprintf_s(path, sizeof(path), "/data/temp/a/b/c/d/e/f/g/h/i/j/persist/%d", i);
+        info.path.assign(path);
+        policy.emplace_back(info);
+    }
+
+    std::vector<uint32_t> ret;
+    auto start = std::chrono::high_resolution_clock::now();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, ret));
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    std::cout << "SetPolicy cost " << duration.count() << "s" << std::endl;
+    EXPECT_LT(duration.count(), SET_POLICY_MAX_TIME_SEC)
+        << "SetPolicy takes more than 15 seconds!";
+    ASSERT_EQ(policySize, ret.size());
+    for (uint64_t i = 0; i < policySize; i++) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, ret[i]);
+    }
 }
 #endif
 } // SandboxManager
