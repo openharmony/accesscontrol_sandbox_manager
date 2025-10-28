@@ -748,58 +748,13 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyCoverage001, Tes
 #endif
 
 #ifdef DEC_ENABLED
-const int32_t FOUNDATION_UID = 5523;
-#define TEST_TIMESTAMP 5
 /**
  * @tc.name: StartAccessingPolicyCoverage002
- * @tc.desc: StartAccessingByTokenId with time.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyCoverage002, TestSize.Level0)
-{
-    std::vector<PolicyInfo> policy;
-    uint64_t policyFlag = 1;
-    std::vector<uint32_t> policyResult;
-    PolicyInfo info1 = {
-        .path = "/A/B",
-        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
-    };
-
-    policy.emplace_back(info1);
-    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult,
-        TEST_TIMESTAMP));
-    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
-    std::vector<uint32_t> retType;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
-    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
-    int32_t uid = getuid();
-    setuid(FOUNDATION_UID);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingByTokenId(g_mockToken, TEST_TIMESTAMP));
-    setuid(uid);
-    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetAllPolicyByToken(g_mockToken, TEST_TIMESTAMP - 1));
-    sleep(1);
-    std::vector<bool> result;
-    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
-    ASSERT_EQ(1, result.size());
-    EXPECT_TRUE(result[0]);
-    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetAllPolicyByToken(g_mockToken, TEST_TIMESTAMP + 1));
-    sleep(1);
-
-    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
-    ASSERT_EQ(1, result.size());
-    EXPECT_FALSE(result[0]);
-}
-#endif
-
-#ifdef DEC_ENABLED
-/**
- * @tc.name: StartAccessingPolicyCoverage003
  * @tc.desc: StartAccessingPolicy with time.
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyCoverage003, TestSize.Level0)
+HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyCoverage002, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
