@@ -54,6 +54,7 @@ const std::string FILE_ACCESS_PERMISSION = "ohos.permission.FILE_ACCESS_MANAGER"
 const uint32_t INVALID_OPERATE_MODE = 0;
 const double SET_POLICY_MAX_TIME_SEC = 15.0;
 const double CHECK_PERSIST_MAX_TIME_SEC = 200.0 / 1000.0;
+const int32_t FOUNDATION_UID = 5523;
 #define TEST_TIMESTAMP 5
 #endif
 const size_t MAX_POLICY_NUM = 8;
