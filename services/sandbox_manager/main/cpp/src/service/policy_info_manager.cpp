@@ -1099,7 +1099,7 @@ int32_t PolicyInfoManager::CheckPathIsBlocked(const std::string &path, uint64_t 
     }
 
     std::string pathTmp = AdjustPath(path);
-    int ret = CheckPathWithinRule(pathTmp, type, bundleName);
+    bool ret = CheckPathWithinRule(pathTmp, type, bundleName);
     if (ret != true) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "path not allowed to set policy: %{public}s", path.c_str());
         return SandboxRetType::INVALID_PATH;
