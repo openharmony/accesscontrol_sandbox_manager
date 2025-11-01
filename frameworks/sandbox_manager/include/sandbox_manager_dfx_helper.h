@@ -89,6 +89,7 @@ public:
     static void WriteTempPolicyOperateSucc(const OperateTypeEnum operateType, const PolicyOperateInfo &info);
     static void OperateInfoSetByMode(PolicyOperateInfo &info, uint32_t mode);
     static void WriteIncompatibleCall(const uint32_t tokenid, std::string &reason, uint8_t type);
+    static void WriteExceptionBranch(std::string &error);
 };
 } // SandboxManager
 } // AccessControl

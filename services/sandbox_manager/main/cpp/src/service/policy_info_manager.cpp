@@ -140,14 +140,14 @@ int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::strin
     for (const std::string& path : filePathList) {
         uint32_t length = path.length();
         if ((length == 0) || (length > POLICY_PATH_LIMIT)) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path check fail, length = %{public}zu.", path.length());
+            LOGE_WITH_REPORT(LABEL, "Policy path check fail, length = %{public}zu.", path.length());
             continue;
         }
         std::string pathTmp = AdjustPath(path);
         int32_t ret = SandboxManagerRdb::GetInstance().FindSubPath(
             SANDBOX_MANAGER_PERSISTED_POLICY, pathTmp, results);
         if (ret != SandboxManagerRdb::SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error.");
+            LOGE_WITH_REPORT(LABEL, "Database operate error.");
         }
     }
     if (results.empty()) {
@@ -179,14 +179,14 @@ int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vecto
     for (const std::string& path : filePathList) {
         uint32_t length = path.length();
         if ((length == 0) || (length > POLICY_PATH_LIMIT)) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path check fail, length = %{public}zu.", path.length());
+            LOGE_WITH_REPORT(LABEL, "Policy path check fail, length = %{public}zu.", path.length());
             continue;
         }
         std::string pathTmp = AdjustPath(path);
         int32_t ret = SandboxManagerRdb::GetInstance().FindSubPath(
             SANDBOX_MANAGER_PERSISTED_POLICY, pathTmp, results);
         if (ret != SandboxManagerRdb::SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error.");
+            LOGE_WITH_REPORT(LABEL, "Database operate error.");
         }
     }
     if (results.empty()) {
@@ -310,7 +310,7 @@ int32_t PolicyInfoManager::AddToDatabaseIfNotDuplicate(const uint32_t tokenId, c
     int32_t ret = SandboxManagerRdb::GetInstance().Add(
         SANDBOX_MANAGER_PERSISTED_POLICY, addPolicyGeneric, duplicateMode);
     if (ret != SandboxManagerRdb::SUCCESS) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
+        LOGE_WITH_REPORT(LABEL, "Database operate error");
         results.clear();
         return SANDBOX_MANAGER_DB_ERR;
     }
@@ -339,7 +339,7 @@ int32_t PolicyInfoManager::MatchNormalPolicy(const uint32_t tokenId, const std::
     std::vector<GenericValues> dbResults;
     int32_t ret = RangeFind(conditions, symbols, dbResults);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
+        LOGE_WITH_REPORT(LABEL, "Database operate error");
         return ret;
     }
 
@@ -431,7 +431,7 @@ int32_t PolicyInfoManager::RemoveNormalPolicy(const uint32_t tokenId, const std:
     if (!conditions.empty()) {
         int32_t ret = SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
         if (ret != SandboxManagerRdb::SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
+            LOGE_WITH_REPORT(LABEL, "Database operate error");
             return SANDBOX_MANAGER_DB_ERR;
         }
         WriteRemoveDfxInfo(conditions.size(), successNum, failNum, invalidNum, info);
@@ -467,7 +467,7 @@ int32_t PolicyInfoManager::RemovePolicy(
         std::vector<uint32_t> checkMediaResult(validMediaIndex.size(), 0);
         ret = SandboxManagerMedia::GetInstance().RemoveMediaPolicy(tokenId, mediaPolicy, checkMediaResult);
         if (ret != SandboxManagerRdb::SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "remove media operate error");
+            LOGE_WITH_REPORT(LABEL, "remove media operate error");
             return ret;
         }
         size_t resultIndex = 0;
@@ -640,7 +640,7 @@ bool PolicyInfoManager::RemoveBundlePolicy(const uint32_t tokenId)
     int32_t ret = SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY,
         conditions);
     if (ret != SandboxManagerRdb::SUCCESS) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
+        LOGE_WITH_REPORT(LABEL, "Database operate error");
         return false;
     }
     PolicyOperateInfo info(0, 0, 0, 0);
@@ -666,7 +666,7 @@ int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId, uint6
     std::vector<GenericValues> dbResults;
     int32_t ret = RangeFind(conditions, symbols, dbResults);
     if (ret == SANDBOX_MANAGER_DB_ERR) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Database operate error");
+        LOGE_WITH_REPORT(LABEL, "Database operate error");
         return SANDBOX_MANAGER_DB_ERR;
     }
     size_t searchSize = dbResults.size();
@@ -966,7 +966,7 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
     // path not empty and lenth < POLICY_PATH_LIMIT
     uint32_t length = policy.path.length();
     if (length == 0 || length > POLICY_PATH_LIMIT) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path check fail, length = %{public}zu", policy.path.length());
+        LOGE_WITH_REPORT(LABEL, "Policy path check fail, length = %{public}zu", policy.path.length());
         return SandboxRetType::INVALID_PATH;
     }
 
@@ -974,13 +974,13 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
     if (SandboxManagerMedia::GetInstance().IsMediaPolicy(policy.path)) {
         if (policy.mode < OperateMode::READ_MODE ||
             policy.mode > OperateMode::READ_MODE + OperateMode::WRITE_MODE) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Media uri policy check fail: %{public}" PRIu64, policy.mode);
+            LOGE_WITH_REPORT(LABEL, "Media uri policy check fail: %{public}" PRIu64, policy.mode);
             return SandboxRetType::INVALID_MODE;
         }
     }
     // mode between 0 and 0b11(READ_MODE+WRITE_MODE)
     if (policy.mode < OperateMode::READ_MODE || policy.mode >= OperateMode::MAX_MODE) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy mode check fail: %{public}" PRIu64, policy.mode);
+        LOGE_WITH_REPORT(LABEL, "Policy mode check fail: %{public}" PRIu64, policy.mode);
         return SandboxRetType::INVALID_MODE;
     }
 
@@ -1093,7 +1093,7 @@ int32_t PolicyInfoManager::CheckPathIsBlocked(const std::string &path, uint64_t 
     const char *cStr = path.c_str();
     uint32_t cStrLength = strlen(cStr);
     if (length != cStrLength) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "path have a terminator: %{public}s, pathLen:%{public}u, cstrLen:%{public}u",
+        LOGE_WITH_REPORT(LABEL, "path have a terminator: %{public}s, pathLen:%{public}u, cstrLen:%{public}u",
             path.c_str(), length, cStrLength);
         return SandboxRetType::INVALID_PATH;
     }
@@ -1101,7 +1101,7 @@ int32_t PolicyInfoManager::CheckPathIsBlocked(const std::string &path, uint64_t 
     std::string pathTmp = AdjustPath(path);
     int ret = CheckPathWithinRule(pathTmp, type, bundleName);
     if (ret != true) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "path not allowed to set policy: %{public}s", path.c_str());
+        LOGE_WITH_REPORT(LABEL, "path not allowed to set policy: %{public}s", path.c_str());
         return SandboxRetType::INVALID_PATH;
     }
     return SANDBOX_MANAGER_OK;

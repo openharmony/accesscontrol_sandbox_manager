@@ -26,6 +26,7 @@ ohos_shared_library("sandbox_manager_service_common") {
   branch_protector_ret = "pac_ret"
 
   include_dirs = [
+    "${sandbox_manager_path}/frameworks/sandbox_manager/include",
     "${sandbox_manager_path}/frameworks/common/include",
     "${sandbox_manager_path}/interfaces/inner_api/sandbox_manager/include",
     "database/include",
