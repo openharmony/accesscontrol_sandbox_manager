@@ -32,6 +32,7 @@ const uint32_t POLICY_PATH_LIMIT = 4095;
 
 int32_t SandboxManagerKit::CleanPersistPolicyByPath(const std::vector<std::string> &filePathList)
 {
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input filePath size = %{public}zu", filePathList.size());
     size_t filePathSize = filePathList.size();
     if (filePathSize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "FilePathSize = %{public}zu", filePathSize);
@@ -42,7 +43,7 @@ int32_t SandboxManagerKit::CleanPersistPolicyByPath(const std::vector<std::strin
 
 int32_t SandboxManagerKit::PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input policySize = %{public}zu", policy.size());
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
@@ -54,7 +55,7 @@ int32_t SandboxManagerKit::PersistPolicy(const std::vector<PolicyInfo> &policy, 
 
 int32_t SandboxManagerKit::UnPersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input policySize = %{public}zu", policy.size());
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
@@ -67,7 +68,7 @@ int32_t SandboxManagerKit::UnPersistPolicy(const std::vector<PolicyInfo> &policy
 int32_t SandboxManagerKit::PersistPolicy(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, policySize = %{public}zu", tokenId, policy.size());
     size_t policySize = policy.size();
     if ((policySize == 0) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u, tokenId = %{public}u.",
@@ -81,7 +82,7 @@ int32_t SandboxManagerKit::PersistPolicy(
 int32_t SandboxManagerKit::UnPersistPolicy(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, policySize = %{public}zu", tokenId, policy.size());
     size_t policySize = policy.size();
     if ((policySize == 0) || (tokenId == 0)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u, tokenId = %{public}u.",
@@ -110,7 +111,8 @@ int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
 int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                      uint64_t policyFlag, std::vector<uint32_t> &result, const SetInfo &setInfo)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, policySize = %{public}zu, "
+        "flag = %{public}" PRIu64 ".", tokenId, policy.size(), policyFlag);
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
@@ -131,8 +133,8 @@ int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
 int32_t SandboxManagerKit::SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
     const std::vector<PolicyInfo> &policy, uint64_t policyFlag, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_INFO(LABEL, "set policy by bundle name.");
-
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input policySize = %{public}zu, flag = %{public}" PRIu64 ".",
+        policy.size(), policyFlag);
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
@@ -149,6 +151,7 @@ int32_t SandboxManagerKit::SetPolicyByBundleName(const std::string &bundleName, 
 
 int32_t SandboxManagerKit::UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy)
 {
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u", tokenId);
     if (tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
         return INVALID_PARAMTER;
@@ -169,7 +172,7 @@ int32_t SandboxManagerKit::SetPolicyAsync(uint32_t tokenId, const std::vector<Po
 int32_t SandboxManagerKit::SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
     uint64_t timestamp)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, policySize = %{public}zu", tokenId, policy.size());
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
@@ -188,6 +191,7 @@ int32_t SandboxManagerKit::SetPolicyAsync(uint32_t tokenId, const std::vector<Po
 
 int32_t SandboxManagerKit::UnSetPolicyAsync(uint32_t tokenId, const PolicyInfo &policy)
 {
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u", tokenId);
     if (tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
         return SandboxManagerErrCode::INVALID_PARAMTER;
@@ -198,6 +202,7 @@ int32_t SandboxManagerKit::UnSetPolicyAsync(uint32_t tokenId, const PolicyInfo &
 int32_t SandboxManagerKit::CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                        std::vector<bool> &result)
 {
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, policySize = %{public}zu", tokenId, policy.size());
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
@@ -221,7 +226,7 @@ int32_t SandboxManagerKit::StartAccessingPolicy(const std::vector<PolicyInfo> &p
 int32_t SandboxManagerKit::StartAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
     bool useCallerToken, uint32_t tokenId, uint64_t timestamp)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, policySize = %{public}zu", tokenId, policy.size());
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
@@ -233,7 +238,7 @@ int32_t SandboxManagerKit::StartAccessingPolicy(const std::vector<PolicyInfo> &p
 
 int32_t SandboxManagerKit::StopAccessingPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
-    SANDBOXMANAGER_LOG_DEBUG(LABEL, "Called");
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input policySize = %{public}zu", policy.size());
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
@@ -246,8 +251,7 @@ int32_t SandboxManagerKit::StopAccessingPolicy(const std::vector<PolicyInfo> &po
 int32_t SandboxManagerKit::CheckPersistPolicy(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result)
 {
-    SANDBOXMANAGER_LOG_INFO(LABEL, "Check persist policy target:%{public}u policySize:%{public}zu", tokenId,
-        policy.size());
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, policySize = %{public}zu", tokenId, policy.size());
     size_t policySize = policy.size();
     if (policySize == 0 || tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "PolicySize = %{public}u", static_cast<uint32_t>(policySize));
@@ -289,6 +293,7 @@ int32_t SandboxManagerKit::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t time
 
 int32_t SandboxManagerKit::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
 {
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input userId = %{public}u.", userId);
     if (filePathList.empty()) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "filePathList empty");
         return SandboxManagerErrCode::INVALID_PARAMTER;

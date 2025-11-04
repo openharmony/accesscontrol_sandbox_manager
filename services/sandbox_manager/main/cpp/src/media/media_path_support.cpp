@@ -71,7 +71,7 @@ int32_t SandboxManagerMedia::InitMedia()
     if (media_ == nullptr) {
         media_ = Media::MediaLibraryExtendManager::GetMediaLibraryExtendManager();
         if (media_ == nullptr) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "GetMediaLibraryExtendManager error");
+            LOGE_WITH_REPORT(LABEL, "GetMediaLibraryExtendManager error");
             return INVALID_PARAMTER;
         }
         media_->InitMediaLibraryExtendManager();
@@ -100,7 +100,7 @@ int32_t SandboxManagerMedia::OperateModeToPhotoPermissionType(std::vector<uint32
         } else if (mode[i] == OperateMode::WRITE_MODE + OperateMode::READ_MODE) {
             out.emplace_back(Media::PhotoPermissionType::GRANT_PERSIST_READWRITE_IMAGEVIDEO);
         } else {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "OperateModeToPhotoPermissionType error, err mode = %{public}u", mode[i]);
+            LOGE_WITH_REPORT(LABEL, "OperateModeToPhotoPermissionType error, err mode = %{public}u", mode[i]);
             return INVALID_PARAMTER;
         }
     }
@@ -118,7 +118,7 @@ int32_t SandboxManagerMedia::OperateModeToMediaOperationMode(std::vector<uint32_
         } else if (mode[i] == OperateMode::WRITE_MODE + OperateMode::READ_MODE) {
             out.emplace_back(Media::OperationMode::READ_WRITE_MODE);
         } else {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "OperateModeToMediaOperationMode error, err mode = %{public}u", mode[i]);
+            LOGE_WITH_REPORT(LABEL, "OperateModeToMediaOperationMode error, err mode = %{public}u", mode[i]);
             return INVALID_PARAMTER;
         }
     }
@@ -136,7 +136,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeGrant(uint32_t tokenId, std::vecto
     SANDBOXMANAGER_LOG_INFO(LABEL, "GetUrisFromFusePaths, mediaPathSize:%{public}zu", mediaPaths.size());
     int32_t ret = media_->GetUrisFromFusePaths(mediaPaths, uris);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetUrisFromFusePaths error, err code:%{public}d", ret);
+        LOGE_WITH_REPORT(LABEL, "GetUrisFromFusePaths error, err code:%{public}d", ret);
         return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
 
@@ -145,7 +145,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeGrant(uint32_t tokenId, std::vecto
     MediaDfx(uris, mode);
     ret = media_->CheckPhotoUriPermission(tokenId, uris, mediaBool, mode);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Checkphotouripermission error, err code:%{public}d", ret);
+        LOGE_WITH_REPORT(LABEL, "Checkphotouripermission error, err code:%{public}d", ret);
         return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
 
@@ -156,7 +156,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeGrant(uint32_t tokenId, std::vecto
             needGrantMode.emplace_back(mode[i]);
         } else {
             std::string maskPath = SandboxManagerLog::MaskRealPath(uris[i].c_str());
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Uris:%{public}s, had no policy%{public}u", maskPath.c_str(), mode[i]);
+            LOGE_WITH_REPORT(LABEL, "Uris:%{public}s, had no policy%{public}u", maskPath.c_str(), mode[i]);
         }
     }
     ret = OperateModeToPhotoPermissionType(needGrantMode, type);
@@ -199,7 +199,7 @@ int32_t SandboxManagerMedia::AddMediaPolicy(uint32_t tokenId, const std::vector<
 {
     if (media_ == nullptr) {
         if (InitMedia() != SANDBOX_MANAGER_OK) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "InitMedia error");
+            LOGE_WITH_REPORT(LABEL, "InitMedia error");
             return SANDBOX_MANAGER_MEDIA_CALL_ERR;
         }
     }
@@ -235,7 +235,7 @@ int32_t SandboxManagerMedia::AddMediaPolicy(uint32_t tokenId, const std::vector<
         ret = media_->GrantPhotoUriPermission(callingTokenId, tokenId, needGrantUris,
             type, Media::HideSensitiveType::ALL_DESENSITIZE);
         if (ret != SANDBOX_MANAGER_OK) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "GrantPhotoUriPermission error, err code = %{public}d", ret);
+            LOGE_WITH_REPORT(LABEL, "GrantPhotoUriPermission error, err code = %{public}d", ret);
             return SANDBOX_MANAGER_MEDIA_CALL_ERR;
         }
     }
@@ -253,7 +253,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeCancel(uint32_t tokenId, std::vect
     SANDBOXMANAGER_LOG_INFO(LABEL, "GetUrisFromFusePaths, mediaPathSize:%{public}zu", mediaPaths.size());
     int32_t ret = media_->GetUrisFromFusePaths(mediaPaths, uris);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetUrisFromFusePaths error, err code:%{public}d", ret);
+        LOGE_WITH_REPORT(LABEL, "GetUrisFromFusePaths error, err code:%{public}d", ret);
         return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
 
@@ -269,7 +269,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeCancel(uint32_t tokenId, std::vect
     MediaDfx(uris, photoPermissionType);
     ret = media_->GetPhotoUrisPermission(tokenId, uris, photoPermissionType, mediaBool);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetPhotoUrisPermission error, err code:%{public}d", ret);
+        LOGE_WITH_REPORT(LABEL, "GetPhotoUrisPermission error, err code:%{public}d", ret);
         return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
 
@@ -280,7 +280,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeCancel(uint32_t tokenId, std::vect
             needCancelMode.emplace_back(mode[i]);
         } else {
             std::string maskPath = SandboxManagerLog::MaskRealPath(uris[i].c_str());
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Uris:%{public}s, had no policy%{public}u", maskPath.c_str(), mode[i]);
+            LOGE_WITH_REPORT(LABEL, "Uris:%{public}s, had no policy%{public}u", maskPath.c_str(), mode[i]);
         }
     }
 
@@ -297,7 +297,7 @@ int32_t SandboxManagerMedia::RemoveMediaPolicy(uint32_t tokenId, const std::vect
 {
     if (media_ == nullptr) {
         if (InitMedia() != SANDBOX_MANAGER_OK) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "InitMedia error");
+            LOGE_WITH_REPORT(LABEL, "InitMedia error");
             return SANDBOX_MANAGER_MEDIA_CALL_ERR;
         }
     }
@@ -333,7 +333,7 @@ int32_t SandboxManagerMedia::RemoveMediaPolicy(uint32_t tokenId, const std::vect
         ret = media_->CancelPhotoUriPermission(callingTokenId, tokenId, needCancelUris,
             CANCEL_PERSIST_FLAG, operationMode);
         if (ret != SANDBOX_MANAGER_OK) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "RemoveMediaPolicy persist error, err code:%{public}d", ret);
+            LOGE_WITH_REPORT(LABEL, "RemoveMediaPolicy persist error, err code:%{public}d", ret);
             return SANDBOX_MANAGER_MEDIA_CALL_ERR;
         }
     }
@@ -347,7 +347,7 @@ int32_t SandboxManagerMedia::GetMediaPermission(uint32_t tokenId, const std::vec
 {
     if (media_ == nullptr) {
         if (InitMedia() != SANDBOX_MANAGER_OK) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "InitMedia error");
+            LOGE_WITH_REPORT(LABEL, "InitMedia error");
             return SANDBOX_MANAGER_MEDIA_CALL_ERR;
         }
     }
@@ -367,7 +367,7 @@ int32_t SandboxManagerMedia::GetMediaPermission(uint32_t tokenId, const std::vec
     SANDBOXMANAGER_LOG_INFO(LABEL, "GetUrisFromFusePaths, mediaPathSize:%{public}zu", mediaPaths.size());
     int32_t ret = media_->GetUrisFromFusePaths(mediaPaths, uris);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetUrisFromFusePaths error, err code:%{public}d", ret);
+        LOGE_WITH_REPORT(LABEL, "GetUrisFromFusePaths error, err code:%{public}d", ret);
         return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
 
@@ -383,7 +383,7 @@ int32_t SandboxManagerMedia::GetMediaPermission(uint32_t tokenId, const std::vec
     MediaDfx(uris, photoPermissionType);
     ret = media_->GetPhotoUrisPermission(tokenId, uris, photoPermissionType, results);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetPhotoUrisPermission error, err code:%{public}d", ret);
+        LOGE_WITH_REPORT(LABEL, "GetPhotoUrisPermission error, err code:%{public}d", ret);
         return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
     return SANDBOX_MANAGER_OK;

@@ -126,9 +126,16 @@ void SandboxManagerDfxHelper::WriteIncompatibleCall(
         bundleName = hapTokenInfoRes.bundleName;
     }
     HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::ACCESS_TOKEN, "INCOMPATIBLE_CALL",
-        HiviewDFX::HiSysEvent::EventType::FAULT, "CMDLINE", bundleName,
+        HiviewDFX::HiSysEvent::EventType::STATISTIC, "CMDLINE", bundleName,
         "REASON", reason, "PATH_TYPE", type);
 }
+
+void SandboxManagerDfxHelper::WriteExceptionBranch(std::string &error)
+{
+    HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::SANDBOX_MANAGER, "EXCEPTION_BRANCH",
+        HiviewDFX::HiSysEvent::EventType::FAULT, "INFO", error);
+}
+
 }
 }
 }

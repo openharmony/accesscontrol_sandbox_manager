@@ -18,6 +18,7 @@
 #include <sstream>
 #include "policy_info.h"
 #include "sandbox_manager_err_code.h"
+#include "sandbox_manager_dfx_helper.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -48,40 +49,53 @@ struct PolicyVecRawData {
 
     int32_t Unmarshalling(std::vector<PolicyInfo> &out) const
     {
+        int32_t ret = SANDBOX_MANAGER_OK;
         std::stringstream ss;
         ss.write(reinterpret_cast<const char *>(data), size);
         uint32_t ssLength = static_cast<uint32_t>(ss.tellp());
         uint32_t policyNum = 0;
         ss.read(reinterpret_cast<char *>(&policyNum), sizeof(policyNum));
         if (ss.fail() || ss.eof() || (policyNum > POLICY_VEC_MAX_NUM)) {
-            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+            ret = SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+            std::string error = "Unmarshalling policy too big";
+            SandboxManagerDfxHelper::WriteExceptionBranch(error);
         }
         for (uint32_t i = 0; i < policyNum; i++) {
             uint32_t pathLen = 0;
             ss.read(reinterpret_cast<char *>(&pathLen), sizeof(pathLen));
             if (ss.fail() || ss.eof()) {
-                return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+                ret = SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+                break;
             }
             if (pathLen > ssLength - static_cast<uint32_t>(ss.tellg())) {
-                return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+                ret = SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+                break;
             }
             PolicyInfo info;
             info.path.resize(pathLen);
             ss.read(info.path.data(), pathLen);
             if (ss.fail() || ss.eof()) {
-                return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+                ret = SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+                break;
             }
             ss.read(reinterpret_cast<char *>(&info.mode), sizeof(info.mode));
             if (ss.fail() || ss.eof()) {
-                return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+                ret = SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+                break;
             }
             ss.read(reinterpret_cast<char *>(&info.type), sizeof(info.type));
             if (ss.fail() || ss.eof()) {
-                return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+                ret = SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+                break;
             }
             out.push_back(info);
         }
-        return SANDBOX_MANAGER_OK;
+
+        if (ret != SANDBOX_MANAGER_OK) {
+            std::string error = "Unmarshalling policy error";
+            SandboxManagerDfxHelper::WriteExceptionBranch(error);
+        }
+        return ret;
     }
 
     int32_t RawDataCpy(const void* inData)

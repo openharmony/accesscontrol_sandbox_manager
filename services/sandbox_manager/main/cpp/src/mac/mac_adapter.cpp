@@ -218,7 +218,7 @@ int32_t MacAdapter::SetDenyCfg(std::string &rawData)
         info.pathNum = curBatchSize;
         if (ioctl(fd_, DENY_DEC_RULE_CMD, &info) < 0) {
             for (size_t j = 0; j < curBatchSize; j++) {
-                SANDBOXMANAGER_LOG_ERROR(LABEL,
+                LOGE_WITH_REPORT(LABEL,
                     "Set deny failed errno=%{public}d, path = %{public}s, mode = %{public}x, num = %{public}d",
                     errno, info.pathInfos[j].path, info.pathInfos[j].mode, info.pathNum);
             }
@@ -326,8 +326,8 @@ int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std:
         }
 
         if (ioctl(fd_, cmd, &info) < 0) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Set policy failed at batch %{public}zu, errno=%{public}d.",
-                                     offset / MAX_POLICY_NUM, errno);
+            LOGE_WITH_REPORT(LABEL, "Set policy failed at batch %{public}zu, errno=%{public}d.",
+                offset / MAX_POLICY_NUM, errno);
             return SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
         for (size_t i = 0; i < curBatchSize; ++i) {
@@ -371,8 +371,8 @@ int32_t MacAdapter::QuerySandboxPolicy(uint32_t tokenId, const std::vector<Polic
         }
 
         if (ioctl(fd_, QUERY_POLICY_CMD, &info) < 0) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Query policy failed at batch %{public}zu, errno=%{public}d.",
-                                     offset / MAX_POLICY_NUM, errno);
+            LOGE_WITH_REPORT(LABEL, "Query policy failed at batch %{public}zu, errno=%{public}d.",
+                offset / MAX_POLICY_NUM, errno);
             return SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
         for (size_t i = 0; i < curBatchSize; ++i) {
@@ -417,8 +417,8 @@ int32_t MacAdapter::CheckSandboxPolicy(uint32_t tokenId, const std::vector<Polic
         }
 
         if (ioctl(fd_, CHECK_POLICY_CMD, &info) < 0) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy failed at batch %{public}zu, errno=%{public}d.",
-                                     offset / MAX_POLICY_NUM, errno);
+            LOGE_WITH_REPORT(LABEL, "Check policy failed at batch %{public}zu, errno=%{public}d.",
+                offset / MAX_POLICY_NUM, errno);
             return SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
         for (size_t i = 0; i < curBatchSize; ++i) {
@@ -467,8 +467,8 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const std::vector<Polic
         }
 
         if (ioctl(fd_, UN_SET_POLICY_CMD, &info) < 0) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Unset policy failed at batch %{public}zu, errno=%{public}d.",
-                                     offset / MAX_POLICY_NUM, errno);
+            LOGE_WITH_REPORT(LABEL, "Unset policy failed at batch %{public}zu, errno=%{public}d.",
+                offset / MAX_POLICY_NUM, errno);
             return SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
         for (size_t i = 0; i < curBatchSize; ++i) {
@@ -515,8 +515,8 @@ int32_t MacAdapter::UnSetSandboxPolicyByUser(int32_t userId, const std::vector<P
         }
 
         if (ioctl(fd_, DEL_DEC_POLICY_BY_USER_CMD, &info) < 0) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Unset policy failed at batch %{public}zu, errno=%{public}d.",
-                                     offset / MAX_POLICY_NUM, errno);
+            LOGE_WITH_REPORT(LABEL, "Unset policy failed at batch %{public}zu, errno=%{public}d.",
+                offset / MAX_POLICY_NUM, errno);
             return SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
         for (size_t i = 0; i < curBatchSize; ++i) {
@@ -559,8 +559,7 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const PolicyInfo &polic
     }
     if (ioctl(fd_, cmd, &info) < 0) {
         std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[0].path);
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unset policy failed, errno=%{public}d. path = %{public}s",
-                                 errno, maskPath.c_str());
+        LOGE_WITH_REPORT(LABEL, "Unset policy failed, errno=%{public}d. path = %{public}s", errno, maskPath.c_str());
         return SANDBOX_MANAGER_MAC_IOCTL_ERR;
     }
 
@@ -582,7 +581,7 @@ int32_t MacAdapter::DestroySandboxPolicy(uint32_t tokenId, uint64_t timestamp)
     info.timestamp = timestamp;
 
     if (ioctl(fd_, DESTROY_POLICY_CMD, &info) < 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Destroy policy failed, errno=%{public}d.", errno);
+        LOGE_WITH_REPORT(LABEL, "Destroy policy failed, errno=%{public}d.", errno);
         return SANDBOX_MANAGER_MAC_IOCTL_ERR;
     }
 
