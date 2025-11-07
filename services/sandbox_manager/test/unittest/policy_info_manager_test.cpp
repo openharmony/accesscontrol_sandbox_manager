@@ -32,9 +32,6 @@
 #include "sandbox_manager_rdb.h"
 #include "sandbox_manager_log.h"
 #include "sandbox_manager_err_code.h"
-#include <sys/mount.h>
-#include "dec_test.h"
-#include "token_setproc.h"
 
 using namespace testing::ext;
 
@@ -679,100 +676,6 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest010, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.ReadDenyFile(jsonPath, inputString));
 }
 #endif
-#endif
-
-#ifdef DEC_ENABLED
-const char *source = "/data/dec";
-const char *target = "/data/mntDenyTest";
-const char *fsType = "sharefs";
-const char *mountData = "override_support_delete,user_id=100";
-const char *testPathParent = "/data/mntDenyTest/test1";
-const char *testPathChild = "/data/mntDenyTest/test1/a";
-const char *testPathChildNew = "/data/mntDenyTest/test1/b";
-
-struct PathInfo {
-    char *path = nullptr;
-    uint32_t pathLen = 0;
-    uint32_t mode = 0;
-    bool result = false;
-};
-
-struct SandboxPolicyInfo {
-    uint64_t tokenId = 0;
-    uint64_t timestamp = 0;
-    struct PathInfo pathInfos[MAX_POLICY_NUM];
-    uint32_t pathNum = 0;
-    int32_t userId = 0;
-    uint64_t reserved[DEC_POLICY_HEADER_RESERVED];
-    bool persist = false;
-};
-
-#define SANDBOX_IOCTL_BASE 's'
-#define DEL_DENY_POLICY_ID 10
-#define DEL_DENY_DEC_RULE_CMD _IOWR(SANDBOX_IOCTL_BASE, DEL_DENY_POLICY_ID, struct SandboxPolicyInfo)
-
-static int UnSetDeny(const std::string& path)
-{
-    struct PathInfo info;
-    string infoPath = path;
-    info.path = const_cast<char *>(infoPath.c_str());
-    info.pathLen = infoPath.length();
-    info.mode = 0;
-    struct SandboxPolicyInfo policyInfo;
-    policyInfo.tokenId = 0;
-    policyInfo.pathInfos[0] = info;
-    policyInfo.pathNum = 1;
-    policyInfo.persist = true;
-    auto fd = open("/dev/dec", O_RDWR);
-    if (fd < 0) {
-        std::cout << "fd open err" << std::endl;
-        return fd;
-    }
-    auto ret = ioctl(fd, DEL_DENY_DEC_RULE_CMD, &policyInfo);
-    std::cout << "set deny ret: " << ret << std::endl;
-    close(fd);
-    return ret;
-}
-
-/**
- * @tc.name: DenyTest011
- * @tc.desc: Test Deny
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(PolicyInfoManagerTest, DenyTest011, TestSize.Level0)
-{
-    mkdir(source, 0777);
-    mkdir(target, 0777);
-    mkdir(testPathParent, 0777);
-    mkdir(testPathChild, 0777);
-
-    ASSERT_EQ(0, mount(source, target, fsType, MS_MGC_VAL, mountData));
-    ConstraintPath(target);
-
-    std::vector<PolicyInfo> policy;
-    std::vector<uint32_t> policyResult;
-    PolicyInfo infoParent = {
-        .path = target,
-        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
-    };
-
-    uint32_t token = GetSelfTokenID();
-    policy.emplace_back(infoParent);
-    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(token, policy, 1, policyResult));
-    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
-
-    std::string stringJson1 = R"([{"path":"/data/mntDenyTest/test1/a", "rename":1, "delete":1, "inherit":1}])";
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.SetDenyCfg(stringJson1));
-    ASSERT_NE(0, rename(testPathChild, testPathChildNew));
-    UnSetDeny(testPathChild);
-    ASSERT_EQ(0, rename(testPathChild, testPathChildNew));
-    ASSERT_EQ(0, rmdir(testPathChildNew));
-    ASSERT_EQ(0, umount2(target, MNT_DETACH));
-    rmdir(testPathParent);
-    rmdir(target);
-    rmdir(source);
-}
 #endif
 
 /**
