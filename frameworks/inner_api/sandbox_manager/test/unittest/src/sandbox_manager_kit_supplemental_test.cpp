@@ -54,6 +54,7 @@ const std::string FILE_ACCESS_PERMISSION = "ohos.permission.FILE_ACCESS_MANAGER"
 const uint32_t INVALID_OPERATE_MODE = 0;
 const double SET_POLICY_MAX_TIME_SEC = 15.0;
 const double CHECK_PERSIST_MAX_TIME_SEC = 200.0 / 1000.0;
+const int32_t FOUNDATION_UID = 5523;
 #define TEST_TIMESTAMP 5
 #endif
 const size_t MAX_POLICY_NUM = 8;
@@ -1195,6 +1196,299 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PolicyAsyncCoverage002, TestSize.Lev
     EXPECT_TRUE(result[0]);
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, info1));
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: SetPolicyWithUIDCoverage001
+ * @tc.desc: setpolicy with default userId
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, SetPolicyWithUIDCoverage001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    policy.emplace_back(info1);
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        userId = 100; // set default userId
+    }
+
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+
+    std::vector<std::string> filePaths;
+    filePaths.emplace_back(info1.path);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPolicyByUserId(userId, filePaths));
+    sleep(1);
+
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_FALSE(result[0]);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: SetPolicyWithUIDCoverage002
+ * @tc.desc: setpolicy without permission
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, SetPolicyWithUIDCoverage002, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    policy.emplace_back(info1);
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        userId = 100; // set default userId
+    }
+
+    std::vector<std::string> filePaths;
+    filePaths.emplace_back(info1.path);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPolicyByUserId(userId, filePaths));
+    sleep(1);
+
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_TRUE(result[0]);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, info1));
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: UnSetPolicyCoverage001
+ * @tc.desc: UnSetPolicy with invalid input
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, UnSetPolicyCoverage001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy1;
+    uint64_t policyFlag = 1;
+    PolicyInfo info1 = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    policy1.emplace_back(info1);
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy1, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    PolicyInfo info2 = {
+        .path = "",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetPolicy(0, info1));
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetPolicy(g_mockToken, info2));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, info1));
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: UnSetPolicyAsyncCoverage001
+ * @tc.desc: UnSetPolicyAsync with invalid input
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, UnSetPolicyAsyncCoverage001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy1;
+    uint64_t policyFlag = 1;
+    PolicyInfo info1 = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    policy1.emplace_back(info1);
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy1, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetPolicyAsync(0, info1));
+
+    PolicyInfo info2 = {
+        .path = "",
+        .mode = 0
+    };
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicyAsync(g_mockToken, info2));
+    sleep(1);
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy1, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_TRUE(result[0]);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicyAsync(g_mockToken, info1));
+    sleep(1);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy1, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_FALSE(result[0]);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: UnSetAllPolicyByTokenCoverage001
+ * @tc.desc: UnSetAllPolicyByToken with invalid input
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, UnSetAllPolicyByTokenCoverage001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    policy.emplace_back(info1);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+
+    ASSERT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetAllPolicyByToken(0));
+    sleep(1);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetAllPolicyByToken(g_mockToken));
+    sleep(1);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: PolicyModeUnsetCoverage001
+ * @tc.desc: set r + w, unset r, clean all.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, PolicyModeUnsetCoverage001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy1;
+    std::vector<PolicyInfo> policy3;
+    std::vector<uint32_t> persistResult;
+    PolicyInfo info1 = {
+        .path = "/A/B",
+        .mode = OperateMode::WRITE_MODE
+    };
+    PolicyInfo info2 = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE
+    };
+    PolicyInfo info3 = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    policy1.emplace_back(info3);
+    uint64_t policyFlag = 1;
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy1, policyFlag, persistResult));
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy1, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    policy3.emplace_back(info1);
+    policy3.emplace_back(info2);
+    policy3.emplace_back(info3);
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy3, checkResult));
+    ASSERT_EQ(3, checkResult.size());
+    EXPECT_TRUE(checkResult[0]);
+    EXPECT_TRUE(checkResult[1]);
+    EXPECT_TRUE(checkResult[2]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, info1));
+    sleep(1);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy3, checkResult));
+    ASSERT_EQ(3, checkResult.size());
+    EXPECT_FALSE(checkResult[0]);
+    EXPECT_FALSE(checkResult[1]);
+    EXPECT_FALSE(checkResult[2]);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: StartAccessingPolicyCoverage003
+ * @tc.desc: StartAccessingByTokenId with time.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyCoverage003, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    policy.emplace_back(info1);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult,
+        TEST_TIMESTAMP));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+    int32_t uid = getuid();
+    setuid(FOUNDATION_UID);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingByTokenId(g_mockToken, TEST_TIMESTAMP));
+    setuid(uid);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetAllPolicyByToken(g_mockToken, TEST_TIMESTAMP - 1));
+    sleep(1);
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_TRUE(result[0]);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetAllPolicyByToken(g_mockToken, TEST_TIMESTAMP + 1));
+    sleep(1);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(1, result.size());
+    EXPECT_FALSE(result[0]);
 }
 #endif
 } // SandboxManager
