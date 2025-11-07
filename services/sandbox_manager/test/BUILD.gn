@@ -33,7 +33,8 @@ if (!sandbox_manager_process_resident) {
 }
 
 sandbox_manager_service_mock_src = [
-  "mock/src/media_path_mock.cpp"
+  "mock/src/media_path_mock.cpp",
+  "mock/src/dec_test.cpp"
 ]
 
 sandbox_manager_service_mock_include = [
