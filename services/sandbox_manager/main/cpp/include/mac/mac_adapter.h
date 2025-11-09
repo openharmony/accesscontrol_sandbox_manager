@@ -39,6 +39,9 @@ public:
     int32_t SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
         MacParams &macParams);
     int32_t UnSetSandboxPolicy(uint32_t tokenId, const PolicyInfo &policy);
+    int32_t SetDenyPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+        MacParams &macParams);
+    int32_t UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &policy);
     int32_t UnSetSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     int32_t QuerySandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     int32_t CheckSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
@@ -51,6 +54,9 @@ public:
     void DenyInit();
 #endif
 private:
+    int32_t SetPolicyToMac(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+        MacParams &macParams, int32_t cmd);
+    int32_t UnSetPolicyToMac(uint32_t tokenId, const PolicyInfo &policy, int32_t cmd);
     int32_t fd_ = -1;
     bool isMacSupport_ = false;
 };

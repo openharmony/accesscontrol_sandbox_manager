@@ -188,6 +188,35 @@ int32_t SandboxManagerClient::UnSetPolicy(uint32_t tokenId, const PolicyInfo &po
     return CallProxyWithRetry(func, __FUNCTION__);
 }
 
+int32_t SandboxManagerClient::SetDenyPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+                                            std::vector<uint32_t> &result)
+{
+    PolicyVecRawData policyRawData;
+    policyRawData.Marshalling(policy);
+
+    result.clear();
+    Uint32VecRawData resultRawData;
+
+    std::function<int32_t(sptr<ISandboxManager> &)> func = [&](sptr<ISandboxManager> &proxy) {
+        return proxy->SetDenyPolicy(tokenId, policyRawData, resultRawData);
+    };
+    int32_t ret = CallProxyWithRetry(func, __FUNCTION__);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    resultRawData.Unmarshalling(result);
+    return ret;
+}
+
+int32_t SandboxManagerClient::UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &policy)
+{
+    PolicyInfoParcel policyParcel;
+    policyParcel.policyInfo = policy;
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->UnSetDenyPolicy(tokenId, policyParcel); };
+    return CallProxyWithRetry(func, __FUNCTION__);
+}
+
 int32_t SandboxManagerClient::SetPolicyAsync(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                              uint64_t policyFlag, uint64_t timestamp)
 {

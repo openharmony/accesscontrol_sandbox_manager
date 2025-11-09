@@ -414,6 +414,38 @@ int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const PolicyVecRawDat
     return SANDBOX_MANAGER_OK;
 }
 
+int32_t SandboxManagerService::SetDenyPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData,
+    Uint32VecRawData &resultRawData)
+{
+    DelayUnloadService();
+    if (IPCSkeleton::GetCallingUid() != SPACE_MGR_SERVICE_UID) {
+        LOGE_WITH_REPORT(LABEL, "Not space_mgr uid, permision denied.");
+        return PERMISSION_DENIED;
+    }
+    std::vector<PolicyInfo> policy;
+    int32_t ret = policyRawData.Unmarshalling(policy);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    size_t policySize = policy.size();
+    if (policySize == 0) {
+        LOGE_WITH_REPORT(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
+        return INVALID_PARAMTER;
+    }
+    if (tokenId == 0) {
+        LOGE_WITH_REPORT(LABEL, "Check tokenId failed.");
+        return INVALID_PARAMTER;
+    }
+
+    std::vector<uint32_t> result;
+    ret = PolicyInfoManager::GetInstance().SetDenyPolicy(tokenId, policy, result);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    resultRawData.Marshalling(result);
+    return SANDBOX_MANAGER_OK;
+}
+
 int32_t SandboxManagerService::UnSetPolicy(uint32_t tokenId, const PolicyInfoParcel &policyParcel)
 {
     DelayUnloadService();
@@ -432,6 +464,26 @@ int32_t SandboxManagerService::UnSetPolicy(uint32_t tokenId, const PolicyInfoPar
     }
 
     return PolicyInfoManager::GetInstance().UnSetPolicy(tokenId, policyParcel.policyInfo);
+}
+
+int32_t SandboxManagerService::UnSetDenyPolicy(uint32_t tokenId, const PolicyInfoParcel &policyParcel)
+{
+    DelayUnloadService();
+    if (IPCSkeleton::GetCallingUid() != SPACE_MGR_SERVICE_UID) {
+        LOGE_WITH_REPORT(LABEL, "Not space_mgr uid, permision denied.");
+        return PERMISSION_DENIED;
+    }
+    if (tokenId == 0) {
+        LOGE_WITH_REPORT(LABEL, "Check tokenId failed.");
+        return INVALID_PARAMTER;
+    }
+    uint32_t length = policyParcel.policyInfo.path.length();
+    if (length == 0 || length > POLICY_PATH_LIMIT) {
+        LOGE_WITH_REPORT(LABEL, "Policy path size check failed, length= %{public}u", length);
+        return INVALID_PARAMTER;
+    }
+
+    return PolicyInfoManager::GetInstance().UnSetDenyPolicy(tokenId, policyParcel.policyInfo);
 }
 
 int32_t SandboxManagerService::SetPolicyAsync(uint32_t tokenId, const PolicyVecRawData &policyRawData,

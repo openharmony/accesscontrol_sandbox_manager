@@ -55,6 +55,9 @@ public:
     int32_t SetPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData, uint64_t policyFlag,
         Uint32VecRawData &resultRawData, const SetInfoParcel &setInfoParcel = SetInfoParcel()) override;
     int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfoParcel &policyParcel) override;
+    int32_t SetDenyPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData,
+        Uint32VecRawData &resultRawData) override;
+    int32_t UnSetDenyPolicy(uint32_t tokenId, const PolicyInfoParcel &policyParcel) override;
     int32_t SetPolicyAsync(uint32_t tokenId, const PolicyVecRawData &policyRawData, uint64_t policyFlag,
         uint64_t timestamp = 0) override;
     int32_t UnSetPolicyAsync(uint32_t tokenId, const PolicyInfoParcel &policyParcel) override;
@@ -81,7 +84,6 @@ private:
     bool StartByEventAction(const SystemAbilityOnDemandReason& startReason);
     bool IsFileManagerCalling(uint32_t tokenCaller);
     bool PackageChangedEventAction(const SystemAbilityOnDemandReason &startReason);
-
     std::mutex stateMutex_;
     ServiceRunningState state_;
     static std::mutex unloadMutex_;
