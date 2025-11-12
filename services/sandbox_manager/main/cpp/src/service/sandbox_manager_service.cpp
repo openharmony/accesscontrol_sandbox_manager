@@ -771,8 +771,8 @@ bool SandboxManagerService::CheckPermission(const uint32_t tokenId, const std::s
         SANDBOXMANAGER_LOG_INFO(LABEL, "Check permission token:%{public}u pass", tokenId);
         return true;
     }
-    SandboxManagerDfxHelper::WritePermissionCheckFailEvent(permission, tokenId);
-    SANDBOXMANAGER_LOG_ERROR(LABEL, "Check permission token:%{public}u fail", tokenId);
+
+    LOGE_WITH_REPORT(LABEL, "Check permission %{public}s token:%{public}u fail", permission.c_str(), tokenId);
     return false;
 }
 
@@ -783,7 +783,8 @@ bool SandboxManagerService::IsFileManagerCalling(uint32_t tokenCaller)
             "file_manager_service");
     }
     if (tokenCaller != tokenFileManagerId_) {
-        SandboxManagerDfxHelper::WritePermissionCheckFailEvent(FILE_ACCESS_PERMISSION_NAME, tokenCaller);
+        LOGE_WITH_REPORT(LABEL, "Check permission %{public}s token:%{public}u fail",
+            FILE_ACCESS_PERMISSION_NAME.c_str(), tokenCaller);
         return false;
     }
 

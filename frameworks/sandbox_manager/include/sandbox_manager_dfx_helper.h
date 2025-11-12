@@ -83,13 +83,11 @@ public:
 
 class SandboxManagerDfxHelper {
 public:
-    static void WritePermissionCheckFailEvent(const std::string &permission,
-        const uint32_t callerTokenid = 0, const uint32_t callerPid = 0);
     static void WritePersistPolicyOperateSucc(const OperateTypeEnum operateType, const PolicyOperateInfo &info);
     static void WriteTempPolicyOperateSucc(const OperateTypeEnum operateType, const PolicyOperateInfo &info);
     static void OperateInfoSetByMode(PolicyOperateInfo &info, uint32_t mode);
     static void WriteIncompatibleCall(const uint32_t tokenid, std::string &reason, uint8_t type);
-    static void WriteExceptionBranch(std::string &error);
+    static void WriteExceptionBranch(std::string &error, const uint32_t tokenid = 0, const uint32_t errNum = 0);
 };
 } // SandboxManager
 } // AccessControl
