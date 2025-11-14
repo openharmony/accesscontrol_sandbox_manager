@@ -232,6 +232,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicy001, TestSize.Le
 #endif
 
 #ifdef DEC_ENABLED
+const int32_t SPACE_MGR_SERVICE_UID = 7013;
 #ifdef DEC_EXT
 /**
  * @tc.name: PhysicalPathDenyTest001
@@ -242,7 +243,6 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicy001, TestSize.Le
 HWTEST_F(SandboxManagerKitSupplementalTest, PhysicalPathDenyTest001, TestSize.Level1)
 {
     std::vector<PolicyInfo> policy;
-    uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
     PolicyInfo info1 = {
         .path = "/data/service/el1/100/",
@@ -251,28 +251,142 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PhysicalPathDenyTest001, TestSize.Le
     const uint32_t tokenId = g_mockToken;
     policy.emplace_back(info1);
 
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+
     const char *DISTRIBUTE_PATH = "/data/service/el1/100/distributeddata";
     DIR *dir = opendir(DISTRIBUTE_PATH);
     ASSERT_NE(dir, nullptr);
     closedir(dir);
 
-    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, policyResult));
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(tokenId, policy, policyResult));
     ASSERT_EQ(1, policyResult.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
 
     dir = opendir(DISTRIBUTE_PATH);
     ASSERT_EQ(dir, nullptr);
 
-    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(tokenId, info1));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetDenyPolicy(tokenId, info1));
     dir = opendir(DISTRIBUTE_PATH);
     ASSERT_NE(dir, nullptr);
     closedir(dir);
 
-    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, policyResult));
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(tokenId, policy, policyResult));
     dir = opendir(DISTRIBUTE_PATH);
     ASSERT_EQ(dir, nullptr);
+    setuid(uid);
 }
 #endif // DEC_EXT
+
+/**
+ * @tc.name: PhysicalPathDenyTest002
+ * @tc.desc: test deny physical path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, PhysicalPathDenyTest002, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/data/service/el1/100/",
+        .mode = OperateMode::DENY_READ_MODE
+    };
+    const uint32_t tokenId = g_mockToken;
+    policy.emplace_back(info1);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(tokenId, policy, 1, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(INVALID_MODE, policyResult[0]);
+
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetPolicy(tokenId, info1));
+}
+
+/**
+ * @tc.name: PhysicalPathDenyTest003
+ * @tc.desc: test deny physical path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, PhysicalPathDenyTest003, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/data/service/el1/100/",
+        .mode = OperateMode::READ_MODE
+    };
+    const uint32_t tokenId = g_mockToken;
+    policy.emplace_back(info1);
+
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(tokenId, policy, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(INVALID_MODE, policyResult[0]);
+
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetDenyPolicy(tokenId, info1));
+    setuid(uid);
+}
+
+/**
+ * @tc.name: PhysicalPathDenyTest004
+ * @tc.desc: test deny physical path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, PhysicalPathDenyTest004, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/data/service/el1/100/",
+        .mode = OperateMode::DENY_READ_MODE
+    };
+    const uint32_t tokenId = g_mockToken;
+    policy.emplace_back(info1);
+
+    ASSERT_EQ(PERMISSION_DENIED, SandboxManagerKit::SetDenyPolicy(tokenId, policy, policyResult));
+    EXPECT_EQ(PERMISSION_DENIED, SandboxManagerKit::UnSetDenyPolicy(tokenId, info1));
+}
+
+/**
+ * @tc.name: PhysicalPathDenyTest005
+ * @tc.desc: test deny physical path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, PhysicalPathDenyTest005, TestSize.Level1)
+{
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/data/service/el1/100/",
+        .mode = OperateMode::DENY_READ_MODE
+    };
+    const uint32_t tokenId = g_mockToken;
+    policy.emplace_back(info1);
+
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(tokenId, policy, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(tokenId, policy, retType));
+    EXPECT_EQ(INVALID_MODE, retType[0]);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetDenyPolicy(tokenId, info1));
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
+    EXPECT_EQ(INVALID_MODE, unPersistResult[0]);
+
+    setuid(uid);
+}
+
 #endif // DEC_ENABLED
 
 #ifdef DEC_ENABLED

@@ -279,6 +279,12 @@ uint32_t PolicyInfoManager::FilterValidPolicyInBatch(const std::vector<PolicyInf
             results[i] = static_cast<uint32_t>(checkPolicyRet);
             continue;
         }
+
+        if (IsModeMatchPolicyType(policies[i].mode, SetPolicyType::TEMP_POLICY) != true) {
+            results[i] = SandboxRetType::INVALID_MODE;
+            continue;
+        }
+
         if (SandboxManagerMedia::GetInstance().IsMediaPolicy(policies[i].path)) {
             mediaIndexes.emplace_back(i);
         } else {
@@ -407,6 +413,10 @@ int32_t PolicyInfoManager::RemoveNormalPolicy(const uint32_t tokenId, const std:
             ++invalidNum;
             continue;
         }
+        if (IsModeMatchPolicyType(policy[i].mode, SetPolicyType::TEMP_POLICY) != true) {
+            result[i] = SandboxRetType::INVALID_MODE;
+            continue;
+        }
         if (SandboxManagerMedia::GetInstance().IsMediaPolicy(policy[i].path)) {
             mediaPolicy.emplace_back(policy[i]);
             validMediaIndex.emplace_back(i);
@@ -507,29 +517,72 @@ MacParams PolicyInfoManager::GetMacParams(uint32_t tokenId, uint64_t policyFlag,
     return macParams;
 }
 
-uint32_t PolicyInfoManager::CheckBeforeSetPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
-    std::vector<size_t> &validIndex, std::vector<PolicyInfo> &validPolicies, const SetInfo &setInfo)
+bool PolicyInfoManager::IsModeMatchPolicyType(uint64_t mode, SetPolicyType type)
 {
-    uint32_t invalidNum = 0;
-    size_t policySize = policy.size();
-    for (size_t index = 0; index < policySize; ++index) {
-        int32_t res = CheckPolicyValidity(policy[index]);
-        if (res != SANDBOX_MANAGER_OK) {
-            result[index] = static_cast<uint32_t>(res);
-            ++invalidNum;
-            continue;
-        }
-        res = CheckPathIsBlocked(policy[index].path, policy[index].type, setInfo.bundleName);
-        if (res != SANDBOX_MANAGER_OK) {
-            result[index] = static_cast<uint32_t>(res);
-            ++invalidNum;
-            continue;
-        }
-        validIndex.emplace_back(index);
-        validPolicies.emplace_back(policy[index]);
+    SetPolicyType modeType = SetPolicyType::TEMP_POLICY;
+    if ((mode & (OperateMode::DENY_READ_MODE | OperateMode::DENY_WRITE_MODE)) != 0) {
+        modeType = SetPolicyType::DENY_POLICY;
     }
 
-    return invalidNum;
+    return (type == modeType);
+}
+
+uint32_t PolicyInfoManager::CheckSetPolicyInput(const PolicyInfo &policy, const SetInfo &setInfo, SetPolicyType type)
+{
+    int32_t res = CheckPolicyValidity(policy);
+    if (res != SANDBOX_MANAGER_OK) {
+        return res;
+    }
+    res = CheckPathIsBlocked(policy.path, policy.type, setInfo.bundleName);
+    if (res != SANDBOX_MANAGER_OK) {
+        return res;
+    }
+
+    if (IsModeMatchPolicyType(policy.mode, type) != true) {
+        return SandboxRetType::INVALID_MODE;
+    }
+
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::SetPolicyByType(std::vector<PolicyInfo> &validPolicies, std::vector<uint32_t> &setResult,
+    MacParams &macParams, SetPolicyType type)
+{
+    if (type == SetPolicyType::DENY_POLICY) {
+        return macAdapter_.SetDenyPolicy(validPolicies, setResult, macParams);
+    } else {
+        return macAdapter_.SetSandboxPolicy(validPolicies, setResult, macParams);
+    }
+}
+
+int32_t PolicyInfoManager::SetPolicyInner(std::vector<PolicyInfo> &validPolicies, std::vector<size_t> &validIndex,
+    MacParams &macParams, std::vector<uint32_t> &result, PolicyInfoInner &innerInfo)
+{
+    size_t policySize = innerInfo.policySize;
+    uint32_t invalidNum = innerInfo.invalidNum;
+    if (validPolicies.empty()) {
+        LOGE_WITH_REPORT(LABEL, "In %{public}u policy,  No valid to set.", invalidNum);
+        return SANDBOX_MANAGER_OK;
+    }
+
+    std::vector<uint32_t> setResult(validPolicies.size(), SANDBOX_MANAGER_OK);
+    int32_t ret = SetPolicyByType(validPolicies, setResult, macParams, innerInfo.type);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Set sandbox policy failed, error=%{public}d.", ret);
+        PolicyOperateInfo info(policySize, 0, 0, invalidNum);
+        SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::SET_POLICY, info);
+        result.clear();
+        return ret;
+    }
+    size_t resultIndex = 0;
+    for (const auto &index : validIndex) {
+        result[index] = setResult[resultIndex++];
+    }
+    uint32_t successNum = static_cast<uint32_t>(std::count(setResult.begin(), setResult.end(), SANDBOX_MANAGER_OK));
+    uint32_t failNum = validPolicies.size() - successNum;
+    PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
+    SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::SET_POLICY, info);
+    return SANDBOX_MANAGER_OK;
 }
 
 int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
@@ -545,36 +598,52 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
     std::vector<size_t> validIndex;
     std::vector<PolicyInfo> validPolicies;
     uint32_t invalidNum = 0;
-    uint32_t failNum = 0;
-    uint32_t successNum = 0;
 
-    invalidNum = CheckBeforeSetPolicy(policy, result, validIndex, validPolicies, setInfo);
-    if (validPolicies.empty()) {
-        SANDBOXMANAGER_LOG_WARN(LABEL, "No valid policy to set.");
-        PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
-        SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::SET_POLICY, info);
+    for (size_t index = 0; index < policySize; ++index) {
+        int32_t res = CheckSetPolicyInput(policy[index], setInfo, SetPolicyType::TEMP_POLICY);
+        if (res != SANDBOX_MANAGER_OK) {
+            result[index] = static_cast<uint32_t>(res);
+            ++invalidNum;
+            continue;
+        }
+
+        validIndex.emplace_back(index);
+        validPolicies.emplace_back(policy[index]);
+    }
+    MacParams macParams = GetMacParams(tokenId, policyFlag, setInfo.timestamp);
+    PolicyInfoInner info = {invalidNum, policySize, SetPolicyType::TEMP_POLICY};
+    return SetPolicyInner(validPolicies, validIndex, macParams, result, info);
+}
+
+int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+    std::vector<uint32_t> &result)
+{
+    size_t policySize = policy.size();
+    if (!macAdapter_.IsMacSupport()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        result.resize(policySize, SandboxRetType::OPERATE_SUCCESSFULLY);
         return SANDBOX_MANAGER_OK;
     }
+    result.resize(policySize, INVALID_PATH);
+    std::vector<size_t> validIndex;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = 0;
 
-    std::vector<uint32_t> setResult(validPolicies.size(), SANDBOX_MANAGER_OK);
-    MacParams macParams = GetMacParams(tokenId, policyFlag, setInfo.timestamp);
-    int32_t ret = macAdapter_.SetSandboxPolicy(validPolicies, setResult, macParams);
-    if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Set sandbox policy failed, error=%{public}d.", ret);
-        PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
-        SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::SET_POLICY, info);
-        result.clear();
-        return ret;
+    SetInfo setInfo;
+    for (size_t index = 0; index < policySize; ++index) {
+        int32_t res = CheckSetPolicyInput(policy[index], setInfo, SetPolicyType::DENY_POLICY);
+        if (res != SANDBOX_MANAGER_OK) {
+            result[index] = static_cast<uint32_t>(res);
+            ++invalidNum;
+            continue;
+        }
+        validIndex.emplace_back(index);
+        validPolicies.emplace_back(policy[index]);
     }
-    size_t resultIndex = 0;
-    for (const auto &index : validIndex) {
-        result[index] = setResult[resultIndex++];
-    }
-    successNum = static_cast<uint32_t>(std::count(setResult.begin(), setResult.end(), SANDBOX_MANAGER_OK));
-    failNum = validPolicies.size() - successNum;
-    PolicyOperateInfo info(policySize, successNum, failNum, invalidNum);
-    SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::SET_POLICY, info);
-    return SANDBOX_MANAGER_OK;
+
+    MacParams macParams = GetMacParams(tokenId, 0, 0);
+    PolicyInfoInner info = {invalidNum, policySize, SetPolicyType::DENY_POLICY};
+    return SetPolicyInner(validPolicies, validIndex, macParams, result, info);
 }
 
 int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy)
@@ -583,11 +652,40 @@ int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const PolicyInfo &polic
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
         return SANDBOX_MANAGER_OK;
     }
+
+    if (IsModeMatchPolicyType(policy.mode, SetPolicyType::TEMP_POLICY) != true) {
+        return INVALID_PARAMTER;
+    }
+
     int32_t ret = macAdapter_.UnSetSandboxPolicy(tokenId, policy);
     if (ret != SANDBOX_MANAGER_OK) {
         PolicyOperateInfo info(1, 0, 1, 0);
         SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::UNSET_POLICY, info);
+        return ret;
     }
+    PolicyOperateInfo info(1, 1, 0, 0);
+    SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::UNSET_POLICY, info);
+    return ret;
+}
+
+int32_t PolicyInfoManager::UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &policy)
+{
+    if (!macAdapter_.IsMacSupport()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        return SANDBOX_MANAGER_OK;
+    }
+
+    if (IsModeMatchPolicyType(policy.mode, SetPolicyType::DENY_POLICY) != true) {
+        return INVALID_PARAMTER;
+    }
+
+    int32_t ret = macAdapter_.UnSetDenyPolicy(tokenId, policy);
+    if (ret != SANDBOX_MANAGER_OK) {
+        PolicyOperateInfo info(1, 0, 1, 0);
+        SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::UNSET_POLICY, info);
+        return ret;
+    }
+
     PolicyOperateInfo info(1, 1, 0, 0);
     SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::UNSET_POLICY, info);
     return ret;

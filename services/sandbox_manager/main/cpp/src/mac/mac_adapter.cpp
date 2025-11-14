@@ -289,12 +289,12 @@ void MacAdapter::CheckResult(std::vector<uint32_t> &result)
     }
 }
 
-int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
-    MacParams &macParams)
+int32_t MacAdapter::SetPolicyToMac(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+    MacParams &macParams, int32_t cmd)
 {
     SANDBOXMANAGER_LOG_INFO(LABEL,
-        "Set sandbox policy target:%{public}u flag:%{public}" PRIu64 " timestamp:%{public}" PRIu64 " userId:%{public}d",
-        macParams.tokenId, macParams.policyFlag, macParams.timestamp, macParams.userId);
+        "Set sandbox policy target:%{public}u flag:%{public}" PRIu64 " timestamp:%{public}" PRIu64 " userId:%{public}d"
+        "cmd:%{public}d", macParams.tokenId, macParams.policyFlag, macParams.timestamp, macParams.userId, cmd);
     if (fd_ < 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Not init yet.");
         return SANDBOX_MANAGER_MAC_NOT_INIT;
@@ -312,22 +312,18 @@ int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std:
         info.timestamp = macParams.timestamp;
         info.userId = macParams.userId;
 
-        int32_t cmd = SET_POLICY_CMD;
         for (size_t i = 0; i < curBatchSize; ++i) {
             info.pathInfos[i].path = const_cast<char *>(policy[offset + i].path.c_str());
             info.pathInfos[i].pathLen = policy[offset + i].path.length();
             info.pathInfos[i].mode = policy[offset + i].mode;
-            if ((info.pathInfos[i].mode & (OperateMode::DENY_READ_MODE | OperateMode::DENY_WRITE_MODE)) != 0) {
-                cmd = DENY_DEC_RULE_CMD;
-            }
             std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
             SANDBOXMANAGER_LOG_INFO(LABEL, "Set policy paths target:%{public}u path:%{public}s mode:%{public}d",
                 macParams.tokenId, maskPath.c_str(), info.pathInfos[i].mode);
         }
 
         if (ioctl(fd_, cmd, &info) < 0) {
-            LOGE_WITH_REPORT(LABEL, "Set policy failed at batch %{public}zu, errno=%{public}d.",
-                offset / MAX_POLICY_NUM, errno);
+            LOGE_WITH_REPORT(LABEL, "Set policy failed at batch %{public}zu, errno=%{public}d, cmd=%{public}d.",
+                offset / MAX_POLICY_NUM, errno, cmd);
             return SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
         for (size_t i = 0; i < curBatchSize; ++i) {
@@ -344,6 +340,19 @@ int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std:
     CheckResult(result);
     return SANDBOX_MANAGER_OK;
 }
+
+int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+    MacParams &macParams)
+{
+    return SetPolicyToMac(policy, result, macParams, SET_POLICY_CMD);
+}
+
+int32_t MacAdapter::SetDenyPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+    MacParams &macParams)
+{
+    return SetPolicyToMac(policy, result, macParams, DENY_DEC_RULE_CMD);
+}
+
 
 int32_t MacAdapter::QuerySandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                        std::vector<bool> &result)
@@ -536,7 +545,7 @@ int32_t MacAdapter::UnSetSandboxPolicyByUser(int32_t userId, const std::vector<P
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const PolicyInfo &policy)
+int32_t MacAdapter::UnSetPolicyToMac(uint32_t tokenId, const PolicyInfo &policy, int32_t cmd)
 {
     if (fd_ < 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Not init yet.");
@@ -550,20 +559,28 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const PolicyInfo &polic
     info.pathInfos[0].path = const_cast<char *>(policy.path.c_str());
     info.pathInfos[0].pathLen = policy.path.length();
     info.pathInfos[0].mode = policy.mode;
-    SANDBOXMANAGER_LOG_INFO(LABEL, "Unset sandbox policy target:%{public}u path:%{private}s mode:%{public}d", tokenId,
-        info.pathInfos[0].path, info.pathInfos[0].mode);
+    SANDBOXMANAGER_LOG_INFO(LABEL,
+        "Unset sandbox policy target:%{public}u path:%{private}s mode:%{public}d, cmd=%{public}d",
+        tokenId, info.pathInfos[0].path, info.pathInfos[0].mode, cmd);
 
-    int32_t cmd = UN_SET_POLICY_CMD;
-    if ((policy.mode & (OperateMode::DENY_READ_MODE | OperateMode::DENY_WRITE_MODE)) != 0) {
-        cmd = DEL_DENY_DEC_RULE_CMD;
-    }
     if (ioctl(fd_, cmd, &info) < 0) {
         std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[0].path);
-        LOGE_WITH_REPORT(LABEL, "Unset policy failed, errno=%{public}d. path = %{public}s", errno, maskPath.c_str());
+        LOGE_WITH_REPORT(LABEL, "Unset policy failed, errno=%{public}d. path = %{public}s, cmd=%{public}d",
+            errno, maskPath.c_str(), cmd);
         return SANDBOX_MANAGER_MAC_IOCTL_ERR;
     }
 
     return SANDBOX_MANAGER_OK;
+}
+
+int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const PolicyInfo &policy)
+{
+    return UnSetPolicyToMac(tokenId, policy, UN_SET_POLICY_CMD);
+}
+
+int32_t MacAdapter::UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &policy)
+{
+    return UnSetPolicyToMac(tokenId, policy, DEL_DENY_DEC_RULE_CMD);
 }
 
 int32_t MacAdapter::DestroySandboxPolicy(uint32_t tokenId, uint64_t timestamp)

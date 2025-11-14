@@ -300,6 +300,38 @@ int32_t SandboxManagerKit::CleanPolicyByUserId(uint32_t userId, const std::vecto
     }
     return SandboxManagerClient::GetInstance().CleanPolicyByUserId(userId, filePathList);
 }
+
+int32_t SandboxManagerKit::SetDenyPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+    std::vector<uint32_t> &result)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, policySize = %{public}zu", tokenId, policy.size());
+    size_t policySize = policy.size();
+    if (policySize == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
+        return INVALID_PARAMTER;
+    }
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
+        return INVALID_PARAMTER;
+    }
+
+    return SandboxManagerClient::GetInstance().SetDenyPolicy(tokenId, policy, result);
+}
+
+int32_t SandboxManagerKit::UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &policy)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u", tokenId);
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
+        return INVALID_PARAMTER;
+    }
+    uint32_t length = policy.path.length();
+    if (length == 0 || length > POLICY_PATH_LIMIT) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policy path size check failed, path=%{private}s", policy.path.c_str());
+        return INVALID_PARAMTER;
+    }
+    return SandboxManagerClient::GetInstance().UnSetDenyPolicy(tokenId, policy);
+}
 } // SandboxManager
 } // AccessControl
 } // OHOS

@@ -27,6 +27,18 @@ namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
 
+typedef enum SetPolicyType {
+    TEMP_POLICY = 0,
+    DENY_POLICY = 1,
+} SetPolicyType;
+
+struct PolicyInfoInner final {
+public:
+    uint32_t invalidNum;
+    size_t policySize;
+    SetPolicyType type;
+};
+
 class PolicyInfoManager {
 public:
     static PolicyInfoManager &GetInstance();
@@ -89,6 +101,21 @@ public:
      * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
      */
     int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy);
+    /**
+     * @brief set deny policies of a certain tokenId
+     * @param tokenId token id of the object
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @param result set result of each policy
+     * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
+     */
+    int32_t SetDenyPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+    /**
+     * @brief unset deny policies of a certain tokenId
+     * @param tokenId token id of the object
+     * @param policy PolicyInfo, see policy_info.h
+     * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
+     */
+    int32_t UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &policy);
     /**
      * @brief check policies of a certain tokenId
      * @param tokenId token id of the object
@@ -277,8 +304,12 @@ private:
         const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results);
     int32_t GetMediaPolicyCommonWork(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &results, std::vector<size_t> &validIndex, std::vector<PolicyInfo> &normalPolicy);
-    uint32_t CheckBeforeSetPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
-        std::vector<size_t> &validIndex, std::vector<PolicyInfo> &validPolicies, const SetInfo &setInfo);
+    bool IsModeMatchPolicyType(uint64_t mode, SetPolicyType policyType);
+    int32_t SetPolicyByType(std::vector<PolicyInfo> &validPolicies, std::vector<uint32_t> &setResult,
+        MacParams &macParams, SetPolicyType type);
+    int32_t SetPolicyInner(std::vector<PolicyInfo> &validPolicies, std::vector<size_t> &validIndex,
+        MacParams &macParams, std::vector<uint32_t> &result, PolicyInfoInner &info);
+    uint32_t CheckSetPolicyInput(const PolicyInfo &policy, const SetInfo &setInfo, SetPolicyType type);
     std::vector<std::string> splitPath(const std::string &path);
     bool CheckPathWithinBundleName(const std::string &path, const std::string &bundleName,
         std::vector<std::string> &components);

@@ -32,6 +32,7 @@ const std::string CHECK_POLICY_PERMISSION_NAME = "ohos.permission.CHECK_SANDBOX_
 const std::string ACCESS_PERSIST_PERMISSION_NAME = "ohos.permission.FILE_ACCESS_PERSIST";
 const std::string FILE_ACCESS_PERMISSION_NAME = "ohos.permission.FILE_ACCESS_MANAGER";
 
+const int32_t SPACE_MGR_SERVICE_UID = 7013;
 const int32_t FOUNDATION_UID = 5523;
 } // namespace SandboxManager
 } // namespace AccessControl

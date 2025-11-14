@@ -102,6 +102,21 @@ public:
      */
     static int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy);
     /**
+     * @brief Set deny policy with a given tokenId to MAC layer
+     * @param tokenId a given tokenId
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t SetDenyPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+        std::vector<uint32_t> &result);
+    /**
+     * @brief Unset deny policy with a given tokenId from MAC layer
+     * @param tokenId a given tokenId
+     * @param policy vector of PolicyInfo, see policy_info.h
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &policy);
+    /**
      * @brief Set policys with a given tokenId to MAC layer async
      * @param tokenId a given tokenId
      * @param policy vector of PolicyInfo, see policy_info.h
