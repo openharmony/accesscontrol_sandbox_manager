@@ -65,22 +65,6 @@ void SandboxManagerDfxHelper::OperateInfoSetByMode(PolicyOperateInfo &info, uint
     }
 }
 
-void SandboxManagerDfxHelper::WritePermissionCheckFailEvent(const std::string &permission,
-    const uint32_t callerTokenid, const uint32_t callerPid)
-{
-    uint32_t inputPid = callerPid;
-    if (inputPid == 0) {
-        inputPid = static_cast<uint32_t>(IPCSkeleton::GetCallingRealPid());
-    }
-    uint32_t inputTokenid = callerTokenid;
-    if (inputTokenid == 0) {
-        inputTokenid = IPCSkeleton::GetCallingTokenID();
-    }
-    HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::SANDBOX_MANAGER, "CALLER_PERMISSION_CHECK_FAILED",
-        HiviewDFX::HiSysEvent::EventType::FAULT, "CALLER_PID", inputPid,
-        "CALLER_TOKENID", inputTokenid, "PERMISSION_NAME", permission);
-}
-
 void SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(
     const OperateTypeEnum operateType, const PolicyOperateInfo &info)
 {
@@ -130,10 +114,14 @@ void SandboxManagerDfxHelper::WriteIncompatibleCall(
         "REASON", reason, "PATH_TYPE", type);
 }
 
-void SandboxManagerDfxHelper::WriteExceptionBranch(std::string &error)
+void SandboxManagerDfxHelper::WriteExceptionBranch(std::string &error, const uint32_t tokenid, const uint32_t errNum)
 {
+    uint32_t inputTokenid = tokenid;
+    if (inputTokenid == 0) {
+        inputTokenid = IPCSkeleton::GetCallingTokenID();
+    }
     HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::SANDBOX_MANAGER, "EXCEPTION_BRANCH",
-        HiviewDFX::HiSysEvent::EventType::FAULT, "INFO", error);
+        HiviewDFX::HiSysEvent::EventType::FAULT, "TOKENID", inputTokenid, "INFO", error, "ERRNUM", errNum);
 }
 
 }
