@@ -39,6 +39,7 @@ ohos_unittest("libsandbox_manager_sdk_test") {
   sources = [
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/mac/mac_adapter.cpp",
     "unittest/src/sandbox_manager_kit_coverage_test.cpp",
+    "unittest/src/sandbox_manager_kit_mode_test.cpp",
     "unittest/src/sandbox_manager_kit_permission_test.cpp",
     "unittest/src/sandbox_manager_kit_supplemental_test.cpp",
     "unittest/src/sandbox_manager_kit_test.cpp",
