@@ -318,8 +318,8 @@ int32_t SandboxManagerService::PersistPolicyByTokenId(
     uint32_t tokenId, const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData)
 {
     DelayUnloadService();
-    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
-    if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
+    if (IPCSkeleton::GetCallingUid() != FOUNDATION_UID) {
+        LOGE_WITH_REPORT(LABEL, "Not foundation userid, permission denied.");
         return PERMISSION_DENIED;
     }
     std::vector<PolicyInfo> policy;
@@ -354,7 +354,8 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
 {
     DelayUnloadService();
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
-    if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
+    if (!IsFileManagerCalling(callingTokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
         return PERMISSION_DENIED;
     }
     std::vector<PolicyInfo> policy;
@@ -546,6 +547,10 @@ int32_t SandboxManagerService::StartAccessingPolicy(const PolicyVecRawData &poli
         return ret;
     }
     if (!useCallerToken) {
+        if (IPCSkeleton::GetCallingUid() != FOUNDATION_UID) {
+            LOGE_WITH_REPORT(LABEL, "Not foundation userid, permission denied.");
+            return PERMISSION_DENIED;
+        }
         callingTokenId = tokenId;
     }
     size_t policySize = policy.size();

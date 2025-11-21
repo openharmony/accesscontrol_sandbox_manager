@@ -54,9 +54,9 @@ const std::string FILE_ACCESS_PERMISSION = "ohos.permission.FILE_ACCESS_MANAGER"
 const uint32_t INVALID_OPERATE_MODE = 0;
 const double SET_POLICY_MAX_TIME_SEC = 15.0;
 const double CHECK_PERSIST_MAX_TIME_SEC = 200.0 / 1000.0;
-const int32_t FOUNDATION_UID = 5523;
 #define TEST_TIMESTAMP 5
 #endif
+const int32_t FOUNDATION_UID = 5523;
 const size_t MAX_POLICY_NUM = 8;
 const int DEC_POLICY_HEADER_RESERVED = 64;
 uint32_t g_selfTokenId;
@@ -162,6 +162,7 @@ void SandboxManagerKitSupplementalTest::TearDownTestCase()
     Security::AccessToken::AccessTokenKit::DeleteToken(g_mockToken);
 }
 
+static int32_t g_uid;
 void SandboxManagerKitSupplementalTest::SetUp()
 {
     EXPECT_TRUE(MockTokenId("foundation"));
@@ -170,10 +171,13 @@ void SandboxManagerKitSupplementalTest::SetUp()
     EXPECT_NE(0, tokenIdEx.tokenIdExStruct.tokenID);
     g_mockToken = tokenIdEx.tokenIdExStruct.tokenID;
     EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    g_uid = getuid();
+    setuid(FOUNDATION_UID);
 }
 
 void SandboxManagerKitSupplementalTest::TearDown()
 {
+    setuid(g_uid);
     EXPECT_EQ(0, SetSelfTokenID(g_selfTokenId));
 }
 
@@ -367,6 +371,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PhysicalPathDenyTest005, TestSize.Le
     const uint32_t tokenId = g_mockToken;
     policy.emplace_back(info1);
 
+    setuid(g_uid);
     int32_t uid = getuid();
     setuid(SPACE_MGR_SERVICE_UID);
 
@@ -374,12 +379,13 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PhysicalPathDenyTest005, TestSize.Le
     ASSERT_EQ(1, policyResult.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
 
+    setuid(FOUNDATION_UID);
     std::vector<uint32_t> retType;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(tokenId, policy, retType));
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(tokenId, policy, retType));
     EXPECT_EQ(INVALID_MODE, retType[0]);
 
+    setuid(SPACE_MGR_SERVICE_UID);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetDenyPolicy(tokenId, info1));
-
     std::vector<uint32_t> unPersistResult;
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
     EXPECT_EQ(INVALID_MODE, unPersistResult[0]);
@@ -1322,6 +1328,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PolicyAsyncCoverage002, TestSize.Lev
  */
 HWTEST_F(SandboxManagerKitSupplementalTest, SetPolicyWithUIDCoverage001, TestSize.Level0)
 {
+    setuid(g_uid);
     std::vector<PolicyInfo> policy;
     std::vector<uint32_t> policyResult;
     PolicyInfo info1 = {

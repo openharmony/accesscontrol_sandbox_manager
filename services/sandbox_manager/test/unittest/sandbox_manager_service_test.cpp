@@ -330,7 +330,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest007, TestSize.Level
     Uint32VecRawData resultRawData1;
     EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->UnPersistPolicy(policyRawData, resultRawData1));
 }
- 
+
 /**
  * @tc.name: SandboxManagerServiceTest008
  * @tc.desc: Test PersistPolicyByTokenId UnPersistPolicyByTokenId
@@ -339,6 +339,8 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest007, TestSize.Level
  */
 HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest008, TestSize.Level0)
 {
+    int32_t uid = getuid();
+    setuid(FOUNDATION_UID);
     std::vector<PolicyInfo> policy;
     PolicyVecRawData policyRawData;
     policyRawData.Marshalling(policy);
@@ -346,43 +348,71 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest008, TestSize.Level
     uint64_t tokenId = 0;
     EXPECT_EQ(INVALID_PARAMTER,
         sandboxManagerService_->PersistPolicyByTokenId(tokenId, policyRawData, resultRawData));
+
+    setuid(uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
     EXPECT_EQ(INVALID_PARAMTER,
         sandboxManagerService_->UnPersistPolicyByTokenId(tokenId, policyRawData, resultRawData));
+    EXPECT_EQ(0, SetSelfTokenID(selfTokenId_));
+    setuid(FOUNDATION_UID);
     tokenId = 1;
     EXPECT_EQ(INVALID_PARAMTER,
         sandboxManagerService_->PersistPolicyByTokenId(tokenId, policyRawData, resultRawData));
+    setuid(uid);
+    tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
     EXPECT_EQ(INVALID_PARAMTER,
         sandboxManagerService_->UnPersistPolicyByTokenId(tokenId, policyRawData, resultRawData));
-
+    EXPECT_EQ(0, SetSelfTokenID(selfTokenId_));
+    setuid(FOUNDATION_UID);
     policy.resize(POLICY_VECTOR_SIZE + 1);
     PolicyVecRawData policyRawData1;
     policyRawData1.Marshalling(policy);
     Uint32VecRawData resultRawData1;
     EXPECT_EQ(SANDBOX_MANAGER_OK,
         sandboxManagerService_->PersistPolicyByTokenId(tokenId, policyRawData1, resultRawData1));
+    setuid(uid);
+    tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
     Uint32VecRawData resultRawData2;
     EXPECT_EQ(SANDBOX_MANAGER_OK,
         sandboxManagerService_->UnPersistPolicyByTokenId(tokenId, policyRawData1, resultRawData2));
+    EXPECT_EQ(0, SetSelfTokenID(selfTokenId_));
+    setuid(FOUNDATION_UID);
     tokenId = 0;
     EXPECT_EQ(INVALID_PARAMTER,
         sandboxManagerService_->PersistPolicyByTokenId(tokenId, policyRawData1, resultRawData));
+    setuid(uid);
+    tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
     EXPECT_EQ(INVALID_PARAMTER,
         sandboxManagerService_->UnPersistPolicyByTokenId(tokenId, policyRawData1, resultRawData));
-
+    EXPECT_EQ(0, SetSelfTokenID(selfTokenId_));
+    setuid(FOUNDATION_UID);
     policy.resize(1);
     PolicyVecRawData policyRawData2;
     policyRawData2.Marshalling(policy);
     EXPECT_EQ(INVALID_PARAMTER,
         sandboxManagerService_->PersistPolicyByTokenId(tokenId, policyRawData2, resultRawData));
+    setuid(uid);
+    tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
     EXPECT_EQ(INVALID_PARAMTER,
         sandboxManagerService_->UnPersistPolicyByTokenId(tokenId, policyRawData2, resultRawData));
+    EXPECT_EQ(0, SetSelfTokenID(selfTokenId_));
+    setuid(FOUNDATION_UID);
     tokenId = 1;
     Uint32VecRawData resultRawData3;
     EXPECT_EQ(SANDBOX_MANAGER_OK,
         sandboxManagerService_->PersistPolicyByTokenId(tokenId, policyRawData2, resultRawData3));
+    setuid(uid);
+    tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
     Uint32VecRawData resultRawData4;
     EXPECT_EQ(SANDBOX_MANAGER_OK,
         sandboxManagerService_->UnPersistPolicyByTokenId(tokenId, policyRawData2, resultRawData4));
+    EXPECT_EQ(0, SetSelfTokenID(selfTokenId_));
 }
  
 /**
@@ -747,10 +777,16 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest003, TestSiz
         sandboxManagerService_->PersistPolicy(policyRawData1, resultRawData1));
     EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
         sandboxManagerService_->UnPersistPolicy(policyRawData1, resultRawData1));
+    int32_t uid = getuid();
+    setuid(FOUNDATION_UID);
     EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
         sandboxManagerService_->PersistPolicyByTokenId(tokenId, policyRawData1, resultRawData1));
+    setuid(uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
     EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
         sandboxManagerService_->UnPersistPolicyByTokenId(tokenId, policyRawData1, resultRawData1));
+    EXPECT_EQ(0, SetSelfTokenID(selfTokenId_));
     EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
         sandboxManagerService_->CheckPolicy(selfTokenId_, policyRawData1, resultRawData2));
     EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
