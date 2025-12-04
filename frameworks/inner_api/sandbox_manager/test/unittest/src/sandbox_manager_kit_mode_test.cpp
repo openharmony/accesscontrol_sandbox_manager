@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2025 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -21,11 +21,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <vector>
-#include "access_token.h"
 #include "accesstoken_kit.h"
-#include "nativetoken_kit.h"
-#include "permission_def.h"
-#include "permission_state_full.h"
 #include "policy_info.h"
 #include "securec.h"
 #include "sandbox_manager_client.h"
