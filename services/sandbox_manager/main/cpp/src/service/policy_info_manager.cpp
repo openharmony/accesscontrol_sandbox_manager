@@ -69,6 +69,7 @@ void PolicyInfoManager::Init()
 {
     SandboxManagerRdb::GetInstance();
     macAdapter_.Init();
+    InitUserGrantMap();
 }
 
 void PolicyInfoManager::CleanPolicyOnMac(const std::vector<std::string> &filePathList, int32_t userId)
@@ -213,6 +214,58 @@ int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vecto
     return SANDBOX_MANAGER_OK;
 }
 
+void PolicyInfoManager::InitUserGrantMap()
+{
+    std::map<std::string, std::vector<std::string>> decPathMap = GetDecPathMap();
+    for (auto &[permission, pathList] : decPathMap) {
+        Security::AccessToken::PermissionDef permissionDefResult;
+        int ret = Security::AccessToken::AccessTokenKit::GetDefPermission(permission, permissionDefResult);
+        if ((ret == 0) && (permissionDefResult.grantMode == Security::AccessToken::GrantMode::USER_GRANT)) {
+            SANDBOXMANAGER_LOG_INFO(LABEL, "need add %{public}s permission", permission.c_str());
+            (void)AddToUserGrantMap(permission, pathList);
+        }
+    }
+}
+
+void PolicyInfoManager::AddToUserGrantMap(std::string permission, std::vector<std::string> pathList)
+{
+    for (const auto& path : pathList) {
+        g_userGrantMap[path] = permission;
+    }
+}
+
+bool PolicyInfoManager::FindInGrantMap(const uint32_t tokenId, const PolicyInfo &policy, std::string &permission)
+{
+    for (const auto &[path, perm] : g_userGrantMap) {
+        if (policy.path.substr(0, path.size()) != path) {
+            continue;
+        }
+
+        if (policy.path.size() == path.size() || policy.path[path.size()] == '/') {
+            permission = perm;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PolicyInfoManager::IsVerifyPermissionPass(const uint32_t tokenId, const PolicyInfo &policy)
+{
+    std::string permission;
+    if (FindInGrantMap(tokenId, policy, permission) == false) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "%{public}s not InUserGrantMap", policy.path.c_str());
+        return false;
+    }
+
+    int32_t ret = Security::AccessToken::AccessTokenKit::VerifyAccessToken(tokenId, permission);
+    if (ret != Security::AccessToken::PERMISSION_GRANTED) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "no need add %{public}s %{public}s", policy.path.c_str(), permission.c_str());
+        return false;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "%{public}s VerifyPermissionPass", policy.path.c_str());
+    return true;
+}
+
 static void WriteDfxInner(const OperateTypeEnum operateType, PolicyOperateInfo &info, size_t succNum,
     size_t failNum, size_t invalidNum)
 {
@@ -233,7 +286,7 @@ int32_t PolicyInfoManager::AddNormalPolicy(const uint32_t tokenId, const std::ve
     size_t policySize = policy.size();
     // query mac kernel
     size_t queryPolicyIndexSize = queryPolicyIndex.size();
-    std::vector<bool> queryResults(queryPolicyIndexSize);
+    std::vector<uint32_t> queryResults(queryPolicyIndexSize);
     std::vector<PolicyInfo> queryPolicys(queryPolicyIndexSize);
     PolicyOperateInfo info(queryPolicyIndexSize, 0, 0, 0);
     std::transform(queryPolicyIndex.begin(), queryPolicyIndex.end(),
@@ -252,11 +305,18 @@ int32_t PolicyInfoManager::AddNormalPolicy(const uint32_t tokenId, const std::ve
     std::vector<GenericValues> addPolicyGeneric;
     std::vector<size_t> addPolicyIndex;
     for (size_t i = 0; i < queryPolicyIndexSize; ++i) {
-        if (queryResults[i]) {
+        if (queryResults[i] == OPERATE_SUCCESSFULLY) {
             addPolicyIndex.emplace_back(queryPolicyIndex[i]);
-        } else {
-            result[i] = SandboxRetType::FORBIDDEN_TO_BE_PERSISTED;
+            continue;
         }
+
+        if (queryResults[i] == FORBIDDEN_TO_BE_PERSISTED_BY_FLAG) {
+            if (IsVerifyPermissionPass(tokenId, policy[queryPolicyIndex[i]]) == true) {
+                addPolicyIndex.emplace_back(queryPolicyIndex[i]);
+                continue;
+            }
+        }
+        result[i] = SandboxRetType::FORBIDDEN_TO_BE_PERSISTED;
     }
     uint32_t failNum = queryPolicyIndexSize - addPolicyIndex.size();
     ret = AddToDatabaseIfNotDuplicate(tokenId, policy, addPolicyIndex, flag, result);
