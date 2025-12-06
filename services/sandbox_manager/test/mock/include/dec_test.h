@@ -47,6 +47,9 @@
 #define HM_DESTORY_POLICY_ID 5
 #define HM_CONSTRAINT_POLICY_ID 6
 #define HM_DEL_POLICY_BY_USER_ID 7
+#define HM_SET_PREFIX_ID 8
+#define HM_DENY_POLICY_ID 9
+
 #define SET_DEC_RULE_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_SET_POLICY_ID, struct dec_rule_s)
 #define DEL_DEC_RULE_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_DEL_POLICY_ID, struct dec_rule_s)
 #define QUERY_DEC_RULE_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_QUERY_POLICY_ID, struct dec_rule_s)
@@ -54,11 +57,23 @@
 #define DESTORY_DEC_RULE_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_DESTORY_POLICY_ID, struct dec_rule_s)
 #define CONSTRAINT_DEC_RULE_CMD _IOW(HM_DEC_IOCTL_BASE, HM_CONSTRAINT_POLICY_ID, struct dec_rule_s)
 #define DEL_DEC_RULE_BY_USER_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_DEL_POLICY_BY_USER_ID, struct dec_rule_s)
+#define SET_DEC_PREFIX_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_SET_PREFIX_ID, struct dec_rule_s)
+#define DENY_DEC_RULE_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_DENY_POLICY_ID, struct dec_rule_s)
 
 #define DEC_MODE_READ 1
 #define DEC_MODE_WRITE 2
 #define DEC_MODE_RW 3
+#define DEC_CREATE_MODE (1 << 2)
+#define DEC_DELETE_MODE (1 << 3)
+#define DEC_RENAME_MODE (1 << 4)
+#define DEC_DENY_RENAME   (1 << 7)
+#define DEC_DENY_REMOVE   (1 << 8)
+#define DEC_DENY_INHERIT  (1 << 9)
 
+enum ErrorCode {
+    RET_OK = 0,
+    RET_FAIL,
+};
 struct path_info {
     char *path;
     uint32_t path_len;
@@ -121,9 +136,16 @@ struct dec_rule_s {
     }
 };
 
+int OpenDevDec();
+bool ExcuteCmd(const std::string &cmd);
+
 int ConstraintPath(const std::string &path);
+int SetPrefix(const std::string &path);
+
 int SetPath(uint64_t tokenid, const std::string &path, uint32_t mode, bool persistFlag,
     uint64_t timestamp, int32_t userId);
+int DenyPath(uint64_t tokenid, const std::string &path, uint32_t mode, uint64_t timestamp, int32_t userId);
+
 int CheckPath(uint64_t tokenid, const std::string &path, uint32_t mode);
 int TestWrite(uint64_t tokenid, const std::string &fileName, int32_t uid = 0, int32_t gid = 0);
 int TestRead(uint64_t tokenid, const std::string &fileName, int32_t uid = 0, int32_t gid = 0);
@@ -131,8 +153,11 @@ int TestCopy(uint64_t tokenid, const std::string &srcPath, const std::string &ds
     int32_t uid = 0, int32_t gid = 0);
 int Mkdir(uint64_t tokenid, std::string path, int32_t uid = 0, int32_t gid = 0);
 int TestRename(uint64_t tokenid, const std::string &fileName, int32_t uid = 0, int32_t gid = 0);
+int TestRename2(uint64_t tokenid, const std::string &fileName, const std::string &targetName,
+    int32_t uid = 0, int32_t gid = 0);
+
 int TestRemove(uint64_t tokenid, const std::string &fileName, int32_t uid = 0, int32_t gid = 0);
-int DestroyByTokenid(uint64_t tokenid, uint64_t timestamp);
+int DestroyByTokenid(uint64_t tokenid, uint64_t timestamp = 0);
 int QueryPath(uint64_t tokenid, const std::string &path, uint32_t mode);
 int TestAccess(uint64_t tokenid, const std::string &fileName, uint32_t mode, int32_t uid = 0, int32_t gid = 0);
 int DeletePath(uint64_t tokenid, const std::string &path, uint64_t timestamp);

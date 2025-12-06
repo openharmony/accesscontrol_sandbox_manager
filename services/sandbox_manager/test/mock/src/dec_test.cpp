@@ -14,6 +14,8 @@
  */
 
 #include "dec_test.h"
+#include <cstdlib>
+#include <sys/wait.h>
 #include "token_setproc.h"
 
 #ifdef DEC_ENABLED
@@ -22,6 +24,27 @@ const int32_t DEC_BUF_LEN = 32;
 const int32_t DEC_CNT_LEN = 5;
 
 int g_fd;
+
+bool ExcuteCmd(const std::string &cmd)
+{
+    int result = system(cmd.c_str());
+    if (result == -1) {
+        printf("Excute cmd:%s failed\n", cmd.c_str());
+        return false;
+    }
+
+    if (!WIFEXITED(result)) {
+        printf("Cmd:%s not exit normal\n", cmd.c_str());
+        return false;
+    }
+
+    int status = WEXITSTATUS(result);
+    if (status != 0) {
+        printf("Cmd:%s return status not ok\n", cmd.c_str());
+    }
+
+    return (status == 0);
+}
 
 std::string GetDir(const std::string &fileName)
 {
@@ -46,11 +69,26 @@ int OpenDevDec()
 
 int ConstraintPath(const std::string &path)
 {
-    OpenDevDec();
     struct dec_rule_s info;
     info.addPath(path.c_str());
     int ret = ioctl(g_fd, CONSTRAINT_DEC_RULE_CMD, &info);
     if (ret != 0) {
+        printf("constraint path:%s ioctl failed\n", path.c_str());
+        return -1;
+    }
+    if (info.path[0].ret_flag) {
+        return 0;
+    }
+    return -1;
+}
+
+int SetPrefix(const std::string &path)
+{
+    struct dec_rule_s info;
+    info.addPath(path.c_str());
+    int ret = ioctl(g_fd, SET_DEC_PREFIX_CMD, &info);
+    if (ret != 0) {
+        printf("set prefex:%s ioctl failed\n", path.c_str());
         return -1;
     }
     if (info.path[0].ret_flag) {
@@ -100,6 +138,25 @@ int SetPath(uint64_t tokenid, const std::string &path, uint32_t mode, bool persi
     }
     return -1;
 }
+
+int DenyPath(uint64_t tokenid, const std::string &path, uint32_t mode,
+    uint64_t timestamp, int32_t userId)
+{
+    struct dec_rule_s info;
+    info.addPath(path.c_str(), mode);
+    info.tokenId = tokenid;
+    info.timeStamp = timestamp;
+    info.userId = userId;
+    int ret = ioctl(g_fd, DENY_DEC_RULE_CMD, &info);
+    if (ret != 0) {
+        return -1;
+    }
+    if (info.path[0].ret_flag) {
+        return 0;
+    }
+    return -1;
+}
+
 
 int CheckPath(uint64_t tokenid, const std::string &path, uint32_t mode)
 {
@@ -233,6 +290,23 @@ int TestRename(uint64_t tokenid, const std::string &fileName, int32_t uid, int32
     }
     return 0;
 }
+
+int TestRename2(uint64_t tokenid, const std::string &fileName, const std::string &targetName, int32_t uid, int32_t gid)
+{
+    SetSelfTokenID(tokenid);
+    if (SetProcessId(uid, gid) != 0) {
+        return -1;
+    }
+
+    int ret = rename(fileName.c_str(), targetName.c_str());
+    if (ret != 0) {
+        printf("rename failed err:%s\n", strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
 
 int TestRemove(uint64_t tokenid, const std::string &fileName, int32_t uid, int32_t gid)
 {
