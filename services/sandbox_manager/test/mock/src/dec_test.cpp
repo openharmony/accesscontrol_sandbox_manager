@@ -69,6 +69,7 @@ int OpenDevDec()
 
 int ConstraintPath(const std::string &path)
 {
+    OpenDevDec();
     struct dec_rule_s info;
     info.addPath(path.c_str());
     int ret = ioctl(g_fd, CONSTRAINT_DEC_RULE_CMD, &info);
