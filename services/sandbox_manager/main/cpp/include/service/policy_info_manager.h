@@ -292,6 +292,7 @@ private:
 
 private:
     MacAdapter macAdapter_;
+    std::map<std::string, std::string> g_userGrantMap;
     int32_t AddNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &result, const uint32_t flag, std::vector<size_t> &queryPolicyIndex, uint32_t invalidNum);
     int32_t RemoveNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
@@ -315,6 +316,10 @@ private:
         std::vector<std::string> &components);
     bool CheckPathWithinRule(const std::string &path, uint64_t type, const std::string &bundleName);
     int32_t CleanPolicyByPathlist(uint32_t tokenId, std::vector<std::string> &list);
+    void InitUserGrantMap();
+    bool FindInGrantMap(const uint32_t tokenId, const PolicyInfo &policy, std::string &permission);
+    bool IsVerifyPermissionPass(const uint32_t tokenId, const PolicyInfo &policy);
+    void AddToUserGrantMap(std::string permission, std::vector<std::string>pathList);
 };
 } // namespace SandboxManager
 } // namespace AccessControl

@@ -35,12 +35,54 @@
 #include <sys/mount.h>
 #include "dec_test.h"
 #include "token_setproc.h"
+#include "sandbox_test_common.h"
 
 using namespace testing::ext;
 
 namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
+namespace {
+const std::string DOWNLOAD_PERMISSION = "ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY";
+const std::string DESKTOP_PERMISSION = "ohos.permission.READ_WRITE_DESKTOP_DIRECTORY";
+const std::string DOCUMENTS_PERMISSION = "ohos.permission.READ_WRITE_DOCUMENTS_DIRECTORY";
+uint32_t g_mockToken;
+
+Security::AccessToken::PermissionStateFull g_testState1 = {
+    .permissionName = DOWNLOAD_PERMISSION,
+    .isGeneral = true,
+    .resDeviceID = {"1"},
+    .grantStatus = {0},
+    .grantFlags = {0},
+};
+Security::AccessToken::PermissionStateFull g_testState2 = {
+    .permissionName = DESKTOP_PERMISSION,
+    .isGeneral = true,
+    .resDeviceID = {"1"},
+    .grantStatus = {0},
+    .grantFlags = {0},
+};
+Security::AccessToken::PermissionStateFull g_testState3 = {
+    .permissionName = DOCUMENTS_PERMISSION,
+    .isGeneral = true,
+    .resDeviceID = {"1"},
+    .grantStatus = {0},
+    .grantFlags = {0},
+};
+Security::AccessToken::HapInfoParams g_testInfoParms = {
+    .userID = 100,
+    .bundleName = "sandbox_manager_test",
+    .instIndex = 0,
+    .appIDDesc = "test"
+};
+Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
+    .apl = Security::AccessToken::APL_NORMAL,
+    .domain = "test.domain",
+    .permList = {},
+    .permStateList = {g_testState1, g_testState2, g_testState3}
+};
+};
+
 class PolicyInfoManagerTest : public testing::Test  {
 public:
     static void SetUpTestCase(void);
@@ -53,6 +95,47 @@ public:
 static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerRdbTest"
 };
+
+#ifdef DEC_ENABLED
+struct PathInfo {
+    char *path = nullptr;
+    uint32_t pathLen = 0;
+    uint32_t mode = 0;
+    bool result = false;
+};
+
+struct SandboxPolicyInfo {
+    uint64_t tokenId = 0;
+    uint64_t timestamp = 0;
+    struct PathInfo pathInfos[MAX_POLICY_NUM];
+    uint32_t pathNum = 0;
+    int32_t userId = 0;
+    uint64_t reserved[DEC_POLICY_HEADER_RESERVED];
+    bool persist = false;
+};
+
+static int SetDeny(const std::string& path)
+{
+    struct PathInfo info;
+    string infoPath = path;
+    info.path = const_cast<char *>(infoPath.c_str());
+    info.pathLen = infoPath.length();
+    struct SandboxPolicyInfo policyInfo;
+    policyInfo.tokenId = g_mockToken;
+    policyInfo.pathInfos[0] = info;
+    policyInfo.pathNum = 1;
+    policyInfo.persist = true;
+
+    auto fd = open("/dev/dec", O_RDWR);
+    if (fd < 0) {
+        std::cout << "fd open err" << std::endl;
+        return fd;
+    }
+    auto ret = ioctl(fd, CONSTRAINT_DEC_RULE_CMD, &policyInfo);
+    close(fd);
+    return ret;
+}
+#endif
 
 void PolicyInfoManagerTest::SetUpTestCase(void)
 {
@@ -72,6 +155,11 @@ void PolicyInfoManagerTest::SetUp(void)
 {
     selfTokenId_ = 0;
     PolicyInfoManager::GetInstance().Init();
+    EXPECT_TRUE(MockTokenId("foundation"));
+    Security::AccessToken::AccessTokenIDEx tokenIdEx = {0};
+    tokenIdEx = Security::AccessToken::AccessTokenKit::AllocHapToken(g_testInfoParms, g_testPolicyPrams);
+    EXPECT_NE(0, tokenIdEx.tokenIdExStruct.tokenID);
+    g_mockToken = tokenIdEx.tokenIdExStruct.tokenID;
 }
 
 void PolicyInfoManagerTest::TearDown(void)
@@ -81,6 +169,7 @@ void PolicyInfoManagerTest::TearDown(void)
         PolicyInfoManager::GetInstance().macAdapter_.fd_ = -1;
         PolicyInfoManager::GetInstance().macAdapter_.isMacSupport_ = false;
     }
+    Security::AccessToken::AccessTokenKit::DeleteToken(g_mockToken);
 }
 
 void PrintDbRecords()
@@ -448,6 +537,187 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest011, TestSize.Level0)
     EXPECT_EQ(SandboxRetType::INVALID_MODE, PolicyInfoManager::GetInstance().CheckPolicyValidity(err4));
 }
 
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: QuerySandboxPolicyTest001
+ * @tc.desc: Test AddPolicy with unset flag
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest001, TestSize.Level0)
+{
+    SetDeny("/data/testquery");
+    PolicyInfo info;
+    uint64_t sizeLimit = 1;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+
+    info.path = "/data/testquery";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    policy[0] = info;
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 0, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+
+    std::vector<uint32_t> result11;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(g_mockToken, policy, result11));
+    EXPECT_EQ(sizeLimit, result11.size());
+    EXPECT_EQ(SandboxRetType::FORBIDDEN_TO_BE_PERSISTED, result11[0]);
+}
+
+/**
+ * @tc.name: QuerySandboxPolicyTest002
+ * @tc.desc: Test AddPolicy with unset flag
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest002, TestSize.Level0)
+{
+    SetDeny("/data/testquery");
+    PolicyInfo info;
+    uint64_t sizeLimit = 1;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+
+    info.path = "/data/testquery";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    policy[0] = info;
+
+    std::vector<uint32_t> result11;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(g_mockToken, policy, result11));
+    EXPECT_EQ(sizeLimit, result11.size());
+    EXPECT_EQ(SandboxRetType::FORBIDDEN_TO_BE_PERSISTED, result11[0]);
+}
+
+/**
+ * @tc.name: QuerySandboxPolicyTest003
+ * @tc.desc: Test AddPolicy with unset flag
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest003, TestSize.Level0)
+{
+    PolicyInfo info;
+    uint64_t sizeLimit = 1;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+
+    info.path = "/storage/Users/currentUser/Download";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    policy[0] = info;
+
+    std::vector<uint32_t> u32Res;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().UnSetPolicy(g_mockToken, info));
+
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 0, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+
+    std::vector<uint32_t> result11;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(g_mockToken, policy, result11));
+    EXPECT_EQ(sizeLimit, result11.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result11[0]);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().RemovePolicy(g_mockToken, policy, u32Res));
+    ASSERT_EQ(1, u32Res.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
+}
+
+/**
+ * @tc.name: QuerySandboxPolicyTest004
+ * @tc.desc: Test AddPolicy with unset flag
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest004, TestSize.Level0)
+{
+    PolicyInfo info;
+    uint64_t sizeLimit = 1;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+
+    info.path = "/storage/Users/currentUser/Desktop/child";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    policy[0] = info;
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 0, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+
+    std::vector<uint32_t> result11;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(g_mockToken, policy, result11));
+    EXPECT_EQ(sizeLimit, result11.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result11[0]);
+
+    std::vector<uint32_t> u32Res;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().RemovePolicy(g_mockToken, policy, u32Res));
+    ASSERT_EQ(1, u32Res.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
+}
+
+/**
+ * @tc.name: QuerySandboxPolicyTest005
+ * @tc.desc: Test AddPolicy with unset flag
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest005, TestSize.Level0)
+{
+    PolicyInfo info;
+    uint64_t sizeLimit = 1;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+
+    info.path = "/mnt/data/fuse";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    policy[0] = info;
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 0, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+
+    std::vector<uint32_t> result11;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(g_mockToken, policy, result11));
+    EXPECT_EQ(sizeLimit, result11.size());
+    EXPECT_EQ(SandboxRetType::FORBIDDEN_TO_BE_PERSISTED, result11[0]);
+}
+
+/**
+ * @tc.name: QuerySandboxPolicyTest006
+ * @tc.desc: Test AddPolicy with unset flag
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest006, TestSize.Level0)
+{
+    PolicyInfo info;
+
+    info.path = "/mnt/data/fuse";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    EXPECT_FALSE(PolicyInfoManager::GetInstance().IsVerifyPermissionPass(g_mockToken, info));
+    info.path = "/a/b";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    EXPECT_FALSE(PolicyInfoManager::GetInstance().IsVerifyPermissionPass(g_mockToken, info));
+    info.path = "/storage/Users/currentUser/Desktop";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    EXPECT_TRUE(PolicyInfoManager::GetInstance().IsVerifyPermissionPass(g_mockToken, info));
+    info.path = "/storage/Users/currentUser/Desktop/child";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    EXPECT_TRUE(PolicyInfoManager::GetInstance().IsVerifyPermissionPass(g_mockToken, info));
+    info.path = "/storage/Users/currentUser/Desktop/";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    EXPECT_TRUE(PolicyInfoManager::GetInstance().IsVerifyPermissionPass(g_mockToken, info));
+    info.path = "/storage/Users/currentUser/Deskto";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    EXPECT_FALSE(PolicyInfoManager::GetInstance().IsVerifyPermissionPass(g_mockToken, info));
+    info.path = "/storage/Users/currentUser/Desktopp";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    EXPECT_FALSE(PolicyInfoManager::GetInstance().IsVerifyPermissionPass(g_mockToken, info));
+}
+#endif
+
 /**
  * @tc.name: GenericValuesTest001
  * @tc.desc: Test generic_values.cpp
@@ -531,7 +801,7 @@ HWTEST_F(PolicyInfoManagerTest, MacAdapterTest001, TestSize.Level0)
     macParams.tokenId = selfTokenId_;
     EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.SetSandboxPolicy(policy, u32Res, macParams));
     std::vector<bool> boolRes;
-    EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.QuerySandboxPolicy(selfTokenId_, policy, boolRes));
+    EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.QuerySandboxPolicy(selfTokenId_, policy, u32Res));
     EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.CheckSandboxPolicy(selfTokenId_, policy, boolRes));
     EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.UnSetSandboxPolicy(selfTokenId_, policy, boolRes));
     PolicyInfo info;
@@ -689,23 +959,6 @@ const char *mountData = "override_support_delete,user_id=100";
 const char *testPathParent = "/data/mntDenyTest/test1";
 const char *testPathChild = "/data/mntDenyTest/test1/a";
 const char *testPathChildNew = "/data/mntDenyTest/test1/b";
-
-struct PathInfo {
-    char *path = nullptr;
-    uint32_t pathLen = 0;
-    uint32_t mode = 0;
-    bool result = false;
-};
-
-struct SandboxPolicyInfo {
-    uint64_t tokenId = 0;
-    uint64_t timestamp = 0;
-    struct PathInfo pathInfos[MAX_POLICY_NUM];
-    uint32_t pathNum = 0;
-    int32_t userId = 0;
-    uint64_t reserved[DEC_POLICY_HEADER_RESERVED];
-    bool persist = false;
-};
 
 #define SANDBOX_IOCTL_BASE 's'
 #define DEL_DENY_POLICY_ID 10

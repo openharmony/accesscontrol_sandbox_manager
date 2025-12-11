@@ -50,6 +50,7 @@ typedef enum SandboxRetType {
     INVALID_PATH = 3,
     POLICY_HAS_NOT_BEEN_PERSISTED = 4,
     POLICY_MAC_FAIL = 5,
+    FORBIDDEN_TO_BE_PERSISTED_BY_FLAG = 6,
 } SandboxRetType;
 
 const uint32_t IS_POLICY_ALLOWED_TO_BE_PRESISTED = 1 << 0;

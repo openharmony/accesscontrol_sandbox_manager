@@ -36,7 +36,7 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
 
 constexpr const char* DEV_NODE = "/dev/dec";
 const size_t MAX_POLICY_NUM = 8;
-const int DEC_POLICY_HEADER_RESERVED = 64;
+const int DEC_POLICY_HEADER_RESERVED = 60;
 
 struct PathInfo {
     char *path = nullptr;
@@ -51,6 +51,7 @@ struct SandboxPolicyInfo {
     struct PathInfo pathInfos[MAX_POLICY_NUM];
     uint32_t pathNum = 0;
     int32_t userId = 0;
+    int32_t failedReason[MAX_POLICY_NUM];
     uint64_t reserved[DEC_POLICY_HEADER_RESERVED];
     bool persist = false;
 };
@@ -353,9 +354,26 @@ int32_t MacAdapter::SetDenyPolicy(const std::vector<PolicyInfo> &policy, std::ve
     return SetPolicyToMac(policy, result, macParams, DENY_DEC_RULE_CMD);
 }
 
+#define DEC_ERR_QUERY_RULE_NOT_FOUND 1
+#define DEC_ERR_QUERY_NON_PERSTST 2
+
+void MacAdapter::SetQueryResult(struct SandboxPolicyInfo &info, size_t offset, size_t i, std::vector<uint32_t> &result)
+{
+    if (info.pathInfos[i].result == 0) {
+        std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Query policy failed at %{public}s", maskPath.c_str());
+        if (DEC_ERR_QUERY_NON_PERSTST == info.failedReason[i]) {
+            result[offset + i] = FORBIDDEN_TO_BE_PERSISTED_BY_FLAG;
+        } else {
+            result[offset + i] = FORBIDDEN_TO_BE_PERSISTED;
+        }
+    } else {
+        result[offset + i] = OPERATE_SUCCESSFULLY;
+    }
+}
 
 int32_t MacAdapter::QuerySandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-                                       std::vector<bool> &result)
+                                       std::vector<uint32_t> &result)
 {
     if (fd_ < 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Not init yet.");
@@ -385,11 +403,7 @@ int32_t MacAdapter::QuerySandboxPolicy(uint32_t tokenId, const std::vector<Polic
             return SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
         for (size_t i = 0; i < curBatchSize; ++i) {
-            if (info.pathInfos[i].result == 0) {
-                std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
-                SANDBOXMANAGER_LOG_ERROR(LABEL, "Query policy failed at %{public}s", maskPath.c_str());
-            }
-            result[offset + i] = info.pathInfos[i].result;
+            SetQueryResult(info, offset, i, result);
         }
     }
 

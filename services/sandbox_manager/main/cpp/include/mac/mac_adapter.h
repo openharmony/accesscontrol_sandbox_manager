@@ -43,7 +43,7 @@ public:
         MacParams &macParams);
     int32_t UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &policy);
     int32_t UnSetSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
-    int32_t QuerySandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
+    int32_t QuerySandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     int32_t CheckSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     int32_t DestroySandboxPolicy(uint32_t tokenId, uint64_t timestamp);
     int32_t UnSetSandboxPolicyByUser(int32_t userId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
@@ -54,6 +54,7 @@ public:
     void DenyInit();
 #endif
 private:
+    void SetQueryResult(struct SandboxPolicyInfo &info, size_t offset, size_t i, std::vector<uint32_t> &result);
     int32_t SetPolicyToMac(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
         MacParams &macParams, int32_t cmd);
     int32_t UnSetPolicyToMac(uint32_t tokenId, const PolicyInfo &policy, int32_t cmd);

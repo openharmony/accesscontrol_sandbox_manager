@@ -53,6 +53,8 @@ const std::string SET_POLICY_PERMISSION = "ohos.permission.SET_SANDBOX_POLICY";
 const std::string CHECK_POLICY_PERMISSION = "ohos.permission.CHECK_SANDBOX_POLICY";
 const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSIST";
 const std::string FILE_ACCESS_PERMISSION = "ohos.permission.FILE_ACCESS_MANAGER";
+const std::string DOWNLOAD_PERMISSION = "ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY";
+
 const Security::AccessToken::AccessTokenID INVALID_TOKENID = 0;
 const uint64_t POLICY_VECTOR_SIZE = 5000;
 #ifdef DEC_ENABLED
@@ -93,6 +95,13 @@ Security::AccessToken::PermissionStateFull g_testState4 = {
     .grantStatus = {0},
     .grantFlags = {0},
 };
+Security::AccessToken::PermissionStateFull g_testState5 = {
+    .permissionName = DOWNLOAD_PERMISSION,
+    .isGeneral = true,
+    .resDeviceID = {"1"},
+    .grantStatus = {0},
+    .grantFlags = {0},
+};
 Security::AccessToken::HapInfoParams g_testInfoParms = {
     .userID = 100,
     .bundleName = "sandbox_manager_test",
@@ -104,7 +113,7 @@ Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
     .apl = Security::AccessToken::APL_NORMAL,
     .domain = "test.domain",
     .permList = {},
-    .permStateList = {g_testState1, g_testState2, g_testState3, g_testState4}
+    .permStateList = {g_testState1, g_testState2, g_testState3, g_testState4, g_testState5}
 };
 };
 
@@ -1510,7 +1519,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPerformanceTest001, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policySize = 50000;
- 
+
     for (uint64_t i = 0;i < policySize; i++) {
         PolicyInfo info;
         info.mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
@@ -1946,7 +1955,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest009, TestSize.Level0)
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyA, policyFlag, policyResult));
     ASSERT_EQ(1, policyResult.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
- 
+
     std::vector<bool> result;
     std::vector<PolicyInfo> policyB;
     policyB.emplace_back(infoParentA);
@@ -3415,6 +3424,7 @@ HWTEST_F(SandboxManagerKitTest, TimestampTest002, TestSize.Level0)
     EXPECT_FALSE(result[0]);
 }
 
+#ifdef DEC_ENABLED
 HWTEST_F(SandboxManagerKitTest, UserIdTest001, TestSize.Level0)
 {
     MacAdapter macAdapter;
@@ -3439,16 +3449,137 @@ HWTEST_F(SandboxManagerKitTest, UserIdTest001, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.SetSandboxPolicy(policy, u32Res, macParams));
     std::vector<bool> boolRes;
     boolRes.resize(policy.size());
-    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(100, policy, boolRes));
-    EXPECT_TRUE(boolRes[0]);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(101, policy, boolRes));
-    EXPECT_TRUE(boolRes[0]);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(100, policy, u32Res));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, u32Res[0]);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(101, policy, u32Res));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, u32Res[0]);
     EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.UnSetSandboxPolicyByUser(100, policy, boolRes));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(100, policy, boolRes));
-    EXPECT_FALSE(boolRes[0]);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(101, policy, boolRes));
-    EXPECT_TRUE(boolRes[0]);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(100, policy, u32Res));
+    EXPECT_EQ(FORBIDDEN_TO_BE_PERSISTED, u32Res[0]);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(101, policy, u32Res));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, u32Res[0]);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.UnSetSandboxPolicyByUser(101, policy, boolRes));
 }
+
+HWTEST_F(SandboxManagerKitTest, QueryTest001, TestSize.Level0)
+{
+    MacAdapter macAdapter;
+    macAdapter.Init();
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> u32Res;
+    MacParams macParams;
+    macParams.tokenId = 100;
+    macParams.policyFlag = 0;
+    macParams.timestamp = 0;
+    macParams.userId = 100;
+    PolicyInfo infoParentA = {
+        .path = "/a/b/c",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policy.emplace_back(infoParentA);
+    u32Res.resize(policy.size());
+    SetDeny("/a/b");
+    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.SetSandboxPolicy(policy, u32Res, macParams));
+    std::vector<bool> boolRes;
+    boolRes.resize(policy.size());
+    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(100, policy, u32Res));
+    EXPECT_EQ(FORBIDDEN_TO_BE_PERSISTED_BY_FLAG, u32Res[0]);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(101, policy, u32Res));
+    EXPECT_EQ(FORBIDDEN_TO_BE_PERSISTED, u32Res[0]);
+}
+
+HWTEST_F(SandboxManagerKitTest, QueryTest002, TestSize.Level0)
+{
+    MacAdapter macAdapter;
+    macAdapter.Init();
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> u32Res;
+    MacParams macParams;
+    macParams.tokenId = 100;
+    macParams.policyFlag = 1;
+    macParams.timestamp = 0;
+    macParams.userId = 100;
+    PolicyInfo infoParentA = {
+        .path = "/a/b/c",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policy.emplace_back(infoParentA);
+    u32Res.resize(policy.size());
+    SetDeny("/a/b");
+    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.SetSandboxPolicy(policy, u32Res, macParams));
+    std::vector<bool> boolRes;
+    boolRes.resize(policy.size());
+    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(100, policy, u32Res));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, u32Res[0]);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.UnSetSandboxPolicy(100, infoParentA));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(100, policy, u32Res));
+    EXPECT_EQ(FORBIDDEN_TO_BE_PERSISTED, u32Res[0]);
+}
+
+HWTEST_F(SandboxManagerKitTest, QueryTest003, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParentA = {
+        .path = "/storage/Users/currentUser/Download",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    PolicyInfo infoParentB = {
+        .path = "/storage/Users/currentUser/Download/child",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policy.emplace_back(infoParentA);
+    policy.emplace_back(infoParentB);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, 0, policyResult));
+    ASSERT_EQ(2, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[1]);
+
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(2, result.size());
+    EXPECT_TRUE(result[0]);
+    EXPECT_TRUE(result[1]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    ASSERT_EQ(2, retType.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[1]);
+}
+
+HWTEST_F(SandboxManagerKitTest, QueryTest004, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParentA = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    PolicyInfo infoParentB = {
+        .path = "/mnt/data/fuse",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policy.emplace_back(infoParentA);
+    policy.emplace_back(infoParentB);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, 0, policyResult));
+    ASSERT_EQ(2, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[1]);
+
+    std::vector<bool> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, result));
+    ASSERT_EQ(2, result.size());
+    EXPECT_TRUE(result[0]);
+    EXPECT_TRUE(result[1]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    ASSERT_EQ(2, retType.size());
+    EXPECT_EQ(FORBIDDEN_TO_BE_PERSISTED, retType[0]);
+    EXPECT_EQ(FORBIDDEN_TO_BE_PERSISTED, retType[1]);
+}
+#endif
 
 #ifdef DEC_ENABLED
 /**
