@@ -75,7 +75,7 @@ inline std::string format_message(const char *fmt, ...)
         std::string msg = format_message("[%s]" fmt, __FUNCTION__, ##__VA_ARGS__); \
         if (!msg.empty()) { \
             ((void)HILOG_IMPL(label.type, LOG_ERROR, label.domain, label.tag, \
-            "[%{public}s]" fmt, __FUNCTION__, ##__VA_ARGS__)) \
+            "[%{public}s]" fmt, __FUNCTION__, ##__VA_ARGS__)); \
             SandboxManagerDfxHelper::WriteExceptionBranch(msg); \
         } \
     } while (0)
