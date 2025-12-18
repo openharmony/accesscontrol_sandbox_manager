@@ -29,11 +29,9 @@ public:
 
     void Clear();
     void InsertPath(const std::string &path, uint64_t mode);
-    bool CheckPath(const std::string &path, uint64_t mode, const uint32_t tokenId);
+    bool CheckPath(const std::string &path, uint64_t mode);
 private:
-    inline static const uint64_t MODE_FILTER = 0b11;
-    bool CheckPathNew(const std::string &path, uint64_t mode);
-    bool CheckPathOld(const std::string &path, uint64_t mode);
+    inline static const uint64_t MODE_FILTER = 0b11111;
     std::vector<std::string> SplitPath(const std::string &path);
     bool IsPolicyMatch(uint64_t referMode, uint64_t searchMode);
     static const std::unordered_map<std::string, int> DENIED_PATHS;

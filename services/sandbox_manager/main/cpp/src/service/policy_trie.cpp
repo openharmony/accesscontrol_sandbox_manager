@@ -92,7 +92,7 @@ bool PolicyTrie::IsPolicyMatch(uint64_t referMode, uint64_t searchMode)
     return modeMatch;
 }
 
-bool PolicyTrie::CheckPathNew(const std::string &path, uint64_t mode)
+bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode)
 {
     PolicyTrie *root = this;
     std::vector<std::string> pathSegments = SplitPath(path);
@@ -130,35 +130,4 @@ bool PolicyTrie::CheckPathNew(const std::string &path, uint64_t mode)
     }
 
     return flag;
-}
-
-bool PolicyTrie::CheckPathOld(const std::string &path, uint64_t mode)
-{
-    PolicyTrie *root = this;
-    std::vector<std::string> pathSegments = SplitPath(path);
-    PolicyTrie *curNode = root;
-
-    for (const std::string &segment : pathSegments) {
-        if (curNode == nullptr || curNode->children_.count(segment) == 0) {
-            return false;
-        }
-        if (curNode->children_[segment]->isEndOfPath_) {
-            return IsPolicyMatch(curNode->children_[segment]->mode_, mode);
-        } else {
-            curNode = curNode->children_[segment];
-        }
-    }
-    return false;
-}
-
-bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode, const uint32_t tokenId)
-{
-    bool retNew = CheckPathNew(path, mode);
-    bool retOld = CheckPathOld(path, mode);
-    if (retNew != retOld) {
-        std::string reason = "StartAccessingPolicy " + path;
-        OHOS::AccessControl::SandboxManager::SandboxManagerDfxHelper::WriteIncompatibleCall(tokenId, reason, 0);
-    }
-
-    return retOld;
 }
