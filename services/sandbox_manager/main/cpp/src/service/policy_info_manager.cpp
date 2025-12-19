@@ -433,9 +433,11 @@ int32_t PolicyInfoManager::MatchNormalPolicy(const uint32_t tokenId, const std::
             continue;
         }
 
-        if (trieTree.CheckPath(policy[i].path, policy[i].mode, tokenId)) {
+        if (trieTree.CheckPath(policy[i].path, policy[i].mode)) {
             result[i] = SandboxRetType::OPERATE_SUCCESSFULLY;
         } else {
+            std::string maskPath = SandboxManagerLog::MaskRealPath(policy[i].path.c_str());
+            SANDBOXMANAGER_LOG_INFO(LABEL, "target:%{public}u path:%{public}s no persisted", tokenId, maskPath.c_str());
             result[i] = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
         }
     }
