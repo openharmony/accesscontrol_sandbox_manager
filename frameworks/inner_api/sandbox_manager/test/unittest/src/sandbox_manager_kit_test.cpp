@@ -4202,6 +4202,285 @@ HWTEST_F(SandboxManagerKitTest, TestAccessingPolicy003, TestSize.Level0)
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
 }
+
+/**
+ * @tc.name: TestPersistWithMultiLevelSetPolicy001
+ * @tc.desc: Test persist with multi-level set policy and different modes, read only first.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser/",
+        .mode = OperateMode::READ_MODE
+    };
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser/Desktop/test.txt",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[1]);
+
+    std::vector<bool> checkTempResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, checkTempResult));
+    EXPECT_TRUE(checkTempResult[0]);
+    /* check test.txt rw return false, because currentUser is set as read only. */
+    EXPECT_FALSE(checkTempResult[1]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+    /* test.txt rw is allowed to be persisted. */
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[1]);
+
+    std::vector<bool> checkPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkPersistResult));
+    EXPECT_TRUE(checkPersistResult[0]);
+    /* check persist test.txt rw return false, because currentUser is persisted as read only. */
+    EXPECT_FALSE(checkPersistResult[1]);
+
+    std::vector<uint32_t> retType1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(policy, retType1));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType1[0]);
+    /* currentUser is read only, test.txt is not allowed to be activated as rw. */
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, retType1[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
+
+/**
+ * @tc.name: TestPersistWithMultiLevelSetPolicy002
+ * @tc.desc: Test persist with multi-level set policy and different modes, rw first.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy002, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser/",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser/Desktop/test.txt",
+        .mode = OperateMode::READ_MODE
+    };
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[1]);
+
+    std::vector<bool> checkTempResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, checkTempResult));
+    EXPECT_TRUE(checkTempResult[0]);
+    EXPECT_TRUE(checkTempResult[1]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[1]);
+
+    std::vector<bool> checkPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkPersistResult));
+    EXPECT_TRUE(checkPersistResult[0]);
+    EXPECT_TRUE(checkPersistResult[1]);
+
+    std::vector<uint32_t> retType1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(policy, retType1));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType1[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType1[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
+
+/**
+ * @tc.name: TestPersistWithMultiLevelSetPolicy003
+ * @tc.desc: Test persist with multi-level set policy, and with deny inherit, read only first.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy003, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser/",
+        .mode = OperateMode::READ_MODE
+    };
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/notepad/test.txt",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[1]);
+
+    std::vector<bool> checkTempResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, checkTempResult));
+    EXPECT_TRUE(checkTempResult[0]);
+    /* check test.txt rw return true, because appdata has denied the policy inherit. */
+    EXPECT_TRUE(checkTempResult[1]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+    /* test.txt rw is allowed to be persisted. */
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[1]);
+
+    std::vector<bool> checkPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkPersistResult));
+    EXPECT_TRUE(checkPersistResult[0]);
+    /* check persist test.txt rw return true, because has denied the policy inherit. */
+    EXPECT_TRUE(checkPersistResult[1]);
+
+    std::vector<uint32_t> retType1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(policy, retType1));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType1[0]);
+    /* activate test.txt rw success because appdata has denied the policy inherit. */
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType1[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
+
+/**
+ * @tc.name: TestPersistWithMultiLevelSetPolicy004
+ * @tc.desc: Test persist with multi-level set policy, and with deny inherit, rw first.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy004, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser/",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/notepad/test.txt",
+        .mode = OperateMode::READ_MODE
+    };
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[1]);
+
+    std::vector<bool> checkTempResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, checkTempResult));
+    EXPECT_TRUE(checkTempResult[0]);
+    EXPECT_TRUE(checkTempResult[1]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+    /* test.txt rw is allowed to be persisted. */
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[1]);
+
+    std::vector<bool> checkPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkPersistResult));
+    EXPECT_TRUE(checkPersistResult[0]);
+    EXPECT_TRUE(checkPersistResult[1]);
+
+    std::vector<uint32_t> retType1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(policy, retType1));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType1[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType1[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
+
+/**
+ * @tc.name: TestPersistWithMultiLevelSetPolicy005
+ * @tc.desc: Test persist with multi-level set policy, and with deny inherit, read only first.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy005, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info1 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/notepad/dir1",
+        .mode = OperateMode::READ_MODE
+    };
+
+    PolicyInfo info2 = {
+        .path = "/storage/Users/currentUser/appdata/el2/base/notepad/dir1/dir2/test.txt",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[1]);
+
+    std::vector<bool> checkTempResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, checkTempResult));
+    EXPECT_TRUE(checkTempResult[0]);
+    EXPECT_FALSE(checkTempResult[1]);
+
+    std::vector<uint32_t> retType;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[1]);
+
+    std::vector<bool> checkPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkPersistResult));
+    EXPECT_TRUE(checkPersistResult[0]);
+    EXPECT_FALSE(checkPersistResult[1]);
+
+    std::vector<uint32_t> retType1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(policy, retType1));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType1[0]);
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, retType1[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
 #endif
 } // SandboxManager
 } // AccessControl
