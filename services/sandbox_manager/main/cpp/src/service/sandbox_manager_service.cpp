@@ -35,6 +35,7 @@
 #include "sandbox_memory_manager.h"
 #endif
 #include "system_ability_definition.h"
+#include "share_files.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -772,6 +773,10 @@ bool SandboxManagerService::PackageChangedEventAction(const SystemAbilityOnDeman
         SANDBOXMANAGER_LOG_ERROR(LABEL, "%{public}s  clean policy failed", bundleName.c_str());
         return false;
     }
+
+#ifdef NOT_RESIDENT
+    SandboxManagerShare::GetInstance().Refresh(bundleName, userId);
+#endif
 
     return true;
 }

@@ -20,6 +20,7 @@
 #include "policy_info_manager.h"
 #include "sandbox_manager_log.h"
 #include "accesstoken_kit.h"
+#include "share_files.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -45,6 +46,7 @@ bool SandboxManagerCommonEventSubscriber::RegisterEvent()
     skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_FULLY_REMOVED);
     skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_DATA_CLEARED);
     skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_CHANGED);
+    skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_ADDED);
     EventFwk::CommonEventSubscribeInfo subscribeInfo(*skill);
     auto info = std::make_shared<EventFwk::CommonEventSubscribeInfo>(*skill);
     g_subscriber = std::make_shared<SandboxManagerCommonEventSubscriber>(*info);
@@ -71,6 +73,47 @@ bool SandboxManagerCommonEventSubscriber::UnRegisterEvent()
     return true;
 }
 
+void SandboxManagerCommonEventSubscriber::OnReceiveEventRemove(const EventFwk::Want &want)
+{
+    uint32_t tokenId = static_cast<uint32_t>(want.GetParams().GetIntParam("accessTokenId", 0));
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Error tokenid = %{public}u.", tokenId);
+        return;
+    }
+    PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId);
+#ifdef NOT_RESIDENT
+    int32_t appIndex = want.GetIntParam("appIndex", -1);
+    if (appIndex != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "ReceivePackage removed only clear main, this is %{public}d", appIndex);
+        return;
+    }
+    std::string bundleName = want.GetElement().GetBundleName();
+    if (bundleName.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "On ReceivePackage removed failed by error input.");
+        return;
+    }
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+#endif
+    SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenid = %{public}u.", tokenId);
+}
+
+void SandboxManagerCommonEventSubscriber::OnReceiveEventAdd(const EventFwk::Want &want)
+{
+    std::string bundleName = want.GetElement().GetBundleName();
+    SANDBOXMANAGER_LOG_INFO(LABEL, "On receive package:%{private}s added", bundleName.c_str());
+
+#ifdef NOT_RESIDENT
+    int32_t userID = want.GetParams().GetIntParam("userId", -1);
+    if ((userID == -1) || (bundleName.empty())) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "On ReceivePackage changed failed by error input.");
+        return;
+    }
+
+    SandboxManagerShare::GetInstance().GetShareCfgByBundle(bundleName, userID);
+#endif
+    return;
+}
+
 void SandboxManagerCommonEventSubscriber::OnReceiveEvent(const EventFwk::CommonEventData& data)
 {
     const auto want = data.GetWant();
@@ -79,13 +122,7 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEvent(const EventFwk::CommonE
     if (action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_REMOVED ||
         action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_FULLY_REMOVED ||
         action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_DATA_CLEARED) {
-        uint32_t tokenId = static_cast<uint32_t>(want.GetParams().GetIntParam("accessTokenId", 0));
-        if (tokenId == 0) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Error tokenid = %{public}u.", tokenId);
-            return;
-        }
-        PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId);
-        SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenid = %{public}u.", tokenId);
+        return OnReceiveEventRemove(want);
     }
 
     if (action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_CHANGED) {
@@ -97,6 +134,12 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEvent(const EventFwk::CommonE
         }
         SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceive Package changed %{public}s, %{public}d", bundleName.c_str(), userID);
         (void)PolicyInfoManager::GetInstance().CleanPolicyByPackageChanged(bundleName, userID);
+#ifdef NOT_RESIDENT
+        SandboxManagerShare::GetInstance().Refresh(bundleName, userID);
+#endif
+    }
+    if (action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_ADDED) {
+        return OnReceiveEventAdd(want);
     }
 }
 } // namespace SandboxManager
