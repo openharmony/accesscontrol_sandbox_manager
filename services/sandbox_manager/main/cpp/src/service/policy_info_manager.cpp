@@ -594,7 +594,7 @@ bool PolicyInfoManager::IsModeMatchPolicyType(uint64_t mode, SetPolicyType type)
     return (type == modeType);
 }
 
-uint32_t PolicyInfoManager::CheckSetPolicyInput(const PolicyInfo &policy, const SetInfo &setInfo, SetPolicyType type)
+int32_t PolicyInfoManager::CheckSetPolicyInput(const PolicyInfo &policy, const SetInfo &setInfo, SetPolicyType type)
 {
     int32_t res = CheckPolicyValidity(policy);
     if (res != SANDBOX_MANAGER_OK) {
