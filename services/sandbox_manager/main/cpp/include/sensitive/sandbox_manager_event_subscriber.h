@@ -33,6 +33,8 @@ public:
     static bool UnRegisterEvent();
 
     void OnReceiveEvent(const OHOS::EventFwk::CommonEventData& data) override;
+    void OnReceiveEventRemove(const EventFwk::Want &want);
+    void OnReceiveEventAdd(const EventFwk::Want &want);
 };
 } // namespace SandboxManager
 } // namespace AccessControl

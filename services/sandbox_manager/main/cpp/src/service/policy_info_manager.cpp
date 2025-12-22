@@ -42,6 +42,7 @@
 #include "dec_api.h"
 #include "iservice_registry.h"
 #include "system_ability_definition.h"
+#include "share_files.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -70,6 +71,10 @@ void PolicyInfoManager::Init()
     SandboxManagerRdb::GetInstance();
     macAdapter_.Init();
     InitUserGrantMap();
+
+#ifdef NOT_RESIDENT
+    SandboxManagerShare::GetInstance();
+#endif
 }
 
 void PolicyInfoManager::CleanPolicyOnMac(const std::vector<std::string> &filePathList, int32_t userId)
@@ -595,10 +600,6 @@ uint32_t PolicyInfoManager::CheckSetPolicyInput(const PolicyInfo &policy, const 
     if (res != SANDBOX_MANAGER_OK) {
         return res;
     }
-    res = CheckPathIsBlocked(policy.path, policy.type, setInfo.bundleName);
-    if (res != SANDBOX_MANAGER_OK) {
-        return res;
-    }
 
     if (IsModeMatchPolicyType(policy.mode, type) != true) {
         return SandboxRetType::INVALID_MODE;
@@ -660,7 +661,7 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
     std::vector<size_t> validIndex;
     std::vector<PolicyInfo> validPolicies;
     uint32_t invalidNum = 0;
-
+    int32_t userID = 0;
     for (size_t index = 0; index < policySize; ++index) {
         int32_t res = CheckSetPolicyInput(policy[index], setInfo, SetPolicyType::TEMP_POLICY);
         if (res != SANDBOX_MANAGER_OK) {
@@ -669,6 +670,12 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
             continue;
         }
 
+        res = CheckPathIsBlocked(tokenId, userID, policy[index], setInfo.bundleName);
+        if (res != SANDBOX_MANAGER_OK) {
+            result[index] = static_cast<uint32_t>(res);
+            ++invalidNum;
+            continue;
+        }
         validIndex.emplace_back(index);
         validPolicies.emplace_back(policy[index]);
     }
@@ -692,8 +699,15 @@ int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const std::vector<Pol
     uint32_t invalidNum = 0;
 
     SetInfo setInfo;
+    int32_t userID = 0;
     for (size_t index = 0; index < policySize; ++index) {
         int32_t res = CheckSetPolicyInput(policy[index], setInfo, SetPolicyType::DENY_POLICY);
+        if (res != SANDBOX_MANAGER_OK) {
+            result[index] = static_cast<uint32_t>(res);
+            ++invalidNum;
+            continue;
+        }
+        res = CheckPathIsBlocked(tokenId, userID, policy[index], setInfo.bundleName);
         if (res != SANDBOX_MANAGER_OK) {
             result[index] = static_cast<uint32_t>(res);
             ++invalidNum;
@@ -1154,6 +1168,7 @@ const std::string ROOT_PATH = "/storage";
 const std::string APPDATA_PATH = "/storage/Users/currentUser/appdata";
 const std::string ROOT_PATH_WITH_SLASH = "/storage/";
 const std::string APPDATA_PATH_WITH_SLASH = "/storage/Users/currentUser/appdata/";
+const std::string FULL_PATH_START = "/storage/Users/currentUser/appdata/el2/";
 
 std::vector<std::string> PolicyInfoManager::splitPath(const std::string &path)
 {
@@ -1165,7 +1180,8 @@ std::vector<std::string> PolicyInfoManager::splitPath(const std::string &path)
         if (!component.empty()) {
             components.push_back(component);
         }
-        if (comNum > MAX_CHECK_COM_NUM) {
+        // for check bundleName, must splite more than MAX_CHECK_COM_NUM length
+        if (comNum > (MAX_CHECK_COM_NUM + 1)) {
             break;
         }
         comNum++;
@@ -1179,13 +1195,6 @@ bool PolicyInfoManager::CheckPathWithinBundleName(const std::string &path, const
     // self path must check bundleName
     if (bundleName.empty()) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "selfpath need input bundlename");
-        return false;
-    }
-
-    size_t APPDATA_PATH_SIZE = APPDATA_PATH_WITH_SLASH.length();
-    // Paths not starting with '/storage/Users/currentUser/appdata/' are forbidden
-    if (path.substr(0, APPDATA_PATH_SIZE) != APPDATA_PATH_WITH_SLASH) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "selfpath need start with appdata");
         return false;
     }
 
@@ -1204,7 +1213,68 @@ bool PolicyInfoManager::CheckPathWithinBundleName(const std::string &path, const
     return true;
 }
 
-bool PolicyInfoManager::CheckPathWithinRule(const std::string &path, uint64_t type, const std::string &bundleName)
+static bool CheckShareMode(uint64_t permission, uint64_t mode)
+{
+    /* Before applying the general configuration, unconfigured items are not controlled. */
+    if (permission == SHARE_BUNDLE_UNSET) {
+        return true;
+    }
+    if (permission == SHARE_PATH_UNSET) {
+        return false;
+    }
+
+    return ((permission & mode) == mode);
+}
+
+bool PolicyInfoManager::CheckPathWithinShareMap(uint32_t tokenId, int32_t &userID, const std::string &path,
+    const PolicyInfo &policy, std::vector<std::string> &components)
+{
+    size_t APPDATA_PATH_SIZE = APPDATA_PATH_WITH_SLASH.length();
+    // Paths not starting with '/storage/Users/currentUser/appdata/' are forbidden
+    if (path.substr(0, APPDATA_PATH_SIZE) != APPDATA_PATH_WITH_SLASH) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "need start with appdata");
+        return false;
+    }
+
+    if (components.size() <= MAX_CHECK_COM_NUM + 1) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "path size no need to check %{public}s", path.c_str());
+        return true;
+    }
+
+    bool firstCalled = false;
+    if (userID == 0) {
+        int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userID);
+        if (ret != 0) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "GetForegroundOsAccountLocalId, error=%{public}d", ret);
+            return false;
+        }
+
+        firstCalled = true;
+    }
+
+    std::string bundleNameTmp = components[MAX_CHECK_COM_NUM];
+    std::string pathTmp = FULL_PATH_START + components[MAX_CHECK_COM_NUM - 1] + "/" +
+        components[MAX_CHECK_COM_NUM] + "/" + components[MAX_CHECK_COM_NUM + 1];
+    uint64_t permission = SandboxManagerShare::GetInstance().FindPermission(bundleNameTmp, userID, pathTmp);
+    if (permission == SHARE_BUNDLE_UNSET) {
+        /* Refresh only once when multiple paths are input. */
+        if (firstCalled != true) {
+            return true;
+        }
+
+        if (SandboxManagerShare::GetInstance().GetAllShareCfg(userID) != SANDBOX_MANAGER_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "refresh GetAllShareCfg failed");
+            /* Before applying the general configuration, unconfigured items are not controlled. */
+            return true;
+        }
+        permission = SandboxManagerShare::GetInstance().FindPermission(bundleNameTmp, userID, pathTmp);
+    }
+
+    return CheckShareMode(permission, policy.mode);
+}
+
+bool PolicyInfoManager::CheckPathWithinRule(uint32_t tokenId, int32_t &userID, const std::string &path,
+    const PolicyInfo &policy, const std::string &bundleName)
 {
     if ((path == ROOT_PATH) || (path == APPDATA_PATH)) {
         return false;
@@ -1229,12 +1299,20 @@ bool PolicyInfoManager::CheckPathWithinRule(const std::string &path, uint64_t ty
         }
     }
 
-    if (type == PolicyType::SELF_PATH) {
-        return CheckPathWithinBundleName(path, bundleName, components);
+    if (policy.type == PolicyType::SELF_PATH) {
+        if (CheckPathWithinBundleName(path, bundleName, components) == false) {
+            return false;
+        }
     }
 
     // check whether path is longer than "/storage/Users/currentUser/appdata/*/*"
     if (components.size() > MAX_CHECK_COM_NUM) {
+#ifdef NOT_RESIDENT
+        // Second set skip check
+        if (policy.type != PolicyType::AUTHORIZATION_PATH) {
+            return CheckPathWithinShareMap(tokenId, userID, path, policy, components);
+        }
+#endif
         return true;
     }
 
@@ -1247,21 +1325,22 @@ bool PolicyInfoManager::CheckPathWithinRule(const std::string &path, uint64_t ty
     return true;
 }
 
-int32_t PolicyInfoManager::CheckPathIsBlocked(const std::string &path, uint64_t type, const std::string &bundleName)
+int32_t PolicyInfoManager::CheckPathIsBlocked(uint32_t tokenId, int32_t &userID,
+    const PolicyInfo &policy, const std::string &bundleName)
 {
-    uint32_t length = path.length();
-    const char *cStr = path.c_str();
+    uint32_t length = policy.path.length();
+    const char *cStr = policy.path.c_str();
     uint32_t cStrLength = strlen(cStr);
     if (length != cStrLength) {
         LOGE_WITH_REPORT(LABEL, "path have a terminator: %{public}s, pathLen:%{public}u, cstrLen:%{public}u",
-            path.c_str(), length, cStrLength);
+            policy.path.c_str(), length, cStrLength);
         return SandboxRetType::INVALID_PATH;
     }
 
-    std::string pathTmp = AdjustPath(path);
-    bool ret = CheckPathWithinRule(pathTmp, type, bundleName);
+    std::string pathTmp = AdjustPath(policy.path);
+    bool ret = CheckPathWithinRule(tokenId, userID, pathTmp, policy, bundleName);
     if (ret != true) {
-        LOGE_WITH_REPORT(LABEL, "path not allowed to set policy: %{public}s", path.c_str());
+        LOGE_WITH_REPORT(LABEL, "path not allowed to set policy: %{public}s", policy.path.c_str());
         return SandboxRetType::INVALID_PATH;
     }
     return SANDBOX_MANAGER_OK;

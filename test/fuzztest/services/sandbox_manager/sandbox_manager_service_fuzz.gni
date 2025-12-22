@@ -24,6 +24,7 @@ sandbox_manager_include_dirs = [
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/service",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/mac",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/media",
+  "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/share",
   "../../mock/",
   "../../../common/",
 ]
@@ -42,6 +43,7 @@ sandbox_manager_sources = [
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/service/policy_info_manager.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/service/policy_trie.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/service/sandbox_manager_service.cpp",
+  "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/share/share_files.cpp",
   "${sandbox_manager_path}/test/fuzztest/common/alloc_token.cpp",
   "${sandbox_manager_path}/test/fuzztest/common/fuzz_common.cpp",
 ]

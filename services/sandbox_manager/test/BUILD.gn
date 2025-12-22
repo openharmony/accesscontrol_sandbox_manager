@@ -26,6 +26,7 @@ sandbox_manager_service_src = [
   "../main/cpp/src/database/sandbox_manager_rdb_utils.cpp",
   "../main/cpp/src/mac/mac_adapter.cpp",
   "../main/cpp/src/media/media_path_support.cpp",
+  "../main/cpp/src/share/share_files.cpp",
 ]
 
 if (!sandbox_manager_process_resident) {
@@ -63,11 +64,11 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/service",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/mac",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/media",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/share",
   ]
   include_dirs += sandbox_manager_service_mock_include
 
   sources = [
-    "unittest/policy_info_manager_test.cpp",
     "unittest/sandbox_manager_rdb_test.cpp",
     "unittest/sandbox_manager_service_test.cpp",
     "unittest/media_path_mock_test.cpp",
@@ -150,10 +151,90 @@ ohos_unittest("libsandbox_dec_test") {
   }
 }
 
+ohos_unittest("libsandbox_policy_test") {
+  subsystem_name = "accesscontrol"
+  module_out_path = "sandbox_manager/sandbox_manager"
+
+  sanitize = {
+    cfi = true
+    cfi_cross_dso = true
+    debug = false
+  }
+  branch_protector_ret = "pac_ret"
+
+  include_dirs = [
+    "${sandbox_manager_path}/frameworks/sandbox_manager/include",
+    "${sandbox_manager_path}/frameworks/sandbox_test_common/include",
+    "${sandbox_manager_path}/frameworks/common/include",
+    "${sandbox_manager_path}/services/common/database/include",
+    "${sandbox_manager_path}/services/common/utils",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/database",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/sensitive",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/service",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/mac",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/media",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/share",
+  ]
+  include_dirs += sandbox_manager_service_mock_include
+
+  sources = [
+    "unittest/policy_info_manager_test.cpp",
+  ]
+  sources += sandbox_manager_service_src
+  sources += sandbox_manager_service_mock_src
+
+  configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
+
+  cflags_cc = [ "-DHILOG_ENABLE" ]
+  if (sandbox_manager_with_dec) {
+    cflags_cc += [ "-DDEC_ENABLED" ]
+  }
+
+  if (!sandbox_manager_process_resident) {
+    cflags_cc += [ "-DNOT_RESIDENT" ]
+  }
+
+  deps = [
+    "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
+    "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_stub",
+    "${sandbox_manager_path}/frameworks/sandbox_test_common:sandbox_test_common_source_set",
+    "${sandbox_manager_path}/services/common:sandbox_manager_service_common",
+    "${sandbox_manager_path}/services/sandbox_manager:sandbox_manager_service",
+  ]
+
+  external_deps = [
+    "ability_base:want",
+    "access_token:libaccesstoken_sdk",
+    "access_token:libnativetoken",
+    "access_token:libtoken_setproc",
+    "appspawn:appspawn_dec_util",
+    "bundle_framework:appexecfwk_base",
+    "bundle_framework:appexecfwk_core",
+    "cJSON:cjson",
+    "c_utils:utils",
+    "common_event_service:cesfwk_core",
+    "common_event_service:cesfwk_innerkits",
+    "config_policy:configpolicy_util",
+    "eventhandler:libeventhandler",
+    "hilog:libhilog",
+    "hisysevent:libhisysevent",
+    "ipc:ipc_core",
+    "os_account:os_account_innerkits",
+    "relational_store:native_rdb",
+    "safwk:system_ability_fwk",
+    "samgr:samgr_proxy",
+  ]
+
+  if (!sandbox_manager_process_resident) {
+    cflags_cc += [ "-DMEMORY_MANAGER_ENABLE" ]
+  }
+}
+
 group("unittest") {
   testonly = true
   deps = [
     ":libsandbox_manager_service_standard_test",
     ":libsandbox_dec_test",
+    ":libsandbox_policy_test",
   ]
 }
