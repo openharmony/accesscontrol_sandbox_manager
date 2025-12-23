@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "setpolicystub_fuzzer.h"
+#include "setdenypolicystub_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
@@ -29,7 +29,7 @@
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
-    bool SetPolicyStub(const uint8_t *data, size_t size)
+    bool SetDenyPolicyStub(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
@@ -65,14 +65,7 @@ namespace OHOS {
             return false;
         }
 
-        SetInfoParcel setInfoParcel;
-        SetInfo setInfo;
-        setInfoParcel.setInfo = setInfo;
-        if (!datas.WriteParcelable(&setInfoParcel)) {
-            return false;
-        }
-
-        uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_SET_POLICY);
+        uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_SET_DENY_POLICY);
         MessageParcel reply;
         MessageOption option;
         DelayedSingleton<SandboxManagerService>::GetInstance()->Initialize();
@@ -80,9 +73,9 @@ namespace OHOS {
         return true;
     }
 
-    bool SetPolicyStubFuzzTest(const uint8_t *data, size_t size)
+    bool SetDenyPolicyStubFuzzTest(const uint8_t *data, size_t size)
     {
-        return AllocTokenWithFuzz(data, size, SetPolicyStub);
+        return AllocTokenWithFuzz(data, size, SetDenyPolicyStub);
     }
 }
 
@@ -90,6 +83,6 @@ namespace OHOS {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     /* Run your code on data */
-    OHOS::SetPolicyStubFuzzTest(data, size);
+    OHOS::SetDenyPolicyStubFuzzTest(data, size);
     return 0;
 }

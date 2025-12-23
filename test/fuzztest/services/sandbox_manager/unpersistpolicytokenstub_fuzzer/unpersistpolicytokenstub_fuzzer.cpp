@@ -25,16 +25,26 @@
 #define private public
 #include "sandbox_manager_service.h"
 #undef private
+#include "accesstoken_kit.h"
+#include "token_setproc.h"
 
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
+namespace {
+static uint32_t g_selfToken = 0;
+static uint32_t g_file_manager_token = 0;
+};
     bool UnPersistPolicyToken(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
 
+        g_file_manager_token = Security::AccessToken::AccessTokenKit::GetNativeTokenId(
+            "file_manager_service");
+        g_selfToken = GetSelfTokenID();
+        SetSelfTokenID(g_file_manager_token);
         std::vector<PolicyInfo> policyVec;
         std::vector<uint32_t> result;
         PolicyInfoRandomGenerator gen(data, size);
@@ -65,7 +75,7 @@ namespace OHOS {
         MessageOption option;
         DelayedSingleton<SandboxManagerService>::GetInstance()->Initialize();
         DelayedSingleton<SandboxManagerService>::GetInstance()->OnRemoteRequest(code, datas, reply, option);
-
+        SetSelfTokenID(g_selfToken);
         return true;
     }
 
