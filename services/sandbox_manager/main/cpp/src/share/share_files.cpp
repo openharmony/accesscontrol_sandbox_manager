@@ -228,7 +228,7 @@ int32_t SandboxManagerShare::GetShareCfgByBundle(const std::string &bundleName, 
     }
 
     std::string profile;
-    err =  bundleMgr->GetJsonProfile(AppExecFwk::ProfileType::SHARE_FILES_PROFILE, bundleName,
+    err = bundleMgr->GetJsonProfile(AppExecFwk::ProfileType::SHARE_FILES_PROFILE, bundleName,
         bundleInfo.entryModuleName, profile, userId);
     if (err != ERR_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetJsonProfile error %{public}s, err: %{public}d", bundleName.c_str(), userId);

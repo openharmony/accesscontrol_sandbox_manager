@@ -311,7 +311,7 @@ private:
         MacParams &macParams, SetPolicyType type);
     int32_t SetPolicyInner(std::vector<PolicyInfo> &validPolicies, std::vector<size_t> &validIndex,
         MacParams &macParams, std::vector<uint32_t> &result, PolicyInfoInner &info);
-    uint32_t CheckSetPolicyInput(const PolicyInfo &policy, const SetInfo &setInfo, SetPolicyType type);
+    int32_t CheckSetPolicyInput(const PolicyInfo &policy, const SetInfo &setInfo, SetPolicyType type);
     std::vector<std::string> splitPath(const std::string &path);
     bool CheckPathWithinBundleName(const std::string &path, const std::string &bundleName,
         std::vector<std::string> &components);
