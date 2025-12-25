@@ -13,15 +13,15 @@
  * limitations under the License.
  */
 
-#include "setpolicystub_fuzzer.h"
+#include "unsetdenypolilcystub_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
 #include <string>
 #include "alloc_token.h"
 #include "fuzz_common.h"
-#include "policy_info_vector_parcel.h"
 #include "isandbox_manager.h"
+#include "policy_info_parcel.h"
 #define private public
 #include "sandbox_manager_service.h"
 #undef private
@@ -29,50 +29,32 @@
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
-    bool SetPolicyStub(const uint8_t *data, size_t size)
+    bool UnsetDenyPolicyStub(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
-
-        std::vector<PolicyInfo> policyVec;
         PolicyInfoRandomGenerator gen(data, size);
-        uint32_t tokenId = gen.GetData<uint32_t>();
-        uint64_t policyFlag = gen.GetData<uint64_t>() % 2; // 2 is flag max
+        uint32_t tokenid = gen.GetData<uint32_t>();
 
-        gen.GeneratePolicyInfoVec(policyVec);
+        PolicyInfo policy;
+        gen.GeneratePolicyInfo(policy);
 
         MessageParcel datas;
         if (!datas.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
             return false;
         }
-
-        if (!datas.WriteUint32(tokenId)) {
+        if (!datas.WriteUint32(tokenid)) {
             return false;
         }
-
-        PolicyVecRawData policyRawData;
-        policyRawData.Marshalling(policyVec);
-        if (!datas.WriteUint32(policyRawData.size)) {
+        PolicyInfoParcel policyInfoParcel;
+        policyInfoParcel.policyInfo = policy;
+        if (!datas.WriteParcelable(&policyInfoParcel)) {
             return false;
         }
+            
+        uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_UN_SET_DENY_POLICY);
 
-        if (!datas.WriteRawData(policyRawData.data, policyRawData.size)) {
-            return false;
-        }
-
-        if (!datas.WriteUint64(policyFlag)) {
-            return false;
-        }
-
-        SetInfoParcel setInfoParcel;
-        SetInfo setInfo;
-        setInfoParcel.setInfo = setInfo;
-        if (!datas.WriteParcelable(&setInfoParcel)) {
-            return false;
-        }
-
-        uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_SET_POLICY);
         MessageParcel reply;
         MessageOption option;
         DelayedSingleton<SandboxManagerService>::GetInstance()->Initialize();
@@ -80,9 +62,9 @@ namespace OHOS {
         return true;
     }
 
-    bool SetPolicyStubFuzzTest(const uint8_t *data, size_t size)
+    bool UnsetDenyPolicyStubFuzzTest(const uint8_t *data, size_t size)
     {
-        return AllocTokenWithFuzz(data, size, SetPolicyStub);
+        return AllocTokenWithFuzz(data, size, UnsetDenyPolicyStub);
     }
 }
 
@@ -90,6 +72,6 @@ namespace OHOS {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     /* Run your code on data */
-    OHOS::SetPolicyStubFuzzTest(data, size);
+    OHOS::UnsetDenyPolicyStubFuzzTest(data, size);
     return 0;
 }

@@ -27,6 +27,7 @@ group("fuzztest") {
     "persistpolicytokenstub_fuzzer:PersistPolicyTokenStubFuzzTest",
     "setpolicyasyncstub_fuzzer:SetPolicyAsyncStubFuzzTest",
     "setpolicystub_fuzzer:SetPolicyStubFuzzTest",
+    "setdenypolicystub_fuzzer:SetDenyPolicyStubFuzzTest",
     "startaccessingbytokenidstub_fuzzer:StartAccessingByTokenidStubFuzzTest",
     "startaccessingpolicystub_fuzzer:StartAccessingPolicyStubFuzzTest",
     "stopaccessingpolicystub_fuzzer:StopAccessingPolicyStubFuzzTest",
@@ -35,6 +36,7 @@ group("fuzztest") {
     "unsetallpolicybytokenstub_fuzzer:UnsetAllPolicyByTokenStubFuzzTest",
     "unsetpolicyasyncstub_fuzzer:UnsetPolicyAsyncStubFuzzTest",
     "unsetpolicystub_fuzzer:UnsetPolicyStubFuzzTest",
+    "unsetdenypolicystub_fuzzer:UnsetDenyPolicyStubFuzzTest",
     "setpolicybybundlenamestub_fuzzer:SetPolicyByBundleNameStubFuzzTest",
     "startbyeventaction_fuzzer:StartByEventActionFuzzTest"
   ]

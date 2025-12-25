@@ -29,12 +29,16 @@
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
+namespace {
+const int32_t FOUNDATION_UID = 5523;
+};
     bool PersistPolicyTokenStub(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
-
+        int32_t uid = getuid();
+        setuid(FOUNDATION_UID);
         std::vector<PolicyInfo> policyVec;
         std::vector<uint32_t> result;
         PolicyInfoRandomGenerator gen(data, size);
@@ -66,6 +70,7 @@ namespace OHOS {
         MessageOption option;
         DelayedSingleton<SandboxManagerService>::GetInstance()->Initialize();
         DelayedSingleton<SandboxManagerService>::GetInstance()->OnRemoteRequest(code, datas, reply, option);
+        setuid(uid);
         return true;
     }
 
