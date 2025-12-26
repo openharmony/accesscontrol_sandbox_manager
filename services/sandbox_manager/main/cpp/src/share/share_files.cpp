@@ -249,26 +249,11 @@ bool SandboxManagerShare::Exists(const std::string &bundleName, uint32_t userId)
     return false;
 }
 
-static std::string RemoveClonePrefix(const std::string &bundleName)
-{
-    const std::string prefix = "+clone-";
-    size_t prefixPos = bundleName.find(prefix);
-    if (prefixPos == 0) {
-        size_t endPos = bundleName.find('+', prefix.size());
-        if (endPos != std::string::npos) {
-            return bundleName.substr(endPos + 1);
-        }
-    }
-
-    return bundleName;
-}
-
 uint32_t SandboxManagerShare::FindPermission(const std::string &bundleName, uint32_t userId, const std::string &path)
 {
-    std::string bundleTmp = RemoveClonePrefix(bundleName);
     std::lock_guard<std::mutex> lock(mutex_);
-    if (Exists(bundleTmp, userId)) {
-        auto &pathPermissions = g_shareMap[bundleTmp][userId];
+    if (Exists(bundleName, userId)) {
+        auto &pathPermissions = g_shareMap[bundleName][userId];
         auto it = pathPermissions.find(path);
         if (it != pathPermissions.end()) {
             return it->second;

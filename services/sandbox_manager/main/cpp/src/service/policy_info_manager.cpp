@@ -1226,18 +1226,30 @@ static bool CheckShareMode(uint64_t permission, uint64_t mode)
     return ((permission & mode) == mode);
 }
 
+static std::string RemoveClonePrefix(const std::string &bundleName)
+{
+    const std::string prefix = "+clone-";
+    size_t prefixPos = bundleName.find(prefix);
+    if (prefixPos == 0) {
+        size_t endPos = bundleName.find('+', prefix.size());
+        if (endPos != std::string::npos) {
+            return bundleName.substr(endPos + 1);
+        }
+    }
+
+    return bundleName;
+}
+
 bool PolicyInfoManager::CheckPathWithinShareMap(uint32_t tokenId, int32_t &userID, const std::string &path,
     const PolicyInfo &policy, std::vector<std::string> &components)
 {
     size_t APPDATA_PATH_SIZE = APPDATA_PATH_WITH_SLASH.length();
-    // Paths not starting with '/storage/Users/currentUser/appdata/' are forbidden
+    // only check paths which are starting with '/storage/Users/currentUser/appdata/'
     if (path.substr(0, APPDATA_PATH_SIZE) != APPDATA_PATH_WITH_SLASH) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "need start with appdata");
-        return false;
+        return true;
     }
 
     if (components.size() <= MAX_CHECK_COM_NUM + 1) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "path size no need to check %{public}s", path.c_str());
         return true;
     }
 
@@ -1253,8 +1265,9 @@ bool PolicyInfoManager::CheckPathWithinShareMap(uint32_t tokenId, int32_t &userI
     }
 
     std::string bundleNameTmp = components[MAX_CHECK_COM_NUM];
+    std::string bundleRemoveIndex = RemoveClonePrefix(bundleNameTmp);
     std::string pathTmp = FULL_PATH_START + components[MAX_CHECK_COM_NUM - 1] + "/" +
-        components[MAX_CHECK_COM_NUM] + "/" + components[MAX_CHECK_COM_NUM + 1];
+        bundleRemoveIndex + "/" + components[MAX_CHECK_COM_NUM + 1];
     uint64_t permission = SandboxManagerShare::GetInstance().FindPermission(bundleNameTmp, userID, pathTmp);
     if (permission == SHARE_BUNDLE_UNSET) {
         /* Refresh only once when multiple paths are input. */
