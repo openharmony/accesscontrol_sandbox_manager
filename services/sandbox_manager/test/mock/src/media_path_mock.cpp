@@ -12,16 +12,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "media_library_extend_manager.h"
+#include "media_permission_helper.h"
 namespace OHOS {
 namespace Media {
-MediaLibraryExtendManager *MediaLibraryExtendManager::GetMediaLibraryExtendManager()
+MediaPermissionHelper *MediaPermissionHelper::GetMediaPermissionHelper()
 {
-    static MediaLibraryExtendManager mediaLibMgr;
+    static MediaPermissionHelper mediaLibMgr;
     return &mediaLibMgr;
 }
 
-void MediaLibraryExtendManager::InitMediaLibraryExtendManager()
+void MediaPermissionHelper::InitMediaPermissionHelper()
 {
     return;
 }
@@ -37,7 +37,7 @@ constexpr const char* MEDIA_PATH_3 = "/data/storage/el2/media/Photo/3/3/3.jpg";
  * path 3, will return 0, but result = false;
  * path 4, will return -1;
  */
-int32_t MediaLibraryExtendManager::CheckPhotoUriPermission(uint32_t tokenId,
+int32_t MediaPermissionHelper::CheckPhotoUriPermission(uint32_t tokenId,
     const std::vector<std::string> &urisSource, std::vector<bool> &result, const std::vector<uint32_t> &flags)
 {
     for (size_t i = 0; i < urisSource.size(); ++i) {
@@ -58,7 +58,7 @@ int32_t MediaLibraryExtendManager::CheckPhotoUriPermission(uint32_t tokenId,
  * path 3, will return 0, but result = false;
  * path 4, will return -1;
  */
-int32_t MediaLibraryExtendManager::GetPhotoUrisPermission(uint32_t targetTokenld, const std::vector<std::string> &uris,
+int32_t MediaPermissionHelper::GetPhotoUrisPermission(uint32_t targetTokenld, const std::vector<std::string> &uris,
     const std::vector<PhotoPermissionType> &photoPermissionTypes, std::vector<bool> &result)
 {
     for (size_t i = 0; i < uris.size(); ++i) {
@@ -77,7 +77,7 @@ int32_t MediaLibraryExtendManager::GetPhotoUrisPermission(uint32_t targetTokenld
 /* for mock
  * only mock, the URI format is not reused
  */
-int32_t MediaLibraryExtendManager::GetUrisFromFusePaths(const std::vector<std::string> paths,
+int32_t MediaPermissionHelper::GetUrisFromFusePaths(const std::vector<std::string> paths,
     std::vector<std::string> &uris)
 {
     for (const auto& path : paths) {
@@ -86,14 +86,14 @@ int32_t MediaLibraryExtendManager::GetUrisFromFusePaths(const std::vector<std::s
     return 0;
 }
 
-int32_t MediaLibraryExtendManager::GrantPhotoUriPermission(uint32_t srcTokenId, uint32_t targetTokenId,
+int32_t MediaPermissionHelper::GrantPhotoUriPermission(uint32_t srcTokenId, uint32_t targetTokenId,
     const std::vector<std::string> &uris, const std::vector<PhotoPermissionType> &photoPermissionTypes,
     HideSensitiveType hideSensitiveTpye)
 {
     return 0;
 }
 
-int32_t MediaLibraryExtendManager::CancelPhotoUriPermission(uint32_t srcTokenId, uint32_t targetTokenId,
+int32_t MediaPermissionHelper::CancelPhotoUriPermission(uint32_t srcTokenId, uint32_t targetTokenId,
     const std::vector<std::string> &uris, const bool persistFlag, const std::vector<OperationMode> &operationModes)
 {
     return 0;

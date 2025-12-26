@@ -42,12 +42,12 @@ enum class OperationMode : uint32_t {
     READ_WRITE_MODE = 0b11,
 };
 
-class MediaLibraryExtendManager {
+class MediaPermissionHelper {
 public:
-    MediaLibraryExtendManager() = default;
-    virtual ~MediaLibraryExtendManager() = default;
-    static MediaLibraryExtendManager *GetMediaLibraryExtendManager();
-    void InitMediaLibraryExtendManager();
+    MediaPermissionHelper() = default;
+    virtual ~MediaPermissionHelper() = default;
+    static MediaPermissionHelper *GetMediaPermissionHelper();
+    void InitMediaPermissionHelper();
     int32_t CheckPhotoUriPermission(uint32_t tokenId,
         const std::vector<std::string> &urisSource, std::vector<bool> &result, const std::vector<uint32_t> &flags);
     int32_t GrantPhotoUriPermission(uint32_t srcTokenId, uint32_t targetTokenId, const std::vector<std::string> &uris,
