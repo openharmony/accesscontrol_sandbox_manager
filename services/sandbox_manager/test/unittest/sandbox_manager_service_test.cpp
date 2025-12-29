@@ -812,6 +812,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest003, TestSiz
         sandboxManagerService_->StopAccessingPolicy(policyRawData1, resultRawData1));
 }
 
+#ifdef DEC_ENABLED
 /**
  * @tc.name: SandboxManagerServiceNew001
  * @tc.desc: Test SetPolicyByBundleName
@@ -971,6 +972,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceNew005, TestSize.Level0
     policyRawData2.Marshalling(policy);
     EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->CheckPolicy(selfTokenId_, policyRawData2, resultRawData));
 }
+#endif
 } // SandboxManager
 } // AccessControl
 } // OHOS

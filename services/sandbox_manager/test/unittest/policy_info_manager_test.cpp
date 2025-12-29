@@ -568,6 +568,497 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest011, TestSize.Level0)
 
 #ifdef DEC_ENABLED
 /**
+ * @tc.name: PolicyInfoManagerTest014
+ * @tc.desc: Test single mode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest014, TestSize.Level0)
+{
+    std::vector<std::pair<OperateMode, SandboxRetType>> tests = {
+        {OperateMode::READ_MODE, SandboxRetType::OPERATE_SUCCESSFULLY},
+        {OperateMode::WRITE_MODE, SandboxRetType::OPERATE_SUCCESSFULLY},
+        {OperateMode::RENAME_MODE, SandboxRetType::OPERATE_SUCCESSFULLY},
+        {OperateMode::DELETE_MODE, SandboxRetType::OPERATE_SUCCESSFULLY},
+    };
+
+    for (const auto &[mode, expectRet] : tests) {
+        PolicyInfo info {
+            .path = "/data/test/single_mode",
+            .mode = mode
+        };
+
+        std::vector<PolicyInfo> policy;
+        policy.emplace_back(info);
+        std::vector<uint32_t> setResult;
+        EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+        ASSERT_EQ(1, setResult.size());
+        EXPECT_EQ(expectRet, setResult[0]);
+
+        std::vector<uint32_t> addResult;
+        EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, policy, addResult));
+        ASSERT_EQ(1, addResult.size());
+        EXPECT_EQ(expectRet, addResult[0]);
+
+        std::vector<uint32_t> matchResult;
+        EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policy, matchResult));
+        ASSERT_EQ(1, matchResult.size());
+        EXPECT_EQ(expectRet, matchResult[0]);
+
+        PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_);
+    }
+}
+
+/**
+ * @tc.name: PolicyInfoManagerTest015
+ * @tc.desc: Test combined mode and subset matching
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest015, TestSize.Level0)
+{
+    PolicyInfo baseInfo {
+        .path = "/data/test/single_mode",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    std::vector<PolicyInfo> basePolicy;
+    basePolicy.emplace_back(baseInfo);
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, basePolicy, 1, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SANDBOX_MANAGER_OK, setResult[0]);
+
+    std::vector<uint32_t> addResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, basePolicy, addResult));
+    ASSERT_EQ(1, addResult.size());
+    EXPECT_EQ(SANDBOX_MANAGER_OK, addResult[0]);
+
+    PolicyInfo info {
+        .path = "/data/test/single_mode",
+        .mode = OperateMode::READ_MODE | OperateMode::CREATE_MODE
+    };
+
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+    std::vector<uint32_t> matchResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policy, matchResult));
+    ASSERT_EQ(1, matchResult.size());
+    EXPECT_EQ(SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED, matchResult[0]);
+
+    PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_);
+}
+
+/**
+ * @tc.name: PolicyInfoManagerTest016
+ * @tc.desc: Test invalid mode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest016, TestSize.Level0) {
+    std::vector<OperateMode> invalidModes = {
+        static_cast<OperateMode>(0),
+        static_cast<OperateMode>(MAX_MODE * 2),
+        static_cast<OperateMode>(~0ULL),
+        static_cast<OperateMode>(OperateMode::READ_MODE | (1 << 20)),
+    };
+
+    for (const auto& mode : invalidModes) {
+        PolicyInfo info {
+            .path = "/data/test/invalid_mode",
+            .mode = mode
+        };
+
+        std::vector<PolicyInfo> policy;
+        policy.emplace_back(info);
+        std::vector<uint32_t> setResult;
+        std::vector<uint32_t> addResult;
+
+        EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+        ASSERT_EQ(1, setResult.size());
+        EXPECT_EQ(SandboxRetType::INVALID_MODE, setResult[0]);
+
+        EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, policy, addResult));
+        ASSERT_EQ(1, addResult.size());
+        EXPECT_EQ(SandboxRetType::INVALID_MODE, addResult[0]);
+    }
+}
+
+/**
+ * @tc.name: PolicyInfoManagerTest017
+ * @tc.desc: Test batch add policies and repeated mode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest017, TestSize.Level0)
+{
+    PolicyInfo info1 {
+        .path = "/data/test",
+        .mode = OperateMode::READ_MODE
+    };
+
+    PolicyInfo info2 {
+        .path = "/data/test",
+        .mode = OperateMode::WRITE_MODE
+    };
+
+    PolicyInfo info3 {
+        .path = "/storage/Users/currentUser/appdata/a/b",
+        .mode = OperateMode::READ_MODE
+    };
+
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info1);
+    policy.emplace_back(info2);
+    policy.emplace_back(info3);
+    std::vector<uint32_t> setResult;
+    std::vector<uint32_t> addResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    ASSERT_EQ(3, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[1]);
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[2]);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, policy, addResult));
+    ASSERT_EQ(3, addResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, addResult[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, addResult[1]);
+    EXPECT_EQ(SandboxRetType::FORBIDDEN_TO_BE_PERSISTED, addResult[2]);
+
+    PolicyInfo infoRW = {
+        .path = "/data/test",
+        .mode = OperateMode::WRITE_MODE | OperateMode::READ_MODE
+    };
+    std::vector<PolicyInfo> policyRW;
+    policyRW.emplace_back(infoRW);
+
+    std::vector<uint32_t> matchRes1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policyRW, matchRes1));
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, matchRes1[0]);
+
+    PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_);
+}
+
+/**
+ * @tc.name: PolicyInfoManagerTest018
+ * @tc.desc: Test add r and w and del mode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest018, TestSize.Level0)
+{
+    PolicyInfo infoR {
+        .path = "/data/log",
+        .mode = OperateMode::READ_MODE
+    };
+
+    PolicyInfo infoW {
+        .path = "/data/log",
+        .mode = OperateMode::WRITE_MODE
+    };
+
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(infoR);
+    policy.emplace_back(infoW);
+
+    std::vector<uint32_t> setResult;
+    std::vector<uint32_t> addResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    ASSERT_EQ(2, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[1]);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, policy, addResult));
+    ASSERT_EQ(2, addResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, addResult[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, addResult[1]);
+
+    std::vector<PolicyInfo> policyR;
+    policyR.emplace_back(infoR);
+    std::vector<PolicyInfo> policyW;
+    policyW.emplace_back(infoW);
+
+    std::vector<uint32_t> u32Res;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().RemovePolicy(selfTokenId_, policyR, u32Res));
+    ASSERT_EQ(1, u32Res.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
+
+    std::vector<uint32_t> matchRes1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policyW, matchRes1));
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, matchRes1[0]);
+
+    PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_);
+}
+
+/**
+ * @tc.name: PolicyInfoManagerTest019
+ * @tc.desc: Test add rw and del mode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest019, TestSize.Level0)
+{
+    PolicyInfo infoR {
+        .path = "/data/Test019",
+        .mode = OperateMode::READ_MODE
+    };
+
+    PolicyInfo infoW {
+        .path = "/data/Test019",
+        .mode = OperateMode::WRITE_MODE
+    };
+
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(infoR);
+    policy.emplace_back(infoW);
+
+    std::vector<uint32_t> setResult;
+    std::vector<uint32_t> addResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    ASSERT_EQ(2, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[1]);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, policy, addResult));
+    ASSERT_EQ(2, addResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, addResult[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, addResult[1]);
+
+    std::vector<PolicyInfo> policyWR;
+    policyWR.emplace_back(infoR);
+    policyWR.emplace_back(infoW);
+
+    std::vector<uint32_t> u32Res;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().RemovePolicy(selfTokenId_, policyWR, u32Res));
+    ASSERT_EQ(2, u32Res.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
+
+    std::vector<PolicyInfo> policyW;
+    policyW.emplace_back(infoW);
+    std::vector<uint32_t> matchRes1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policyW, matchRes1));
+    EXPECT_EQ(SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED, matchRes1[0]);
+
+    PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_);
+}
+
+/**
+ * @tc.name: PolicyInfoManagerTest020
+ * @tc.desc: Test add rw and del mode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest020, TestSize.Level0)
+{
+    PolicyInfo infoR {
+        .path = "/data/Test020",
+        .mode = OperateMode::READ_MODE
+    };
+
+    PolicyInfo infoW {
+        .path = "/data/Test020",
+        .mode = OperateMode::WRITE_MODE
+    };
+
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(infoR);
+    policy.emplace_back(infoW);
+
+    std::vector<uint32_t> setResult;
+    std::vector<uint32_t> addResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    ASSERT_EQ(2, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[1]);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, policy, addResult));
+    ASSERT_EQ(2, addResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, addResult[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, addResult[1]);
+
+    std::vector<PolicyInfo> policyWR;
+    policyWR.emplace_back(infoR);
+    policyWR.emplace_back(infoW);
+
+    std::vector<uint32_t> u32Res;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().RemovePolicy(selfTokenId_, policyWR, u32Res));
+    ASSERT_EQ(2, u32Res.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
+
+    std::vector<PolicyInfo> policyR;
+    policyR.emplace_back(infoW);
+    std::vector<uint32_t> matchRes1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policyR, matchRes1));
+    EXPECT_EQ(SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED, matchRes1[0]);
+
+    PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_);
+}
+
+/**
+ * @tc.name: PolicyInfoManagerTest021
+ * @tc.desc: Test add rw and del mode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest021, TestSize.Level0)
+{
+    PolicyInfo infoR {
+        .path = "/data/Test021",
+        .mode = OperateMode::READ_MODE
+    };
+
+    PolicyInfo infoW {
+        .path = "/data/Test021",
+        .mode = OperateMode::WRITE_MODE
+    };
+
+    PolicyInfo infoWR {
+        .path = "/data/Test021",
+        .mode = OperateMode::WRITE_MODE | READ_MODE
+    };
+
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(infoWR);
+
+    std::vector<uint32_t> setResult;
+    std::vector<uint32_t> addResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, policy, addResult));
+    ASSERT_EQ(1, addResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, addResult[0]);
+
+    std::vector<PolicyInfo> policyR;
+    policyR.emplace_back(infoR);
+    std::vector<PolicyInfo> policyW;
+    policyW.emplace_back(infoW);
+
+    std::vector<uint32_t> u32Res;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().RemovePolicy(selfTokenId_, policyW, u32Res));
+    ASSERT_EQ(1, u32Res.size());
+    EXPECT_EQ(SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED, u32Res[0]);
+
+    std::vector<uint32_t> matchRes1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policyR, matchRes1));
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, matchRes1[0]);
+
+    PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_);
+}
+
+/**
+ * @tc.name: PolicyInfoManagerTest022
+ * @tc.desc: Test add rw and del mode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest022, TestSize.Level0)
+{
+    PolicyInfo infoR {
+        .path = "/data/Test022",
+        .mode = OperateMode::READ_MODE
+    };
+
+    PolicyInfo infoW {
+        .path = "/data/Test022",
+        .mode = OperateMode::WRITE_MODE
+    };
+
+    PolicyInfo infoWR {
+        .path = "/data/Test022",
+        .mode = OperateMode::WRITE_MODE | READ_MODE
+    };
+
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(infoWR);
+
+    std::vector<uint32_t> setResult;
+    std::vector<uint32_t> addResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, policy, addResult));
+    ASSERT_EQ(1, addResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, addResult[0]);
+
+    std::vector<PolicyInfo> policyW;
+    policyW.emplace_back(infoW);
+    std::vector<PolicyInfo> policyWR;
+    policyWR.emplace_back(infoWR);
+
+    std::vector<uint32_t> u32Res;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().RemovePolicy(selfTokenId_, policyW, u32Res));
+    ASSERT_EQ(1, u32Res.size());
+    EXPECT_EQ(SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED, u32Res[0]);
+
+    std::vector<uint32_t> matchRes1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policyWR, matchRes1));
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, matchRes1[0]);
+
+    PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_);
+}
+
+/**
+ * @tc.name: PolicyInfoManagerTest023
+ * @tc.desc: Test add rw and del mode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest023, TestSize.Level0)
+{
+    PolicyInfo infoR {
+        .path = "/data/log",
+        .mode = OperateMode::READ_MODE
+    };
+
+    PolicyInfo infoW {
+        .path = "/data/log",
+        .mode = OperateMode::WRITE_MODE
+    };
+
+    PolicyInfo infoWR {
+        .path = "/data/log",
+        .mode = OperateMode::WRITE_MODE | READ_MODE
+    };
+
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(infoW);
+    policy.emplace_back(infoWR);
+
+    std::vector<uint32_t> setResult;
+    std::vector<uint32_t> addResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    ASSERT_EQ(2, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[1]);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, policy, addResult));
+    ASSERT_EQ(2, addResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, addResult[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, addResult[1]);
+
+    std::vector<PolicyInfo> policyW;
+    policyW.emplace_back(infoW);
+    std::vector<PolicyInfo> policyWR;
+    policyWR.emplace_back(infoWR);
+
+    std::vector<uint32_t> u32Res;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().RemovePolicy(selfTokenId_, policyW, u32Res));
+    ASSERT_EQ(1, u32Res.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
+
+    std::vector<uint32_t> matchRes1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policyWR, matchRes1));
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, matchRes1[0]);
+
+    PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
  * @tc.name: QuerySandboxPolicyTest001
  * @tc.desc: Test AddPolicy with unset flag
  * @tc.type: FUNC
