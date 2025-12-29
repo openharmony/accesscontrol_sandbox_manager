@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 #include "policy_info.h"
-#include "media_library_extend_manager.h"
+#include "media_permission_helper.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -55,7 +55,7 @@ public:
 private:
     template <typename T>
     void MediaDfx(std::vector<std::string> &uri, std::vector<T> &mode);
-    Media::MediaLibraryExtendManager *media_ = nullptr;
+    Media::MediaPermissionHelper *media_ = nullptr;
 };
 } // namespace SandboxManager
 } // namespace AccessControl
