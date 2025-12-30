@@ -162,6 +162,462 @@ void SandboxManagerKitModeTest::TearDown()
 
 #ifdef DEC_ENABLED
 /**
+ * @tc.name: PersistPolicyParentAndChildDirTest001
+ * @tc.desc: Test persistent authorization for both subdirectories and parent directories simultaneously.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentAndChildDirTest001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE
+    };
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE
+    };
+    uint64_t policyFlag = 1;
+    policy.emplace_back(infoSub1);
+    policy.emplace_back(infoSub2);
+    policy.emplace_back(infoParent);
+
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, persistResult));
+    ASSERT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, persistResult));
+    EXPECT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    std::vector<uint32_t> unPersistResult;
+    std::vector<PolicyInfo> policyParent;
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+
+    std::vector<PolicyInfo> policySub;
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentAndChildDirTest002
+ * @tc.desc: Test persistent authorization for both subdirectories and parent directories simultaneously.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentAndChildDirTest002, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::CREATE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::CREATE_MODE
+    };
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::CREATE_MODE
+    };
+    uint64_t policyFlag = 1;
+    policy.emplace_back(infoSub1);
+    policy.emplace_back(infoSub2);
+    policy.emplace_back(infoParent);
+
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, persistResult));
+    ASSERT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, persistResult));
+    EXPECT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    std::vector<uint32_t> unPersistResult;
+    std::vector<PolicyInfo> policyParent;
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+
+    std::vector<PolicyInfo> policySub;
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentAndChildDirTest003
+ * @tc.desc: Test persistent authorization for both subdirectories and parent directories simultaneously.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentAndChildDirTest003, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::DELETE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::DELETE_MODE
+    };
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::DELETE_MODE
+    };
+    uint64_t policyFlag = 1;
+    policy.emplace_back(infoSub1);
+    policy.emplace_back(infoSub2);
+    policy.emplace_back(infoParent);
+
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, persistResult));
+    ASSERT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, persistResult));
+    EXPECT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    std::vector<uint32_t> unPersistResult;
+    std::vector<PolicyInfo> policyParent;
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+
+    std::vector<PolicyInfo> policySub;
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentAndChildDirTest004
+ * @tc.desc: Test persistent authorization for both subdirectories and parent directories simultaneously.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentAndChildDirTest004, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::RENAME_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::RENAME_MODE
+    };
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::RENAME_MODE
+    };
+    uint64_t policyFlag = 1;
+    policy.emplace_back(infoSub1);
+    policy.emplace_back(infoSub2);
+    policy.emplace_back(infoParent);
+
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, persistResult));
+    ASSERT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, persistResult));
+    EXPECT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    std::vector<uint32_t> unPersistResult;
+    std::vector<PolicyInfo> policyParent;
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+
+    std::vector<PolicyInfo> policySub;
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentAndChildDirTest005
+ * @tc.desc: Test persistent authorization for both subdirectories and parent directories simultaneously.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentAndChildDirTest005, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    uint64_t policyFlag = 1;
+    policy.emplace_back(infoSub1);
+    policy.emplace_back(infoSub2);
+    policy.emplace_back(infoParent);
+
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, persistResult));
+    ASSERT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, persistResult));
+    EXPECT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    std::vector<uint32_t> unPersistResult;
+    std::vector<PolicyInfo> policyParent;
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+
+    std::vector<PolicyInfo> policySub;
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentAndChildDirTest006
+ * @tc.desc: Test persistent authorization for both subdirectories and parent directories simultaneously.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentAndChildDirTest006, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::CREATE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::CREATE_MODE
+    };
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::CREATE_MODE
+    };
+    uint64_t policyFlag = 1;
+    policy.emplace_back(infoSub1);
+    policy.emplace_back(infoSub2);
+    policy.emplace_back(infoParent);
+
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, persistResult));
+    ASSERT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, persistResult));
+    EXPECT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    std::vector<uint32_t> unPersistResult;
+    std::vector<PolicyInfo> policyParent;
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+
+    std::vector<PolicyInfo> policySub;
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentAndChildDirTest007
+ * @tc.desc: Test persistent authorization for both subdirectories and parent directories simultaneously.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentAndChildDirTest007, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::DELETE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::DELETE_MODE
+    };
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::DELETE_MODE
+    };
+    uint64_t policyFlag = 1;
+    policy.emplace_back(infoSub1);
+    policy.emplace_back(infoSub2);
+    policy.emplace_back(infoParent);
+
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, persistResult));
+    ASSERT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, persistResult));
+    EXPECT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    std::vector<uint32_t> unPersistResult;
+    std::vector<PolicyInfo> policyParent;
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+
+    std::vector<PolicyInfo> policySub;
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentAndChildDirTest008
+ * @tc.desc: Test persistent authorization for both subdirectories and parent directories simultaneously.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentAndChildDirTest008, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::RENAME_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::RENAME_MODE
+    };
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::RENAME_MODE
+    };
+    uint64_t policyFlag = 1;
+    policy.emplace_back(infoSub1);
+    policy.emplace_back(infoSub2);
+    policy.emplace_back(infoParent);
+
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, persistResult));
+    ASSERT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, persistResult));
+    EXPECT_EQ(3, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
+
+    std::vector<uint32_t> unPersistResult;
+    std::vector<PolicyInfo> policyParent;
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+
+    std::vector<PolicyInfo> policySub;
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+}
+
+/**
  * @tc.name: PersistPolicyTestChildDirMode001
  * @tc.desc: Subdirectories can inherit the persistent authorization of the parent directory.
  * @tc.type: FUNC
@@ -209,6 +665,335 @@ HWTEST_F(SandboxManagerKitModeTest, PersistPolicyTestChildDirMode001, TestSize.L
 }
 
 /**
+ * @tc.name: PersistPolicyTestChildDirMode002
+ * @tc.desc: Subdirectories can inherit the persistent authorization of the parent directory.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyTestChildDirMode002, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policyParent;
+    std::vector<PolicyInfo> policySub;
+    std::vector<uint32_t> persistResult;
+    uint64_t policyFlag = 1;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::CREATE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::CREATE_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::CREATE_MODE
+    };
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyParent, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policyParent, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policySub, checkResult));
+    EXPECT_EQ(true, checkResult[0]);
+    EXPECT_EQ(true, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: PersistPolicyTestChildDirMode003
+ * @tc.desc: Subdirectories can inherit the persistent authorization of the parent directory.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyTestChildDirMode003, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policyParent;
+    std::vector<PolicyInfo> policySub;
+    std::vector<uint32_t> persistResult;
+    uint64_t policyFlag = 1;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::DELETE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::DELETE_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::DELETE_MODE
+    };
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyParent, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policyParent, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policySub, checkResult));
+    EXPECT_EQ(true, checkResult[0]);
+    EXPECT_EQ(true, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: PersistPolicyTestChildDirMode004
+ * @tc.desc: Subdirectories can inherit the persistent authorization of the parent directory.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyTestChildDirMode004, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policyParent;
+    std::vector<PolicyInfo> policySub;
+    std::vector<uint32_t> persistResult;
+    uint64_t policyFlag = 1;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::RENAME_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::RENAME_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::RENAME_MODE
+    };
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyParent, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policyParent, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policySub, checkResult));
+    EXPECT_EQ(true, checkResult[0]);
+    EXPECT_EQ(true, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: PersistPolicyTestChildDirMode005
+ * @tc.desc: Subdirectories can inherit the persistent authorization of the parent directory.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyTestChildDirMode005, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policyParent;
+    std::vector<PolicyInfo> policySub;
+    std::vector<uint32_t> persistResult;
+    uint64_t policyFlag = 1;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyParent, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policyParent, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policySub, checkResult));
+    EXPECT_EQ(true, checkResult[0]);
+    EXPECT_EQ(true, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: PersistPolicyTestChildDirMode006
+ * @tc.desc: Subdirectories can inherit the persistent authorization of the parent directory.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyTestChildDirMode006, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policyParent;
+    std::vector<PolicyInfo> policySub;
+    std::vector<uint32_t> persistResult;
+    uint64_t policyFlag = 1;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::CREATE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::CREATE_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::CREATE_MODE
+    };
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyParent, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policyParent, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policySub, checkResult));
+    EXPECT_EQ(true, checkResult[0]);
+    EXPECT_EQ(true, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: PersistPolicyTestChildDirMode007
+ * @tc.desc: Subdirectories can inherit the persistent authorization of the parent directory.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyTestChildDirMode007, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policyParent;
+    std::vector<PolicyInfo> policySub;
+    std::vector<uint32_t> persistResult;
+    uint64_t policyFlag = 1;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::DELETE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::DELETE_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::DELETE_MODE
+    };
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyParent, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policyParent, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policySub, checkResult));
+    EXPECT_EQ(true, checkResult[0]);
+    EXPECT_EQ(true, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: PersistPolicyTestChildDirMode008
+ * @tc.desc: Subdirectories can inherit the persistent authorization of the parent directory.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyTestChildDirMode008, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policyParent;
+    std::vector<PolicyInfo> policySub;
+    std::vector<uint32_t> persistResult;
+    uint64_t policyFlag = 1;
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::RENAME_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::RENAME_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policySub.emplace_back(infoSub2);
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::RENAME_MODE
+    };
+    policyParent.emplace_back(infoParent);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyParent, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policyParent, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policySub, checkResult));
+    EXPECT_EQ(true, checkResult[0]);
+    EXPECT_EQ(true, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
  * @tc.name: PersistPolicyParentDirFailTest001
  * @tc.desc: The parent directory cannot inherit persistent authorization from subdirectories.
  * @tc.type: FUNC
@@ -230,6 +1015,384 @@ HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentDirFailTest001, TestSize.
     PolicyInfo infoSub2 = {
         .path = "/A/B/C",
         .mode = OperateMode::READ_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policyParent.emplace_back(infoParent);
+    policyParent.emplace_back(infoSub2);
+    uint64_t policyFlag = 1;
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policySub, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policySub, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK,
+        SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policyParent, checkResult));
+    EXPECT_EQ(false, checkResult[0]);
+    EXPECT_EQ(false, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[0]);
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[1]);
+
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentDirFailTest002
+ * @tc.desc: The parent directory cannot inherit persistent authorization from subdirectories.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentDirFailTest002, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policySub;
+    std::vector<PolicyInfo> policyParent;
+    std::vector<uint32_t> persistResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::CREATE_MODE
+    };
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::CREATE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::CREATE_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policyParent.emplace_back(infoParent);
+    policyParent.emplace_back(infoSub2);
+    uint64_t policyFlag = 1;
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policySub, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policySub, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK,
+        SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policyParent, checkResult));
+    EXPECT_EQ(false, checkResult[0]);
+    EXPECT_EQ(false, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[0]);
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[1]);
+
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentDirFailTest003
+ * @tc.desc: The parent directory cannot inherit persistent authorization from subdirectories.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentDirFailTest003, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policySub;
+    std::vector<PolicyInfo> policyParent;
+    std::vector<uint32_t> persistResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::DELETE_MODE
+    };
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::DELETE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::DELETE_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policyParent.emplace_back(infoParent);
+    policyParent.emplace_back(infoSub2);
+    uint64_t policyFlag = 1;
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policySub, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policySub, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK,
+        SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policyParent, checkResult));
+    EXPECT_EQ(false, checkResult[0]);
+    EXPECT_EQ(false, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[0]);
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[1]);
+
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentDirFailTest004
+ * @tc.desc: The parent directory cannot inherit persistent authorization from subdirectories.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentDirFailTest004, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policySub;
+    std::vector<PolicyInfo> policyParent;
+    std::vector<uint32_t> persistResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::RENAME_MODE
+    };
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::RENAME_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::RENAME_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policyParent.emplace_back(infoParent);
+    policyParent.emplace_back(infoSub2);
+    uint64_t policyFlag = 1;
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policySub, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policySub, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK,
+        SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policyParent, checkResult));
+    EXPECT_EQ(false, checkResult[0]);
+    EXPECT_EQ(false, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[0]);
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[1]);
+
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentDirFailTest005
+ * @tc.desc: The parent directory cannot inherit persistent authorization from subdirectories.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentDirFailTest005, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policySub;
+    std::vector<PolicyInfo> policyParent;
+    std::vector<uint32_t> persistResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policyParent.emplace_back(infoParent);
+    policyParent.emplace_back(infoSub2);
+    uint64_t policyFlag = 1;
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policySub, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policySub, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK,
+        SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policyParent, checkResult));
+    EXPECT_EQ(false, checkResult[0]);
+    EXPECT_EQ(false, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[0]);
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[1]);
+
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentDirFailTest006
+ * @tc.desc: The parent directory cannot inherit persistent authorization from subdirectories.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentDirFailTest006, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policySub;
+    std::vector<PolicyInfo> policyParent;
+    std::vector<uint32_t> persistResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::CREATE_MODE
+    };
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::CREATE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::CREATE_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policyParent.emplace_back(infoParent);
+    policyParent.emplace_back(infoSub2);
+    uint64_t policyFlag = 1;
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policySub, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policySub, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK,
+        SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policyParent, checkResult));
+    EXPECT_EQ(false, checkResult[0]);
+    EXPECT_EQ(false, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[0]);
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[1]);
+
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentDirFailTest007
+ * @tc.desc: The parent directory cannot inherit persistent authorization from subdirectories.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentDirFailTest007, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policySub;
+    std::vector<PolicyInfo> policyParent;
+    std::vector<uint32_t> persistResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::DELETE_MODE
+    };
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::DELETE_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::DELETE_MODE
+    };
+    policySub.emplace_back(infoSub1);
+    policyParent.emplace_back(infoParent);
+    policyParent.emplace_back(infoSub2);
+    uint64_t policyFlag = 1;
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policySub, policyFlag, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policySub, persistResult));
+    EXPECT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK,
+        SandboxManagerKit::CheckPersistPolicy(GetSelfTokenID(), policyParent, checkResult));
+    EXPECT_EQ(false, checkResult[0]);
+    EXPECT_EQ(false, checkResult[1]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policyParent, unPersistResult));
+    EXPECT_EQ(2, unPersistResult.size());
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[0]);
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[1]);
+
+    unPersistResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policySub, unPersistResult));
+    EXPECT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
+/**
+ * @tc.name: PersistPolicyParentDirFailTest008
+ * @tc.desc: The parent directory cannot inherit persistent authorization from subdirectories.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitModeTest, PersistPolicyParentDirFailTest008, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policySub;
+    std::vector<PolicyInfo> policyParent;
+    std::vector<uint32_t> persistResult;
+    PolicyInfo infoParent = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::RENAME_MODE
+    };
+    PolicyInfo infoSub1 = {
+        .path = "/A/B/C/D",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::RENAME_MODE
+    };
+    PolicyInfo infoSub2 = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE | OperateMode::RENAME_MODE
     };
     policySub.emplace_back(infoSub1);
     policyParent.emplace_back(infoParent);
