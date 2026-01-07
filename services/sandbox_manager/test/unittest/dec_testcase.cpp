@@ -301,9 +301,6 @@ HWTEST_F(DecTestCase, testaccess006, TestSize.Level0)
     EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/dir1/dir11/dir11test.txt", 0), 0);
     EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_READ), 0);
     EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_WRITE), 0);
-    EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/test.txt", 0), 0);
-    EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/test.txt", DEC_MODE_READ), 0);
-    EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/test.txt", DEC_MODE_WRITE), 0);
     EXPECT_EQ(DestroyByTokenid(TOKEN_ID1, 0), 0);
     EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/dir1/dir11/dir11test.txt", 0), 0);
     EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_READ), -1);

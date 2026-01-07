@@ -2401,6 +2401,337 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest017, TestSize.Level0)
     policy.path = path3;
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CheckPathIsBlocked(0, useId, policy));
 }
+
+/**
+ * @tc.name: ShareTest019
+ * @tc.desc: set "rw" then use "r" to overwrite, write failed
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, ShareTest019, TestSize.Level0)
+{
+    std::string stringJson1 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "r+w"
+                }
+            ]
+        }
+    })";
+
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare";
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+
+    std::string stringJson2 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "r"
+                }
+            ]
+        }
+    })";
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+
+    PolicyInfo info;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+    info.path = "/storage/Users/currentUser/appdata/el2/base/com.testshare/haps";
+    info.mode = OperateMode::WRITE_MODE;
+    policy[0] = info;
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
+}
+
+/**
+ * @tc.name: ShareTest020
+ * @tc.desc: set "rw" then use "r" to overwrite, read succ
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, ShareTest020, TestSize.Level0)
+{
+    std::string stringJson1 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "r+w"
+                }
+            ]
+        }
+    })";
+
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare";
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+
+    std::string stringJson2 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "r"
+                }
+            ]
+        }
+    })";
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+
+    PolicyInfo info;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+    info.path = "/storage/Users/currentUser/appdata/el2/base/com.testshare/haps";
+    info.mode = OperateMode::READ_MODE;
+    policy[0] = info;
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+}
+
+/**
+ * @tc.name: ShareTest021
+ * @tc.desc: set "rw" then set "r" to other userId, read succ
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, ShareTest021, TestSize.Level0)
+{
+    std::string stringJson1 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "r+w"
+                }
+            ]
+        }
+    })";
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare";
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+
+    std::string stringJson2 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "r"
+                }
+            ]
+        }
+    })";
+    userId = 200;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+
+    PolicyInfo info;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+    info.path = "/storage/Users/currentUser/appdata/el2/base/com.testshare/haps";
+    info.mode = OperateMode::WRITE_MODE;
+    policy[0] = info;
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+}
+
+/**
+ * @tc.name: ShareTest022
+ * @tc.desc: set path1 "rw" then set "r" to other path, write path1 succ
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, ShareTest022, TestSize.Level0)
+{
+    std::string stringJson1 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "r+w"
+                }
+            ]
+        }
+    })";
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare";
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+
+    std::string stringJson2 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/files",
+                    "permission": "r"
+                }
+            ]
+        }
+    })";
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+
+    PolicyInfo info;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+    info.path = "/storage/Users/currentUser/appdata/el2/base/com.testshare/haps";
+    info.mode = OperateMode::WRITE_MODE;
+    policy[0] = info;
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+}
+
+/**
+ * @tc.name: ShareTest023
+ * @tc.desc: set "w" then use "wr" to overwrite, w succ
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, ShareTest023, TestSize.Level0)
+{
+    std::string stringJson1 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "w"
+                }
+            ]
+        }
+    })";
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare";
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+
+    std::string stringJson2 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "r+w"
+                }
+            ]
+        }
+    })";
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+
+    PolicyInfo info;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+    info.path = "/storage/Users/currentUser/appdata/el2/base/com.testshare/haps";
+    info.mode = OperateMode::WRITE_MODE;
+    policy[0] = info;
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+}
+
+/**
+ * @tc.name: ShareTest024
+ * @tc.desc: set "w" then use "r" to overwrite, then delete all, w succ
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, ShareTest024, TestSize.Level0)
+{
+    std::string stringJson1 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "w"
+                }
+            ]
+        }
+    })";
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare";
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+
+    std::string stringJson2 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "r"
+                }
+            ]
+        }
+    })";
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    PolicyInfo info;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+    info.path = "/storage/Users/currentUser/appdata/el2/base/com.testshare/haps";
+    info.mode = OperateMode::WRITE_MODE;
+    policy[0] = info;
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+}
+
+/**
+ * @tc.name: ShareTest025
+ * @tc.desc: set "w" then use "r" to overwrite, then delete userId, w succ
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, ShareTest025, TestSize.Level0)
+{
+    std::string stringJson1 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "w"
+                }
+            ]
+        }
+    })";
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare";
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+
+    std::string stringJson2 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "r"
+                }
+            ]
+        }
+    })";
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+    SandboxManagerShare::GetInstance().DeleteByUserId(userId);
+    PolicyInfo info;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+    info.path = "/storage/Users/currentUser/appdata/el2/base/com.testshare/haps";
+    info.mode = OperateMode::WRITE_MODE;
+    policy[0] = info;
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+}
 #endif
 #endif
 } // SandboxManager
