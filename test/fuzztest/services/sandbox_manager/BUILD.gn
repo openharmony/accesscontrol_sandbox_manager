@@ -38,6 +38,7 @@ group("fuzztest") {
     "unsetpolicystub_fuzzer:UnsetPolicyStubFuzzTest",
     "unsetdenypolicystub_fuzzer:UnsetDenyPolicyStubFuzzTest",
     "setpolicybybundlenamestub_fuzzer:SetPolicyByBundleNameStubFuzzTest",
-    "startbyeventaction_fuzzer:StartByEventActionFuzzTest"
+    "startbyeventaction_fuzzer:StartByEventActionFuzzTest",
+    "mac_fuzzer:MacFuzzTest"
   ]
 }

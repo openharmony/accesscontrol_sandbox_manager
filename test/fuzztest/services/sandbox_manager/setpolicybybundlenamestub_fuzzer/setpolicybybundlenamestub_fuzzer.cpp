@@ -32,19 +32,13 @@ using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
 namespace {
-static uint32_t SELF_TOKEN = 0;
-static uint32_t FILE_MANAGER_TOKEN = 0;
+
 };
     bool SetPolicyByBundleNameStub(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
-
-        FILE_MANAGER_TOKEN = Security::AccessToken::AccessTokenKit::GetNativeTokenId(
-            "file_manager_service");
-        SELF_TOKEN = GetSelfTokenID();
-        SetSelfTokenID(FILE_MANAGER_TOKEN);
 
         std::vector<PolicyInfo> policyVec;
         std::string name;
@@ -87,7 +81,6 @@ static uint32_t FILE_MANAGER_TOKEN = 0;
         MessageOption option;
         DelayedSingleton<SandboxManagerService>::GetInstance()->Initialize();
         DelayedSingleton<SandboxManagerService>::GetInstance()->OnRemoteRequest(code, datas, reply, option);
-        SetSelfTokenID(SELF_TOKEN);
         return true;
     }
 

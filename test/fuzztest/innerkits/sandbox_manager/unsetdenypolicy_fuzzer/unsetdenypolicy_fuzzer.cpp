@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "setpolicy_fuzzer.h"
+#include "unsetdenypolicy_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
@@ -27,31 +27,32 @@
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
-    bool SetPolicy(const uint8_t *data, size_t size)
+    bool UnSetDenyPolicy(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
 
         std::vector<PolicyInfo> policyVec;
-        PolicyInfoRandomGenerator gen(data, size);
-        uint32_t tokenId = gen.GetData<uint32_t>();
-        // flag is between 0-1
-        uint64_t policyFlag = gen.GetData<uint64_t>() % 3;
-        gen.GeneratePolicyInfoVec(policyVec);
-
+        PolicyInfo policy;
         std::vector<uint32_t> result;
-        SandboxManagerKit::SetPolicy(tokenId, policyVec, policyFlag, result);
 
-        uint64_t time = gen.GetData<uint64_t>() % 3;
-        SandboxManagerKit::SetPolicy(tokenId, policyVec, policyFlag, result, time);
+        PolicyInfoRandomGenerator gen(data, size);
+        gen.GeneratePolicyInfo(policy);
+        policyVec.push_back(policy);
+
+        uint32_t flag = gen.GetData<uint32_t>();
+        if (flag & 1) {
+            SandboxManagerKit::SetDenyPolicy(GetSelfTokenID(), policyVec, result);
+        }
+        SandboxManagerKit::UnSetDenyPolicy(GetSelfTokenID(), policy);
         return true;
     }
 
-    bool SetPolicyFuzzTest(const uint8_t *data, size_t size)
+    bool UnSetDenyPolicyFuzzTest(const uint8_t *data, size_t size)
     {
         MockTokenId("foundation");
-        return AllocTokenWithFuzz(data, size, SetPolicy);
+        return AllocTokenWithFuzz(data, size, UnSetDenyPolicy);
     }
 }
 
@@ -59,6 +60,6 @@ namespace OHOS {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     /* Run your code on data */
-    OHOS::SetPolicyFuzzTest(data, size);
+    OHOS::UnSetDenyPolicyFuzzTest(data, size);
     return 0;
 }
