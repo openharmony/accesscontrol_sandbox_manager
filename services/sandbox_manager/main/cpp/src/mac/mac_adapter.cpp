@@ -79,7 +79,7 @@ MacAdapter::MacAdapter() {}
 MacAdapter::~MacAdapter()
 {
     if (fd_ >= 0) {
-        close(fd_);
+        FDSAN_CLOSE(fd_);
         fd_ = -1;
     }
     isMacSupport_ = false;
@@ -113,22 +113,23 @@ int32_t MacAdapter::ReadDenyFile(const char *jsonPath, std::string& rawData)
         return SANDBOX_MANAGER_DENY_ERR;
     }
 
+    FDSAN_MARK(fd);
     struct stat statBuffer;
     if (fstat(fd, &statBuffer) != 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "fstat failed");
-        close(fd);
+        FDSAN_CLOSE(fd);
         return SANDBOX_MANAGER_DENY_ERR;
     }
 
     if (statBuffer.st_size == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Config file size is zero.");
-        close(fd);
+        FDSAN_CLOSE(fd);
         return SANDBOX_MANAGER_DENY_ERR;
     }
 
     if (statBuffer.st_size > MAX_DENY_CONFIG_FILE_SIZE) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Config file size is too large");
-        close(fd);
+        FDSAN_CLOSE(fd);
         return SANDBOX_MANAGER_DENY_ERR;
     }
     rawData.reserve(statBuffer.st_size);
@@ -136,7 +137,7 @@ int32_t MacAdapter::ReadDenyFile(const char *jsonPath, std::string& rawData)
     while ((readLen = read(fd, buf, BUFFER_SIZE)) > 0) {
         rawData.append(buf, readLen);
     }
-    close(fd);
+    FDSAN_CLOSE(fd);
     if (readLen == 0) {
         return SANDBOX_MANAGER_OK;
     }
@@ -268,6 +269,7 @@ void MacAdapter::Init()
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Open node failed, errno=%{public}d.", errno);
         return;
     }
+    FDSAN_MARK(fd_);
     SANDBOXMANAGER_LOG_INFO(LABEL, "Open node success.");
 
 #ifndef NOT_RESIDENT
