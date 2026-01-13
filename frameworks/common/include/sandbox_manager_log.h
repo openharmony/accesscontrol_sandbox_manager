@@ -40,6 +40,9 @@ public:
 #undef LOG_DOMAIN
 static constexpr unsigned int ACCESSCONTROL_DOMAIN_SANDBOXMANAGER = 0xD005A07;
 
+#define FDSAN_MARK(fd) fdsan_exchange_owner_tag(fd, 0, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER)
+#define FDSAN_CLOSE(fd) fdsan_close_with_tag(fd, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER)
+
 inline void StringReplace(std::string &str, const std::string &oldStr, const std::string &newStr)
 {
     std::string::size_type pos = 0u;
