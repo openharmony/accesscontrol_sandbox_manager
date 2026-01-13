@@ -29,11 +29,16 @@
 using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
+namespace {
+const int32_t SPACE_MGR_SERVICE_UID = 7013;
+};
     bool UnsetDenyPolicyStub(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
         }
+        int32_t uid = getuid();
+        setuid(SPACE_MGR_SERVICE_UID);
         PolicyInfoRandomGenerator gen(data, size);
         uint32_t tokenid = gen.GetData<uint32_t>();
 
@@ -59,6 +64,7 @@ namespace OHOS {
         MessageOption option;
         DelayedSingleton<SandboxManagerService>::GetInstance()->Initialize();
         DelayedSingleton<SandboxManagerService>::GetInstance()->OnRemoteRequest(code, datas, reply, option);
+        setuid(uid);
         return true;
     }
 
