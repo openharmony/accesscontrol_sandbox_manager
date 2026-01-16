@@ -107,27 +107,17 @@ bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode)
     }
 
     int32_t curLevel = 0;
-    // Accessing through the parent path needs to be restricted.
-    bool AccessingByParent = true;
-    bool flag = false;
     for (const std::string &segment : pathSegments) {
         if (curNode == nullptr || curNode->children_.count(segment) == 0) {
             break;
         }
         curLevel++;
-        if (curNode->children_[segment]->isEndOfPath_) {
-            if (curLevel >= needLevel) {
-                AccessingByParent = false;
-            }
-            flag = IsPolicyMatch(curNode->children_[segment]->mode_, mode);
+        if (curLevel >= needLevel && curNode->children_[segment]->isEndOfPath_) {
+            return IsPolicyMatch(curNode->children_[segment]->mode_, mode);
         }
 
         curNode = curNode->children_[segment];
     }
- 
-    if (AccessingByParent == true) {
-        return false;
-    }
 
-    return flag;
+    return false;
 }
