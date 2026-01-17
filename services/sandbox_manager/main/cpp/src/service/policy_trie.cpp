@@ -46,7 +46,7 @@ void PolicyTrie::Clear()
 std::vector<std::string> PolicyTrie::SplitPath(const std::string &path)
 {
     std::vector<std::string> segments;
-    int start = 0;
+    size_t start = 0;
     for (size_t i = 0; i < path.size(); i++) {
         if (path[i] == '/') {
             if (i > start) {
@@ -78,18 +78,12 @@ void PolicyTrie::InsertPath(const std::string &path, uint64_t mode)
 
 bool PolicyTrie::IsPolicyMatch(uint64_t referMode, uint64_t searchMode)
 {
-    bool modeMatch;
     searchMode = searchMode & MODE_FILTER;
     referMode = referMode & MODE_FILTER;
-    // refer RW, search R or W shoule return true
-    if (referMode == searchMode) {
-        modeMatch = true;
-    } else if (referMode > searchMode) {
-        modeMatch = ((referMode & searchMode) != 0);
-    } else {
-        modeMatch = false;
+    if ((referMode & searchMode) == searchMode) {
+        return true;
     }
-    return modeMatch;
+    return false;
 }
 
 bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode)
