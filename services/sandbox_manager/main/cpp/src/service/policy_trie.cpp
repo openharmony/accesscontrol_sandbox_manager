@@ -79,11 +79,11 @@ void PolicyTrie::InsertPath(const std::string &path, uint64_t mode)
 bool PolicyTrie::IsPolicyMatch(uint64_t referMode, uint64_t searchMode)
 {
     searchMode = searchMode & MODE_FILTER;
-	referMode = referMode & MODE_FILTER;
-	if ((referMode & searchMode) == searchMode) {
-		return true;
-	}
-	return false;
+    referMode = referMode & MODE_FILTER;
+    if ((referMode & searchMode) == searchMode) {
+        return true;
+    }
+    return false;
 }
 
 bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode)
