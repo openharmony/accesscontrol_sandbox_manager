@@ -66,13 +66,6 @@ int32_t SandboxManagerClient::CleanPersistPolicyByPath(const std::vector<std::st
     return CallProxyWithRetry(func, __FUNCTION__);
 }
 
-int32_t SandboxManagerClient::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
-{
-    std::function<int32_t(sptr<ISandboxManager> &)> func =
-        [&](sptr<ISandboxManager> &proxy) { return proxy->CleanPolicyByUserId(userId, filePathList); };
-    return CallProxyWithRetry(func, __FUNCTION__);
-}
-
 int32_t SandboxManagerClient::SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
     const std::vector<PolicyInfo> &policy, uint64_t policyFlag, std::vector<uint32_t> &result)
 {
@@ -90,6 +83,13 @@ int32_t SandboxManagerClient::SetPolicyByBundleName(const std::string &bundleNam
     }
     resultRawData.Unmarshalling(result);
     return ret;
+}
+
+int32_t SandboxManagerClient::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
+{
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->CleanPolicyByUserId(userId, filePathList); };
+    return CallProxyWithRetry(func, __FUNCTION__);
 }
 
 int32_t SandboxManagerClient::PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
