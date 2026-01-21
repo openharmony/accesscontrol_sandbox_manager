@@ -28,6 +28,7 @@
 #include "accesstoken_kit.h"
 #include "os_account_manager.h"
 #include "bundle_mgr_interface.h"
+#include "bundle_mgr_proxy.h"
 #include "ipc_skeleton.h"
 #include "iservice_registry.h"
 #include "policy_field_const.h"
