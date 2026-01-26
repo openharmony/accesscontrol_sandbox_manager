@@ -1534,23 +1534,6 @@ int32_t PolicyInfoManager::MatchPolicy(
     }
     return SANDBOX_MANAGER_OK;
 }
-int32_t PolicyInfoManager::CleanPolicyByPathlist(uint32_t tokenId, std::vector<std::string> &list)
-{
-    SANDBOXMANAGER_LOG_INFO(LABEL, "pathlist size = %{public}zu", list.size());
-    std::vector<PolicyInfo> policy;
-    std::vector<uint32_t> u32Res;
-    for (std::string &p : list) {
-        PolicyInfo info;
-        info.path = p;
-        SANDBOXMANAGER_LOG_INFO(LABEL, "path = %{public}s", p.c_str());
-        /* The default config of appspawn is read and write */
-        info.mode = OperateMode::WRITE_MODE + OperateMode::READ_MODE;
-        policy.emplace_back(info);
-        (void)UnSetPolicy(tokenId, info);
-    }
-
-    return RemovePolicy(tokenId, policy, u32Res);
-}
 
 static sptr<AppExecFwk::IBundleMgr> GetBundleMgrsa()
 {
@@ -1567,10 +1550,6 @@ static sptr<AppExecFwk::IBundleMgr> GetBundleMgrsa()
 
     return iface_cast<AppExecFwk::IBundleMgr>(bundleMgrSa);
 }
-
-std::map<std::string, std::vector<std::string>> DEC_PATH_MAP = {
-    {"ohos.permission.SANDBOX_ACCESS_MANAGER", {"/storage/Users/currentUser/appdata"}}
-};
 
 int32_t PolicyInfoManager::CleanPolicyByPackageChanged(const std::string &bundleName, int32_t userID)
 {
@@ -1589,7 +1568,6 @@ int32_t PolicyInfoManager::CleanPolicyByPackageChanged(const std::string &bundle
     SANDBOXMANAGER_LOG_INFO(LABEL, "get appindex size = %{public}zu", appIndexes.size());
     appIndexes.emplace_back(0);
 
-    std::map<std::string, std::vector<std::string>> decPathMap = DEC_PATH_MAP;
     for (int32_t appIndex : appIndexes) {
         uint32_t tokenId =  Security::AccessToken::AccessTokenKit::GetHapTokenID(userID, bundleName, appIndex);
         if (tokenId == Security::AccessToken::INVALID_TOKENID) {
@@ -1597,15 +1575,10 @@ int32_t PolicyInfoManager::CleanPolicyByPackageChanged(const std::string &bundle
                 userID, bundleName.c_str());
             continue;
         }
-        for (auto &[permission, pathList] : decPathMap) {
-            SANDBOXMANAGER_LOG_INFO(LABEL, "check %{public}s permission", permission.c_str());
-            int ret = Security::AccessToken::AccessTokenKit::VerifyAccessToken(tokenId, permission);
-            if (ret != Security::AccessToken::PERMISSION_GRANTED) {
-                SANDBOXMANAGER_LOG_INFO(LABEL, "need clean %{public}s permission", permission.c_str());
-                (void)CleanPolicyByPathlist(tokenId, pathList);
-            } else {
-                SANDBOXMANAGER_LOG_INFO(LABEL, "no need clean %{public}s permission", permission.c_str());
-            }
+        int32_t ret = UnSetAllPolicyByToken(tokenId);
+        if (ret != SANDBOX_MANAGER_OK) {
+            LOGE_WITH_REPORT(LABEL, "CleanByPackageChanged failed, bundleName = %{public}s, tokenId = %{public}u",
+                bundleName.c_str(), tokenId);
         }
     }
     return SANDBOX_MANAGER_OK;

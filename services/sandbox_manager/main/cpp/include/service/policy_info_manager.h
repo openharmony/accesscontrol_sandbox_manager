@@ -317,7 +317,6 @@ private:
         std::vector<std::string> &components);
     bool CheckPathWithinRule(uint32_t tokenId, int32_t &userID, const std::string &path,
         const PolicyInfo &policy, const std::string &bundleName);
-    int32_t CleanPolicyByPathlist(uint32_t tokenId, std::vector<std::string> &list);
     void InitUserGrantMap();
     bool FindInGrantMap(const uint32_t tokenId, const PolicyInfo &policy, std::string &permission);
     bool IsVerifyPermissionPass(const uint32_t tokenId, const PolicyInfo &policy);
