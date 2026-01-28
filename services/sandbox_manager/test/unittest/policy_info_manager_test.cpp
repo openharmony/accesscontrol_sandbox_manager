@@ -2732,6 +2732,39 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest025, TestSize.Level0)
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 }
+
+const size_t MAX_JSON_SIZE = 5 * 1024 * 1024;
+/**
+ * @tc.name: ShareTest026
+ * @tc.desc: large json
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, ShareTest026, TestSize.Level0)
+{
+    std::string stringJson1 = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/haps",
+                    "permission": "w"
+                }
+            ]
+        }
+    })";
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare";
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+
+    while (stringJson1.size() < MAX_JSON_SIZE + 1) {
+        stringJson1 += ",{\"path\":\"/base/haps\",\"permission\":\"w\"}";
+    }
+    stringJson1.resize(MAX_JSON_SIZE + 1);
+    stringJson1.back() = '}';
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+}
+
 #endif
 #endif
 } // SandboxManager
