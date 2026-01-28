@@ -449,7 +449,8 @@ int32_t MacAdapter::CheckSandboxPolicy(uint32_t tokenId, const std::vector<Polic
         for (size_t i = 0; i < curBatchSize; ++i) {
             if (info.pathInfos[i].result == 0) {
                 std::string maskPath = SandboxManagerLog::MaskRealPath(info.pathInfos[i].path);
-                SANDBOXMANAGER_LOG_ERROR(LABEL, "check policy failed at %{public}s", maskPath.c_str());
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "check policy failed at path=%{public}s tokenId=%{public}u "
+                    "mode=%{public}u", maskPath.c_str(), tokenId, info.pathInfos[i].mode);
             }
             result[offset + i] = info.pathInfos[i].result;
         }
