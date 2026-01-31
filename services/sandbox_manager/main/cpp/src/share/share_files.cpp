@@ -47,6 +47,7 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerShare"
 };
 static std::mutex g_instanceMutex;
+constexpr size_t MAX_JSON_SIZE = 5 * 1024 * 1024;
 }
 
 SandboxManagerShare &SandboxManagerShare::GetInstance()
@@ -162,6 +163,12 @@ int32_t SandboxManagerShare::TransAndSetToMapInner(cJSON *root, const std::strin
 
 int32_t SandboxManagerShare::TransAndSetToMap(const std::string &profile, const std::string &bundleName, int32_t userId)
 {
+    if (profile.size() > MAX_JSON_SIZE) {
+        LOGE_WITH_REPORT(LABEL, "TransAndSetToMap error, size = %{public}zu, bundleName = %{public}s",
+            profile.size(), bundleName.c_str());
+        return INVALID_PARAMTER;
+    }
+
     cJSON *root = cJSON_Parse(profile.c_str());
     if (root == nullptr) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "json parse error");
