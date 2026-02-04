@@ -15,6 +15,7 @@
 
 #include <cstdint>
 #include <gtest/gtest.h>
+#include <sstream>
 #include <vector>
 #include "access_token.h"
 #include "accesstoken_kit.h"
@@ -511,6 +512,22 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest011, TestSize.Level
 }
 
 /**
+ * @tc.name: SandboxManagerServiceTest011A
+ * @tc.desc: Test StartAccessingByTokenId success path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest011A, TestSize.Level0)
+{
+    uint32_t selfUid = getuid();
+    setuid(FOUNDATION_UID);
+    int result = sandboxManagerService_->StartAccessingByTokenId(selfTokenId_, 1);
+    bool pass = (result == SANDBOX_MANAGER_OK || result == SANDBOX_MANAGER_DB_RECORD_NOT_EXIST);
+    EXPECT_TRUE(pass);
+    setuid(selfUid);
+}
+
+/**
  * @tc.name: SandboxManagerServiceTest012
  * @tc.desc: Test StartAccessingByTokenId
  * @tc.type: FUNC
@@ -810,6 +827,73 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest003, TestSiz
         sandboxManagerService_->StartAccessingPolicy(policyRawData1, resultRawData1));
     EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
         sandboxManagerService_->StopAccessingPolicy(policyRawData1, resultRawData1));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest004
+ * @tc.desc: Test PolicyVecBatchReader success and insufficient batch data branch
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest004, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy(2);
+    policy[0].path = "/data/test/0";
+    policy[0].mode = OperateMode::READ_MODE;
+    policy[1].path = "/data/test/1";
+    policy[1].mode = OperateMode::WRITE_MODE;
+
+    PolicyVecRawData rawData;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, rawData.Marshalling(policy));
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(policy.size(), reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, reader.ReadNextBatch(1, batchPolicy));
+    ASSERT_EQ(1, batchPolicy.size());
+    EXPECT_EQ(policy[0].path, batchPolicy[0].path);
+    EXPECT_EQ(policy[0].mode, batchPolicy[0].mode);
+
+    std::stringstream ss;
+    uint32_t policyNum = 2;
+    ss.write(reinterpret_cast<const char *>(&policyNum), sizeof(policyNum));
+    uint32_t pathLen = static_cast<uint32_t>(policy[0].path.length());
+    ss.write(reinterpret_cast<const char *>(&pathLen), sizeof(pathLen));
+    ss.write(policy[0].path.c_str(), pathLen);
+    ss.write(reinterpret_cast<const char *>(&policy[0].mode), sizeof(policy[0].mode));
+    ss.write(reinterpret_cast<const char *>(&policy[0].type), sizeof(policy[0].type));
+
+    PolicyVecRawData shortRawData;
+    shortRawData.serializedData = ss.str();
+    shortRawData.data = reinterpret_cast<const void *>(shortRawData.serializedData.data());
+    shortRawData.size = static_cast<uint32_t>(shortRawData.serializedData.size());
+    PolicyVecBatchReader shortReader(shortRawData);
+    ASSERT_TRUE(shortReader.IsValid());
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, shortReader.ReadNextBatch(policyNum, batchPolicy));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest005
+ * @tc.desc: Test PolicyVecBatchReader rejects oversized policy count
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest005, TestSize.Level0)
+{
+    std::stringstream ss;
+    uint32_t policyNum = POLICY_VEC_MAX_NUM + 1;
+    ss.write(reinterpret_cast<const char *>(&policyNum), sizeof(policyNum));
+
+    PolicyVecRawData rawData;
+    rawData.serializedData = ss.str();
+    rawData.data = reinterpret_cast<const void *>(rawData.serializedData.data());
+    rawData.size = static_cast<uint32_t>(rawData.serializedData.size());
+
+    PolicyVecBatchReader reader(rawData);
+    EXPECT_FALSE(reader.IsValid());
+    std::vector<PolicyInfo> batchPolicy;
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reader.ReadNextBatch(1, batchPolicy));
 }
 
 #ifdef DEC_ENABLED

@@ -22,6 +22,7 @@
 #include "mac_adapter.h"
 #include "generic_values.h"
 #include "policy_info.h"
+#include "policy_vec_raw_data.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -50,7 +51,7 @@ public:
      * @param policy vector of string, file path
      * @return SANDBOX_MANAGER_OK
      */
-    int32_t CleanPersistPolicyByPath(const std::vector<std::string> &filePaths);
+    int32_t CleanPersistPolicyByPath(const std::vector<std::string> &filePaths, int32_t userId = 0);
      /**
      * @brief Clear the policys of a given userid
      * @param userId a given userid
@@ -67,6 +68,9 @@ public:
      */
     int32_t AddPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &result, const uint32_t flag = 0);
+    // Batch processing version - takes PolicyVecRawData directly for memory efficiency
+    int32_t AddPolicy(const uint32_t tokenId, const PolicyVecRawData &policyRawData,
+        std::vector<uint32_t> &result, const uint32_t flag = 0);
     /**
      * @brief Match policys of a certain tokenId
      * @param tokenId token id of the object
@@ -75,6 +79,8 @@ public:
      * @return SANDBOX_MANAGER_DB_ERR / SANDBOX_MANAGER_OK
      */
     int32_t MatchPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+    // Batch processing version - takes PolicyVecRawData directly for memory efficiency
+    int32_t MatchPolicy(const uint32_t tokenId, const PolicyVecRawData &policyRawData, std::vector<uint32_t> &result);
     /**
      * @brief remove policys of a certain tokenId
      * @param tokenId token id of the object
@@ -84,6 +90,8 @@ public:
      *      / SANDBOX_MANAGER_DB_RETURN_EMPTY
      */
     int32_t RemovePolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+    // Batch processing version - takes PolicyVecRawData directly for memory efficiency
+    int32_t RemovePolicy(const uint32_t tokenId, const PolicyVecRawData &policyRawData, std::vector<uint32_t> &result);
     /**
      * @brief set policies of a certain tokenId
      * @param tokenId token id of the object
@@ -93,7 +101,10 @@ public:
      * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
      */
     int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                      std::vector<uint32_t> &result, const SetInfo &info = SetInfo());
+                      std::vector<uint32_t> &result, const SetInfo &info = SetInfo(), int32_t userId = 0);
+    // Batch processing version - takes PolicyVecRawData directly for memory efficiency
+    int32_t SetPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData, uint64_t policyFlag,
+                      std::vector<uint32_t> &result, const SetInfo &info = SetInfo(), int32_t userId = 0);
     /**
      * @brief unset policies of a certain tokenId
      * @param tokenId token id of the object
@@ -108,7 +119,11 @@ public:
      * @param result set result of each policy
      * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
      */
-    int32_t SetDenyPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+    int32_t SetDenyPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+        int32_t userId = 0);
+    // Batch processing version - takes PolicyVecRawData directly for memory efficiency
+    int32_t SetDenyPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData, std::vector<uint32_t> &result,
+        int32_t userId = 0);
     /**
      * @brief unset deny policies of a certain tokenId
      * @param tokenId token id of the object
@@ -124,6 +139,8 @@ public:
      * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
      */
     int32_t CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
+    // Batch processing version - takes PolicyVecRawData directly for memory efficiency
+    int32_t CheckPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData, std::vector<bool> &result);
     /**
      * @brief remove all policys of a certain tokenId (bundle)
      * @param tokenId token id of the object
@@ -136,7 +153,7 @@ public:
      * @param timestamp timestamp to access policy
      * @return int32_t
      */
-    int32_t StartAccessingByTokenId(const uint32_t tokenId, uint64_t timestamp = 0);
+    int32_t StartAccessingByTokenId(const uint32_t tokenId, uint64_t timestamp = 0, int32_t userId = 0);
     /**
      * @brief activate input persist policys
      * @param tokenId token id of the object
@@ -146,7 +163,10 @@ public:
      * @return int32_t
      */
     int32_t StartAccessingPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-        std::vector<uint32_t> &results, uint64_t timestamp = 0);
+        std::vector<uint32_t> &results, uint64_t timestamp = 0, int32_t userId = 0);
+    // Batch processing version - takes PolicyVecRawData directly for memory efficiency
+    int32_t StartAccessingPolicy(const uint32_t tokenId, const PolicyVecRawData &policyRawData,
+        std::vector<uint32_t> &results, uint64_t timestamp = 0, int32_t userId = 0);
     /**
      * @brief deactivate input persist policys
      * @param tokenId token id of the object
@@ -156,6 +176,9 @@ public:
      */
     int32_t StopAccessingPolicy(
         const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results);
+    // Batch processing version - takes PolicyVecRawData directly for memory efficiency
+    int32_t StopAccessingPolicy(
+        const uint32_t tokenId, const PolicyVecRawData &policyRawData, std::vector<uint32_t> &results);
     /**
      * @brief deactivate all policys with given tokenid
      * @param tokenId token id of the object
@@ -284,14 +307,13 @@ private:
     void RemoveResultByUserId(std::vector<GenericValues> &results, int32_t userId);
 private:
     MacAdapter macAdapter_;
-    int32_t GetMacParams(uint32_t tokenId, uint64_t policyFlag, uint64_t timestamp, MacParams &macParams);
     std::map<std::string, std::string> g_userGrantMap;
     int32_t AddNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &result, const uint32_t flag, std::vector<size_t> &queryPolicyIndex, uint32_t invalidNum);
     int32_t RemoveNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &result, std::vector<PolicyInfo> &mediaPolicy, std::vector<size_t> &validMediaIndex);
     int32_t StartAccessingNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-        std::vector<uint32_t> &results, uint64_t timestamp);
+        std::vector<uint32_t> &results, uint64_t timestamp, int32_t userId);
     int32_t MatchNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &result);
     int32_t StopAccessingNormalPolicy(
@@ -316,6 +338,24 @@ private:
     bool CheckPathWithinShareMap(int32_t userID, const std::string &path,
         const PolicyInfo &policy, std::vector<std::string> &components, size_t index);
     bool ShareMapRangeCheck(const std::string &path, std::vector<std::string> &components);
+    uint32_t CalculateBatchSize(uint32_t policyCount, uint32_t batchSize);
+    
+    /**
+     * @brief Template helper for batch processing with PolicyVecRawData
+     * @param policyRawData raw policy data to process in batches
+     * @param result output vector for aggregated results
+     * @param processFunc callable that processes a batch (calls vector-based overload)
+     * @param batchSize batch size for processing
+     * @param defaultValue default value for result initialization
+     * @return SANDBOX_MANAGER_OK on success, error code on failure
+     */
+    template<typename Func, typename ResultType>
+    int32_t ProcessPolicyBatch(
+        const PolicyVecRawData &policyRawData,
+        std::vector<ResultType> &result,
+        Func&& processFunc,
+        uint32_t batchSize,
+        ResultType defaultValue = ResultType());
 };
 } // namespace SandboxManager
 } // namespace AccessControl

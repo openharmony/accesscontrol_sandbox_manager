@@ -188,7 +188,13 @@ int32_t SandboxManagerService::CleanPersistPolicyByPath(const std::vector<std::s
         LOGE_WITH_REPORT(LABEL, "FilePath vector size error, size = %{public}zu.", filePathSize);
         return INVALID_PARAMTER;
     }
-    return PolicyInfoManager::GetInstance().CleanPersistPolicyByPath(filePathList);
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "clean persist failed, get user id failed error=%{public}d", ret);
+        return INVALID_PARAMTER;
+    }
+    return PolicyInfoManager::GetInstance().CleanPersistPolicyByPath(filePathList, userId);
 }
 
 int32_t SandboxManagerService::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
@@ -218,18 +224,12 @@ int32_t SandboxManagerService::SetPolicyByBundleName(const std::string &bundleNa
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
         return PERMISSION_DENIED;
     }
-    std::vector<PolicyInfo> policy;
-    int32_t ret = policyRawData.Unmarshalling(policy);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
-    size_t policySize = policy.size();
-    if (policySize == 0) {
-        LOGE_WITH_REPORT(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
+    if ((policyFlag != 0) && (policyFlag != 1)) {
+        LOGE_WITH_REPORT(LABEL, "Check policyFlag failed, policyFlag = %{public}" PRIu64 ".", policyFlag);
         return INVALID_PARAMTER;
     }
     int32_t userId = -1;
-    ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
     if (ret != 0) {
         LOGE_WITH_REPORT(LABEL, "grantPermission failed, get user id failed error=%{public}d", ret);
         return INVALID_PARAMTER;
@@ -243,12 +243,11 @@ int32_t SandboxManagerService::SetPolicyByBundleName(const std::string &bundleNa
 
     SANDBOXMANAGER_LOG_INFO(LABEL, "set policy targetId:%{public}u", tokenId);
 
-    if ((policyFlag != 0) && (policyFlag != 1)) {
-        LOGE_WITH_REPORT(LABEL, "Check policyFlag failed, policyFlag = %{public}" PRIu64 ".", policyFlag);
-        return INVALID_PARAMTER;
-    }
     std::vector<uint32_t> result;
-    ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policy, policyFlag, result);
+    SetInfo setInfo;
+    setInfo.bundleName = bundleName;
+    // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
+    ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policyRawData, policyFlag, result, setInfo, userId);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -262,16 +261,6 @@ int32_t SandboxManagerService::PersistPolicy(const PolicyVecRawData &policyRawDa
     if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
-    std::vector<PolicyInfo> policy;
-    int32_t ret = policyRawData.Unmarshalling(policy);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
-    size_t policySize = policy.size();
-    if (policySize == 0) {
-        LOGE_WITH_REPORT(LABEL, "Policy vector size error, size = %{public}zu.", policy.size());
-        return INVALID_PARAMTER;
-    }
 
     uint32_t flag = 0;
     if (IPCSkeleton::GetCallingUid() == FOUNDATION_UID) {
@@ -279,7 +268,8 @@ int32_t SandboxManagerService::PersistPolicy(const PolicyVecRawData &policyRawDa
     }
 
     std::vector<uint32_t> result;
-    ret = PolicyInfoManager::GetInstance().AddPolicy(callingTokenId, policy, result, flag);
+    // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
+    int32_t ret = PolicyInfoManager::GetInstance().AddPolicy(callingTokenId, policyRawData, result, flag);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -295,19 +285,10 @@ int32_t SandboxManagerService::UnPersistPolicy(
     if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
-    std::vector<PolicyInfo> policy;
-    int32_t ret = policyRawData.Unmarshalling(policy);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
-    size_t policySize = policy.size();
-    if (policySize == 0) {
-        LOGE_WITH_REPORT(LABEL, "Policy vector size error, size =  %{public}zu.", policy.size());
-        return INVALID_PARAMTER;
-    }
 
     std::vector<uint32_t> result;
-    ret = PolicyInfoManager::GetInstance().RemovePolicy(callingTokenId, policy, result);
+    // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
+    int32_t ret = PolicyInfoManager::GetInstance().RemovePolicy(callingTokenId, policyRawData, result);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -323,16 +304,8 @@ int32_t SandboxManagerService::PersistPolicyByTokenId(
         LOGE_WITH_REPORT(LABEL, "Not foundation userid, permission denied.");
         return PERMISSION_DENIED;
     }
-    std::vector<PolicyInfo> policy;
-    int32_t ret = policyRawData.Unmarshalling(policy);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
-    size_t policySize = policy.size();
-    if ((policySize == 0) || (tokenId == 0)) {
-        LOGE_WITH_REPORT(
-            LABEL, "Policy vector size error or invalid tokenid, size = %{public}zu, tokenid = %{public}u.",
-            policy.size(), tokenId);
+    if (tokenId == 0) {
+        LOGE_WITH_REPORT(LABEL, "Invalid tokenid = %{public}u.", tokenId);
         return INVALID_PARAMTER;
     }
 
@@ -342,7 +315,8 @@ int32_t SandboxManagerService::PersistPolicyByTokenId(
     }
 
     std::vector<uint32_t> result;
-    ret = PolicyInfoManager::GetInstance().AddPolicy(tokenId, policy, result, flag);
+    // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
+    int32_t ret = PolicyInfoManager::GetInstance().AddPolicy(tokenId, policyRawData, result, flag);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -359,21 +333,14 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
         return PERMISSION_DENIED;
     }
-    std::vector<PolicyInfo> policy;
-    int32_t ret = policyRawData.Unmarshalling(policy);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
-    size_t policySize = policy.size();
-    if ((policySize == 0) || (tokenId == 0)) {
-        LOGE_WITH_REPORT(
-            LABEL, "Policy vector size error or invalid tokenid, size = %{public}zu, tokenid = %{public}u.",
-            policy.size(), tokenId);
+    if (tokenId == 0) {
+        LOGE_WITH_REPORT(LABEL, "Invalid tokenid = %{public}u.", tokenId);
         return INVALID_PARAMTER;
     }
 
     std::vector<uint32_t> result;
-    ret = PolicyInfoManager::GetInstance().RemovePolicy(tokenId, policy, result);
+    // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
+    int32_t ret = PolicyInfoManager::GetInstance().RemovePolicy(tokenId, policyRawData, result);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -389,16 +356,6 @@ int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const PolicyVecRawDat
     if (!CheckPermission(callingTokenId, SET_POLICY_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
-    std::vector<PolicyInfo> policy;
-    int32_t ret = policyRawData.Unmarshalling(policy);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
-    size_t policySize = policy.size();
-    if (policySize == 0) {
-        LOGE_WITH_REPORT(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
-        return INVALID_PARAMTER;
-    }
     if (tokenId == 0) {
         LOGE_WITH_REPORT(LABEL, "Check tokenId failed.");
         return INVALID_PARAMTER;
@@ -407,8 +364,16 @@ int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const PolicyVecRawDat
         LOGE_WITH_REPORT(LABEL, "Check policyFlag failed, policyFlag = %{public}" PRIu64 ".", policyFlag);
         return INVALID_PARAMTER;
     }
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        LOGE_WITH_REPORT(LABEL, "set policy failed, get user id failed error=%{public}d", ret);
+        return INVALID_PARAMTER;
+    }
     std::vector<uint32_t> result;
-    ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policy, policyFlag, result, setInfoParcel.setInfo);
+    // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
+    ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policyRawData, policyFlag,
+        result, setInfoParcel.setInfo, userId);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -424,23 +389,20 @@ int32_t SandboxManagerService::SetDenyPolicy(uint32_t tokenId, const PolicyVecRa
         LOGE_WITH_REPORT(LABEL, "Not space_mgr uid, permision denied.");
         return PERMISSION_DENIED;
     }
-    std::vector<PolicyInfo> policy;
-    int32_t ret = policyRawData.Unmarshalling(policy);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
-    size_t policySize = policy.size();
-    if (policySize == 0) {
-        LOGE_WITH_REPORT(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
-        return INVALID_PARAMTER;
-    }
     if (tokenId == 0) {
         LOGE_WITH_REPORT(LABEL, "Check tokenId failed.");
         return INVALID_PARAMTER;
     }
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        LOGE_WITH_REPORT(LABEL, "set deny policy failed, get user id failed error=%{public}d", ret);
+        return INVALID_PARAMTER;
+    }
 
     std::vector<uint32_t> result;
-    ret = PolicyInfoManager::GetInstance().SetDenyPolicy(tokenId, policy, result);
+    // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
+    ret = PolicyInfoManager::GetInstance().SetDenyPolicy(tokenId, policyRawData, result, userId);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -511,22 +473,14 @@ int32_t SandboxManagerService::CheckPolicy(uint32_t tokenId, const PolicyVecRawD
         !CheckPermission(callingTokenId, CHECK_POLICY_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
-    std::vector<PolicyInfo> policy;
-    int32_t ret = policyRawData.Unmarshalling(policy);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
-    size_t policySize = policy.size();
-    if (policySize == 0) {
-        LOGE_WITH_REPORT(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
-        return INVALID_PARAMTER;
-    }
     if (tokenId == 0) {
         LOGE_WITH_REPORT(LABEL, "Check tokenId failed.");
         return INVALID_PARAMTER;
     }
+
     std::vector<bool> result;
-    ret = PolicyInfoManager::GetInstance().CheckPolicy(tokenId, policy, result);
+    // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
+    int32_t ret = PolicyInfoManager::GetInstance().CheckPolicy(tokenId, policyRawData, result);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -542,11 +496,6 @@ int32_t SandboxManagerService::StartAccessingPolicy(const PolicyVecRawData &poli
     if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
-    std::vector<PolicyInfo> policy;
-    int32_t ret = policyRawData.Unmarshalling(policy);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
     if (!useCallerToken) {
         if (IPCSkeleton::GetCallingUid() != FOUNDATION_UID) {
             LOGE_WITH_REPORT(LABEL, "Not foundation userid, permission denied.");
@@ -554,14 +503,17 @@ int32_t SandboxManagerService::StartAccessingPolicy(const PolicyVecRawData &poli
         }
         callingTokenId = tokenId;
     }
-    size_t policySize = policy.size();
-    if (policySize == 0) {
-        LOGE_WITH_REPORT(LABEL, "Policy vector size error, size = %{public}zu", policy.size());
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        LOGE_WITH_REPORT(LABEL, "start accessing policy failed, get user id failed error=%{public}d", ret);
         return INVALID_PARAMTER;
     }
 
     std::vector<uint32_t> result;
-    ret = PolicyInfoManager::GetInstance().StartAccessingPolicy(callingTokenId, policy, result, timestamp);
+    // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
+    ret = PolicyInfoManager::GetInstance().StartAccessingPolicy(callingTokenId,
+        policyRawData, result, timestamp, userId);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -577,19 +529,10 @@ int32_t SandboxManagerService::StopAccessingPolicy(
     if (!CheckPermission(callingTokenId, ACCESS_PERSIST_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
-    std::vector<PolicyInfo> policy;
-    int32_t ret = policyRawData.Unmarshalling(policy);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
-    size_t policySize = policy.size();
-    if (policySize == 0) {
-        LOGE_WITH_REPORT(LABEL, "Policy vector size error, size = %{public}zu", policy.size());
-        return INVALID_PARAMTER;
-    }
 
     std::vector<uint32_t> result;
-    ret = PolicyInfoManager::GetInstance().StopAccessingPolicy(callingTokenId, policy, result);
+    // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
+    int32_t ret = PolicyInfoManager::GetInstance().StopAccessingPolicy(callingTokenId, policyRawData, result);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -606,26 +549,19 @@ int32_t SandboxManagerService::CheckPersistPolicy(
         !CheckPermission(callingTokenId, CHECK_POLICY_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
-    std::vector<PolicyInfo> policy;
-    int32_t ret = policyRawData.Unmarshalling(policy);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
-    size_t policySize = policy.size();
-    if (policySize == 0 || tokenId == 0) {
-        LOGE_WITH_REPORT(LABEL, "Policy vector size error, size = %{public}zu, tokenid = %{public}u.",
-            policy.size(), tokenId);
+    if (tokenId == 0) {
+        LOGE_WITH_REPORT(LABEL, "Invalid tokenid = %{public}u.", tokenId);
         return INVALID_PARAMTER;
     }
 
-    std::vector<uint32_t> matchResult(policySize);
-
-    ret = PolicyInfoManager::GetInstance().MatchPolicy(tokenId, policy, matchResult);
+    std::vector<uint32_t> matchResult;
+    // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
+    int32_t ret = PolicyInfoManager::GetInstance().MatchPolicy(tokenId, policyRawData, matchResult);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
-    std::vector<bool> result(policySize);
-    for (size_t i = 0; i < policy.size(); i++) {
+    std::vector<bool> result(matchResult.size());
+    for (size_t i = 0; i < matchResult.size(); i++) {
         result[i] = (matchResult[i] == OPERATE_SUCCESSFULLY);
     }
     resultRawData.Marshalling(result);
@@ -643,7 +579,13 @@ int32_t SandboxManagerService::StartAccessingByTokenId(uint32_t tokenId, uint64_
         LOGE_WITH_REPORT(LABEL, "Invalid Tokenid.");
         return INVALID_PARAMTER;
     }
-    return PolicyInfoManager::GetInstance().StartAccessingByTokenId(tokenId, timestamp);
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        LOGE_WITH_REPORT(LABEL, "start accessing by token failed, get user id failed error=%{public}d", ret);
+        return INVALID_PARAMTER;
+    }
+    return PolicyInfoManager::GetInstance().StartAccessingByTokenId(tokenId, timestamp, userId);
 }
 
 int32_t SandboxManagerService::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp)

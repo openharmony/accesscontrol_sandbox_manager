@@ -27,6 +27,7 @@
 #include <vector>
 #include "accesstoken_kit.h"
 #include "generic_values.h"
+#include "mac_adapter.h"
 #include "policy_field_const.h"
 #include "policy_info.h"
 #include "policy_trie.h"
@@ -35,7 +36,6 @@
 #include "sandbox_manager_dfx_helper.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_log.h"
-#include "os_account_manager.h"
 #include "media_path_support.h"
 #include "data_size_report_adapter.h"
 #include "bundle_mgr_interface.h"
@@ -130,16 +130,8 @@ void PolicyInfoManager::RemoveResultByUserId(std::vector<GenericValues> &results
     }
 }
 
-int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::string> &filePathList)
+int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::string> &filePathList, int32_t userId)
 {
-    // clean MAC
-    int32_t userId = -1;
-    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
-    if (ret != 0) {
-        LOGE_WITH_REPORT(LABEL, "clean persist failed, get user id failed error=%{public}d", ret);
-        return INVALID_PARAMTER;
-    }
-
     SANDBOXMANAGER_LOG_INFO(LABEL, "clean policy by path and userId:%{public}d", userId);
     CleanPolicyOnMac(filePathList, userId);
     //Gets the persistence policy to be cleaned up
@@ -571,20 +563,6 @@ int32_t PolicyInfoManager::UnsetSandboxPolicyAndRecord(const uint32_t tokenId, c
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t PolicyInfoManager::GetMacParams(uint32_t tokenId, uint64_t policyFlag, uint64_t timestamp, MacParams &macParams)
-{
-    macParams.tokenId = tokenId;
-    macParams.policyFlag = policyFlag;
-    macParams.timestamp = timestamp;
-    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(macParams.userId);
-    if (ret != 0) {
-        LOGE_WITH_REPORT(LABEL, "get user id failed error=%{public}d", ret);
-        return INVALID_PARAMTER;
-    }
-
-    return SANDBOX_MANAGER_OK;
-}
-
 bool PolicyInfoManager::IsModeMatchPolicyType(uint64_t mode, SetPolicyType type)
 {
     SetPolicyType modeType = SetPolicyType::TEMP_POLICY;
@@ -650,7 +628,7 @@ int32_t PolicyInfoManager::SetPolicyInner(std::vector<PolicyInfo> &validPolicies
 }
 
 int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                                     std::vector<uint32_t> &result, const SetInfo &setInfo)
+                                     std::vector<uint32_t> &result, const SetInfo &setInfo, int32_t userId)
 {
     size_t policySize = policy.size();
     if (!macAdapter_.IsMacSupport()) {
@@ -662,13 +640,6 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
     std::vector<size_t> validIndex;
     std::vector<PolicyInfo> validPolicies;
     uint32_t invalidNum = 0;
-    int32_t userID = -1;
-    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userID);
-    if (ret != 0) {
-        LOGE_WITH_REPORT(LABEL, "SetPolicy GetLocalId, error=%{public}d", ret);
-        return INVALID_PARAMTER;
-    }
-
     for (size_t index = 0; index < policySize; ++index) {
         int32_t res = CheckSetPolicyInput(policy[index], setInfo, SetPolicyType::TEMP_POLICY);
         if (res != SANDBOX_MANAGER_OK) {
@@ -677,7 +648,7 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
             continue;
         }
 
-        res = CheckPathIsBlocked(userID, policy[index], setInfo.bundleName, index);
+        res = CheckPathIsBlocked(userId, policy[index], setInfo.bundleName, index);
         if (res != SANDBOX_MANAGER_OK) {
             result[index] = static_cast<uint32_t>(res);
             ++invalidNum;
@@ -686,19 +657,170 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
         validIndex.emplace_back(index);
         validPolicies.emplace_back(policy[index]);
     }
-
-    MacParams macParams;
-    ret = GetMacParams(tokenId, policyFlag, setInfo.timestamp, macParams);
-    if (ret != SANDBOX_MANAGER_OK) {
-        result.clear();
-        return ret;
-    }
+    MacParams macParams = {tokenId, policyFlag, setInfo.timestamp, userId};
     PolicyInfoInner info = {invalidNum, policySize, SetPolicyType::TEMP_POLICY};
     return SetPolicyInner(validPolicies, validIndex, macParams, result, info);
 }
 
-int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+// Template helper for batch processing with PolicyVecRawData
+// Handles batch reading, result aggregation, and delegation to vector-based overloads
+template<typename Func, typename ResultType>
+int32_t PolicyInfoManager::ProcessPolicyBatch(
+    const PolicyVecRawData &policyRawData,
+    std::vector<ResultType> &result,
+    Func&& processFunc,
+    uint32_t batchSize,
+    ResultType defaultValue)
+{
+    PolicyVecBatchReader reader(policyRawData);
+    if (!reader.IsValid()) {
+        LOGE_WITH_REPORT(LABEL, "PolicyVecBatchReader initialization failed");
+        return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+    }
+
+    uint32_t policyCount = reader.GetPolicyCount();
+    if (policyCount == 0) {
+        LOGE_WITH_REPORT(LABEL, "Policy count is zero");
+        return INVALID_PARAMTER;
+    }
+
+    uint32_t finalBatchSize = CalculateBatchSize(policyCount, batchSize);
+    uint32_t globalIndex = 0;
+    result.resize(policyCount, defaultValue);
+
+    while (globalIndex < policyCount) {
+        uint32_t currentBatchSize = std::min(finalBatchSize, policyCount - globalIndex);
+        std::vector<PolicyInfo> batchPolicies;
+
+        int32_t ret = reader.ReadNextBatch(currentBatchSize, batchPolicies);
+        if (ret != SANDBOX_MANAGER_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "ReadNextBatch failed at index %{public}u", globalIndex);
+            return ret;
+        }
+
+        std::vector<ResultType> batchResult;
+        ret = processFunc(batchPolicies, batchResult);
+        if (ret != SANDBOX_MANAGER_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Batch processing failed at index %{public}u", globalIndex);
+            return ret;
+        }
+
+        for (size_t i = 0; i < batchResult.size(); ++i) {
+            result[globalIndex + i] = batchResult[i];
+        }
+
+        globalIndex += currentBatchSize;
+    }
+
+    return SANDBOX_MANAGER_OK;
+}
+
+uint32_t PolicyInfoManager::CalculateBatchSize(uint32_t policyCount, uint32_t batchSize)
+{
+    if (batchSize == 0) {
+        return 1;
+    }
+    if (policyCount <= batchSize) {
+        return policyCount;
+    }
+
+    uint32_t dynamicBatchSize = policyCount / MAX_BATCH_COUNT;
+    if ((policyCount % MAX_BATCH_COUNT) != 0) {
+        ++dynamicBatchSize;
+    }
+    if (dynamicBatchSize == 0) {
+        dynamicBatchSize = 1;
+    }
+    return std::max(batchSize, dynamicBatchSize);
+}
+
+// Batch processing version - processes policies in batches to minimize memory footprint
+// Delegates to the original SetPolicy(vector<PolicyInfo>) for each batch
+int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData, uint64_t policyFlag,
+                                     std::vector<uint32_t> &result, const SetInfo &setInfo, int32_t userId)
+{
+    return ProcessPolicyBatch(policyRawData, result,
+        [this, tokenId, policyFlag, setInfo, userId](const std::vector<PolicyInfo>& policies,
+            std::vector<uint32_t>& batchResult) {
+            return SetPolicy(tokenId, policies, policyFlag, batchResult, setInfo, userId);
+        }, NON_PERSIST_POLICY_BATCH_SIZE, (uint32_t)INVALID_PATH);
+}
+
+// Batch processing version - delegates to original AddPolicy for each batch
+int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const PolicyVecRawData &policyRawData,
+    std::vector<uint32_t> &result, const uint32_t flag)
+{
+    return ProcessPolicyBatch(policyRawData, result,
+        [this, tokenId, flag](const std::vector<PolicyInfo>& policies,
+            std::vector<uint32_t>& batchResult) {
+            return AddPolicy(tokenId, policies, batchResult, flag);
+        }, PERSIST_POLICY_BATCH_SIZE, (uint32_t)INVALID_PATH);
+}
+
+// Batch processing version - delegates to original RemovePolicy for each batch
+int32_t PolicyInfoManager::RemovePolicy(const uint32_t tokenId, const PolicyVecRawData &policyRawData,
     std::vector<uint32_t> &result)
+{
+    return ProcessPolicyBatch(policyRawData, result,
+        [this, tokenId](const std::vector<PolicyInfo>& policies, std::vector<uint32_t>& batchResult) {
+            return RemovePolicy(tokenId, policies, batchResult);
+        }, PERSIST_POLICY_BATCH_SIZE, (uint32_t)INVALID_PATH);
+}
+
+// Batch processing version - delegates to original SetDenyPolicy for each batch
+int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData,
+    std::vector<uint32_t> &result, int32_t userId)
+{
+    return ProcessPolicyBatch(policyRawData, result,
+        [this, tokenId, userId](const std::vector<PolicyInfo>& policies,
+            std::vector<uint32_t>& batchResult) {
+            return SetDenyPolicy(tokenId, policies, batchResult, userId);
+        }, NON_PERSIST_POLICY_BATCH_SIZE, (uint32_t)INVALID_PATH);
+}
+
+// Batch processing version - delegates to original CheckPolicy for each batch
+int32_t PolicyInfoManager::CheckPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData,
+    std::vector<bool> &result)
+{
+    return ProcessPolicyBatch(policyRawData, result,
+        [this, tokenId](const std::vector<PolicyInfo>& policies, std::vector<bool>& batchResult) {
+            return CheckPolicy(tokenId, policies, batchResult);
+        }, NON_PERSIST_POLICY_BATCH_SIZE, false);
+}
+
+// Batch processing version - delegates to original MatchPolicy for each batch
+int32_t PolicyInfoManager::MatchPolicy(const uint32_t tokenId, const PolicyVecRawData &policyRawData,
+    std::vector<uint32_t> &result)
+{
+    return ProcessPolicyBatch(policyRawData, result,
+        [this, tokenId](const std::vector<PolicyInfo>& policies, std::vector<uint32_t>& batchResult) {
+            return MatchPolicy(tokenId, policies, batchResult);
+        }, PERSIST_POLICY_BATCH_SIZE, (uint32_t)INVALID_PATH);
+}
+
+// Batch processing version - delegates to original StartAccessingPolicy for each batch
+int32_t PolicyInfoManager::StartAccessingPolicy(const uint32_t tokenId, const PolicyVecRawData &policyRawData,
+    std::vector<uint32_t> &results, uint64_t timestamp, int32_t userId)
+{
+    return ProcessPolicyBatch(policyRawData, results,
+        [this, tokenId, timestamp, userId](const std::vector<PolicyInfo>& policies,
+            std::vector<uint32_t>& batchResult) {
+            return StartAccessingPolicy(tokenId, policies, batchResult, timestamp, userId);
+        }, PERSIST_POLICY_BATCH_SIZE, (uint32_t)INVALID_PATH);
+}
+
+// Batch processing version - delegates to original StopAccessingPolicy for each batch
+int32_t PolicyInfoManager::StopAccessingPolicy(const uint32_t tokenId, const PolicyVecRawData &policyRawData,
+    std::vector<uint32_t> &results)
+{
+    return ProcessPolicyBatch(policyRawData, results,
+        [this, tokenId](const std::vector<PolicyInfo>& policies, std::vector<uint32_t>& batchResult) {
+            return StopAccessingPolicy(tokenId, policies, batchResult);
+        }, PERSIST_POLICY_BATCH_SIZE, (uint32_t)INVALID_PATH);
+}
+
+int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
+    std::vector<uint32_t> &result, int32_t userId)
 {
     size_t policySize = policy.size();
     if (!macAdapter_.IsMacSupport()) {
@@ -710,13 +832,6 @@ int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const std::vector<Pol
     std::vector<size_t> validIndex;
     std::vector<PolicyInfo> validPolicies;
     uint32_t invalidNum = 0;
-    int32_t userID = -1;
-    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userID);
-    if (ret != 0) {
-        LOGE_WITH_REPORT(LABEL, "SetDenyPolicy GetLocalId, error=%{public}d", ret);
-        return INVALID_PARAMTER;
-    }
-
     SetInfo setInfo;
     for (size_t index = 0; index < policySize; ++index) {
         int32_t res = CheckSetPolicyInput(policy[index], setInfo, SetPolicyType::DENY_POLICY);
@@ -725,7 +840,7 @@ int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const std::vector<Pol
             ++invalidNum;
             continue;
         }
-        res = CheckPathIsBlocked(userID, policy[index], setInfo.bundleName, index);
+        res = CheckPathIsBlocked(userId, policy[index], setInfo.bundleName, index);
         if (res != SANDBOX_MANAGER_OK) {
             result[index] = static_cast<uint32_t>(res);
             ++invalidNum;
@@ -735,12 +850,7 @@ int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const std::vector<Pol
         validPolicies.emplace_back(policy[index]);
     }
 
-    MacParams macParams;
-    ret = GetMacParams(tokenId, 0, 0, macParams);
-    if (ret != SANDBOX_MANAGER_OK) {
-        result.clear();
-        return ret;
-    }
+    MacParams macParams = {tokenId, 0, 0, userId};
     PolicyInfoInner info = {invalidNum, policySize, SetPolicyType::DENY_POLICY};
     return SetPolicyInner(validPolicies, validIndex, macParams, result, info);
 }
@@ -846,7 +956,7 @@ bool PolicyInfoManager::RemoveBundlePolicy(const uint32_t tokenId)
     return true;
 }
 
-int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId, uint64_t timestamp)
+int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId, uint64_t timestamp, int32_t userId)
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
@@ -882,11 +992,7 @@ int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId, uint6
         policys[i] = policy;
     }
     std::vector<uint32_t> macResults(searchSize);
-    MacParams macParams;
-    ret = GetMacParams(tokenId, IS_POLICY_ALLOWED_TO_BE_PRESISTED, timestamp, macParams);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
+    MacParams macParams = {tokenId, IS_POLICY_ALLOWED_TO_BE_PRESISTED, timestamp, userId};
     ret = macAdapter_.SetSandboxPolicy(policys, macResults, macParams);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter set policy error, err code = %{public}d.", ret);
@@ -918,7 +1024,8 @@ static uint32_t SetStartResultInner(std::vector<uint32_t> &results, std::vector<
 }
 
 int32_t PolicyInfoManager::StartAccessingNormalPolicy(
-    const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results, uint64_t timestamp)
+    const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results,
+    uint64_t timestamp, int32_t userId)
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
@@ -954,13 +1061,7 @@ int32_t PolicyInfoManager::StartAccessingNormalPolicy(
         return policy[index];
     });
     std::vector<uint32_t> macResults(accessingIndexSize);
-    MacParams macParams;
-    ret = GetMacParams(tokenId, 0, timestamp, macParams);
-    if (ret != SANDBOX_MANAGER_OK) {
-        results.clear();
-        return ret;
-    }
-
+    MacParams macParams = {tokenId, 0, timestamp, userId};
     ret = macAdapter_.SetSandboxPolicy(accessingPolicy, macResults, macParams);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter set policy error, err code = %{public}d.", ret);
@@ -1483,7 +1584,8 @@ int32_t PolicyInfoManager::GetMediaPolicyCommonWork(const uint32_t tokenId, cons
 }
 
 int32_t PolicyInfoManager::StartAccessingPolicy(
-    const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results, uint64_t timestamp)
+    const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results, uint64_t timestamp,
+    int32_t userId)
 {
     size_t policySize = policy.size();
     results.resize(policySize);
@@ -1499,7 +1601,7 @@ int32_t PolicyInfoManager::StartAccessingPolicy(
 
     if (!normalPolicy.empty()) {
         std::vector<uint32_t> checkNormalResult(validIndex.size(), false);
-        ret = StartAccessingNormalPolicy(tokenId, normalPolicy, checkNormalResult, timestamp);
+        ret = StartAccessingNormalPolicy(tokenId, normalPolicy, checkNormalResult, timestamp, userId);
         if (ret != SANDBOX_MANAGER_OK) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "StartAccessingPolicy failed.");
             results.clear();

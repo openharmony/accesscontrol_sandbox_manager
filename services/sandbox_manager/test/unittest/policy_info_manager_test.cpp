@@ -1869,9 +1869,6 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath016, TestSize.Level0)
  */
 HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest012, TestSize.Level0)
 {
-    MacAdapter original = PolicyInfoManager::GetInstance().macAdapter_;
-    MacAdapter mockMacAdapter;
-    PolicyInfoManager::GetInstance().macAdapter_ = mockMacAdapter;
     std::vector<PolicyInfo> policy;
     PolicyInfo info;
     info.path = "/data/log";
@@ -1918,9 +1915,40 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest012, TestSize.Level0)
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_));
+}
 
-    PolicyInfoManager::GetInstance().macAdapter_ = original;
-    original = mockMacAdapter;
+/**
+ * @tc.name: PolicyInfoManagerBatchRawDataTest001
+ * @tc.desc: Test raw-data batch processing across multiple non-persist batches
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerBatchRawDataTest001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+    for (uint32_t index = 0; index < NON_PERSIST_POLICY_BATCH_SIZE + 1; ++index) {
+        PolicyInfo info;
+        info.path = "/data/log/" + std::to_string(index);
+        info.mode = OperateMode::READ_MODE;
+        policy.emplace_back(info);
+    }
+    PolicyVecRawData rawData;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, rawData.Marshalling(policy));
+
+    std::vector<uint32_t> setResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, rawData, 0, setResult, SetInfo(), 0));
+    ASSERT_EQ(policy.size(), setResult.size());
+    for (const auto &item : setResult) {
+        EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, item);
+    }
+
+    std::vector<bool> checkResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CheckPolicy(selfTokenId_, rawData, checkResult));
+    ASSERT_EQ(policy.size(), checkResult.size());
+    for (bool item : checkResult) {
+        EXPECT_TRUE(item);
+    }
 }
 
 #ifdef DEC_ENABLED

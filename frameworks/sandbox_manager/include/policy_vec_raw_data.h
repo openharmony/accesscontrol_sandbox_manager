@@ -15,7 +15,9 @@
 
 #ifndef POLICY_VEC_RAW_DATA_H
 #define POLICY_VEC_RAW_DATA_H
+#include <cstdint>
 #include <sstream>
+#include "securec.h"
 #include "policy_info.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_dfx_helper.h"
@@ -107,6 +109,117 @@ struct PolicyVecRawData {
         return SANDBOX_MANAGER_OK;
     }
 };
+
+// Helper class for batch unmarshalling - parses directly from raw data, no copy
+class PolicyVecBatchReader {
+public:
+    explicit PolicyVecBatchReader(const PolicyVecRawData& rawData)
+        : dataPtr_(static_cast<const char*>(rawData.data)),
+          remainingSize_(rawData.size),
+          policyCount_(0),
+          isValid_(false)
+    {
+        // Read policy count
+        if (ReadTo(&policyCount_, sizeof(policyCount_)) != SANDBOX_MANAGER_OK) {
+            return;
+        }
+
+        if (policyCount_ > POLICY_VEC_MAX_NUM) {
+            std::string error = "PolicyVecBatchReader: policy count too large";
+            SandboxManagerDfxHelper::WriteExceptionBranch(error);
+            return;
+        }
+        isValid_ = true;
+    }
+
+    ~PolicyVecBatchReader() = default;
+
+    bool IsValid() const { return isValid_; }
+    uint32_t GetPolicyCount() const { return policyCount_; }
+
+    // Read next batch of policies directly from raw data - NO allocations except output
+    int32_t ReadNextBatch(uint32_t count, std::vector<PolicyInfo> &out)
+    {
+        if (!isValid_) {
+            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        }
+
+        out.clear();
+        out.reserve(count);
+
+        for (uint32_t i = 0; i < count && remainingSize_ > 0; i++) {
+            PolicyInfo info;
+            int32_t ret = ReadOnePolicy(info);
+            if (ret != SANDBOX_MANAGER_OK) {
+                return ret;
+            }
+            out.emplace_back(std::move(info));
+        }
+
+        if (out.size() != count) {
+            std::string error = "ReadNextBatch: insufficient data for expected count";
+            SandboxManagerDfxHelper::WriteExceptionBranch(error);
+            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        }
+
+        return SANDBOX_MANAGER_OK;
+    }
+
+private:
+    int32_t ReadTo(void *dest, size_t size)
+    {
+        if (remainingSize_ < size || memcpy_s(dest, size, dataPtr_, size) != 0) {
+            std::string error = "Fail to read from data";
+            SandboxManagerDfxHelper::WriteExceptionBranch(error);
+            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        }
+        dataPtr_ += size;
+        remainingSize_ -= size;
+        return SANDBOX_MANAGER_OK;
+    }
+    // Read a single PolicyInfo from the current position
+    int32_t ReadOnePolicy(PolicyInfo &info)
+    {
+        // Read path length
+        uint32_t pathLen;
+        int32_t ret = ReadTo(&pathLen, sizeof(pathLen));
+        if (ret != SANDBOX_MANAGER_OK) {
+            return ret;
+        }
+
+        // Validate path length
+        if (pathLen > remainingSize_) {
+            std::string error = "ReadOnePolicy: pathLen exceeds remaining data";
+            SandboxManagerDfxHelper::WriteExceptionBranch(error);
+            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        }
+
+        // Read path
+        info.path.assign(dataPtr_, pathLen);
+        dataPtr_ += pathLen;
+        remainingSize_ -= pathLen;
+
+        // Read mode
+        ret = ReadTo(&info.mode, sizeof(info.mode));
+        if (ret != SANDBOX_MANAGER_OK) {
+            return ret;
+        }
+
+        // Read type
+        ret = ReadTo(&info.type, sizeof(info.type));
+        if (ret != SANDBOX_MANAGER_OK) {
+            return ret;
+        }
+
+        return SANDBOX_MANAGER_OK;
+    }
+
+    const char* dataPtr_;
+    uint32_t remainingSize_;
+    uint32_t policyCount_;
+    bool isValid_;
+};
+
 } // namespace SandboxManager
 } // namespace AccessControl
 } // namespace OHOS

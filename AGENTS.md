@@ -172,11 +172,6 @@ ret = SandboxManagerKit::UnPersistPolicy(policies, results);
 ### Build Commands
 
 ```bash
-# Build module (replace {product_name} with actual product like "ohos-sdk", "rk3568")
-./build.sh --product-name {product_name} --build-target sandbox_manager
-
-# Example for standard products:
-./build.sh --product-name ohos-sdk --build-target sandbox_manager
 ./build.sh --product-name rk3568 --build-target sandbox_manager
 ```
 
@@ -189,7 +184,7 @@ Unit tests are located in test directories under each layer, using `ohos_unittes
 ./build.sh --product-name {product_name} --build-target sandbox_manager_build_module_test
 
 # Example:
-./build.sh --product-name ohos-sdk --build-target sandbox_manager_build_module_test
+./build.sh --product-name rk3568 --build-target sandbox_manager_build_module_test
 ```
 
 Fuzz tests are located in `test/fuzztest/` directory.
