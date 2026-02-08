@@ -45,9 +45,8 @@ namespace AccessControl {
 namespace SandboxManager {
 
 typedef enum ShareStatus {
-    SHARE_START_MODE = OperateMode::MAX_MODE << 1,
-    SHARE_PATH_UNSET = OperateMode::MAX_MODE << 2,
-    SHARE_BUNDLE_UNSET = OperateMode::MAX_MODE << 3,
+    SHARE_PATH_UNSET = UINT32_MAX - 1,
+    SHARE_BUNDLE_UNSET = UINT32_MAX - 2,
 } ShareStatus;
 
 class SandboxManagerShare {
@@ -60,8 +59,6 @@ public:
     int32_t GetShareCfgByBundle(const std::string &bundleName, int32_t userId);
     uint32_t FindPermission(const std::string &bundleName, uint32_t userId, const std::string &path);
     void DeleteByBundleName(const std::string &bundleName);
-    void DeleteByTokenid(uint32_t tokenId);
-    void DeleteByUserId(uint32_t userId);
     void Refresh(const std::string &bundleName, int32_t userId);
     int32_t TransAndSetToMap(const std::string &profile, const std::string &bundleName, int32_t userId);
 private:

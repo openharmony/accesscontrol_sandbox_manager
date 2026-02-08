@@ -92,11 +92,13 @@ static uint32_t PermissionToMode(const std::string &permission)
     }
 }
 
-#define DEFAULT_PATH_SEGMENT 2
 const std::string FULL_PATH_START = "/storage/Users/currentUser/appdata/el2/";
-const std::string CFG_PATH_START = "base";
+const std::vector<std::string> ALLOWED_PATHS = {"/base/files", "/base/preferences", "/base/haps"};
 static std::string PathCompose(const std::string &path, const std::string &name)
 {
+    if (std::find(ALLOWED_PATHS.begin(), ALLOWED_PATHS.end(), path) == ALLOWED_PATHS.end()) {
+        return "";
+    }
     std::vector<std::string> parts;
     std::stringstream ss(path);
     std::string component;
@@ -105,14 +107,7 @@ static std::string PathCompose(const std::string &path, const std::string &name)
         if (!component.empty()) {
             parts.push_back(component);
         }
-        if (comNum > DEFAULT_PATH_SEGMENT) {
-            break;
-        }
         comNum++;
-    }
-
-    if ((parts.size() != DEFAULT_PATH_SEGMENT) || (parts[0] != CFG_PATH_START)) {
-        return "";
     }
 
     std::string result = FULL_PATH_START + parts[0] + "/" + name + "/" + parts[1];
@@ -164,7 +159,7 @@ int32_t SandboxManagerShare::TransAndSetToMapInner(cJSON *root, const std::strin
 int32_t SandboxManagerShare::TransAndSetToMap(const std::string &profile, const std::string &bundleName, int32_t userId)
 {
     if (profile.size() > MAX_JSON_SIZE) {
-        LOGE_WITH_REPORT(LABEL, "TransAndSetToMap error, size = %{public}zu, bundleName = %{public}s",
+        LOGE_WITH_REPORT(LABEL, "TransAndSetToMap, json size=%{public}zu exceeds the limit, bundleName=%{public}s",
             profile.size(), bundleName.c_str());
         return INVALID_PARAMTER;
     }
@@ -212,9 +207,10 @@ int32_t SandboxManagerShare::GetAllShareCfg(int32_t userId)
     }
 
     for (const auto &info : profileInfos) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "bundleName %{public}s", info.bundleName.c_str());
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "module %{public}s", info.moduleName.c_str());
-        TransAndSetToMap(info.profile, info.bundleName, userId);
+        if (TransAndSetToMap(info.profile, info.bundleName, userId) != SANDBOX_MANAGER_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "TransAndSetToMap error, bundleName=%{public}s, module=%{public}s",
+                info.bundleName.c_str(), info.moduleName.c_str());
+        }
     }
     return SANDBOX_MANAGER_OK;
 }
@@ -298,38 +294,12 @@ void SandboxManagerShare::DeleteByBundleName(const std::string &bundleName)
     g_shareMap.erase(bundleName);
 }
 
-void SandboxManagerShare::DeleteByTokenid(uint32_t tokenId)
-{
-    std::string bundleName;
-    Security::AccessToken::HapTokenInfo hapTokenInfoRes;
-    int ret = Security::AccessToken::AccessTokenKit::GetHapTokenInfo(tokenId, hapTokenInfoRes);
-    if (ret != 0) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "DeleteByTokenid error %{public}d\n", ret);
-        return;
-    } else {
-        bundleName = hapTokenInfoRes.bundleName;
-    }
-    std::string maskName = SandboxManagerLog::MaskRealPath(bundleName.c_str());
-    SANDBOXMANAGER_LOG_INFO(LABEL, "DeleteByTokenid: %{public}s\n", maskName.c_str());
-    std::lock_guard<std::mutex> lock(mutex_);
-    g_shareMap.erase(bundleName);
-}
-
 void SandboxManagerShare::Refresh(const std::string &bundleName, int32_t userId)
 {
     std::string maskName = SandboxManagerLog::MaskRealPath(bundleName.c_str());
     SANDBOXMANAGER_LOG_INFO(LABEL, "Refresh: %{public}s\n", maskName.c_str());
     DeleteByBundleName(bundleName);
     (void)GetShareCfgByBundle(bundleName, userId);
-}
-
-void SandboxManagerShare::DeleteByUserId(uint32_t userId)
-{
-    SANDBOXMANAGER_LOG_INFO(LABEL, "DeleteByUserId: %{public}d\n", userId);
-    std::lock_guard<std::mutex> lock(mutex_);
-    for (auto &[bundleName, users] : g_shareMap) {
-        users.erase(userId);
-    }
 }
 } // namespace SandboxManager
 } // namespace AccessControl
