@@ -382,8 +382,6 @@ int32_t MacAdapter::QuerySandboxPolicy(uint32_t tokenId, const std::vector<Polic
         return SANDBOX_MANAGER_MAC_NOT_INIT;
     }
 
-    result.clear();
-
     size_t policyNum = policy.size();
 
     for (size_t offset = 0; offset < policyNum; offset += MAX_POLICY_NUM) {
@@ -423,8 +421,6 @@ int32_t MacAdapter::CheckSandboxPolicy(uint32_t tokenId, const std::vector<Polic
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Not init yet.");
         return SANDBOX_MANAGER_MAC_NOT_INIT;
     }
-
-    result.clear();
 
     size_t policyNum = policy.size();
 
@@ -473,8 +469,6 @@ int32_t MacAdapter::UnSetSandboxPolicy(uint32_t tokenId, const std::vector<Polic
         return SANDBOX_MANAGER_MAC_NOT_INIT;
     }
 
-    result.clear();
-
     size_t policyNum = policy.size();
 
     for (size_t offset = 0; offset < policyNum; offset += MAX_POLICY_NUM) {
@@ -520,8 +514,6 @@ int32_t MacAdapter::UnSetSandboxPolicyByUser(int32_t userId, const std::vector<P
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Not init yet.");
         return SANDBOX_MANAGER_MAC_NOT_INIT;
     }
-
-    result.clear();
 
     size_t policyNum = policy.size();
 
