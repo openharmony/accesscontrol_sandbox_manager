@@ -92,6 +92,8 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEventRemove(const EventFwk::W
         SANDBOXMANAGER_LOG_ERROR(LABEL, "On ReceivePackage removed failed by error input.");
         return;
     }
+    std::string maskName = SandboxManagerLog::MaskRealPath(bundleName.c_str());
+    SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceiveEventRemove %{public}s", maskName.c_str());
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
 #endif
     SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenid = %{public}u.", tokenId);
@@ -108,7 +110,8 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEventAdd(const EventFwk::Want
         SANDBOXMANAGER_LOG_ERROR(LABEL, "On ReceivePackage changed failed by error input.");
         return;
     }
-
+    std::string maskName = SandboxManagerLog::MaskRealPath(bundleName.c_str());
+    SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceiveEventAdd %{public}s, %{public}d", maskName.c_str(), userID);
     SandboxManagerShare::GetInstance().GetShareCfgByBundle(bundleName, userID);
 #endif
     return;
@@ -129,12 +132,13 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEvent(const EventFwk::CommonE
         std::string bundleName = want.GetElement().GetBundleName();
         int32_t userID = want.GetParams().GetIntParam("userId", -1);
         if ((userID == -1) || (bundleName.empty())) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "On ReceivePackage changed failed by error input.");
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "OnReceive Package changed failed by error input.");
             return;
         }
-        SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceive Package changed %{public}s, %{public}d", bundleName.c_str(), userID);
         (void)PolicyInfoManager::GetInstance().CleanPolicyByPackageChanged(bundleName, userID);
 #ifdef NOT_RESIDENT
+        std::string maskName = SandboxManagerLog::MaskRealPath(bundleName.c_str());
+        SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceive Package changed %{public}s, %{public}d", maskName.c_str(), userID);
         SandboxManagerShare::GetInstance().Refresh(bundleName, userID);
 #endif
     }
