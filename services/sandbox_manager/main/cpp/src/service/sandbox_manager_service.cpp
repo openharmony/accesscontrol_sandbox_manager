@@ -228,7 +228,7 @@ int32_t SandboxManagerService::SetPolicyByBundleName(const std::string &bundleNa
         LOGE_WITH_REPORT(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
         return INVALID_PARAMTER;
     }
-    int32_t userId = 0;
+    int32_t userId = -1;
     ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
     if (ret != 0) {
         LOGE_WITH_REPORT(LABEL, "grantPermission failed, get user id failed error=%{public}d", ret);

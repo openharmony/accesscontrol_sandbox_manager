@@ -48,6 +48,7 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
 };
 static std::mutex g_instanceMutex;
 constexpr size_t MAX_JSON_SIZE = 5 * 1024 * 1024;
+constexpr int32_t MAIN_USER_ID = 100;
 }
 
 SandboxManagerShare &SandboxManagerShare::GetInstance()
@@ -72,11 +73,11 @@ SandboxManagerShare::SandboxManagerShare()
 
 int32_t SandboxManagerShare::InitShareMap()
 {
-    int32_t userId = 0;
+    int32_t userId = -1;
     int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
     if (ret != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "InitShareMap get user id failed error=%{public}d", ret);
-        userId = 0; // set default userId
+        LOGE_WITH_REPORT(LABEL, "InitShareMap get user id failed error=%{public}d", ret);
+        userId = MAIN_USER_ID; // set default userId
     }
     return GetAllShareCfg(userId);
 }
