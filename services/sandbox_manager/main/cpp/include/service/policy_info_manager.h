@@ -264,7 +264,8 @@ private:
      * @param path input path
      * @return INVALID_PATH / SANDBOX_MANAGER_OK
      */
-    int32_t CheckPathIsBlocked(int32_t userID, const PolicyInfo &policy, const std::string &bundleName = "");
+    int32_t CheckPathIsBlocked(int32_t userID, const PolicyInfo &policy,
+        const std::string &bundleName = "", size_t index = 0);
     /**
      * @brief unset sandboxpolicy and record conditions
      * @param tokenId a given tokenId
@@ -315,13 +316,13 @@ private:
     bool CheckPathWithinBundleName(const std::string &path, const std::string &bundleName,
         std::vector<std::string> &components);
     bool CheckPathWithinRule(int32_t userID, const std::string &path,
-        const PolicyInfo &policy, const std::string &bundleName);
+        const PolicyInfo &policy, const std::string &bundleName, size_t index = 0);
     void InitUserGrantMap();
     bool FindInGrantMap(const uint32_t tokenId, const PolicyInfo &policy, std::string &permission);
     bool IsVerifyPermissionPass(const uint32_t tokenId, const PolicyInfo &policy);
     void AddToUserGrantMap(std::string permission, std::vector<std::string>pathList);
     bool CheckPathWithinShareMap(int32_t userID, const std::string &path,
-        const PolicyInfo &policy, std::vector<std::string> &components);
+        const PolicyInfo &policy, std::vector<std::string> &components, size_t index);
     bool ShareMapRangeCheck(const std::string &path, std::vector<std::string> &components);
 };
 } // namespace SandboxManager
