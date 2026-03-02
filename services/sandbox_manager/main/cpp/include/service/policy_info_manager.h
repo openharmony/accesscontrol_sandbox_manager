@@ -281,17 +281,9 @@ private:
      * @return
      */
     void RemoveResultByUserId(std::vector<GenericValues> &results, int32_t userId);
-    /**
-     * @brief get mac params with inputs
-     * @param tokenId a given tokenId
-     * @param policyFlag persist policy flag
-     * @param timestamp timestamp of the policy
-     * @return mac params structure
-     */
-    MacParams GetMacParams(uint32_t tokenId, uint64_t policyFlag, uint64_t timestamp);
-
 private:
     MacAdapter macAdapter_;
+    int32_t GetMacParams(uint32_t tokenId, uint64_t policyFlag, uint64_t timestamp, MacParams &macParams);
     std::map<std::string, std::string> g_userGrantMap;
     int32_t AddNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &result, const uint32_t flag, std::vector<size_t> &queryPolicyIndex, uint32_t invalidNum);

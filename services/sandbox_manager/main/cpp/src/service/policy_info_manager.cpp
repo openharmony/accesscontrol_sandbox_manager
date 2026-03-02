@@ -133,11 +133,11 @@ void PolicyInfoManager::RemoveResultByUserId(std::vector<GenericValues> &results
 int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::string> &filePathList)
 {
     // clean MAC
-    int32_t userId = 0;
+    int32_t userId = -1;
     int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
     if (ret != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "clean persist failed, get user id failed error=%{public}d", ret);
-        userId = 0; // set default userId
+        LOGE_WITH_REPORT(LABEL, "clean persist failed, get user id failed error=%{public}d", ret);
+        return INVALID_PARAMTER;
     }
 
     SANDBOXMANAGER_LOG_INFO(LABEL, "clean policy by path and userId:%{public}d", userId);
@@ -571,18 +571,18 @@ int32_t PolicyInfoManager::UnsetSandboxPolicyAndRecord(const uint32_t tokenId, c
     return SANDBOX_MANAGER_OK;
 }
 
-MacParams PolicyInfoManager::GetMacParams(uint32_t tokenId, uint64_t policyFlag, uint64_t timestamp)
+int32_t PolicyInfoManager::GetMacParams(uint32_t tokenId, uint64_t policyFlag, uint64_t timestamp, MacParams &macParams)
 {
-    MacParams macParams;
     macParams.tokenId = tokenId;
     macParams.policyFlag = policyFlag;
     macParams.timestamp = timestamp;
     int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(macParams.userId);
     if (ret != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "get user id failed error=%{public}d", ret);
-        macParams.userId = 0; // set default userId
+        LOGE_WITH_REPORT(LABEL, "get user id failed error=%{public}d", ret);
+        return INVALID_PARAMTER;
     }
-    return macParams;
+
+    return SANDBOX_MANAGER_OK;
 }
 
 bool PolicyInfoManager::IsModeMatchPolicyType(uint64_t mode, SetPolicyType type)
@@ -665,7 +665,7 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
     int32_t userID = -1;
     int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userID);
     if (ret != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "SetPolicy GetLocalId, error=%{public}d", ret);
+        LOGE_WITH_REPORT(LABEL, "SetPolicy GetLocalId, error=%{public}d", ret);
         return INVALID_PARAMTER;
     }
 
@@ -686,7 +686,13 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
         validIndex.emplace_back(index);
         validPolicies.emplace_back(policy[index]);
     }
-    MacParams macParams = GetMacParams(tokenId, policyFlag, setInfo.timestamp);
+
+    MacParams macParams;
+    ret = GetMacParams(tokenId, policyFlag, setInfo.timestamp, macParams);
+    if (ret != SANDBOX_MANAGER_OK) {
+        result.clear();
+        return ret;
+    }
     PolicyInfoInner info = {invalidNum, policySize, SetPolicyType::TEMP_POLICY};
     return SetPolicyInner(validPolicies, validIndex, macParams, result, info);
 }
@@ -707,7 +713,7 @@ int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const std::vector<Pol
     int32_t userID = -1;
     int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userID);
     if (ret != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "SetDenyPolicy GetLocalId, error=%{public}d", ret);
+        LOGE_WITH_REPORT(LABEL, "SetDenyPolicy GetLocalId, error=%{public}d", ret);
         return INVALID_PARAMTER;
     }
 
@@ -729,7 +735,12 @@ int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const std::vector<Pol
         validPolicies.emplace_back(policy[index]);
     }
 
-    MacParams macParams = GetMacParams(tokenId, 0, 0);
+    MacParams macParams;
+    ret = GetMacParams(tokenId, 0, 0, macParams);
+    if (ret != SANDBOX_MANAGER_OK) {
+        result.clear();
+        return ret;
+    }
     PolicyInfoInner info = {invalidNum, policySize, SetPolicyType::DENY_POLICY};
     return SetPolicyInner(validPolicies, validIndex, macParams, result, info);
 }
@@ -871,7 +882,11 @@ int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId, uint6
         policys[i] = policy;
     }
     std::vector<uint32_t> macResults(searchSize);
-    MacParams macParams = GetMacParams(tokenId, IS_POLICY_ALLOWED_TO_BE_PRESISTED, timestamp);
+    MacParams macParams;
+    ret = GetMacParams(tokenId, IS_POLICY_ALLOWED_TO_BE_PRESISTED, timestamp, macParams);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
     ret = macAdapter_.SetSandboxPolicy(policys, macResults, macParams);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter set policy error, err code = %{public}d.", ret);
@@ -939,7 +954,13 @@ int32_t PolicyInfoManager::StartAccessingNormalPolicy(
         return policy[index];
     });
     std::vector<uint32_t> macResults(accessingIndexSize);
-    MacParams macParams = GetMacParams(tokenId, 0, timestamp);
+    MacParams macParams;
+    ret = GetMacParams(tokenId, 0, timestamp, macParams);
+    if (ret != SANDBOX_MANAGER_OK) {
+        results.clear();
+        return ret;
+    }
+
     ret = macAdapter_.SetSandboxPolicy(accessingPolicy, macResults, macParams);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "MacAdapter set policy error, err code = %{public}d.", ret);
