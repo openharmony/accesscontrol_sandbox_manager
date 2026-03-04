@@ -677,7 +677,7 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
             continue;
         }
 
-        res = CheckPathIsBlocked(userID, policy[index], setInfo.bundleName);
+        res = CheckPathIsBlocked(userID, policy[index], setInfo.bundleName, index);
         if (res != SANDBOX_MANAGER_OK) {
             result[index] = static_cast<uint32_t>(res);
             ++invalidNum;
@@ -725,7 +725,7 @@ int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const std::vector<Pol
             ++invalidNum;
             continue;
         }
-        res = CheckPathIsBlocked(userID, policy[index], setInfo.bundleName);
+        res = CheckPathIsBlocked(userID, policy[index], setInfo.bundleName, index);
         if (res != SANDBOX_MANAGER_OK) {
             result[index] = static_cast<uint32_t>(res);
             ++invalidNum;
@@ -1249,17 +1249,23 @@ bool PolicyInfoManager::CheckPathWithinBundleName(const std::string &path, const
     return true;
 }
 
-static bool CheckShareMode(uint32_t permission, uint32_t mode)
+static bool CheckShareMode(uint32_t permission, uint32_t mode, const std::string &path)
 {
     /* Before applying the general configuration, unconfigured items are not controlled. */
     if (permission == SHARE_BUNDLE_UNSET) {
         return true;
     }
     if (permission == SHARE_PATH_UNSET) {
+        LOGE_WITH_REPORT(LABEL, "sharemap unset, path = %{public}s", path.c_str());
         return false;
     }
 
-    return ((permission & mode) == mode);
+    if ((permission & mode) != mode) {
+        LOGE_WITH_REPORT(LABEL, "sharemap mode mismatch, path = %{public}s, mode = %{public}u", path.c_str(), mode);
+        return false;
+    }
+
+    return true;
 }
 
 static std::string RemoveClonePrefix(const std::string &bundleName)
@@ -1290,7 +1296,7 @@ bool PolicyInfoManager::ShareMapRangeCheck(const std::string &path, std::vector<
 }
 
 bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::string &path,
-    const PolicyInfo &policy, std::vector<std::string> &components)
+    const PolicyInfo &policy, std::vector<std::string> &components, size_t index)
 {
     size_t APPDATA_PATH_SIZE = APPDATA_PATH_WITH_SLASH.length();
     // only check paths which are starting with '/storage/Users/currentUser/appdata/'
@@ -1309,21 +1315,22 @@ bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::strin
         + "/" + bundleRemoveIndex + "/" + components[SUB_PATH_SEGMENT];
     uint32_t permission = SandboxManagerShare::GetInstance().FindPermission(bundleNameTmp, userID, pathTmp);
     if ((permission == SHARE_BUNDLE_UNSET) || (permission == SHARE_PATH_UNSET)) {
+        /* refresh only once when multiple paths are input */
+        if (index != 0) {
+            return CheckShareMode(permission, policy.mode, path);
+        }
         if (SandboxManagerShare::GetInstance().GetAllShareCfg(userID) != SANDBOX_MANAGER_OK) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "refresh GetAllShareCfg failed");
             return false;
         }
         permission = SandboxManagerShare::GetInstance().FindPermission(bundleNameTmp, userID, pathTmp);
-        if (permission == SHARE_PATH_UNSET) {
-            LOGE_WITH_REPORT(LABEL, "Find ShareMode by refresh sharemap, path = %{public}s", path.c_str());
-        }
     }
 
-    return CheckShareMode(permission, policy.mode);
+    return CheckShareMode(permission, policy.mode, path);
 }
 
 bool PolicyInfoManager::CheckPathWithinRule(int32_t userID, const std::string &path,
-    const PolicyInfo &policy, const std::string &bundleName)
+    const PolicyInfo &policy, const std::string &bundleName, size_t index)
 {
     if ((path == ROOT_PATH) || (path == APPDATA_PATH)) {
         return false;
@@ -1359,7 +1366,7 @@ bool PolicyInfoManager::CheckPathWithinRule(int32_t userID, const std::string &p
 #ifdef NOT_RESIDENT
         // Second set skip check
         if (policy.type != PolicyType::AUTHORIZATION_PATH) {
-            return CheckPathWithinShareMap(userID, path, policy, components);
+            return CheckPathWithinShareMap(userID, path, policy, components, index);
         }
 #endif
         return true;
@@ -1374,7 +1381,8 @@ bool PolicyInfoManager::CheckPathWithinRule(int32_t userID, const std::string &p
     return true;
 }
 
-int32_t PolicyInfoManager::CheckPathIsBlocked(int32_t userID, const PolicyInfo &policy, const std::string &bundleName)
+int32_t PolicyInfoManager::CheckPathIsBlocked(int32_t userID, const PolicyInfo &policy,
+    const std::string &bundleName, size_t index)
 {
     uint32_t length = policy.path.length();
     const char *cStr = policy.path.c_str();
@@ -1386,7 +1394,7 @@ int32_t PolicyInfoManager::CheckPathIsBlocked(int32_t userID, const PolicyInfo &
     }
 
     std::string pathTmp = AdjustPath(policy.path);
-    bool ret = CheckPathWithinRule(userID, pathTmp, policy, bundleName);
+    bool ret = CheckPathWithinRule(userID, pathTmp, policy, bundleName, index);
     if (ret != true) {
         LOGE_WITH_REPORT(LABEL, "path not allowed to set policy: %{public}s", policy.path.c_str());
         return SandboxRetType::INVALID_PATH;
