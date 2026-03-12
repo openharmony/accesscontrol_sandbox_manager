@@ -218,7 +218,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest002, TestSize.Level0)
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 
@@ -269,28 +269,28 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest003, TestSize.Level0)
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 
     info.path = "/storage/Users/currentUser/appdata/el1";
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 
     info.path = "/storage/Users/currentUser/appdata/el1/a";
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 
     info.path = "/storage/Users/currentUser/appdata/el1/a/b";
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 }
@@ -315,37 +315,37 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest004, TestSize.Level0)
 
     info.path = "/storage";
     policy[0] = info;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 
     info.path = "/storage/a";
     policy[0] = info;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 
     info.path = "/storage/a/b";
     policy[0] = info;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 
     info.path = "/storage/Users/a";
     policy[0] = info;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 
     info.path = "/storage/Users/currentUser";
     policy[0] = info;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 
     info.path = "/storage/Users/currentUser/a";
     policy[0] = info;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 
     info.path = "/storage/Users/currentUser/appdata";
     policy[0] = info;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 }
 #endif
@@ -591,7 +591,8 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest014, TestSize.Level0)
         std::vector<PolicyInfo> policy;
         policy.emplace_back(info);
         std::vector<uint32_t> setResult;
-        EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+        EXPECT_EQ(SANDBOX_MANAGER_OK,
+                  PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
         ASSERT_EQ(1, setResult.size());
         EXPECT_EQ(expectRet, setResult[0]);
 
@@ -625,7 +626,8 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest015, TestSize.Level0)
     std::vector<PolicyInfo> basePolicy;
     basePolicy.emplace_back(baseInfo);
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, basePolicy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+              PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, basePolicy, 1, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SANDBOX_MANAGER_OK, setResult[0]);
 
@@ -674,7 +676,8 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest016, TestSize.Level0) {
         std::vector<uint32_t> setResult;
         std::vector<uint32_t> addResult;
 
-        EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+        EXPECT_EQ(SANDBOX_MANAGER_OK,
+                  PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
         ASSERT_EQ(1, setResult.size());
         EXPECT_EQ(SandboxRetType::INVALID_MODE, setResult[0]);
 
@@ -713,7 +716,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest017, TestSize.Level0)
     policy.emplace_back(info3);
     std::vector<uint32_t> setResult;
     std::vector<uint32_t> addResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     ASSERT_EQ(3, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[1]);
@@ -763,7 +766,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest018, TestSize.Level0)
 
     std::vector<uint32_t> setResult;
     std::vector<uint32_t> addResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     ASSERT_EQ(2, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[1]);
@@ -814,7 +817,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest019, TestSize.Level0)
 
     std::vector<uint32_t> setResult;
     std::vector<uint32_t> addResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     ASSERT_EQ(2, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[1]);
@@ -866,7 +869,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest020, TestSize.Level0)
 
     std::vector<uint32_t> setResult;
     std::vector<uint32_t> addResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     ASSERT_EQ(2, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[1]);
@@ -922,7 +925,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest021, TestSize.Level0)
 
     std::vector<uint32_t> setResult;
     std::vector<uint32_t> addResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 
@@ -975,7 +978,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest022, TestSize.Level0)
 
     std::vector<uint32_t> setResult;
     std::vector<uint32_t> addResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 
@@ -1029,7 +1032,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest023, TestSize.Level0)
 
     std::vector<uint32_t> setResult;
     std::vector<uint32_t> addResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     ASSERT_EQ(2, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[1]);
@@ -1076,7 +1079,7 @@ HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest001, TestSize.Level0)
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 0, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 0, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 
@@ -1131,7 +1134,7 @@ HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest003, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().UnSetPolicy(g_mockToken, info));
 
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 0, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 0, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 
@@ -1162,7 +1165,7 @@ HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest004, TestSize.Level0)
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 0, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 0, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 
@@ -1194,7 +1197,7 @@ HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest005, TestSize.Level0)
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 0, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 0, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 
@@ -1282,7 +1285,7 @@ HWTEST_F(PolicyInfoManagerTest, CleanPersistPolicyByPathTest001, TestSize.Level0
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 
@@ -1298,7 +1301,7 @@ HWTEST_F(PolicyInfoManagerTest, CleanPersistPolicyByPathTest001, TestSize.Level0
 
     std::vector<std::string> paths;
     paths.emplace_back(info.path);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CleanPersistPolicyByPath(paths));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CleanPersistPolicyByPath(paths, 0));
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().MatchPolicy(selfTokenId_, policy, result13));
     EXPECT_EQ(sizeLimit, result13.size());
@@ -1530,7 +1533,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest011, TestSize.Level0)
 
     uint32_t token = GetSelfTokenID();
     policy.emplace_back(infoParent);
-    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(token, policy, 1, policyResult));
+    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(token, policy, 1, policyResult, 0));
     EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
     mkdir(testPathParent, 0777);
     mkdir(testPathChild, 0777);
@@ -1568,7 +1571,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest012, TestSize.Level0)
 
     uint32_t token = GetSelfTokenID();
     policy.emplace_back(infoParent);
-    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(token, policy, 1, policyResult));
+    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(token, policy, 1, policyResult, 0));
     EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
     mkdir(testPathParent, 0777);
     mkdir(testPathChild, 0777);
@@ -1605,7 +1608,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest013, TestSize.Level0)
 
     uint32_t token = GetSelfTokenID();
     policy.emplace_back(infoParent);
-    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(token, policy, 1, policyResult));
+    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(token, policy, 1, policyResult, 0));
     EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
     mkdir(testPathParent, 0777);
     mkdir(testPathChild, 0777);
@@ -1869,6 +1872,9 @@ HWTEST_F(PolicyInfoManagerTest, MaskRealPath016, TestSize.Level0)
  */
 HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest012, TestSize.Level0)
 {
+    MacAdapter original = PolicyInfoManager::GetInstance().macAdapter_;
+    MacAdapter mockMacAdapter;
+    PolicyInfoManager::GetInstance().macAdapter_ = mockMacAdapter;
     std::vector<PolicyInfo> policy;
     PolicyInfo info;
     info.path = "/data/log";
@@ -1887,7 +1893,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest012, TestSize.Level0)
 
     u32Res.resize(0);
     EXPECT_EQ(SANDBOX_MANAGER_OK,
-        PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, static_cast<uint64_t>(flag), u32Res));
+        PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, static_cast<uint64_t>(flag), u32Res, 0));
     ASSERT_EQ(1, u32Res.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
 
@@ -1900,11 +1906,11 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest012, TestSize.Level0)
     ASSERT_EQ(1, boolRes.size());
     EXPECT_EQ(true, boolRes[0]);
 
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().StartAccessingByTokenId(selfTokenId_));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().StartAccessingByTokenId(selfTokenId_, 0));
 
     u32Res.resize(0);
     EXPECT_EQ(SANDBOX_MANAGER_OK,
-        PolicyInfoManager::GetInstance().StartAccessingPolicy(selfTokenId_, policy, u32Res));
+        PolicyInfoManager::GetInstance().StartAccessingPolicy(selfTokenId_, policy, u32Res, 0));
     ASSERT_EQ(1, u32Res.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
 
@@ -1915,6 +1921,9 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest012, TestSize.Level0)
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_));
+
+    PolicyInfoManager::GetInstance().macAdapter_ = original;
+    original = mockMacAdapter;
 }
 
 /**
@@ -1937,7 +1946,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerBatchRawDataTest001, TestSize.L
 
     std::vector<uint32_t> setResult;
     EXPECT_EQ(SANDBOX_MANAGER_OK,
-        PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, rawData, 0, setResult, SetInfo(), 0));
+        PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, rawData, 0, setResult, 0, SetInfo()));
     ASSERT_EQ(policy.size(), setResult.size());
     for (const auto &item : setResult) {
         EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, item);
@@ -2079,7 +2088,8 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest005, TestSize.Level0)
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult,
+        userId));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 }
@@ -2111,7 +2121,8 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest006, TestSize.Level0)
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult,
+        userId));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 }
@@ -2146,7 +2157,8 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest007, TestSize.Level0)
     info.type = PolicyType::SELF_PATH;
     policy[0] = info;
     std::vector<uint32_t> result;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, result, setInfo));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, result,
+        userId, setInfo));
     ASSERT_EQ(1, result.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result[0]);
 }
@@ -2179,7 +2191,8 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest008, TestSize.Level0)
     info.type = PolicyType::SELF_PATH;
     policy[0] = info;
     std::vector<uint32_t> result;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, result, setInfo));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, result,
+        userId, setInfo));
     ASSERT_EQ(1, result.size());
     EXPECT_EQ(SandboxRetType::INVALID_PATH, result[0]);
 }
@@ -2198,7 +2211,7 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest009, TestSize.Level0)
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult, 0));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 }
@@ -2230,7 +2243,8 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest010, TestSize.Level0)
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult,
+        userId));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 }
@@ -2263,7 +2277,8 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest011, TestSize.Level0)
     info.type = PolicyType::AUTHORIZATION_PATH;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult,
+        userId));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 }
@@ -2295,14 +2310,16 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest012, TestSize.Level0)
     info.mode = OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult,
+        userId));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 
     info.path = "/storage/Users/currentUser/appdata/el2/base/com.testshare/preferences/";
     info.mode = OperateMode::WRITE_MODE;
     policy[0] = info;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult,
+        userId));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 }
@@ -2396,7 +2413,8 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest015, TestSize.Level0)
     info.mode = OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult,
+        userId));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 }
@@ -2509,7 +2527,8 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest019, TestSize.Level0)
     info.mode = OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult,
+        userId));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 }
@@ -2557,7 +2576,8 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest020, TestSize.Level0)
     info.mode = OperateMode::READ_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult,
+        userId));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 }
@@ -2605,7 +2625,8 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest021, TestSize.Level0)
     info.mode = OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult,
+        100));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 }
@@ -2652,7 +2673,8 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest022, TestSize.Level0)
     info.mode = OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult,
+        userId));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 }
@@ -2699,7 +2721,8 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest023, TestSize.Level0)
     info.mode = OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult,
+        userId));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 }
@@ -2746,7 +2769,8 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest024, TestSize.Level0)
     info.mode = OperateMode::WRITE_MODE;
     policy[0] = info;
     std::vector<uint32_t> setResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult,
+        userId));
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 }

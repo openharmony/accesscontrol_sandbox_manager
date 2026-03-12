@@ -103,6 +103,48 @@ Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
     .permList = {},
     .permStateList = {g_testState1, g_testState2, g_testState3, g_testState4}
 };
+
+void AppendRawUint32(std::stringstream &ss, uint32_t value)
+{
+    ss.write(reinterpret_cast<const char *>(&value), sizeof(value));
+}
+
+void AppendRawUint64(std::stringstream &ss, uint64_t value)
+{
+    ss.write(reinterpret_cast<const char *>(&value), sizeof(value));
+}
+
+void AppendRawPolicy(std::stringstream &ss, const PolicyInfo &policy)
+{
+    uint32_t pathLen = static_cast<uint32_t>(policy.path.length());
+    AppendRawUint32(ss, pathLen);
+    ss.write(policy.path.c_str(), pathLen);
+    AppendRawUint64(ss, policy.mode);
+    ss.write(reinterpret_cast<const char *>(&policy.type), sizeof(policy.type));
+}
+
+PolicyVecRawData BuildRawDataFromStream(const std::stringstream &ss)
+{
+    PolicyVecRawData rawData;
+    rawData.serializedData = ss.str();
+    rawData.data = reinterpret_cast<const void *>(rawData.serializedData.data());
+    rawData.size = static_cast<uint32_t>(rawData.serializedData.size());
+    return rawData;
+}
+
+PolicyVecRawData BuildRawDataWithCount(uint32_t policyNum)
+{
+    std::stringstream ss;
+    AppendRawUint32(ss, policyNum);
+    return BuildRawDataFromStream(ss);
+}
+
+PolicyVecRawData BuildRawDataFromPolicies(const std::vector<PolicyInfo> &policies)
+{
+    PolicyVecRawData rawData;
+    rawData.Marshalling(policies);
+    return rawData;
+}
 };
 
 class SandboxManagerServiceTest : public testing::Test {
@@ -522,7 +564,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest011A, TestSize.Leve
     uint32_t selfUid = getuid();
     setuid(FOUNDATION_UID);
     int result = sandboxManagerService_->StartAccessingByTokenId(selfTokenId_, 1);
-    bool pass = (result == SANDBOX_MANAGER_OK || result == SANDBOX_MANAGER_DB_RECORD_NOT_EXIST);
+    bool pass = (result == SANDBOX_MANAGER_OK || result == SANDBOX_MANAGER_DB_RETURN_EMPTY);
     EXPECT_TRUE(pass);
     setuid(selfUid);
 }
@@ -896,6 +938,431 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest005, TestSiz
     EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reader.ReadNextBatch(1, batchPolicy));
 }
 
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest006
+ * @tc.desc: Test PolicyVecBatchReader rejects incomplete count header payloads
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest006, TestSize.Level0)
+{
+    for (uint32_t size = 0; size < sizeof(uint32_t); ++size) {
+        PolicyVecRawData rawData;
+        rawData.serializedData.assign(size, 'A');
+        rawData.data = reinterpret_cast<const void *>(rawData.serializedData.data());
+        rawData.size = size;
+
+        PolicyVecBatchReader reader(rawData);
+        EXPECT_FALSE(reader.IsValid());
+        EXPECT_EQ(0, reader.GetPolicyCount());
+
+        std::vector<PolicyInfo> batchPolicy(1);
+        batchPolicy[0].path = "/data/stale";
+        batchPolicy[0].mode = OperateMode::READ_MODE;
+        batchPolicy[0].type = PolicyType::SELF_PATH;
+        EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reader.ReadNextBatch(1, batchPolicy));
+        EXPECT_EQ(1, batchPolicy.size());
+        EXPECT_EQ("/data/stale", batchPolicy[0].path);
+    }
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest007
+ * @tc.desc: Test PolicyVecBatchReader rejects null raw data source
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest007, TestSize.Level0)
+{
+    PolicyVecRawData rawData;
+    rawData.data = nullptr;
+    rawData.size = sizeof(uint32_t);
+
+    PolicyVecBatchReader reader(rawData);
+    EXPECT_FALSE(reader.IsValid());
+    EXPECT_EQ(0, reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy;
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reader.ReadNextBatch(1, batchPolicy));
+    EXPECT_TRUE(batchPolicy.empty());
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest008
+ * @tc.desc: Test PolicyVecBatchReader zero policy count and zero batch behavior
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest008, TestSize.Level0)
+{
+    PolicyVecRawData rawData = BuildRawDataWithCount(0);
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(0, reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy(1);
+    batchPolicy[0].path = "/data/will/clear";
+    batchPolicy[0].mode = OperateMode::WRITE_MODE;
+    batchPolicy[0].type = PolicyType::AUTHORIZATION_PATH;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, reader.ReadNextBatch(0, batchPolicy));
+    EXPECT_TRUE(batchPolicy.empty());
+
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reader.ReadNextBatch(1, batchPolicy));
+    EXPECT_TRUE(batchPolicy.empty());
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest009
+ * @tc.desc: Test PolicyVecBatchReader zero batch request does not consume next policy
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest009, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy(2);
+    policy[0].path = "";
+    policy[0].mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
+    policy[0].type = PolicyType::AUTHORIZATION_PATH;
+    policy[1].path = "/data/test/after_zero_batch";
+    policy[1].mode = OperateMode::DELETE_MODE;
+    policy[1].type = PolicyType::OTHERS_PATH;
+
+    PolicyVecRawData rawData = BuildRawDataFromPolicies(policy);
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(policy.size(), reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy(1);
+    batchPolicy[0].path = "/data/stale/entry";
+    batchPolicy[0].mode = OperateMode::CREATE_MODE;
+    batchPolicy[0].type = PolicyType::SELF_PATH;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, reader.ReadNextBatch(0, batchPolicy));
+    EXPECT_TRUE(batchPolicy.empty());
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, reader.ReadNextBatch(1, batchPolicy));
+    ASSERT_EQ(1, batchPolicy.size());
+    EXPECT_EQ(policy[0].path, batchPolicy[0].path);
+    EXPECT_EQ(policy[0].mode, batchPolicy[0].mode);
+    EXPECT_EQ(policy[0].type, batchPolicy[0].type);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, reader.ReadNextBatch(1, batchPolicy));
+    ASSERT_EQ(1, batchPolicy.size());
+    EXPECT_EQ(policy[1].path, batchPolicy[0].path);
+    EXPECT_EQ(policy[1].mode, batchPolicy[0].mode);
+    EXPECT_EQ(policy[1].type, batchPolicy[0].type);
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest010
+ * @tc.desc: Test PolicyVecBatchReader preserves order across sequential batch reads
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest010, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy(4);
+    policy[0].path = "/data/test/order/0";
+    policy[0].mode = OperateMode::READ_MODE;
+    policy[0].type = PolicyType::SELF_PATH;
+    policy[1].path = "/data/test/order/1";
+    policy[1].mode = OperateMode::WRITE_MODE;
+    policy[1].type = PolicyType::AUTHORIZATION_PATH;
+    policy[2].path = "/data/test/order/2";
+    policy[2].mode = OperateMode::CREATE_MODE | OperateMode::DELETE_MODE;
+    policy[2].type = PolicyType::OTHERS_PATH;
+    policy[3].path = "";
+    policy[3].mode = OperateMode::DENY_READ_MODE | OperateMode::DENY_WRITE_MODE;
+    policy[3].type = PolicyType::UNKNOWN;
+
+    PolicyVecRawData rawData = BuildRawDataFromPolicies(policy);
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(policy.size(), reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, reader.ReadNextBatch(2, batchPolicy));
+    ASSERT_EQ(2, batchPolicy.size());
+    EXPECT_EQ(policy[0].path, batchPolicy[0].path);
+    EXPECT_EQ(policy[0].mode, batchPolicy[0].mode);
+    EXPECT_EQ(policy[0].type, batchPolicy[0].type);
+    EXPECT_EQ(policy[1].path, batchPolicy[1].path);
+    EXPECT_EQ(policy[1].mode, batchPolicy[1].mode);
+    EXPECT_EQ(policy[1].type, batchPolicy[1].type);
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, reader.ReadNextBatch(2, batchPolicy));
+    ASSERT_EQ(2, batchPolicy.size());
+    EXPECT_EQ(policy[2].path, batchPolicy[0].path);
+    EXPECT_EQ(policy[2].mode, batchPolicy[0].mode);
+    EXPECT_EQ(policy[2].type, batchPolicy[0].type);
+    EXPECT_EQ(policy[3].path, batchPolicy[1].path);
+    EXPECT_EQ(policy[3].mode, batchPolicy[1].mode);
+    EXPECT_EQ(policy[3].type, batchPolicy[1].type);
+
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reader.ReadNextBatch(1, batchPolicy));
+    EXPECT_TRUE(batchPolicy.empty());
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest011
+ * @tc.desc: Test PolicyVecBatchReader returns partial batch when request exceeds remaining policies
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest011, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy(1);
+    policy[0].path = "/data/test/single";
+    policy[0].mode = OperateMode::RENAME_MODE;
+    policy[0].type = PolicyType::AUTHORIZATION_PATH;
+
+    PolicyVecRawData rawData = BuildRawDataFromPolicies(policy);
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(1, reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy(1);
+    batchPolicy[0].path = "/data/stale";
+    batchPolicy[0].mode = OperateMode::READ_MODE;
+    batchPolicy[0].type = PolicyType::UNKNOWN;
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reader.ReadNextBatch(2, batchPolicy));
+    ASSERT_EQ(1, batchPolicy.size());
+    EXPECT_EQ(policy[0].path, batchPolicy[0].path);
+    EXPECT_EQ(policy[0].mode, batchPolicy[0].mode);
+    EXPECT_EQ(policy[0].type, batchPolicy[0].type);
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest012
+ * @tc.desc: Test PolicyVecBatchReader rejects policy with missing path length field
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest012, TestSize.Level0)
+{
+    std::stringstream ss;
+    AppendRawUint32(ss, 1);
+    ss.put('X');
+    ss.put('Y');
+
+    PolicyVecRawData rawData = BuildRawDataFromStream(ss);
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(1, reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy(1);
+    batchPolicy[0].path = "/data/should_be_cleared";
+    batchPolicy[0].mode = OperateMode::WRITE_MODE;
+    batchPolicy[0].type = PolicyType::SELF_PATH;
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reader.ReadNextBatch(1, batchPolicy));
+    EXPECT_TRUE(batchPolicy.empty());
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest013
+ * @tc.desc: Test PolicyVecBatchReader rejects path length beyond remaining bytes
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest013, TestSize.Level0)
+{
+    std::stringstream ss;
+    AppendRawUint32(ss, 1);
+    AppendRawUint32(ss, 64);
+    ss.write("tiny", 4);
+
+    PolicyVecRawData rawData = BuildRawDataFromStream(ss);
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(1, reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy;
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reader.ReadNextBatch(1, batchPolicy));
+    EXPECT_TRUE(batchPolicy.empty());
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest014
+ * @tc.desc: Test PolicyVecBatchReader rejects policy with truncated mode field
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest014, TestSize.Level0)
+{
+    std::stringstream ss;
+    AppendRawUint32(ss, 1);
+    AppendRawUint32(ss, 5);
+    ss.write("/data", 5);
+    ss.put('M');
+    ss.put('O');
+    ss.put('D');
+
+    PolicyVecRawData rawData = BuildRawDataFromStream(ss);
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(1, reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy(1);
+    batchPolicy[0].path = "/data/clear/me";
+    batchPolicy[0].mode = OperateMode::DELETE_MODE;
+    batchPolicy[0].type = PolicyType::OTHERS_PATH;
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reader.ReadNextBatch(1, batchPolicy));
+    EXPECT_TRUE(batchPolicy.empty());
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest015
+ * @tc.desc: Test PolicyVecBatchReader rejects policy with truncated type field
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest015, TestSize.Level0)
+{
+    std::stringstream ss;
+    AppendRawUint32(ss, 1);
+    AppendRawUint32(ss, 10);
+    ss.write("/data/type", 10);
+    AppendRawUint64(ss, OperateMode::READ_MODE | OperateMode::CREATE_MODE);
+    ss.put('T');
+
+    PolicyVecRawData rawData = BuildRawDataFromStream(ss);
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(1, reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy;
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reader.ReadNextBatch(1, batchPolicy));
+    EXPECT_TRUE(batchPolicy.empty());
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest016
+ * @tc.desc: Test PolicyVecBatchReader returns parsed prefix before malformed second policy
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest016, TestSize.Level0)
+{
+    PolicyInfo firstPolicy;
+    firstPolicy.path = "/data/test/first";
+    firstPolicy.mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
+    firstPolicy.type = PolicyType::SELF_PATH;
+
+    std::stringstream ss;
+    AppendRawUint32(ss, 2);
+    AppendRawPolicy(ss, firstPolicy);
+    AppendRawUint32(ss, 32);
+    ss.write("bad", 3);
+
+    PolicyVecRawData rawData = BuildRawDataFromStream(ss);
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(2, reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy;
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reader.ReadNextBatch(2, batchPolicy));
+    ASSERT_EQ(1, batchPolicy.size());
+    EXPECT_EQ(firstPolicy.path, batchPolicy[0].path);
+    EXPECT_EQ(firstPolicy.mode, batchPolicy[0].mode);
+    EXPECT_EQ(firstPolicy.type, batchPolicy[0].type);
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest017
+ * @tc.desc: Test PolicyVecBatchReader handles exact boundary payload sizes
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest017, TestSize.Level0)
+{
+    PolicyInfo policyInfo;
+    policyInfo.path = "A";
+    policyInfo.mode = OperateMode::MAX_MODE - 1;
+    policyInfo.type = PolicyType::OTHERS_PATH;
+
+    std::stringstream ss;
+    AppendRawUint32(ss, 1);
+    AppendRawPolicy(ss, policyInfo);
+
+    PolicyVecRawData rawData = BuildRawDataFromStream(ss);
+    ASSERT_EQ(rawData.size, sizeof(uint32_t) + sizeof(uint32_t) + 1 + sizeof(uint64_t) + sizeof(PolicyType));
+
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(1, reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, reader.ReadNextBatch(1, batchPolicy));
+    ASSERT_EQ(1, batchPolicy.size());
+    EXPECT_EQ(policyInfo.path, batchPolicy[0].path);
+    EXPECT_EQ(policyInfo.mode, batchPolicy[0].mode);
+    EXPECT_EQ(policyInfo.type, batchPolicy[0].type);
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest018
+ * @tc.desc: Test PolicyVecBatchReader sequential failure on malformed later batch
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest018, TestSize.Level0)
+{
+    PolicyInfo firstPolicy;
+    firstPolicy.path = "/data/test/batch0";
+    firstPolicy.mode = OperateMode::READ_MODE;
+    firstPolicy.type = PolicyType::AUTHORIZATION_PATH;
+
+    std::stringstream ss;
+    AppendRawUint32(ss, 2);
+    AppendRawPolicy(ss, firstPolicy);
+    AppendRawUint32(ss, 5);
+    ss.write("abc", 3);
+
+    PolicyVecRawData rawData = BuildRawDataFromStream(ss);
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(2, reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, reader.ReadNextBatch(1, batchPolicy));
+    ASSERT_EQ(1, batchPolicy.size());
+    EXPECT_EQ(firstPolicy.path, batchPolicy[0].path);
+    EXPECT_EQ(firstPolicy.mode, batchPolicy[0].mode);
+    EXPECT_EQ(firstPolicy.type, batchPolicy[0].type);
+
+    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR, reader.ReadNextBatch(1, batchPolicy));
+    EXPECT_TRUE(batchPolicy.empty());
+}
+
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest019
+ * @tc.desc: Test PolicyVecBatchReader supports empty path policy in standalone payload
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest019, TestSize.Level0)
+{
+    PolicyInfo policyInfo;
+    policyInfo.path = "";
+    policyInfo.mode = OperateMode::DENY_READ_MODE;
+    policyInfo.type = PolicyType::UNKNOWN;
+
+    std::stringstream ss;
+    AppendRawUint32(ss, 1);
+    AppendRawPolicy(ss, policyInfo);
+
+    PolicyVecRawData rawData = BuildRawDataFromStream(ss);
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(1, reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, reader.ReadNextBatch(1, batchPolicy));
+    ASSERT_EQ(1, batchPolicy.size());
+    EXPECT_TRUE(batchPolicy[0].path.empty());
+    EXPECT_EQ(policyInfo.mode, batchPolicy[0].mode);
+    EXPECT_EQ(policyInfo.type, batchPolicy[0].type);
+}
+
 #ifdef DEC_ENABLED
 /**
  * @tc.name: SandboxManagerServiceNew001
@@ -918,7 +1385,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceNew001, TestSize.Level0
 
     SetSelfTokenID(sysGrantToken_);
     PolicyVecRawData policyRawData1;
-    EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
+    EXPECT_EQ(INVALID_PARAMETER,
         sandboxManagerService_->SetPolicyByBundleName(bundleName, index, policyRawData1, policyFlag, resultRawData));
 
     policy.resize(1);

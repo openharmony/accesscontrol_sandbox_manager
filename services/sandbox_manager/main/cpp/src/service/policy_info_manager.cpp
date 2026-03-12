@@ -628,7 +628,7 @@ int32_t PolicyInfoManager::SetPolicyInner(std::vector<PolicyInfo> &validPolicies
 }
 
 int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                                     std::vector<uint32_t> &result, const SetInfo &setInfo, int32_t userId)
+                                     std::vector<uint32_t> &result, int32_t userId, const SetInfo &setInfo)
 {
     size_t policySize = policy.size();
     if (!macAdapter_.IsMacSupport()) {
@@ -724,25 +724,23 @@ uint32_t PolicyInfoManager::CalculateBatchSize(uint32_t policyCount, uint32_t ba
         return policyCount;
     }
 
-    uint32_t dynamicBatchSize = policyCount / MAX_BATCH_COUNT;
-    if ((policyCount % MAX_BATCH_COUNT) != 0) {
+    uint32_t dynamicBatchSize = policyCount >> MAX_BATCH_COUNT_SHIFT;
+    if ((policyCount & (MAX_BATCH_COUNT - 1)) != 0) {
         ++dynamicBatchSize;
     }
-    if (dynamicBatchSize == 0) {
-        dynamicBatchSize = 1;
-    }
+
     return std::max(batchSize, dynamicBatchSize);
 }
 
 // Batch processing version - processes policies in batches to minimize memory footprint
 // Delegates to the original SetPolicy(vector<PolicyInfo>) for each batch
 int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData, uint64_t policyFlag,
-                                     std::vector<uint32_t> &result, const SetInfo &setInfo, int32_t userId)
+                                     std::vector<uint32_t> &result, int32_t userId, const SetInfo &setInfo)
 {
     return ProcessPolicyBatch(policyRawData, result,
         [this, tokenId, policyFlag, setInfo, userId](const std::vector<PolicyInfo>& policies,
             std::vector<uint32_t>& batchResult) {
-            return SetPolicy(tokenId, policies, policyFlag, batchResult, setInfo, userId);
+            return SetPolicy(tokenId, policies, policyFlag, batchResult, userId, setInfo);
         }, NON_PERSIST_POLICY_BATCH_SIZE, (uint32_t)INVALID_PATH);
 }
 
@@ -757,7 +755,14 @@ int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const PolicyVecRawD
         }, PERSIST_POLICY_BATCH_SIZE, (uint32_t)INVALID_PATH);
 }
 
-// Batch processing version - delegates to original RemovePolicy for each batch
+/*
+ * Batch processing version - delegates to original RemovePolicy for each batch
+ *
+ * There is a subtle issue here. Before batching the requests, there is a consistent existence check before actually
+ * deleting the entries from database. If there are duplicated policies falling into different batches, the former
+ * batch would delete the record, and the latter batch would get a POLICY_HAS_NOT_BEEN_PERSISTED as result.
+ * But since the persist policy batch is set to 200000, and the current upper limit is 500, this issue is invisible.
+ */
 int32_t PolicyInfoManager::RemovePolicy(const uint32_t tokenId, const PolicyVecRawData &policyRawData,
     std::vector<uint32_t> &result)
 {
@@ -800,12 +805,12 @@ int32_t PolicyInfoManager::MatchPolicy(const uint32_t tokenId, const PolicyVecRa
 
 // Batch processing version - delegates to original StartAccessingPolicy for each batch
 int32_t PolicyInfoManager::StartAccessingPolicy(const uint32_t tokenId, const PolicyVecRawData &policyRawData,
-    std::vector<uint32_t> &results, uint64_t timestamp, int32_t userId)
+    std::vector<uint32_t> &results, int32_t userId, uint64_t timestamp)
 {
     return ProcessPolicyBatch(policyRawData, results,
         [this, tokenId, timestamp, userId](const std::vector<PolicyInfo>& policies,
             std::vector<uint32_t>& batchResult) {
-            return StartAccessingPolicy(tokenId, policies, batchResult, timestamp, userId);
+            return StartAccessingPolicy(tokenId, policies, batchResult, userId, timestamp);
         }, PERSIST_POLICY_BATCH_SIZE, (uint32_t)INVALID_PATH);
 }
 
@@ -956,7 +961,7 @@ bool PolicyInfoManager::RemoveBundlePolicy(const uint32_t tokenId)
     return true;
 }
 
-int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId, uint64_t timestamp, int32_t userId)
+int32_t PolicyInfoManager::StartAccessingByTokenId(const uint32_t tokenId, int32_t userId, uint64_t timestamp)
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
@@ -1584,8 +1589,8 @@ int32_t PolicyInfoManager::GetMediaPolicyCommonWork(const uint32_t tokenId, cons
 }
 
 int32_t PolicyInfoManager::StartAccessingPolicy(
-    const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results, uint64_t timestamp,
-    int32_t userId)
+    const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results, int32_t userId,
+    uint64_t timestamp)
 {
     size_t policySize = policy.size();
     results.resize(policySize);

@@ -247,7 +247,7 @@ int32_t SandboxManagerService::SetPolicyByBundleName(const std::string &bundleNa
     SetInfo setInfo;
     setInfo.bundleName = bundleName;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policyRawData, policyFlag, result, setInfo, userId);
+    ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policyRawData, policyFlag, result, userId, setInfo);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -373,7 +373,7 @@ int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const PolicyVecRawDat
     std::vector<uint32_t> result;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
     ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policyRawData, policyFlag,
-        result, setInfoParcel.setInfo, userId);
+        result, userId, setInfoParcel.setInfo);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -513,7 +513,7 @@ int32_t SandboxManagerService::StartAccessingPolicy(const PolicyVecRawData &poli
     std::vector<uint32_t> result;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
     ret = PolicyInfoManager::GetInstance().StartAccessingPolicy(callingTokenId,
-        policyRawData, result, timestamp, userId);
+        policyRawData, result, userId, timestamp);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -585,7 +585,7 @@ int32_t SandboxManagerService::StartAccessingByTokenId(uint32_t tokenId, uint64_
         LOGE_WITH_REPORT(LABEL, "start accessing by token failed, get user id failed error=%{public}d", ret);
         return INVALID_PARAMTER;
     }
-    return PolicyInfoManager::GetInstance().StartAccessingByTokenId(tokenId, timestamp, userId);
+    return PolicyInfoManager::GetInstance().StartAccessingByTokenId(tokenId, userId, timestamp);
 }
 
 int32_t SandboxManagerService::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp)

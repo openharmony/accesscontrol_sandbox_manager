@@ -114,7 +114,7 @@ struct PolicyVecRawData {
 class PolicyVecBatchReader {
 public:
     explicit PolicyVecBatchReader(const PolicyVecRawData& rawData)
-        : dataPtr_(static_cast<const char*>(rawData.data)),
+        : dataPtr_(static_cast<const char *>(rawData.data)),
           remainingSize_(rawData.size),
           policyCount_(0),
           isValid_(false)
@@ -146,23 +146,7 @@ public:
 
         out.clear();
         out.reserve(count);
-
-        for (uint32_t i = 0; i < count && remainingSize_ > 0; i++) {
-            PolicyInfo info;
-            int32_t ret = ReadOnePolicy(info);
-            if (ret != SANDBOX_MANAGER_OK) {
-                return ret;
-            }
-            out.emplace_back(std::move(info));
-        }
-
-        if (out.size() != count) {
-            std::string error = "ReadNextBatch: insufficient data for expected count";
-            SandboxManagerDfxHelper::WriteExceptionBranch(error);
-            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
-        }
-
-        return SANDBOX_MANAGER_OK;
+        return ReadPolicies(count, out);
     }
 
 private:
@@ -177,47 +161,47 @@ private:
         remainingSize_ -= size;
         return SANDBOX_MANAGER_OK;
     }
-    // Read a single PolicyInfo from the current position
-    int32_t ReadOnePolicy(PolicyInfo &info)
+
+    int32_t ReadPolicies(uint32_t count, std::vector<PolicyInfo> &out)
     {
-        // Read path length
-        uint32_t pathLen;
-        int32_t ret = ReadTo(&pathLen, sizeof(pathLen));
-        if (ret != SANDBOX_MANAGER_OK) {
-            return ret;
-        }
+        for (uint32_t i = 0; i < count; i++) {
+            PolicyInfo info;
+            uint32_t pathLen = 0;
+            int32_t ret = ReadTo(&pathLen, sizeof(pathLen));
+            if (ret != SANDBOX_MANAGER_OK) {
+                return ret;
+            }
 
-        // Validate path length
-        if (pathLen > remainingSize_) {
-            std::string error = "ReadOnePolicy: pathLen exceeds remaining data";
-            SandboxManagerDfxHelper::WriteExceptionBranch(error);
-            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
-        }
+            if (pathLen > remainingSize_) {
+                std::string error = "ReadPolicies: pathLen exceeds remaining data";
+                SandboxManagerDfxHelper::WriteExceptionBranch(error);
+                return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+            }
 
-        // Read path
-        info.path.assign(dataPtr_, pathLen);
-        dataPtr_ += pathLen;
-        remainingSize_ -= pathLen;
+            info.path.assign(dataPtr_, pathLen);
+            dataPtr_ += pathLen;
+            remainingSize_ -= pathLen;
 
-        // Read mode
-        ret = ReadTo(&info.mode, sizeof(info.mode));
-        if (ret != SANDBOX_MANAGER_OK) {
-            return ret;
-        }
+            ret = ReadTo(&info.mode, sizeof(info.mode));
+            if (ret != SANDBOX_MANAGER_OK) {
+                return ret;
+            }
 
-        // Read type
-        ret = ReadTo(&info.type, sizeof(info.type));
-        if (ret != SANDBOX_MANAGER_OK) {
-            return ret;
+            ret = ReadTo(&info.type, sizeof(info.type));
+            if (ret != SANDBOX_MANAGER_OK) {
+                return ret;
+            }
+
+            out.emplace_back(std::move(info));
         }
 
         return SANDBOX_MANAGER_OK;
     }
 
-    const char* dataPtr_;
-    uint32_t remainingSize_;
-    uint32_t policyCount_;
-    bool isValid_;
+    const char *dataPtr_ = nullptr;
+    uint32_t remainingSize_ = 0;
+    uint32_t policyCount_ = 0;
+    bool isValid_ = 0;
 };
 
 } // namespace SandboxManager

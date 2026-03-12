@@ -51,7 +51,7 @@ public:
      * @param policy vector of string, file path
      * @return SANDBOX_MANAGER_OK
      */
-    int32_t CleanPersistPolicyByPath(const std::vector<std::string> &filePaths, int32_t userId = 0);
+    int32_t CleanPersistPolicyByPath(const std::vector<std::string> &filePaths, int32_t userId);
      /**
      * @brief Clear the policys of a given userid
      * @param userId a given userid
@@ -101,10 +101,10 @@ public:
      * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
      */
     int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                      std::vector<uint32_t> &result, const SetInfo &info = SetInfo(), int32_t userId = 0);
+                      std::vector<uint32_t> &result, int32_t userId, const SetInfo &info = SetInfo());
     // Batch processing version - takes PolicyVecRawData directly for memory efficiency
     int32_t SetPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData, uint64_t policyFlag,
-                      std::vector<uint32_t> &result, const SetInfo &info = SetInfo(), int32_t userId = 0);
+                      std::vector<uint32_t> &result, int32_t userId, const SetInfo &info = SetInfo());
     /**
      * @brief unset policies of a certain tokenId
      * @param tokenId token id of the object
@@ -120,10 +120,10 @@ public:
      * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
      */
     int32_t SetDenyPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
-        int32_t userId = 0);
+        int32_t userId);
     // Batch processing version - takes PolicyVecRawData directly for memory efficiency
     int32_t SetDenyPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData, std::vector<uint32_t> &result,
-        int32_t userId = 0);
+        int32_t userId);
     /**
      * @brief unset deny policies of a certain tokenId
      * @param tokenId token id of the object
@@ -153,7 +153,7 @@ public:
      * @param timestamp timestamp to access policy
      * @return int32_t
      */
-    int32_t StartAccessingByTokenId(const uint32_t tokenId, uint64_t timestamp = 0, int32_t userId = 0);
+    int32_t StartAccessingByTokenId(const uint32_t tokenId, int32_t userId, uint64_t timestamp = 0);
     /**
      * @brief activate input persist policys
      * @param tokenId token id of the object
@@ -163,10 +163,10 @@ public:
      * @return int32_t
      */
     int32_t StartAccessingPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
-        std::vector<uint32_t> &results, uint64_t timestamp = 0, int32_t userId = 0);
+        std::vector<uint32_t> &results, int32_t userId, uint64_t timestamp = 0);
     // Batch processing version - takes PolicyVecRawData directly for memory efficiency
     int32_t StartAccessingPolicy(const uint32_t tokenId, const PolicyVecRawData &policyRawData,
-        std::vector<uint32_t> &results, uint64_t timestamp = 0, int32_t userId = 0);
+        std::vector<uint32_t> &results, int32_t userId, uint64_t timestamp = 0);
     /**
      * @brief deactivate input persist policys
      * @param tokenId token id of the object
