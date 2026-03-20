@@ -99,7 +99,7 @@ HWTEST_F(MediaPathMockTest, MediaPathMockTest001, TestSize.Level0)
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result11[0]);
     std::vector<uint32_t> result21;
     EXPECT_EQ(SANDBOX_MANAGER_OK,
-        PolicyInfoManager::GetInstance().StartAccessingPolicy(selfTokenId_, policy, result21));
+        PolicyInfoManager::GetInstance().StartAccessingPolicy(selfTokenId_, policy, result21, 0));
     ASSERT_EQ(sizeLimit, result21.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result21[0]);
 
