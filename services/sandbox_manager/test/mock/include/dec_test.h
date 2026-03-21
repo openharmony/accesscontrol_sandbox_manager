@@ -35,6 +35,8 @@
 #include <sys/vfs.h>
 #include <sys/xattr.h>
 #include <securec.h>
+#include <vector>
+#include <utility>
 
 #define MAX_POLICY_NUM 8
 #define DEC_POLICY_HEADER_RESERVED 64
@@ -144,9 +146,12 @@ int SetPrefix(const std::string &path);
 
 int SetPath(uint64_t tokenid, const std::string &path, uint32_t mode, bool persistFlag,
     uint64_t timestamp, int32_t userId);
+int SetBatchPaths(uint64_t tokenid, const std::vector<std::pair<std::string, uint32_t>> &pathModePairs,
+    bool persistFlag, uint64_t timestamp, int32_t userId);
 int DenyPath(uint64_t tokenid, const std::string &path, uint32_t mode, uint64_t timestamp, int32_t userId);
 
 int CheckPath(uint64_t tokenid, const std::string &path, uint32_t mode);
+int CheckBatchPaths(uint64_t tokenid, const std::vector<std::pair<std::string, uint32_t>> &pathModePairs);
 int TestWrite(uint64_t tokenid, const std::string &fileName, int32_t uid = 0, int32_t gid = 0);
 int TestRead(uint64_t tokenid, const std::string &fileName, int32_t uid = 0, int32_t gid = 0);
 int TestCopy(uint64_t tokenid, const std::string &srcPath, const std::string &dstPath,
