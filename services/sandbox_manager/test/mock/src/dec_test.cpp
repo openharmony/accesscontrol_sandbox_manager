@@ -140,6 +140,50 @@ int SetPath(uint64_t tokenid, const std::string &path, uint32_t mode, bool persi
     return -1;
 }
 
+int SetBatchPaths(uint64_t tokenid, const std::vector<std::pair<std::string, uint32_t>> &pathModePairs,
+    bool persistFlag, uint64_t timestamp, int32_t userId)
+{
+    if (pathModePairs.empty()) {
+        return -1;
+    }
+    
+    OpenDevDec();
+    
+    // Process in batches if exceeding MAX_POLICY_NUM
+    size_t totalPaths = pathModePairs.size();
+    size_t offset = 0;
+    
+    while (offset < totalPaths) {
+        struct dec_rule_s info;
+        info.persistFlag = persistFlag;
+        info.tokenId = tokenid;
+        info.timeStamp = timestamp;
+        info.userId = userId;
+        
+        size_t batchSize = std::min(MAX_POLICY_NUM, static_cast<int32_t>(totalPaths - offset));
+        for (size_t i = 0; i < batchSize; i++) {
+            const auto &pathMode = pathModePairs[offset + i];
+            info.addPath(pathMode.first.c_str(), pathMode.second);
+        }
+        
+        int ret = ioctl(g_fd, SET_DEC_RULE_CMD, &info);
+        if (ret != 0) {
+            return -1;
+        }
+        
+        // Check if all paths in this batch were set successfully
+        for (uint32_t i = 0; i < info.pathNum; i++) {
+            if (!info.path[i].ret_flag) {
+                return -1;
+            }
+        }
+        
+        offset += batchSize;
+    }
+    
+    return 0;
+}
+
 int DenyPath(uint64_t tokenid, const std::string &path, uint32_t mode,
     uint64_t timestamp, int32_t userId)
 {
@@ -173,6 +217,46 @@ int CheckPath(uint64_t tokenid, const std::string &path, uint32_t mode)
         return 0;
     }
     return -1;
+}
+
+int CheckBatchPaths(uint64_t tokenid, const std::vector<std::pair<std::string, uint32_t>> &pathModePairs)
+{
+    if (pathModePairs.empty()) {
+        return -1;
+    }
+    
+    OpenDevDec();
+    
+    // Process in batches if exceeding MAX_POLICY_NUM
+    size_t totalPaths = pathModePairs.size();
+    size_t offset = 0;
+    
+    while (offset < totalPaths) {
+        struct dec_rule_s info;
+        info.tokenId = tokenid;
+        
+        size_t batchSize = std::min(MAX_POLICY_NUM, static_cast<int32_t>(totalPaths - offset));
+        for (size_t i = 0; i < batchSize; i++) {
+            const auto &pathMode = pathModePairs[offset + i];
+            info.addPath(pathMode.first.c_str(), pathMode.second);
+        }
+        
+        int ret = ioctl(g_fd, CHECK_DEC_RULE_CMD, &info);
+        if (ret != 0) {
+            return -1;
+        }
+        
+        // Check if all paths in this batch exist
+        for (uint32_t i = 0; i < info.pathNum; i++) {
+            if (!info.path[i].ret_flag) {
+                return -1;
+            }
+        }
+        
+        offset += batchSize;
+    }
+    
+    return 0;
 }
 
 int TestWrite(uint64_t tokenid, const std::string &fileName, int32_t uid, int32_t gid)

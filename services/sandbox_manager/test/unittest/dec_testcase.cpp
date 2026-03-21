@@ -15,6 +15,7 @@
 
 #include "dec_test.h"
 #include <gtest/gtest.h>
+#include <sstream>
 
 #ifdef DEC_ENABLED
 const uint64_t TOKEN_ID = 123;
@@ -47,6 +48,84 @@ std::string CreatePath()
 }
 const std::string TEST_LONG_PATH_4096 = CreatePath();
 const std::string TEST_LONG_PATH_4097 = TEST_LONG_PATH_4096 + 'a';
+
+// Memory statistics structures and helper functions
+struct FieldStats {
+    std::string name;
+    uint64_t numObjs = 0;
+    uint64_t objSize = 0;
+    uint64_t memoryBytes = 0;
+};
+
+struct DecMemoryData {
+    uint64_t totalMemoryBytes = 0;
+    std::vector<FieldStats> fieldStats;
+};
+
+inline static const char* SLABINFO_PATH = "/proc/slabinfo";
+inline static const std::vector<std::string> TARGET_PREFIXES = {"dec_str", "dec_common"};
+inline static const std::vector<std::string> EXACT_MATCHES = {"path_tree_node", "dec_permission"};
+
+bool IsTargetField(const std::string &name)
+{
+    // Exact match
+    for (const auto &match : EXACT_MATCHES) {
+        if (name == match) {
+            return true;
+        }
+    }
+
+    // Prefix match
+    for (const auto &prefix : TARGET_PREFIXES) {
+        if (name.find(prefix) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+DecMemoryData ParseStats()
+{
+    DecMemoryData statsData;
+
+    std::ifstream file(SLABINFO_PATH);
+    if (!file.is_open()) {
+        printf("Failed to open file: %s\n", SLABINFO_PATH);
+        return statsData;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line.empty()) {
+            continue;
+        }
+
+        std::istringstream iss(line);
+        std::string name;
+        uint64_t activeObjs = 0;
+        uint64_t numObjs = 0;
+        uint64_t objSize = 0;
+        uint64_t objsPerSlab = 0;
+
+        if (!(iss >> name >> activeObjs >> numObjs >> objSize >> objsPerSlab)) {
+            continue;
+        }
+
+        if (IsTargetField(name)) {
+            uint64_t memoryBytes = numObjs * objSize;
+            statsData.totalMemoryBytes += memoryBytes;
+
+            FieldStats &fieldStats = statsData.fieldStats.emplace_back();
+            fieldStats.name = name;
+            fieldStats.numObjs = numObjs;
+            fieldStats.objSize = objSize;
+            fieldStats.memoryBytes = memoryBytes;
+        }
+    }
+
+    return statsData;
+}
 
 namespace OHOS {
 namespace AccessControl {
@@ -1009,6 +1088,61 @@ HWTEST_F(DecTestCase, testSingleRenameDir, TestSize.Level0)
     EXPECT_TRUE(ExcuteCmd("[ -d /data/testSingleRenameDir/ ] && rm -rf testSingleRenameDir"));
     EXPECT_TRUE(ExcuteCmd("[ -d /data/mntTestSingleRenameDir ] && rm -rf /data/mntTestSingleRenameDir"));
 }
+
+/**
+ * @tc.name: testBatchSetPaths020
+ * @tc.desc: Test batch setting multiple paths with different modes
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(DecTestCase, testBatchSetPaths020, TestSize.Level0)
+{
+    const int PATH_COUNT = 10000;
+
+    // Batch set multiple paths with different modes
+    std::vector<std::pair<std::string, uint32_t>> pathModePairs;
+    for (int i = 0; i < PATH_COUNT; i++) {
+        std::string path = "/data/path_" + std::to_string(i) + ".txt";
+        uint32_t mode = DEC_MODE_RW;
+        pathModePairs.push_back({path, mode});
+    }
+
+    // Get path_tree_node count before setting paths
+    DecMemoryData beforeStats = ParseStats();
+    uint64_t beforePathNodeCount = 0;
+    for (const auto &field : beforeStats.fieldStats) {
+        if (field.name == "path_tree_node") {
+            beforePathNodeCount = field.numObjs;
+            break;
+        }
+    }
+
+    EXPECT_TRUE(ConstraintPath("/data/") == RET_OK);
+    EXPECT_EQ(SetBatchPaths(TOKEN_ID, pathModePairs, true, 0, USER_ID), 0);
+
+    // Verify all paths have the correct permissions using batch check
+    EXPECT_EQ(CheckBatchPaths(TOKEN_ID, pathModePairs), 0);
+
+    // Get path_tree_node count after setting paths
+    DecMemoryData afterStats = ParseStats();
+    uint64_t afterPathNodeCount = 0;
+    for (const auto &field : afterStats.fieldStats) {
+        if (field.name == "path_tree_node") {
+            afterPathNodeCount = field.numObjs;
+            break;
+        }
+    }
+
+    // Print before and after counts
+    printf("path_tree_node: before=%lu, after=%lu, expected_increase=%d\n",
+        beforePathNodeCount, afterPathNodeCount, PATH_COUNT);
+
+    // Clean up
+    EXPECT_EQ(DestroyByTokenid(TOKEN_ID, 0), 0);
+
+    EXPECT_EQ(CheckBatchPaths(TOKEN_ID, pathModePairs), -1);
+}
+
 } // SandboxManager
 } // AccessControl
 } // OHOS
