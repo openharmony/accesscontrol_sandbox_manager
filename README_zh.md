@@ -127,6 +127,6 @@ int32_t sandboxManagerErrCode = SandboxManagerKit::CheckPersistPolicy(tokenId, p
 
 ## 相关仓
 
-**[filemanagement\_app\_file\_service](https://gitee.com/openharmony/filemanagement_app_file_service/blob/master/README_ZH.md)**
+**[filemanagement\_app\_file\_service](https://gitcode.com/openharmony/filemanagement_app_file_service)**
 
-**[ability\_ability\_runtime](https://gitee.com/openharmony/ability_ability_runtime/blob/master/README_zh.md)**
+**[ability\_ability\_runtime](https://gitcode.com/openharmony/ability_ability_runtime)**
