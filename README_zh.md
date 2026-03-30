@@ -19,8 +19,8 @@
 
 
 ### 限制与约束
-1. SetPolicy接口调用者须具有ohos.permission.SET_SANDBOX_POLICY权限，权限定义详见[access_token](https://gitee.com/openharmony/security_access_token)仓
-2. 除SetPolicy、CheckPersistPolicy接口外，其余接口调用者需具有ohos.permission.FILE_ACCESS_PERSIST权限，权限定义详见[access_token](https://gitee.com/openharmony/security_access_token)仓
+1. SetPolicy接口调用者须具有ohos.permission.SET_SANDBOX_POLICY权限，权限定义详见[access_token](https://gitcode.com/openharmony/security_access_token)仓
+2. 除SetPolicy、CheckPersistPolicy接口外，其余接口调用者需具有ohos.permission.FILE_ACCESS_PERSIST权限，权限定义详见[access_token](https://gitcode.com/openharmony/security_access_token)仓
 3. 所有接口中，std::vector\<PolicyInfo\>的大小上限为500条
 
 ## 目录
