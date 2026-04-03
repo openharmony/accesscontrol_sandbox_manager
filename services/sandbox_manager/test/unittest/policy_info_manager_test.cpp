@@ -1481,10 +1481,6 @@ const char *testPathParent = "/data/mntDenyTest/test1";
 const char *testPathChild = "/data/mntDenyTest/test1/a";
 const char *testPathChildNew = "/data/mntDenyTest/test1/b";
 
-#define SANDBOX_IOCTL_BASE 's'
-#define DEL_DENY_POLICY_ID 10
-#define DEL_DENY_DEC_RULE_CMD _IOWR(SANDBOX_IOCTL_BASE, DEL_DENY_POLICY_ID, struct SandboxPolicyInfo)
-
 static int UnSetDeny(const std::string& path)
 {
     struct PathInfo info;

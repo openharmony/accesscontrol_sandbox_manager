@@ -49,6 +49,7 @@
 #define HM_DEL_POLICY_BY_USER_ID 7
 #define HM_SET_PREFIX_ID 8
 #define HM_DENY_POLICY_ID 9
+#define HM_DEL_DENY_POLICY_ID 10
 
 #define SET_DEC_RULE_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_SET_POLICY_ID, struct dec_rule_s)
 #define DEL_DEC_RULE_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_DEL_POLICY_ID, struct dec_rule_s)
@@ -59,6 +60,7 @@
 #define DEL_DEC_RULE_BY_USER_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_DEL_POLICY_BY_USER_ID, struct dec_rule_s)
 #define SET_DEC_PREFIX_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_SET_PREFIX_ID, struct dec_rule_s)
 #define DENY_DEC_RULE_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_DENY_POLICY_ID, struct dec_rule_s)
+#define DEL_DENY_DEC_RULE_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_DEL_DENY_POLICY_ID, struct dec_rule_s)
 
 #define DEC_MODE_READ 1
 #define DEC_MODE_WRITE 2
@@ -69,6 +71,8 @@
 #define DEC_DENY_RENAME   (1 << 7)
 #define DEC_DENY_REMOVE   (1 << 8)
 #define DEC_DENY_INHERIT  (1 << 9)
+#define DEC_DENY_SET  (1 << 10)
+#define DEC_DENY_SET_ALL  (1 << 11)
 
 enum ErrorCode {
     RET_OK = 0,
@@ -145,6 +149,7 @@ int SetPrefix(const std::string &path);
 int SetPath(uint64_t tokenid, const std::string &path, uint32_t mode, bool persistFlag,
     uint64_t timestamp, int32_t userId);
 int DenyPath(uint64_t tokenid, const std::string &path, uint32_t mode, uint64_t timestamp, int32_t userId);
+int DelDenyPath(uint64_t tokenid, const std::string &path);
 
 int CheckPath(uint64_t tokenid, const std::string &path, uint32_t mode);
 int TestWrite(uint64_t tokenid, const std::string &fileName, int32_t uid = 0, int32_t gid = 0);

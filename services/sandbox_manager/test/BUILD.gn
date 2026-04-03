@@ -230,11 +230,52 @@ ohos_unittest("libsandbox_policy_test") {
   }
 }
 
+ohos_unittest("libsandbox_macadapter_test") {
+  subsystem_name = "accesscontrol"
+  module_out_path = "sandbox_manager/sandbox_manager"
+
+  include_dirs = [
+    "mock/include",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/mac",
+    "${sandbox_manager_path}/interfaces/inner_api/sandbox_manager/include",
+  ]
+
+  deps = [
+    "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx",
+    "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_stub",
+    "${sandbox_manager_path}/frameworks/sandbox_test_common:sandbox_test_common_source_set",
+    "${sandbox_manager_path}/services/common:sandbox_manager_service_common",
+    "${sandbox_manager_path}/services/sandbox_manager:sandbox_manager_service",
+  ]
+
+  external_deps = [
+    "access_token:libtoken_setproc",
+    "c_utils:utils",
+    "config_policy:configpolicy_util",
+    "hilog:libhilog",
+    "cJSON:cjson"
+  ]
+
+  sources = [
+    "unittest/mac_adapter_test.cpp",
+    "mock/src/dec_test.cpp",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/mac/mac_adapter.cpp",
+  ]
+
+  configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
+
+  cflags_cc = [ "-DHILOG_ENABLE" ]
+  if (sandbox_manager_with_dec) {
+    cflags_cc += [ "-DDEC_ENABLED" ]
+  }
+}
+
 group("unittest") {
   testonly = true
   deps = [
     ":libsandbox_manager_service_standard_test",
     ":libsandbox_dec_test",
     ":libsandbox_policy_test",
+    ":libsandbox_macadapter_test",
   ]
 }

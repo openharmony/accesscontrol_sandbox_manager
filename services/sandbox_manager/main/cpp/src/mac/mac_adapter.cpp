@@ -85,7 +85,6 @@ MacAdapter::~MacAdapter()
     isMacSupport_ = false;
 }
 
-#ifndef NOT_RESIDENT
 const std::string DENY_CONFIG_FILE = "etc/sandbox_manager_service/file_deny_policy.json";
 constexpr int MAX_DENY_CONFIG_FILE_SIZE = 5 * 1024 * 1024; // 5M
 constexpr size_t BUFFER_SIZE = 1024;
@@ -93,11 +92,29 @@ constexpr size_t BUFFER_SIZE = 1024;
 #define DEC_DENY_RENAME   (1 << 7)
 #define DEC_DENY_REMOVE   (1 << 8)
 #define DEC_DENY_INHERIT  (1 << 9)
+#define DEC_DENY_SET  (1 << 10)
+#define DEC_DENY_SET_ALL  (1 << 11)
 
-constexpr const char* JSON_ITEM_PATH = "path";
-constexpr const char* JSON_ITEM_RENAME = "rename";
-constexpr const char* JSON_ITEM_DELETE = "delete";
-constexpr const char* JSON_ITEM_INHERIT = "inherit";
+constexpr const char *JSON_ITEM_PATH = "path";
+constexpr const char *JSON_ITEM_RENAME = "rename";
+constexpr const char *JSON_ITEM_DELETE = "delete";
+constexpr const char *JSON_ITEM_INHERIT = "inherit";
+constexpr const char *JSON_ITEM_SET_POLICY = "set_policy";
+constexpr const char *JSON_ITEM_SET_POLICY_ALL = "set_policy_all";
+
+struct DenyJsonItem {
+    const char *key;
+    uint32_t mode;
+    bool forced;
+};
+
+constexpr const DenyJsonItem DENY_JSON_ITEMS[] = {
+    {JSON_ITEM_RENAME, DEC_DENY_RENAME, true},
+    {JSON_ITEM_DELETE, DEC_DENY_REMOVE, true},
+    {JSON_ITEM_INHERIT, DEC_DENY_INHERIT, true},
+    {JSON_ITEM_SET_POLICY, DEC_DENY_SET, false},
+    {JSON_ITEM_SET_POLICY_ALL, DEC_DENY_SET_ALL, false},
+};
 
 int32_t MacAdapter::ReadDenyFile(const char *jsonPath, std::string& rawData)
 {
@@ -144,10 +161,28 @@ int32_t MacAdapter::ReadDenyFile(const char *jsonPath, std::string& rawData)
     return SANDBOX_MANAGER_DENY_ERR;
 }
 
+static int32_t ParseJsonField(cJSON *cjsonItem, const char *key, bool forced, int32_t &value)
+{
+    value = 0;
+    cJSON *json = cJSON_GetObjectItemCaseSensitive(cjsonItem, key);
+    if (forced && json == nullptr) {
+        return SANDBOX_MANAGER_DENY_ERR;
+    }
+
+    if (json != nullptr) {
+        if (!cJSON_IsNumber(json)) {
+            return SANDBOX_MANAGER_DENY_ERR;
+        }
+        value = json->valueint;
+    }
+
+    return SANDBOX_MANAGER_OK;
+}
+
 static uint32_t FillInfo(cJSON *root, struct SandboxPolicyInfo &info, int32_t start, int32_t curBatchSize)
 {
     uint32_t mode = 0;
-
+    int32_t value = 0;
     for (int32_t i = 0; i < curBatchSize; i++) {
         cJSON *cjsonItem = cJSON_GetArrayItem(root, i + start);
         if (cjsonItem == nullptr) {
@@ -161,31 +196,15 @@ static uint32_t FillInfo(cJSON *root, struct SandboxPolicyInfo &info, int32_t st
             return SANDBOX_MANAGER_DENY_ERR;
         }
 
-        cJSON *reameJson = cJSON_GetObjectItemCaseSensitive(cjsonItem, JSON_ITEM_RENAME);
-        if ((reameJson == nullptr) || !cJSON_IsNumber(reameJson)) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "rename info get error, path = %{public}s", pathNameJson->valuestring);
-            return SANDBOX_MANAGER_DENY_ERR;
-        }
-        if (reameJson->valueint == 1) {
-            mode |= DEC_DENY_RENAME;
-        }
-
-        cJSON *deleteJson = cJSON_GetObjectItemCaseSensitive(cjsonItem, JSON_ITEM_DELETE);
-        if ((deleteJson == nullptr) || !cJSON_IsNumber(deleteJson)) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "delete info get error, path = %{public}s", pathNameJson->valuestring);
-            return SANDBOX_MANAGER_DENY_ERR;
-        }
-        if (deleteJson->valueint == 1) {
-            mode |= DEC_DENY_REMOVE;
-        }
-
-        cJSON *inheritJson = cJSON_GetObjectItemCaseSensitive(cjsonItem, JSON_ITEM_INHERIT);
-        if ((inheritJson == nullptr) || !cJSON_IsNumber(inheritJson)) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "inherit info get error, path = %{public}s", pathNameJson->valuestring);
-            return SANDBOX_MANAGER_DENY_ERR;
-        }
-        if (inheritJson->valueint == 1) {
-            mode |= DEC_DENY_INHERIT;
+        for (auto &denyJsonItem: DENY_JSON_ITEMS) {
+            if (ParseJsonField(cjsonItem, denyJsonItem.key, denyJsonItem.forced, value) != SANDBOX_MANAGER_OK) {
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "%{public}s info get error, path = %{public}s",
+                    denyJsonItem.key, pathNameJson->valuestring);
+                return SANDBOX_MANAGER_DENY_ERR;
+            }
+            if (value == 1) {
+                mode |= denyJsonItem.mode;
+            }
         }
 
         info.pathInfos[i].path = pathNameJson->valuestring;
@@ -253,7 +272,6 @@ void MacAdapter::DenyInit()
     }
     return;
 }
-#endif
 
 void MacAdapter::Init()
 {
@@ -272,9 +290,7 @@ void MacAdapter::Init()
     FDSAN_MARK(fd_);
     SANDBOXMANAGER_LOG_INFO(LABEL, "Open node success.");
 
-#ifndef NOT_RESIDENT
     DenyInit();
-#endif
     return;
 }
 
