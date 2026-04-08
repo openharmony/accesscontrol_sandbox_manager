@@ -202,6 +202,21 @@ int DenyPath(uint64_t tokenid, const std::string &path, uint32_t mode,
     return -1;
 }
 
+int DelDenyPath(uint64_t tokenid, const std::string &path)
+{
+    struct dec_rule_s info;
+    info.addPath(path.c_str(), 0);
+    info.tokenId = tokenid;
+    int ret = ioctl(g_fd, DEL_DENY_DEC_RULE_CMD, &info);
+    if (ret != 0) {
+        return -1;
+    }
+    if (info.path[0].ret_flag) {
+        return 0;
+    }
+    return -1;
+}
+
 
 int CheckPath(uint64_t tokenid, const std::string &path, uint32_t mode)
 {

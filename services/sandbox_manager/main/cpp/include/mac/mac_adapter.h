@@ -48,11 +48,9 @@ public:
     int32_t DestroySandboxPolicy(uint32_t tokenId, uint64_t timestamp);
     int32_t UnSetSandboxPolicyByUser(int32_t userId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     void CheckResult(std::vector<uint32_t> &result);
-#ifndef NOT_RESIDENT
     int32_t ReadDenyFile(const char *jsonPath, std::string& rawData);
     int32_t SetDenyCfg(std::string& json);
     void DenyInit();
-#endif
 private:
     void SetQueryResult(struct SandboxPolicyInfo &info, size_t offset, size_t i, std::vector<uint32_t> &result);
     int32_t SetPolicyToMac(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
