@@ -104,7 +104,9 @@ ohos_shared_library("sandbox_manager_communication_adapter_cxx") {
   external_deps = [
     "access_token:libaccesstoken_sdk",
     "c_utils:utils",
+    "cJSON:cjson",
     "hisysevent:libhisysevent",
     "ipc:ipc_core",
+    "security_guard:libsg_collect_sdk",
   ]
 }

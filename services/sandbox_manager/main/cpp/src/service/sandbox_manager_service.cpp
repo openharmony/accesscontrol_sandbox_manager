@@ -777,6 +777,8 @@ bool SandboxManagerService::CheckPermission(const uint32_t tokenId, const std::s
     }
 
     LOGE_WITH_REPORT(LABEL, "Check permission %{public}s token:%{public}u fail", permission.c_str(), tokenId);
+    std::string reason = "check permission denied: " + permission;
+    (void)SandboxManagerDfxHelper::ReportPolicyViolate(tokenId, reason, SG_REPORT_PERMISSION_DENIED);
     return false;
 }
 

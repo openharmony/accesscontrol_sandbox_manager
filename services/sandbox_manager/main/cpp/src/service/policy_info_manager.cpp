@@ -1496,6 +1496,8 @@ int32_t PolicyInfoManager::CheckPathIsBlocked(int32_t userID, const PolicyInfo &
     if (length != cStrLength) {
         LOGE_WITH_REPORT(LABEL, "path have a terminator: %{public}s, pathLen:%{public}u, cstrLen:%{public}u",
             policy.path.c_str(), length, cStrLength);
+        (void)SandboxManagerDfxHelper::ReportPolicyViolate(0, "path have a terminator",
+            policy.path, bundleName, SG_REPORT_SECURITY_CONTROL);
         return SandboxRetType::INVALID_PATH;
     }
 
@@ -1503,6 +1505,8 @@ int32_t PolicyInfoManager::CheckPathIsBlocked(int32_t userID, const PolicyInfo &
     bool ret = CheckPathWithinRule(userID, pathTmp, policy, bundleName, index);
     if (ret != true) {
         LOGE_WITH_REPORT(LABEL, "path not allowed to set policy: %{public}s", policy.path.c_str());
+        (void)SandboxManagerDfxHelper::ReportPolicyViolate(0, "path not allowed to set",
+            policy.path, bundleName, SG_REPORT_SECURITY_CONTROL);
         return SandboxRetType::INVALID_PATH;
     }
     return SANDBOX_MANAGER_OK;
