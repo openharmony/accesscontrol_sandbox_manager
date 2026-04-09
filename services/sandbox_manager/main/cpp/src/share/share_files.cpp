@@ -522,8 +522,8 @@ int32_t SandboxManagerShare::SetShareFileInfoInner(
     return WriteShareFileToDb(share_files, bundleName, userId, tokenId);
 }
 
-int32_t SandboxManagerShare::UpdateShareFileInfoInner(cJSON *root, const std::string &bundleName,
-                                                      uint32_t userId, uint32_t tokenId)
+int32_t SandboxManagerShare::UpdateShareFileInfoInner(
+    cJSON *root, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
 {
     cJSON *share_files = cJSON_GetObjectItemCaseSensitive(root, "share_files");
     if (!cJSON_IsObject(share_files)) {
@@ -586,8 +586,8 @@ int32_t SandboxManagerShare::SetShareFileInfo(
     return ret;
 }
 
-int32_t SandboxManagerShare::UpdateShareFileInfo(const std::string &cfginfo, const std::string &bundleName, 
-                                                 uint32_t userId, uint32_t tokenId)
+int32_t SandboxManagerShare::UpdateShareFileInfo(
+    const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
 {
     int32_t ret = CheckShareFileInfoParams(bundleName, userId, tokenId);
     if (ret != SANDBOX_MANAGER_OK) {
