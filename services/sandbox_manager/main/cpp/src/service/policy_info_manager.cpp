@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -72,10 +73,26 @@ void PolicyInfoManager::Init()
     SandboxManagerRdb::GetInstance();
     macAdapter_.Init();
     InitUserGrantMap();
+    InitCaseSensitivity();
 
 #ifdef NOT_RESIDENT
     SandboxManagerShare::GetInstance();
 #endif
+}
+
+void PolicyInfoManager::InitCaseSensitivity()
+{
+    std::vector<std::pair<std::string, int>> dirs = GetIgnoreCaseDirs();
+    for (const auto & [dir, mode] : dirs) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Get ignore case dir=%{public}s mode=%{public}d", dir.c_str(), mode);
+        if (mode == CASE_INSENSITIVE) {
+            caseInsensitivePaths_.emplace_back(dir);
+        } else if (mode == CASE_SENSITIVE) {
+            caseSensitivePaths_.emplace_back(dir);
+        } else {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid case mode, dir=%{public}s mode=%{public}d", dir.c_str(), mode);
+        }
+    }
 }
 
 void PolicyInfoManager::CleanPolicyOnMac(const std::vector<std::string> &filePathList, int32_t userId)
@@ -116,8 +133,8 @@ void PolicyInfoManager::RemoveResultByUserId(std::vector<GenericValues> &results
             ++it;
             continue;
         }
-        SANDBOXMANAGER_LOG_INFO(LABEL, "check result userId:%{public}d hap userId:%{public}d target:%{public}u", userId,
-            hapTokenInfoRes.userID, tokenId);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "check result userId:%{public}d hap userId:%{public}d target:%{public}u",
+            userId, hapTokenInfoRes.userID, tokenId);
 
         if (hapTokenInfoRes.userID != userId) {
             SANDBOXMANAGER_LOG_INFO(LABEL,
@@ -130,64 +147,38 @@ void PolicyInfoManager::RemoveResultByUserId(std::vector<GenericValues> &results
     }
 }
 
-int32_t PolicyInfoManager::CleanPersistPolicyByPath(const std::vector<std::string> &filePathList, int32_t userId)
-{
-    SANDBOXMANAGER_LOG_INFO(LABEL, "clean policy by path and userId:%{public}d", userId);
-    CleanPolicyOnMac(filePathList, userId);
-    //Gets the persistence policy to be cleaned up
-    std::vector<GenericValues> results;
-    for (const std::string& path : filePathList) {
-        uint32_t length = path.length();
-        if ((length == 0) || (length > POLICY_PATH_LIMIT)) {
-            LOGE_WITH_REPORT(LABEL, "Policy path check fail, length = %{public}zu.", path.length());
-            continue;
-        }
-        std::string pathTmp = AdjustPath(path);
-        int32_t ret = SandboxManagerRdb::GetInstance().FindSubPath(
-            SANDBOX_MANAGER_PERSISTED_POLICY, pathTmp, results);
-        if (ret != SandboxManagerRdb::SUCCESS) {
-            LOGE_WITH_REPORT(LABEL, "Database operate error.");
-        }
-    }
-    if (results.empty()) {
-        PolicyOperateInfo info(0, 0, 0, 0);
-        SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(
-            OperateTypeEnum::CLEAN_PERSIST_POLICY_BY_PATH, info);
-        SANDBOXMANAGER_LOG_INFO(LABEL, "No persistence policy was found to delete.");
-        return SANDBOX_MANAGER_OK;
-    }
-
-    RemoveResultByUserId(results, userId);
-
-    //clear the persistence policy
-    for (const auto& res: results) {
-        int32_t ret = SandboxManagerRdb::GetInstance().Remove(
-            SANDBOX_MANAGER_PERSISTED_POLICY, res);
-        if (ret != SandboxManagerRdb::SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Delete fail!");
-        }
-    }
-    return SANDBOX_MANAGER_OK;
-}
-
 int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
 {
     SANDBOXMANAGER_LOG_INFO(LABEL, "clean policy by userId:%{public}d", userId);
     CleanPolicyOnMac(filePathList, userId);
     std::vector<GenericValues> results;
+    PolicyTrie trieTree;
+    BuildTrieWithAllRecords(trieTree);
+    
+    // Collect all unique paths that need to be queried from the database
+    std::set<std::string> uniquePathsToQuery;
     for (const std::string& path : filePathList) {
         uint32_t length = path.length();
         if ((length == 0) || (length > POLICY_PATH_LIMIT)) {
             LOGE_WITH_REPORT(LABEL, "Policy path check fail, length = %{public}zu.", path.length());
             continue;
         }
-        std::string pathTmp = AdjustPath(path);
+        std::vector<std::string> matchingPaths = trieTree.FindMatchingPaths(path);
+        for (const std::string& matchedPath : matchingPaths) {
+            std::string pathTmp = AdjustPath(matchedPath);
+            uniquePathsToQuery.insert(pathTmp);
+        }
+    }
+    
+    // Perform database operations for each unique path
+    for (const std::string& pathToQuery : uniquePathsToQuery) {
         int32_t ret = SandboxManagerRdb::GetInstance().FindSubPath(
-            SANDBOX_MANAGER_PERSISTED_POLICY, pathTmp, results);
+            SANDBOX_MANAGER_PERSISTED_POLICY, pathToQuery, results);
         if (ret != SandboxManagerRdb::SUCCESS) {
             LOGE_WITH_REPORT(LABEL, "Database operate error.");
         }
     }
+    
     if (results.empty()) {
         PolicyOperateInfo info(0, 0, 0, 0);
         SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(
@@ -385,6 +376,36 @@ int32_t PolicyInfoManager::AddToDatabaseIfNotDuplicate(const uint32_t tokenId, c
     return SANDBOX_MANAGER_OK;
 }
 
+/**
+ * @brief Initialize trie tree with case sensitivity settings
+ */
+void PolicyInfoManager::InitTrieWithCaseSensitivity(PolicyTrie &trieTree)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL,
+        "InitTrieWithCaseSensitivity, case insensitive paths count=%{public}zu, "
+        "case sensitive paths count=%{public}zu",
+        caseInsensitivePaths_.size(), caseSensitivePaths_.size());
+
+    for (const auto &path : caseInsensitivePaths_) {
+        trieTree.SetInsensitive(path);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Set case insensitive for path: %{public}s", path.c_str());
+    }
+    for (const auto &path : caseSensitivePaths_) {
+        trieTree.SetSensitive(path);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Set case sensitive for path: %{public}s", path.c_str());
+    }
+}
+
+/**
+ * @brief Handle empty database results - set all results as not persisted
+ */
+void PolicyInfoManager::SetAllResultsAsNotPersisted(std::vector<uint32_t> &result)
+{
+    for (auto &value : result) {
+        value = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
+    }
+}
+
 int32_t PolicyInfoManager::MatchNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
     std::vector<uint32_t> &result)
 {
@@ -394,53 +415,27 @@ int32_t PolicyInfoManager::MatchNormalPolicy(const uint32_t tokenId, const std::
     }
 
     SANDBOXMANAGER_LOG_INFO(LABEL, "match policy target:%{public}u policySize:%{public}zu", tokenId, policySize);
-    GenericValues conditions;
-    GenericValues symbols;
 
-    conditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(tokenId));
-    symbols.Put(PolicyFiledConst::FIELD_TOKENID, std::string("="));
+    // Step 1: Build trie tree with database results for policy operations
+    PolicyTrie trieTree;
+    // Set case-insensitive and case-sensitive paths
+    InitTrieWithCaseSensitivity(trieTree);
 
-    std::vector<GenericValues> dbResults;
-    int32_t ret = RangeFind(conditions, symbols, dbResults);
+    int32_t ret = BuildTrieForPolicyOperations(tokenId, trieTree, false);
     if (ret != SANDBOX_MANAGER_OK) {
-        LOGE_WITH_REPORT(LABEL, "Database operate error");
         return ret;
     }
 
-    SANDBOXMANAGER_LOG_INFO(LABEL, "match policy, find result size:%{public}zu", dbResults.size());
-    if (dbResults.size() == 0) {
+    // Step 2: Handle empty database results - check if trie has no nodes
+    if (trieTree.IsEmpty()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "target:%{public}u has no policy in db", tokenId);
-        for (auto &value:result) {
-            value = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
-        }
+        SetAllResultsAsNotPersisted(result);
         return SANDBOX_MANAGER_OK;
     }
 
-    PolicyTrie trieTree;
-    for (size_t i = 0; i < dbResults.size(); i++) {
-        std::string currPath = dbResults[i].GetString(PolicyFiledConst::FIELD_PATH);
-        uint32_t currMode = static_cast<uint32_t>(dbResults[i].GetInt(PolicyFiledConst::FIELD_MODE));
-        trieTree.InsertPath(currPath, currMode); // same path, mode is set by or operation.
-    }
+    // Step 3: Check each input policy against the trie
+    ProcessPolicyMatches(policy, policySize, tokenId, trieTree, result);
 
-    SANDBOXMANAGER_LOG_INFO(LABEL, "match policy, check each policy");
-    for (size_t i = 0; i < policySize; i++) {
-        int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
-        if (checkPolicyRet != SANDBOX_MANAGER_OK) {
-            result[i] = static_cast<uint32_t>(checkPolicyRet);
-            continue;
-        }
-
-        if (trieTree.CheckPath(policy[i].path, policy[i].mode)) {
-            result[i] = SandboxRetType::OPERATE_SUCCESSFULLY;
-        } else {
-            std::string maskPath = SandboxManagerLog::MaskRealPath(policy[i].path.c_str());
-            SANDBOXMANAGER_LOG_INFO(LABEL, "target:%{public}u path:%{public}s no persisted", tokenId, maskPath.c_str());
-            result[i] = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
-        }
-    }
-
-    trieTree.Clear(); // clear trie child nodes
     SANDBOXMANAGER_LOG_INFO(LABEL, "match policy target:%{public}u end", tokenId);
     return SANDBOX_MANAGER_OK;
 }
@@ -454,6 +449,90 @@ static void WriteRemoveDfxInfo(uint32_t policySize, uint32_t succ, uint32_t fail
     info.invalidNum = invalid;
     SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNPERSIST_POLICY, info);
 }
+
+/**
+ * @brief Build trie tree with database results for policy operations
+ */
+int32_t PolicyInfoManager::BuildTrieForPolicyOperations(const uint32_t tokenId, PolicyTrie &trieTree, bool preserveCase)
+{
+    // Query all policies for this tokenId from database
+    GenericValues conditions;
+    GenericValues symbols;
+    conditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(tokenId));
+    symbols.Put(PolicyFiledConst::FIELD_TOKENID, std::string("="));
+
+    std::vector<GenericValues> dbResults;
+    int32_t ret = RangeFind(conditions, symbols, dbResults);
+    if (ret != SANDBOX_MANAGER_OK) {
+        LOGE_WITH_REPORT(LABEL, "Database operate error when building trie for policy operations");
+        return ret;
+    }
+
+    // Insert paths from database into trie tree
+    for (size_t i = 0; i < dbResults.size(); i++) {
+        std::string currPath = dbResults[i].GetString(PolicyFiledConst::FIELD_PATH);
+        uint32_t currMode = static_cast<uint32_t>(dbResults[i].GetInt(PolicyFiledConst::FIELD_MODE));
+        if (preserveCase) {
+            trieTree.InsertPreservingCase(currPath, currMode);
+        } else {
+            trieTree.InsertPath(currPath, currMode);
+        }
+    }
+
+    return SANDBOX_MANAGER_OK;
+}
+
+/**
+ * @brief Build trie tree with all database records (without filtering by tokenId)
+ */
+int32_t PolicyInfoManager::BuildTrieWithAllRecords(PolicyTrie &trieTree)
+{
+    // Query all policies from database without filtering by tokenId
+    GenericValues conditions;
+    GenericValues symbols;
+
+    std::vector<GenericValues> dbResults;
+    int32_t ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
+        conditions, symbols, dbResults);
+    if (ret != SandboxManagerRdb::SUCCESS) {
+        LOGE_WITH_REPORT(LABEL, "Database operate error when building trie with all records");
+        return SANDBOX_MANAGER_DB_ERR;
+    }
+
+    // Insert paths from database into trie tree
+    for (size_t i = 0; i < dbResults.size(); i++) {
+        std::string currPath = dbResults[i].GetString(PolicyFiledConst::FIELD_PATH);
+        uint32_t currMode = static_cast<uint32_t>(dbResults[i].GetInt(PolicyFiledConst::FIELD_MODE));
+        trieTree.InsertPreservingCase(currPath, currMode);
+    }
+
+    return SANDBOX_MANAGER_OK;
+}
+
+/**
+ * @brief Process policy matches against trie tree
+ */
+void PolicyInfoManager::ProcessPolicyMatches(const std::vector<PolicyInfo> &policy, size_t policySize, uint32_t tokenId,
+    PolicyTrie &trieTree, std::vector<uint32_t> &result)
+{
+    for (size_t i = 0; i < policySize; i++) {
+        int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
+        if (checkPolicyRet != SANDBOX_MANAGER_OK) {
+            result[i] = static_cast<uint32_t>(checkPolicyRet);
+            continue;
+        }
+
+        if (trieTree.CheckPath(policy[i].path, policy[i].mode)) {
+            result[i] = SandboxRetType::OPERATE_SUCCESSFULLY;
+        } else {
+            std::string maskPath = SandboxManagerLog::MaskRealPath(policy[i].path.c_str());
+            SANDBOXMANAGER_LOG_INFO(LABEL, "target:%{public}u path:%{public}s no persisted",
+                tokenId, maskPath.c_str());
+            result[i] = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
+        }
+    }
+}
+
 
 int32_t PolicyInfoManager::RemoveNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
     std::vector<uint32_t> &result, std::vector<PolicyInfo> &mediaPolicy, std::vector<size_t> &validMediaIndex)
@@ -1417,8 +1496,8 @@ bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::strin
     (void)ShareMapRangeCheck(path, components);
     std::string bundleNameTmp = components[MAX_CHECK_COM_NUM];
     std::string bundleRemoveIndex = RemoveClonePrefix(bundleNameTmp);
-    std::string pathTmp = APPDATA_PATH_WITH_SLASH + components[EL_LEVEL_SEGMENT] + "/" + components[BASE_SEGMENT]
-        + "/" + bundleRemoveIndex + "/" + components[SUB_PATH_SEGMENT];
+    std::string pathTmp = APPDATA_PATH_WITH_SLASH + components[EL_LEVEL_SEGMENT] + "/" +
+        components[BASE_SEGMENT] + "/" + bundleRemoveIndex + "/" + components[SUB_PATH_SEGMENT];
     uint32_t permission = SandboxManagerShare::GetInstance().FindPermission(bundleNameTmp, userID, pathTmp);
     if ((permission == SHARE_BUNDLE_UNSET) || (permission == SHARE_PATH_UNSET)) {
         /* refresh only once when multiple paths are input */

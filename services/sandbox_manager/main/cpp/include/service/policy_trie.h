@@ -20,23 +20,41 @@
 #include <stack>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 class PolicyTrie {
 public:
     PolicyTrie() {}
-    ~PolicyTrie() {}
+    ~PolicyTrie() { DeleteChildren(); }
 
     void Clear();
-    void InsertPath(const std::string &path, uint64_t mode);
+    void InsertPath(const std::string &path, uint64_t mode, bool preserveCase = false);
+    void InsertPreservingCase(const std::string &path, uint64_t mode);
     bool CheckPath(const std::string &path, uint64_t mode);
+    std::vector<std::string> FindMatchingPaths(const std::string &path);
+    void SetCasePolicy(const std::string &path, bool caseInsensitive);
+    void SetInsensitive(const std::string &path);
+    void SetSensitive(const std::string &path);
+    bool IsEmpty() const;
 private:
     inline static const uint64_t MODE_FILTER = 0b11111;
     std::vector<std::string> SplitPath(const std::string &path);
     bool IsPolicyMatch(uint64_t referMode, uint64_t searchMode);
+    void DeleteChildren();
+    struct SearchState {
+        PolicyTrie* node;
+        size_t currentIndex;
+        std::string currentPath;
+
+        SearchState(PolicyTrie* n, size_t idx, std::string path)
+            : node(n), currentIndex(idx), currentPath(path) {}
+    };
     static const std::unordered_map<std::string, int> DENIED_PATHS;
     std::unordered_map<std::string, PolicyTrie *> children_;
     bool isEndOfPath_ = false;
+    bool caseInsensitive_ = false;
+    std::unordered_map<std::string, std::unordered_set<std::string>> indexMap_;
     uint64_t mode_ = 0;
 };
 

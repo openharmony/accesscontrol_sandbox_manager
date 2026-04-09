@@ -23,6 +23,7 @@
 #include "generic_values.h"
 #include "policy_info.h"
 #include "policy_vec_raw_data.h"
+#include "policy_trie.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -32,6 +33,11 @@ typedef enum SetPolicyType {
     TEMP_POLICY = 0,
     DENY_POLICY = 1,
 } SetPolicyType;
+
+typedef enum CaseSensitivity {
+    CASE_INSENSITIVE = 0,
+    CASE_SENSITIVE = 1,
+} CaseSensitivity;
 
 struct PolicyInfoInner final {
 public:
@@ -47,12 +53,6 @@ public:
     virtual ~PolicyInfoManager() = default;
     void Init();
     /**
-     * @brief Clear the persistence policy
-     * @param policy vector of string, file path
-     * @return SANDBOX_MANAGER_OK
-     */
-    int32_t CleanPersistPolicyByPath(const std::vector<std::string> &filePaths, int32_t userId);
-     /**
      * @brief Clear the policys of a given userid
      * @param userId a given userid
      * @param policy vector of string, file path
@@ -308,6 +308,11 @@ private:
 private:
     MacAdapter macAdapter_;
     std::map<std::string, std::string> g_userGrantMap;
+    std::vector<std::string> caseInsensitivePaths_;    // paths that are case-insensitive
+    std::vector<std::string> caseSensitivePaths_;      // paths that are case-sensitive
+
+    void InitCaseSensitivity();
+
     int32_t AddNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &result, const uint32_t flag, std::vector<size_t> &queryPolicyIndex, uint32_t invalidNum);
     int32_t RemoveNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
@@ -318,6 +323,15 @@ private:
         std::vector<uint32_t> &result);
     int32_t StopAccessingNormalPolicy(
         const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results);
+    
+    // Helper functions for MatchNormalPolicy optimization
+    void InitTrieWithCaseSensitivity(PolicyTrie &trieTree);
+    void SetAllResultsAsNotPersisted(std::vector<uint32_t> &result);
+    
+    // Helper functions for policy operations (shared between MatchNormalPolicy and RemoveNormalPolicy)
+    int32_t BuildTrieForPolicyOperations(const uint32_t tokenId, PolicyTrie &trieTree, bool preserveCase);
+    int32_t BuildTrieWithAllRecords(PolicyTrie &trieTree);
+
     int32_t GetMediaPolicyCommonWork(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &results, std::vector<size_t> &validIndex, std::vector<PolicyInfo> &normalPolicy);
     bool IsModeMatchPolicyType(uint64_t mode, SetPolicyType policyType);
@@ -339,7 +353,18 @@ private:
         const PolicyInfo &policy, std::vector<std::string> &components, size_t index);
     bool ShareMapRangeCheck(const std::string &path, std::vector<std::string> &components);
     uint32_t CalculateBatchSize(uint32_t policyCount, uint32_t batchSize);
-    
+
+    /**
+     * @brief Process policy matches against trie tree
+     * @param policy input policy vector
+     * @param policySize size of policy vector
+     * @param tokenId token id of the object
+     * @param trieTree trie tree containing persisted policies
+     * @param result output result vector
+     */
+    void ProcessPolicyMatches(const std::vector<PolicyInfo> &policy, size_t policySize, uint32_t tokenId,
+        PolicyTrie &trieTree, std::vector<uint32_t> &result);
+
     /**
      * @brief Template helper for batch processing with PolicyVecRawData
      * @param policyRawData raw policy data to process in batches

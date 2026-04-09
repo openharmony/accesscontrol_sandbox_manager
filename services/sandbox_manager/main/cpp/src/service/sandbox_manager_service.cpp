@@ -194,7 +194,7 @@ int32_t SandboxManagerService::CleanPersistPolicyByPath(const std::vector<std::s
         SANDBOXMANAGER_LOG_ERROR(LABEL, "clean persist failed, get user id failed error=%{public}d", ret);
         return INVALID_PARAMTER;
     }
-    return PolicyInfoManager::GetInstance().CleanPersistPolicyByPath(filePathList, userId);
+    return PolicyInfoManager::GetInstance().CleanPolicyByUserId(userId, filePathList);
 }
 
 int32_t SandboxManagerService::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
