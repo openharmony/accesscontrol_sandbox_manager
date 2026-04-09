@@ -77,6 +77,14 @@ public:
         const PolicyVecRawData &policyRawData, uint64_t policyFlag, Uint32VecRawData &resultRawData) override;
     int32_t CallbackEnter(uint32_t code) override;
     int32_t CallbackExit(uint32_t code, int32_t result) override;
+    int32_t SetShareFileInfo(
+        const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId) override;
+    int32_t UpdateShareFileInfo(
+        const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId) override;
+    int32_t UnsetShareFileInfo(uint32_t tokenId, const std::string &bundleName, uint32_t userId) override;
+    int32_t GetSharedDirectoryInfo(SharedDirectoryInfoVecRawData &resultRawData) override;
+    int32_t GrantSharedDirectoryPermission() override;
+    int32_t RevokeSharedDirectoryPermission() override;
 private:
     bool Initialize();
     bool InitDelayUnloadHandler();

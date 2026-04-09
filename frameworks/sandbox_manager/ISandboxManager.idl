@@ -19,6 +19,7 @@ sequenceable OHOS.AccessControl.SandboxManager.SetInfoParcel;
 rawdata OHOS.AccessControl.SandboxManager.BoolVecRawData;
 rawdata OHOS.AccessControl.SandboxManager.PolicyVecRawData;
 rawdata OHOS.AccessControl.SandboxManager.Uint32VecRawData;
+rawdata OHOS.AccessControl.SandboxManager.SharedDirectoryInfoVecRawData;
 option_stub_hooks on;
 
 interface OHOS.AccessControl.SandboxManager.ISandboxManager {
@@ -41,4 +42,10 @@ interface OHOS.AccessControl.SandboxManager.ISandboxManager {
     [ipccode 0xffc0] void SetPolicyByBundleName([in] String bundleName, [in] int appCloneIndex, [in] PolicyVecRawData policyRawData, [in] unsigned long policyFlag, [out] Uint32VecRawData resultRawData);
     [ipccode 0xffc1] void SetDenyPolicy([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData, [out] Uint32VecRawData resultRawData);
     [ipccode 0xffc2] void UnSetDenyPolicy([in] unsigned int tokenId, [in] PolicyInfoParcel policyParcel);
+    [ipccode 0xffc3] void SetShareFileInfo([in] String cfginfo, [in] String bundleName, [in] unsigned int userId, [in] unsigned int tokenId);
+    [ipccode 0xffc4] void UpdateShareFileInfo([in] String cfginfo, [in] String bundleName, [in] unsigned int userId, [in] unsigned int tokenId);
+    [ipccode 0xffc5] void UnsetShareFileInfo([in] unsigned int tokenId, [in] String bundleName, [in] unsigned int userId);
+    [ipccode 0xffc6] void GetSharedDirectoryInfo([out] SharedDirectoryInfoVecRawData resultRawData);
+    [ipccode 0xffc7] void GrantSharedDirectoryPermission();
+    [ipccode 0xffc8] void RevokeSharedDirectoryPermission();
 }

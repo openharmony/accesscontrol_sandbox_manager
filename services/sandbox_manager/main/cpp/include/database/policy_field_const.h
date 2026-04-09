@@ -29,6 +29,11 @@ public:
     const static std::string FIELD_MODE;
     const static std::string FIELD_DEPTH;
     const static std::string FIELD_FLAG;
+    // Fields for shared file info table
+    const static std::string FIELD_BUNDLE_NAME;
+    const static std::string FIELD_USER_ID;
+    const static std::string FIELD_SHARED_OS_PATH;
+    const static std::string FIELD_SHARED_MODE;
 };
 } // namespace SandboxManager
 } // namespace AccessControl

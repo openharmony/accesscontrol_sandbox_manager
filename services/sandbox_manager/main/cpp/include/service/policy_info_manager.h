@@ -193,6 +193,29 @@ public:
      * @return int32_t
      */
     int32_t CleanPolicyByPackageChanged(const std::string &bundleName, int32_t userID);
+    /**
+     * @brief get shared directory info by a given userid
+     * @param result store the obtained shared directory info list
+     * @param userId a given userid
+     * @return int32_t
+     */
+    int32_t GetSharedDirectoryInfo(std::vector<SharedDirectoryInfo> &result, int32_t userId);
+    /**
+     * @brief Grant shared directory permission for a given tokenId
+     *        Query SHARED_FILE_INFO_TABLE by userId and set temp policy for all matched paths
+     * @param tokenId token id of the object
+     * @param userId user id
+     * @return SANDBOX_MANAGER_OK on success, error code on failure
+     */
+    int32_t GrantSharedDirectoryPermission(const uint32_t tokenId, int32_t userId);
+    /**
+     * @brief Revoke shared directory permission for a given tokenId
+     *        Query SHARED_FILE_INFO_TABLE by userId and unset temp policy for all matched paths
+     * @param tokenId token id of the object
+     * @param userId user id
+     * @return SANDBOX_MANAGER_OK on success, error code on failure
+     */
+    int32_t RevokeSharedDirectoryPermission(const uint32_t tokenId, int32_t userId);
 private:
     /**
      * @brief Clean policy list on MAC

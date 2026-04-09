@@ -36,6 +36,7 @@
 #endif
 #include "system_ability_definition.h"
 #include "share_files.h"
+#include "shared_directory_info_vec_raw_data.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -793,6 +794,133 @@ bool SandboxManagerService::IsFileManagerCalling(uint32_t tokenCaller)
     }
 
     return true;
+}
+
+static int32_t CheckShareFileInfo(uint32_t tokenId, const std::string &bundleName, uint32_t userId)
+{
+    if (tokenId == 0) {
+        LOGE_WITH_REPORT(LABEL, "Check tokenId failed.");
+        return INVALID_PARAMTER;
+    }
+    if (bundleName.empty()) {
+        LOGE_WITH_REPORT(LABEL, "Check bundleName failed.");
+        return INVALID_PARAMTER;
+    }
+    if (userId == 0) {
+        LOGE_WITH_REPORT(LABEL, "Check userId failed.");
+        return INVALID_PARAMTER;
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t SandboxManagerService::SetShareFileInfo(
+    const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
+{
+    DelayUnloadService();
+    if (IPCSkeleton::GetCallingUid() != FOUNDATION_UID) {
+        LOGE_WITH_REPORT(LABEL, "Not foundation userid, permision denied.");
+        return PERMISSION_DENIED;
+    }
+    int32_t ret = CheckShareFileInfo(tokenId, bundleName, userId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    return SandboxManagerShare::GetInstance().SetShareFileInfo(cfginfo, bundleName, userId, tokenId);
+}
+
+int32_t SandboxManagerService::UpdateShareFileInfo(
+    const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
+{
+    DelayUnloadService();
+    if (IPCSkeleton::GetCallingUid() != FOUNDATION_UID) {
+        LOGE_WITH_REPORT(LABEL, "Not foundation userid, permision denied.");
+        return PERMISSION_DENIED;
+    }
+    int32_t ret = CheckShareFileInfo(tokenId, bundleName, userId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    return SandboxManagerShare::GetInstance().UpdateShareFileInfo(cfginfo, bundleName, userId, tokenId);
+}
+
+int32_t SandboxManagerService::UnsetShareFileInfo(uint32_t tokenId, const std::string &bundleName, uint32_t userId)
+{
+    DelayUnloadService();
+    if (IPCSkeleton::GetCallingUid() != FOUNDATION_UID) {
+        LOGE_WITH_REPORT(LABEL, "Not foundation userid, permision denied.");
+        return PERMISSION_DENIED;
+    }
+    int32_t ret = CheckShareFileInfo(tokenId, bundleName, userId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    return SandboxManagerShare::GetInstance().UnsetShareFileInfo(tokenId, bundleName, userId);
+}
+
+int32_t SandboxManagerService::GetSharedDirectoryInfo(SharedDirectoryInfoVecRawData &resultRawData)
+{
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, ACCESS_SHARED_FILE_NAME)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
+        return PERMISSION_DENIED;
+    }
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSharedDirectoryInfo failed, get user id failed error=%{public}d", ret);
+        return INVALID_PARAMTER;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GetSharedDirectoryInfo userId=%{public}d", userId);
+
+    std::vector<SharedDirectoryInfo> result;
+    ret = PolicyInfoManager::GetInstance().GetSharedDirectoryInfo(result, userId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSharedDirectoryInfo failed, ret=%{public}d", ret);
+        return ret;
+    }
+
+    resultRawData.Marshalling(result);
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GetSharedDirectoryInfo success, count=%{public}zu", result.size());
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t SandboxManagerService::GrantSharedDirectoryPermission()
+{
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, ACCESS_SHARED_FILE_NAME)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
+        return PERMISSION_DENIED;
+    }
+
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "grant permission failed, get user id failed error=%{public}d", ret);
+        return INVALID_PARAMTER;
+    }
+
+    return PolicyInfoManager::GetInstance().GrantSharedDirectoryPermission(callingTokenId, userId);
+}
+
+int32_t SandboxManagerService::RevokeSharedDirectoryPermission()
+{
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, ACCESS_SHARED_FILE_NAME)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
+        return PERMISSION_DENIED;
+    }
+
+    int32_t userId = 0;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "revoke permission failed, get user id failed error=%{public}d", ret);
+        return INVALID_PARAMTER;
+    }
+
+    return PolicyInfoManager::GetInstance().RevokeSharedDirectoryPermission(callingTokenId, userId);
 }
 } // namespace SandboxManager
 } // namespace AccessControl

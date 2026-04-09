@@ -41,6 +41,11 @@ int32_t SandboxManagerRdbOpenCallback::OnCreate(NativeRdb::RdbStore &rdbStore)
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to create table PERSISTED_POLICY_TABLE");
         return res;
     }
+    res = CreateSharedFileInfoTable(rdbStore, SHARED_FILE_INFO_TABLE);
+    if (res != NativeRdb::E_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to create table SHARED_FILE_INFO_TABLE");
+        return res;
+    }
     // Restore if back_db exist
     std::string backupDbPath = DATABASE_PATH + BACK_UP_RDB_NAME;
     if (access(backupDbPath.c_str(), NativeRdb::E_OK) == 0) {
@@ -79,6 +84,27 @@ int32_t SandboxManagerRdbOpenCallback::CreatePersistedPolicyTable(NativeRdb::Rdb
         .append(PolicyFiledConst::FIELD_PATH)
         .append(",")
         .append(PolicyFiledConst::FIELD_MODE)
+        .append("))");
+    return rdbStore.ExecuteSql(sql);
+}
+
+int32_t SandboxManagerRdbOpenCallback::CreateSharedFileInfoTable(NativeRdb::RdbStore &rdbStore,
+    const std::string &tableName) const
+{
+    std::string sql = "create table if not exists ";
+    sql.append(tableName + " (")
+        .append(PolicyFiledConst::FIELD_TOKENID)
+        .append(INTEGER_STR)
+        .append(PolicyFiledConst::FIELD_BUNDLE_NAME)
+        .append(TEXT_STR)
+        .append(PolicyFiledConst::FIELD_USER_ID)
+        .append(INTEGER_STR)
+        .append(PolicyFiledConst::FIELD_SHARED_OS_PATH)
+        .append(TEXT_STR)
+        .append(PolicyFiledConst::FIELD_SHARED_MODE)
+        .append(INTEGER_STR)
+        .append("primary key(")
+        .append(PolicyFiledConst::FIELD_TOKENID)
         .append("))");
     return rdbStore.ExecuteSql(sql);
 }

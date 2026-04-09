@@ -28,6 +28,7 @@ namespace SandboxManager {
 
 enum DataType {
     SANDBOX_MANAGER_PERSISTED_POLICY,
+    SANDBOX_MANAGER_SHARED_FILE_INFO,
 };
 
 void GetTableNameByType(const DataType type, std::string &tableName);

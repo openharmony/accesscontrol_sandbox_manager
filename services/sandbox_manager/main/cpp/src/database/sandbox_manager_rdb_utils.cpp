@@ -25,7 +25,9 @@ namespace AccessControl {
 namespace SandboxManager {
 namespace {
 static const std::vector<std::string> g_StringTypeColumns = {
-    PolicyFiledConst::FIELD_PATH
+    PolicyFiledConst::FIELD_PATH,
+    PolicyFiledConst::FIELD_BUNDLE_NAME,
+    PolicyFiledConst::FIELD_SHARED_OS_PATH
 };
 
 static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {LOG_CORE,
@@ -33,6 +35,7 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {LOG_CORE,
 
 static const std::map<DataType, std::string> dataTypeToSqlTable_ = {
     {SANDBOX_MANAGER_PERSISTED_POLICY, "persisted_policy_table"},
+    {SANDBOX_MANAGER_SHARED_FILE_INFO, "shared_file_info_table"},
 };
 }  // namespace
 

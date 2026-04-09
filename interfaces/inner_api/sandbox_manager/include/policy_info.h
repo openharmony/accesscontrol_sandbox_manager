@@ -65,6 +65,12 @@ typedef enum OperateMode {
     DENY_WRITE_MODE = 1 << 6,
     MAX_MODE = 1 << 7,
 } OperateMode;
+
+struct SharedDirectoryInfo final {
+    std::string bundleName;
+    std::string path;
+    OperateMode permissionMode;
+};
 } // namespace SandboxManager
 } // namespace AccessControl
 } // namespace OHOS
