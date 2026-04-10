@@ -613,16 +613,19 @@ HWTEST_F(PolicyTrieTest, PolicyTrieTestFindMatchingPathsBasic, TestSize.Level0)
     trie.InsertPreservingCase("/storage/Users/currentUser/Download/shared/", MODE_RW);
 
     // Test FindMatchingPaths with exact paths - should find exact matches only
-    std::vector<std::string> results1 = trie.FindMatchingPaths("/storage/Users/currentUser/Download/appA/files/");
+    std::vector<std::string> results1 =
+        trie.FindMatchingPaths("/storage/Users/currentUser/Download/appA/files/", MODE_RW);
     EXPECT_EQ(results1.size(), 1);  // Should find only the exact match
     EXPECT_EQ(results1[0], "/storage/Users/currentUser/Download/appA/files"); // Function removes trailing slash
 
-    std::vector<std::string> results2 = trie.FindMatchingPaths("/storage/Users/currentUser/Download/shared/");
+    std::vector<std::string> results2 =
+        trie.FindMatchingPaths("/storage/Users/currentUser/Download/shared/", MODE_RW);
     EXPECT_EQ(results2.size(), 1);  // Should find only the exact match
     EXPECT_EQ(results2[0], "/storage/Users/currentUser/Download/shared"); // Function removes trailing slash
 
     // Test FindMatchingPaths with non-existent path
-    std::vector<std::string> results3 = trie.FindMatchingPaths("/storage/Users/currentUser/Download/appD/files/");
+    std::vector<std::string> results3 =
+        trie.FindMatchingPaths("/storage/Users/currentUser/Download/appD/files/", MODE_RW);
     EXPECT_EQ(results3.size(), 0);  // Should find nothing
 
     trie.Clear();
@@ -646,15 +649,18 @@ HWTEST_F(PolicyTrieTest, PolicyTrieTestFindMatchingPathsCaseInsensitive, TestSiz
     trie.InsertPreservingCase("/storage/Users/CurrentUser/Download/appA/Files/", MODE_RW);
 
     // Query with first variation - should find all three paths due to case-insensitive matching
-    std::vector<std::string> results1 = trie.FindMatchingPaths("/storage/Users/currentuser/download/appa/files/");
+    std::vector<std::string> results1 =
+        trie.FindMatchingPaths("/storage/Users/currentuser/download/appa/files/", MODE_RW);
     EXPECT_EQ(results1.size(), 3);  // Should find all three variations
 
     // Query with second variation - should find all three paths due to case-insensitive matching
-    std::vector<std::string> results2 = trie.FindMatchingPaths("/storage/Users/CurrentUser/DOWNLOAD/AppA/Files/");
+    std::vector<std::string> results2 =
+        trie.FindMatchingPaths("/storage/Users/CurrentUser/DOWNLOAD/AppA/Files/", MODE_RW);
     EXPECT_EQ(results2.size(), 3);  // Should find all three variations
 
     // Query with third variation - should find all three paths due to case-insensitive matching
-    std::vector<std::string> results3 = trie.FindMatchingPaths("/storage/Users/CurrentUser/Download/appA/Files/");
+    std::vector<std::string> results3 =
+        trie.FindMatchingPaths("/storage/Users/CurrentUser/Download/appA/Files/", MODE_RW);
     EXPECT_EQ(results3.size(), 3);  // Should find all three variations
 
     // Verify that all three original paths are returned in the results

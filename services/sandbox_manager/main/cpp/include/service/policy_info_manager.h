@@ -305,6 +305,8 @@ private:
      * @return
      */
     void RemoveResultByUserId(std::vector<GenericValues> &results, int32_t userId);
+
+    void RemoveResultByUserIdAndPrefix(std::vector<GenericValues> &results, int32_t userId, PolicyTrie &trieTree);
 private:
     MacAdapter macAdapter_;
     std::map<std::string, std::string> g_userGrantMap;
@@ -317,6 +319,8 @@ private:
         std::vector<uint32_t> &result, const uint32_t flag, std::vector<size_t> &queryPolicyIndex, uint32_t invalidNum);
     int32_t RemoveNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &result, std::vector<PolicyInfo> &mediaPolicy, std::vector<size_t> &validMediaIndex);
+    void ValidatePolicyAtIndex(size_t i, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+        uint32_t &invalidNum, std::vector<PolicyInfo> &mediaPolicy, std::vector<size_t> &validMediaIndex);
     int32_t StartAccessingNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
         std::vector<uint32_t> &results, uint64_t timestamp, int32_t userId);
     int32_t MatchNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
