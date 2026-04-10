@@ -395,8 +395,8 @@ bool SandboxManagerClient::IsRequestNeedRetry(int32_t ret)
     return it != RETRY_CODE_LIST.end();
 }
 
-int32_t SandboxManagerClient::SetShareFileInfo(
-    const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
+int32_t SandboxManagerClient::SetShareFileInfo(const std::string &cfginfo, const std::string &bundleName,
+    uint32_t userId, uint32_t tokenId)
 {
     std::function<int32_t(sptr<ISandboxManager> &)> func =
         [&](sptr<ISandboxManager> &proxy) {
@@ -405,8 +405,8 @@ int32_t SandboxManagerClient::SetShareFileInfo(
     return CallProxyWithRetry(func, __FUNCTION__);
 }
 
-int32_t SandboxManagerClient::UpdateShareFileInfo(
-    const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
+int32_t SandboxManagerClient::UpdateShareFileInfo(const std::string &cfginfo, const std::string &bundleName,
+    uint32_t userId, uint32_t tokenId)
 {
     std::function<int32_t(sptr<ISandboxManager> &)> func =
         [&](sptr<ISandboxManager> &proxy) {

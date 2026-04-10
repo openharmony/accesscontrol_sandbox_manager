@@ -64,10 +64,10 @@ public:
         const std::vector<PolicyInfo> &policy, uint64_t policyFlag, std::vector<uint32_t> &result);
     int32_t SetDenyPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     int32_t UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &policy);
-    int32_t SetShareFileInfo(
-        const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId);
-    int32_t UpdateShareFileInfo(
-        const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId);
+    int32_t SetShareFileInfo(const std::string &cfginfo, const std::string &bundleName, uint32_t userId,
+        uint32_t tokenId);
+    int32_t UpdateShareFileInfo(const std::string &cfginfo, const std::string &bundleName, uint32_t userId,
+        uint32_t tokenId);
     int32_t UnsetShareFileInfo(uint32_t tokenId, const std::string &bundleName, uint32_t userId);
     int32_t GetSharedDirectoryInfo(std::vector<SharedDirectoryInfo> &result);
     int32_t GrantSharedDirectoryPermission();

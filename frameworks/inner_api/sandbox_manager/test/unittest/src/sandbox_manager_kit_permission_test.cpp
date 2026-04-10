@@ -55,7 +55,9 @@ const size_t MAX_POLICY_NUM = 8;
 const int DEC_POLICY_HEADER_RESERVED = 64;
 uint32_t g_selfTokenId;
 uint32_t g_mockToken;
+#ifdef DEC_ENABLED
 const int32_t FOUNDATION_UID = 5523;
+#endif
 Security::AccessToken::PermissionStateFull g_testState1 = {
     .permissionName = SET_POLICY_PERMISSION,
     .isGeneral = true,
@@ -1946,7 +1948,7 @@ HWTEST_F(SandboxManagerKitPermissionTest, SetShareFileInfoTest001, TestSize.Leve
                 }
             ],
             "sharingOSPath": "/base/files",
-            "sharingOSSubPath": "/test",
+            "sharingOSSubpath": "/test",
             "sharingOSPermission": "r+w"
         }
     })";
@@ -1978,7 +1980,7 @@ HWTEST_F(SandboxManagerKitPermissionTest, SetShareFileInfoTest002, TestSize.Leve
                 }
             ],
             "sharingOSPath": "/base/files",
-            "sharingOSSubPath": "/test",
+            "sharingOSSubpath": "/test",
             "sharingOSPermission": "r+w"
         }
     })";
@@ -2010,7 +2012,7 @@ HWTEST_F(SandboxManagerKitPermissionTest, SetShareFileInfoTest003, TestSize.Leve
                 }
             ],
             "sharingOSPath": "/base/files",
-            "sharingOSSubPath": "/test",
+            "sharingOSSubpath": "/test",
             "sharingOSPermission": "r+w"
         }
     })";
@@ -2042,7 +2044,7 @@ HWTEST_F(SandboxManagerKitPermissionTest, SetShareFileInfoTest004, TestSize.Leve
                 }
             ],
             "sharingOSPath": "/base/files",
-            "sharingOSSubPath": "/test",
+            "sharingOSSubpath": "/test",
             "sharingOSPermission": "r+w"
         }
     })";
@@ -2074,7 +2076,7 @@ HWTEST_F(SandboxManagerKitPermissionTest, UpdateShareFileInfoTest001, TestSize.L
                 }
             ],
             "sharingOSPath": "/base/files",
-            "sharingOSSubPath": "/test",
+            "sharingOSSubpath": "/test",
             "sharingOSPermission": "r+w"
         }
     })";
@@ -2106,7 +2108,7 @@ HWTEST_F(SandboxManagerKitPermissionTest, UpdateShareFileInfoTest002, TestSize.L
                 }
             ],
             "sharingOSPath": "/base/files",
-            "sharingOSSubPath": "/test",
+            "sharingOSSubpath": "/test",
             "sharingOSPermission": "r+w"
         }
     })";
@@ -2138,7 +2140,7 @@ HWTEST_F(SandboxManagerKitPermissionTest, UpdateShareFileInfoTest003, TestSize.L
                 }
             ],
             "sharingOSPath": "/base/files",
-            "sharingOSSubPath": "/test",
+            "sharingOSSubpath": "/test",
             "sharingOSPermission": "r+w"
         }
     })";
@@ -2170,7 +2172,7 @@ HWTEST_F(SandboxManagerKitPermissionTest, UpdateShareFileInfoTest004, TestSize.L
                 }
             ],
             "sharingOSPath": "/base/files",
-            "sharingOSSubPath": "/test",
+            "sharingOSSubpath": "/test",
             "sharingOSPermission": "r+w"
         }
     })";

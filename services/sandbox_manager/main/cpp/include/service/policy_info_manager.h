@@ -113,6 +113,14 @@ public:
      */
     int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy);
     /**
+     * @brief batch unset policies of a certain tokenId
+     * @param tokenId token id of the object
+     * @param policies vector of PolicyInfo, see policy_info.h
+     * @param result result code vector corresponding to each policy operation
+     * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
+     */
+    int32_t UnSetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policies, std::vector<uint32_t> &result);
+    /**
      * @brief set deny policies of a certain tokenId
      * @param tokenId token id of the object
      * @param policy vector of PolicyInfo, see policy_info.h

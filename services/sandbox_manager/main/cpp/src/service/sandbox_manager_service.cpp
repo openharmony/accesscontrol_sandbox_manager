@@ -50,6 +50,8 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
 static constexpr int32_t SA_READY_TO_UNLOAD = 0;
 static constexpr int32_t SA_REFUSE_TO_UNLOAD = -1;
 #endif
+static constexpr int32_t DEFAULT_USERID = 0;
+static constexpr int32_t BASE_USER_RANGE = 200000;
 }
 
 REGISTER_SYSTEM_ABILITY_BY_ID(SandboxManagerService,
@@ -857,6 +859,11 @@ int32_t SandboxManagerService::UnsetShareFileInfo(uint32_t tokenId, const std::s
     return SandboxManagerShare::GetInstance().UnsetShareFileInfo(tokenId, bundleName, userId);
 }
 
+static int32_t GetOsAccountLocalIdFromUid(const int32_t callingUid)
+{
+    return callingUid / BASE_USER_RANGE;
+}
+
 int32_t SandboxManagerService::GetSharedDirectoryInfo(SharedDirectoryInfoVecRawData &resultRawData)
 {
     DelayUnloadService();
@@ -865,16 +872,14 @@ int32_t SandboxManagerService::GetSharedDirectoryInfo(SharedDirectoryInfoVecRawD
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
         return PERMISSION_DENIED;
     }
-    int32_t userId = 0;
-    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
-    if (ret != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSharedDirectoryInfo failed, get user id failed error=%{public}d", ret);
+    int32_t userId = GetOsAccountLocalIdFromUid(IPCSkeleton::GetCallingUid());
+    if (userId <= DEFAULT_USERID) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSharedDirectoryInfo failed, get user id failed.");
         return INVALID_PARAMTER;
     }
-    SANDBOXMANAGER_LOG_INFO(LABEL, "GetSharedDirectoryInfo userId=%{public}d", userId);
 
     std::vector<SharedDirectoryInfo> result;
-    ret = PolicyInfoManager::GetInstance().GetSharedDirectoryInfo(result, userId);
+    int32_t ret = PolicyInfoManager::GetInstance().GetSharedDirectoryInfo(result, userId);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSharedDirectoryInfo failed, ret=%{public}d", ret);
         return ret;
@@ -893,11 +898,9 @@ int32_t SandboxManagerService::GrantSharedDirectoryPermission()
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
         return PERMISSION_DENIED;
     }
-
-    int32_t userId = 0;
-    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
-    if (ret != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "grant permission failed, get user id failed error=%{public}d", ret);
+    int32_t userId = GetOsAccountLocalIdFromUid(IPCSkeleton::GetCallingUid());
+    if (userId <= DEFAULT_USERID) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSharedDirectoryInfo failed, get user id failed.");
         return INVALID_PARAMTER;
     }
 
@@ -912,11 +915,9 @@ int32_t SandboxManagerService::RevokeSharedDirectoryPermission()
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
         return PERMISSION_DENIED;
     }
-
-    int32_t userId = 0;
-    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
-    if (ret != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "revoke permission failed, get user id failed error=%{public}d", ret);
+    int32_t userId = GetOsAccountLocalIdFromUid(IPCSkeleton::GetCallingUid());
+    if (userId <= DEFAULT_USERID) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSharedDirectoryInfo failed, get user id failed.");
         return INVALID_PARAMTER;
     }
 

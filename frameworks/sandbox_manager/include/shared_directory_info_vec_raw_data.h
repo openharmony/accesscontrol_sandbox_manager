@@ -31,15 +31,25 @@ namespace SandboxManager {
 const uint32_t SHARED_DIRECTORY_VEC_MAX_NUM = 10000;
 
 struct SharedDirectoryInfoVecRawData {
-    uint32_t size;
-    const void* data;
+    uint32_t size = 0;
+    const void* data = nullptr;
     std::string serializedData;
 
     int32_t Marshalling(const std::vector<SharedDirectoryInfo> &in)
     {
         std::stringstream ss;
         uint32_t infoNum = static_cast<uint32_t>(in.size());
+        if (infoNum > SHARED_DIRECTORY_VEC_MAX_NUM) {
+            std::string error = "Marshalling SharedDirectoryInfo: invalid count, too large.";
+            SandboxManagerDfxHelper::WriteExceptionBranch(error);
+            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        }
         ss.write(reinterpret_cast<const char *>(&infoNum), sizeof(infoNum));
+        if (ss.fail()) {
+            std::string error = "Marshalling SharedDirectoryInfo: write infoNum failed.";
+            SandboxManagerDfxHelper::WriteExceptionBranch(error);
+            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+        }
 
         for (uint32_t i = 0; i < infoNum; i++) {
             uint32_t bundleNameLen = static_cast<uint32_t>(in[i].bundleName.length());
@@ -50,8 +60,12 @@ struct SharedDirectoryInfoVecRawData {
             ss.write(reinterpret_cast<const char *>(&pathLen), sizeof(pathLen));
             ss.write(in[i].path.c_str(), pathLen);
 
-            ss.write(reinterpret_cast<const char *>(&in[i].permissionMode),
-                     sizeof(in[i].permissionMode));
+            ss.write(reinterpret_cast<const char *>(&in[i].permissionMode), sizeof(in[i].permissionMode));
+            if (ss.fail()) {
+                std::string error = "Marshalling SharedDirectoryInfo: write data failed.";
+                SandboxManagerDfxHelper::WriteExceptionBranch(error);
+                return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
+            }
         }
         
         serializedData = ss.str();
@@ -118,7 +132,7 @@ struct SharedDirectoryInfoVecRawData {
         return ret;
     }
 
-    int32_t RawDataCpy(const void* inData)
+    int32_t RawDataCpy (const void* inData)
     {
         std::stringstream ss;
         ss.write(reinterpret_cast<const char *>(inData), size);

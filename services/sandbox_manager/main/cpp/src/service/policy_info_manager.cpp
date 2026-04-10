@@ -962,6 +962,65 @@ int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const PolicyInfo &polic
     return ret;
 }
 
+int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policies,
+    std::vector<uint32_t> &result)
+{
+    size_t policySize = policies.size();
+
+    if (!macAdapter_.IsMacSupport()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        result.resize(policySize, SandboxRetType::OPERATE_SUCCESSFULLY);
+        return SANDBOX_MANAGER_OK;
+    }
+    if (result.size() != policySize) {
+        result.resize(policySize);
+    }
+
+    std::vector<size_t> validIndex;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = 0;
+
+    for (size_t index = 0; index < policySize; ++index) {
+        if (IsModeMatchPolicyType(policies[index].mode, SetPolicyType::TEMP_POLICY) != true) {
+            result[index] = static_cast<uint32_t>(SandboxRetType::INVALID_MODE);
+            ++invalidNum;
+            SANDBOXMANAGER_LOG_WARN(LABEL, "Invalid policy mode: %{public}llu", policies[index].mode);
+            continue;
+        }
+        validIndex.emplace_back(index);
+        validPolicies.emplace_back(policies[index]);
+    }
+
+    if (validPolicies.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "No valid policies to unset, invalidNum=%{public}u", invalidNum);
+        return SANDBOX_MANAGER_OK;
+    }
+
+    std::vector<bool> macResult(validPolicies.size(), false);
+    int32_t ret = macAdapter_.UnSetSandboxPolicy(tokenId, validPolicies, macResult);
+
+    uint32_t failNum = 0;
+    for (size_t i = 0; i < validIndex.size(); ++i) {
+        size_t originalIndex = validIndex[i];
+        if (macResult[i]) {
+            result[originalIndex] = SandboxRetType::OPERATE_SUCCESSFULLY;
+        } else {
+            result[originalIndex] = SandboxRetType::POLICY_MAC_FAIL;
+            ++failNum;
+        }
+    }
+
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "UnSetPolicy failed, ret=%{public}d", ret);
+        return ret;
+    }
+    if (failNum > 0) {
+        SANDBOXMANAGER_LOG_WARN(LABEL, "UnSetPolicy: %{public}u failed out of %{public}zu",
+                                failNum, validPolicies.size());
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
 int32_t PolicyInfoManager::UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &policy)
 {
     if (!macAdapter_.IsMacSupport()) {
@@ -1848,9 +1907,7 @@ int32_t PolicyInfoManager::GetSharedDirectoryInfo(std::vector<SharedDirectoryInf
         SharedDirectoryInfo info;
         info.bundleName = values.GetString(PolicyFiledConst::FIELD_BUNDLE_NAME);
         info.path = values.GetString(PolicyFiledConst::FIELD_SHARED_OS_PATH);
-        int32_t modeInt = values.GetInt(PolicyFiledConst::FIELD_SHARED_MODE);
-        info.permissionMode = static_cast<OperateMode>(modeInt);
-
+        info.permissionMode = static_cast<OperateMode>(values.GetInt(PolicyFiledConst::FIELD_SHARED_MODE));
         result.push_back(info);
     }
 
@@ -1875,16 +1932,10 @@ int32_t PolicyInfoManager::GrantSharedDirectoryPermission(const uint32_t tokenId
     std::vector<PolicyInfo> policies;
     policies.reserve(queryResults.size());
     for (const auto &values : queryResults) {
-        std::string sharedOsPath = values.GetString(PolicyFiledConst::FIELD_SHARED_OS_PATH);
-        uint32_t sharedMode = static_cast<uint32_t>(values.GetInt(PolicyFiledConst::FIELD_SHARED_MODE));
         PolicyInfo policy;
-        policy.path = sharedOsPath;
-        policy.mode = sharedMode;
+        policy.path = values.GetString(PolicyFiledConst::FIELD_SHARED_OS_PATH);
+        policy.mode = static_cast<uint32_t>(values.GetInt(PolicyFiledConst::FIELD_SHARED_MODE));
         policies.emplace_back(policy);
-    }
-    if (policies.empty()) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "No valid policies to grant");
-        return SANDBOX_MANAGER_OK;
     }
 
     std::vector<uint32_t> setResult;
@@ -1917,21 +1968,24 @@ int32_t PolicyInfoManager::RevokeSharedDirectoryPermission(const uint32_t tokenI
         return SANDBOX_MANAGER_OK;
     }
 
+    std::vector<PolicyInfo> policies;
+    policies.reserve(queryResults.size());
     for (const auto &values : queryResults) {
-        std::string sharedOsPath = values.GetString(PolicyFiledConst::FIELD_SHARED_OS_PATH);
-        uint32_t sharedMode = static_cast<uint32_t>(values.GetInt(PolicyFiledConst::FIELD_SHARED_MODE));
         PolicyInfo policy;
-        policy.path = sharedOsPath;
-        policy.mode = sharedMode;
-
-        ret = UnSetPolicy(tokenId, policy);
-        if (ret != SANDBOX_MANAGER_OK) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "UnSetPolicy failed, ret=%{public}d", ret);
-            return ret;
-        }
+        policy.path = values.GetString(PolicyFiledConst::FIELD_SHARED_OS_PATH);
+        policy.mode = static_cast<uint32_t>(values.GetInt(PolicyFiledConst::FIELD_SHARED_MODE));
+        policies.emplace_back(policy);
     }
 
-    SANDBOXMANAGER_LOG_INFO(LABEL, "RevokeSharedDirectoryPermission success");
+    std::vector<uint32_t> setResult;
+    ret = UnSetPolicy(tokenId, policies, setResult);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "UnSetPolicy failed, ret=%{public}d", ret);
+        return ret;
+    }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "RevokeSharedDirectoryPermission success, revoked %{public}zu policies",
+        policies.size());
     return SANDBOX_MANAGER_OK;
 }
 } // namespace SandboxManager

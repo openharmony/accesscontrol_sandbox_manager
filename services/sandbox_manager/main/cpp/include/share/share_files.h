@@ -61,10 +61,10 @@ public:
     void DeleteByBundleName(const std::string &bundleName);
     void Refresh(const std::string &bundleName, int32_t userId);
     int32_t TransAndSetToMap(const std::string &profile, const std::string &bundleName, int32_t userId);
-    int32_t SetShareFileInfo(const std::string &cfginfo, const std::string &bundleName,
-                            uint32_t userId, uint32_t tokenId);
-    int32_t UpdateShareFileInfo(const std::string &cfginfo, const std::string &bundleName,
-                            uint32_t userId, uint32_t tokenId);
+    int32_t SetShareFileInfo(const std::string &cfginfo, const std::string &bundleName, uint32_t userId,
+        uint32_t tokenId);
+    int32_t UpdateShareFileInfo(const std::string &cfginfo, const std::string &bundleName, uint32_t userId,
+        uint32_t tokenId);
     int32_t UnsetShareFileInfo(uint32_t tokenId, const std::string &bundleName, uint32_t userId);
 private:
     SandboxManagerShare();

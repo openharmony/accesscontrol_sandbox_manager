@@ -350,8 +350,8 @@ static int32_t CheckSharedFileInfoParams(uint32_t tokenId, const std::string &bu
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t SandboxManagerKit::SetShareFileInfo(
-    const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
+int32_t SandboxManagerKit::SetShareFileInfo(const std::string &cfginfo, const std::string &bundleName,
+    uint32_t userId, uint32_t tokenId)
 {
     SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, bundleName = %{public}s, userId = %{public}u",
         tokenId, bundleName.c_str(), userId);
@@ -362,8 +362,8 @@ int32_t SandboxManagerKit::SetShareFileInfo(
     return SandboxManagerClient::GetInstance().SetShareFileInfo(cfginfo, bundleName, userId, tokenId);
 }
 
-int32_t SandboxManagerKit::UpdateShareFileInfo(
-    const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
+int32_t SandboxManagerKit::UpdateShareFileInfo(const std::string &cfginfo, const std::string &bundleName,
+    uint32_t userId, uint32_t tokenId)
 {
     SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, bundleName = %{public}s, userId = %{public}u",
         tokenId, bundleName.c_str(), userId);

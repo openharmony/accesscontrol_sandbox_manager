@@ -230,8 +230,8 @@ public:
      * @param tokenId a given tokenId
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
-    static int32_t SetShareFileInfo(
-        const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId);
+    static int32_t SetShareFileInfo(const std::string &cfginfo, const std::string &bundleName, uint32_t userId,
+        uint32_t tokenId);
 
     /**
      * @brief Update share file info with a given tokenId
@@ -241,8 +241,8 @@ public:
      * @param tokenId a given tokenId
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
-    static int32_t UpdateShareFileInfo(
-        const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId);
+    static int32_t UpdateShareFileInfo(const std::string &cfginfo, const std::string &bundleName, uint32_t userId,
+        uint32_t tokenId);
 
     /**
      * @brief Unset share file info with a given tokenId
