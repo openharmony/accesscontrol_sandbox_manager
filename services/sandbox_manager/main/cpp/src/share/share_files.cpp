@@ -399,7 +399,6 @@ static int32_t ValidateSharingOSSubPath(const char *sharingOSSubPath)
     return SANDBOX_MANAGER_OK;
 }
 
-const std::string SHARED_PATH_START = "/storage/Users/currentUser/appdata/el2/base/";
 static int32_t WriteShareFileToDb(cJSON *share_files, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
 {
     cJSON *sharingOSSubpath_item = cJSON_GetObjectItemCaseSensitive(share_files, "sharingOSSubpath");
@@ -410,8 +409,17 @@ static int32_t WriteShareFileToDb(cJSON *share_files, const std::string &bundleN
     const char *sharingOSSubPath = sharingOSSubpath_item->valuestring;
 
     cJSON *sharingOSPath_item = cJSON_GetObjectItemCaseSensitive(share_files, "sharingOSPath");
-    std::string sharedFilePath = SHARED_PATH_START + bundleName + std::string(sharingOSPath_item->valuestring) +
-                                  std::string(sharingOSSubPath);
+    if (!cJSON_IsString(sharingOSPath_item) || strlen(sharingOSPath_item->valuestring) == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "sharingOSPath is not a valid string.");
+        return INVALID_PARAMTER;
+    }
+    const char *sharingOSPath = sharingOSPath_item->valuestring;
+    std::string composedPath = PathCompose(std::string(sharingOSPath), bundleName);
+    if (composedPath.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "PathCompose failed, invalid sharingOSPath: %s", sharingOSPath);
+        return INVALID_PARAMTER;
+    }
+    std::string sharedFilePath = composedPath + std::string(sharingOSSubPath);
 
     cJSON *sharingOSPermission_item = cJSON_GetObjectItemCaseSensitive(share_files, "sharingOSPermission");
     if (!cJSON_IsString(sharingOSPermission_item)) {
