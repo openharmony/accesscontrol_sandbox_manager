@@ -46,9 +46,24 @@ public:
 
 private:
     int32_t CreatePersistedPolicyTable(NativeRdb::RdbStore &rdbStore, const std::string &tableName) const;
+    /**
+     * @brief Create shared file info table for storing application shared file policy mappings
+     * @details This table stores the shared file access policy information configured by applications:
+     *          - tokenId: unique token identifier of the application, used to match and manage shared policies
+     *          - bundleName: bundle name of the application applying the shared policy
+     *          - userId: user id corresponding to the application and shared policy
+     *          - sharingOSPath: shared file path in OS sandbox
+     *          - sharedMode: access permission mode of the shared file (read/write)
+     * @param rdbStore The RdbStore object
+     * @param tableName The name of the table to create
+     * @return int32_t Returns 0 on success, error code on failure
+     */
+    int32_t CreateSharedFileInfoTable(NativeRdb::RdbStore &rdbStore, const std::string &tableName) const;
 
     OHOS::Utils::RWLock rwLock_;
     inline static const std::string PERSISTED_POLICY_TABLE = "persisted_policy_table";
+    /* Table for storing shared file info (tokenId, bundleName, userId, sharingOSPath, sharedMode) */
+    inline static const std::string SHARED_FILE_INFO_TABLE = "shared_file_info_table";
 
     inline static const std::string DATABASE_NAME = "sandbox_manager.db";
     inline static const std::string DATABASE_PATH = "/data/service/el1/public/sandbox_manager/";

@@ -61,10 +61,17 @@ public:
     void DeleteByBundleName(const std::string &bundleName);
     void Refresh(const std::string &bundleName, int32_t userId);
     int32_t TransAndSetToMap(const std::string &profile, const std::string &bundleName, int32_t userId);
+    int32_t SetShareFileInfo(const std::string &cfginfo, const std::string &bundleName, uint32_t userId,
+        uint32_t tokenId);
+    int32_t UpdateShareFileInfo(const std::string &cfginfo, const std::string &bundleName, uint32_t userId,
+        uint32_t tokenId);
+    int32_t UnsetShareFileInfo(uint32_t tokenId, const std::string &bundleName, uint32_t userId);
 private:
     SandboxManagerShare();
     void AddToMap(const std::string &bundleName, uint32_t userId, const std::string &path, uint32_t mode);
     int32_t TransAndSetToMapInner(cJSON *root, const std::string &bundleName, int32_t userId);
+    int32_t SetShareFileInfoInner(cJSON *root, const std::string &bundleName, uint32_t userId, uint32_t tokenId);
+    int32_t UpdateShareFileInfoInner(cJSON *root, const std::string &bundleName, uint32_t userId, uint32_t tokenId);
     bool Exists(const std::string &bundleName, uint32_t userId);
     BundlePermissions g_shareMap;
     std::mutex mutex_;

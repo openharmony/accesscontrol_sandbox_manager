@@ -221,6 +221,58 @@ public:
 
     static int32_t SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
         const std::vector<PolicyInfo> &policy, uint64_t policyFlag, std::vector<uint32_t> &result);
+
+    /**
+     * @brief Set share file info with a given tokenId
+     * @param cfginfo json string of share file config
+     * @param bundleName bundle name
+     * @param userId user id
+     * @param tokenId a given tokenId
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t SetShareFileInfo(const std::string &cfginfo, const std::string &bundleName, uint32_t userId,
+        uint32_t tokenId);
+
+    /**
+     * @brief Update share file info with a given tokenId
+     * @param cfginfo json string of share file config
+     * @param bundleName bundle name
+     * @param userId user id
+     * @param tokenId a given tokenId
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t UpdateShareFileInfo(const std::string &cfginfo, const std::string &bundleName, uint32_t userId,
+        uint32_t tokenId);
+
+    /**
+     * @brief Unset share file info with a given tokenId
+     * @param tokenId a given tokenId
+     * @param bundleName bundle name
+     * @param userId user id
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t UnsetShareFileInfo(uint32_t tokenId, const std::string &bundleName, uint32_t userId);
+
+    /**
+     * @brief Get shared directory info list
+     * @param result store the obtained shared directory info list
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t GetSharedDirectoryInfo(std::vector<SharedDirectoryInfo> &result);
+
+    /**
+     * @brief Grant shared directory permission for current user
+     *        Query SHARED_FILE_INFO_TABLE by userid and grant temp policy for all matched paths
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t GrantSharedDirectoryPermission();
+
+    /**
+     * @brief Revoke shared directory permission for current user
+     *        Query SHARED_FILE_INFO_TABLE by userid and revoke temp policy for all matched paths
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t RevokeSharedDirectoryPermission();
 };
 } // SandboxManager
 } // AccessControl

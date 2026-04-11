@@ -113,6 +113,14 @@ public:
      */
     int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy);
     /**
+     * @brief batch unset policies of a certain tokenId
+     * @param tokenId token id of the object
+     * @param policies vector of PolicyInfo, see policy_info.h
+     * @param result result code vector corresponding to each policy operation
+     * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
+     */
+    int32_t UnSetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policies, std::vector<uint32_t> &result);
+    /**
      * @brief set deny policies of a certain tokenId
      * @param tokenId token id of the object
      * @param policy vector of PolicyInfo, see policy_info.h
@@ -193,6 +201,29 @@ public:
      * @return int32_t
      */
     int32_t CleanPolicyByPackageChanged(const std::string &bundleName, int32_t userID);
+    /**
+     * @brief get shared directory info by a given userid
+     * @param result store the obtained shared directory info list
+     * @param userId a given userid
+     * @return int32_t
+     */
+    int32_t GetSharedDirectoryInfo(std::vector<SharedDirectoryInfo> &result, int32_t userId);
+    /**
+     * @brief Grant shared directory permission for a given tokenId
+     *        Query SHARED_FILE_INFO_TABLE by userId and set temp policy for all matched paths
+     * @param tokenId token id of the object
+     * @param userId user id
+     * @return SANDBOX_MANAGER_OK on success, error code on failure
+     */
+    int32_t GrantSharedDirectoryPermission(const uint32_t tokenId, int32_t userId);
+    /**
+     * @brief Revoke shared directory permission for a given tokenId
+     *        Query SHARED_FILE_INFO_TABLE by userId and unset temp policy for all matched paths
+     * @param tokenId token id of the object
+     * @param userId user id
+     * @return SANDBOX_MANAGER_OK on success, error code on failure
+     */
+    int32_t RevokeSharedDirectoryPermission(const uint32_t tokenId, int32_t userId);
 private:
     /**
      * @brief Clean policy list on MAC

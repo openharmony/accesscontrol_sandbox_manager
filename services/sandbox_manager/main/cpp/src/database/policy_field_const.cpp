@@ -22,6 +22,11 @@ const std::string PolicyFiledConst::FIELD_PATH = "path";
 const std::string PolicyFiledConst::FIELD_MODE = "mode";
 const std::string PolicyFiledConst::FIELD_DEPTH = "depth";
 const std::string PolicyFiledConst::FIELD_FLAG = "flag";
+// Fields for shared file info table
+const std::string PolicyFiledConst::FIELD_BUNDLE_NAME = "bundleName";
+const std::string PolicyFiledConst::FIELD_USER_ID = "userId";
+const std::string PolicyFiledConst::FIELD_SHARED_OS_PATH = "sharedOsPath";
+const std::string PolicyFiledConst::FIELD_SHARED_MODE = "sharedMode";
 } // namespace SandboxManager
 } // namespace AccessControl
 } // namespace OHOS

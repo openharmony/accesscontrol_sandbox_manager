@@ -45,6 +45,7 @@
 #include "iservice_registry.h"
 #include "system_ability_definition.h"
 #include "share_files.h"
+#include "shared_directory_info_vec_raw_data.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -961,6 +962,65 @@ int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const PolicyInfo &polic
     return ret;
 }
 
+int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policies,
+    std::vector<uint32_t> &result)
+{
+    size_t policySize = policies.size();
+
+    if (!macAdapter_.IsMacSupport()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
+        result.resize(policySize, SandboxRetType::OPERATE_SUCCESSFULLY);
+        return SANDBOX_MANAGER_OK;
+    }
+    if (result.size() != policySize) {
+        result.resize(policySize);
+    }
+
+    std::vector<size_t> validIndex;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = 0;
+
+    for (size_t index = 0; index < policySize; ++index) {
+        if (IsModeMatchPolicyType(policies[index].mode, SetPolicyType::TEMP_POLICY) != true) {
+            result[index] = static_cast<uint32_t>(SandboxRetType::INVALID_MODE);
+            ++invalidNum;
+            SANDBOXMANAGER_LOG_WARN(LABEL, "Invalid policy mode: %{public}llu", policies[index].mode);
+            continue;
+        }
+        validIndex.emplace_back(index);
+        validPolicies.emplace_back(policies[index]);
+    }
+
+    if (validPolicies.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "No valid policies to unset, invalidNum=%{public}u", invalidNum);
+        return SANDBOX_MANAGER_OK;
+    }
+
+    std::vector<bool> macResult(validPolicies.size(), false);
+    int32_t ret = macAdapter_.UnSetSandboxPolicy(tokenId, validPolicies, macResult);
+
+    uint32_t failNum = 0;
+    for (size_t i = 0; i < validIndex.size(); ++i) {
+        size_t originalIndex = validIndex[i];
+        if (macResult[i]) {
+            result[originalIndex] = SandboxRetType::OPERATE_SUCCESSFULLY;
+        } else {
+            result[originalIndex] = SandboxRetType::POLICY_MAC_FAIL;
+            ++failNum;
+        }
+    }
+
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "UnSetPolicy failed, ret=%{public}d", ret);
+        return ret;
+    }
+    if (failNum > 0) {
+        SANDBOXMANAGER_LOG_WARN(LABEL, "UnSetPolicy: %{public}u failed out of %{public}zu",
+                                failNum, validPolicies.size());
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
 int32_t PolicyInfoManager::UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &policy)
 {
     if (!macAdapter_.IsMacSupport()) {
@@ -1810,6 +1870,122 @@ int32_t PolicyInfoManager::CleanPolicyByPackageChanged(const std::string &bundle
                 bundleName.c_str(), tokenId);
         }
     }
+    return SANDBOX_MANAGER_OK;
+}
+
+static int32_t QuerySharedFileInfoByUserId(int32_t userId, std::vector<GenericValues> &results)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "QuerySharedFileInfoByUserId start, userId=%{public}d", userId);
+
+    GenericValues conditions;
+    conditions.Put(PolicyFiledConst::FIELD_USER_ID, userId);
+    GenericValues symbols;
+
+    int32_t ret = SandboxManagerRdb::GetInstance().Find(
+        SANDBOX_MANAGER_SHARED_FILE_INFO, conditions, symbols, results);
+    if (ret != SandboxManagerRdb::SUCCESS) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Find shared file info from DB failed, ret=%{public}d", ret);
+        return SANDBOX_MANAGER_DB_ERR;
+    }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Query success, count=%{public}zu", results.size());
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::GetSharedDirectoryInfo(std::vector<SharedDirectoryInfo> &result, int32_t userId)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GetSharedDirectoryInfo start");
+    std::vector<GenericValues> queryResults;
+    int32_t ret = QuerySharedFileInfoByUserId(userId, queryResults);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+
+    result.clear();
+    result.reserve(queryResults.size());
+    for (const auto &values : queryResults) {
+        SharedDirectoryInfo info;
+        info.bundleName = values.GetString(PolicyFiledConst::FIELD_BUNDLE_NAME);
+        info.path = values.GetString(PolicyFiledConst::FIELD_SHARED_OS_PATH);
+        info.permissionMode = static_cast<OperateMode>(values.GetInt(PolicyFiledConst::FIELD_SHARED_MODE));
+        result.push_back(info);
+    }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GetSharedDirectoryInfo success, result size=%{public}zu", result.size());
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::GrantSharedDirectoryPermission(const uint32_t tokenId, int32_t userId)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GrantSharedDirectoryPermission called, tokenId=%{public}u, userId=%{public}d",
+        tokenId, userId);
+    std::vector<GenericValues> queryResults;
+    int32_t ret = QuerySharedFileInfoByUserId(userId, queryResults);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    if (queryResults.empty()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "No shared file info found for userId=%{public}d", userId);
+        return SANDBOX_MANAGER_OK;
+    }
+
+    std::vector<PolicyInfo> policies;
+    policies.reserve(queryResults.size());
+    for (const auto &values : queryResults) {
+        PolicyInfo policy;
+        policy.path = values.GetString(PolicyFiledConst::FIELD_SHARED_OS_PATH);
+        policy.mode = static_cast<uint32_t>(values.GetInt(PolicyFiledConst::FIELD_SHARED_MODE));
+        policies.emplace_back(policy);
+    }
+
+    std::vector<uint32_t> setResult;
+    uint64_t policyFlag = 0;
+    SetInfo setInfo;
+    setInfo.timestamp = 0;
+    ret = SetPolicy(tokenId, policies, policyFlag, setResult, userId, setInfo);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "SetPolicy failed, ret=%{public}d", ret);
+        return ret;
+    }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GrantSharedDirectoryPermission success, granted %{public}zu policies",
+        policies.size());
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::RevokeSharedDirectoryPermission(const uint32_t tokenId, int32_t userId)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "RevokeSharedDirectoryPermission called, tokenId=%{public}u, userId=%{public}d",
+        tokenId, userId);
+
+    std::vector<GenericValues> queryResults;
+    int32_t ret = QuerySharedFileInfoByUserId(userId, queryResults);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    if (queryResults.empty()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "No shared file info found for userId=%{public}d", userId);
+        return SANDBOX_MANAGER_OK;
+    }
+
+    std::vector<PolicyInfo> policies;
+    policies.reserve(queryResults.size());
+    for (const auto &values : queryResults) {
+        PolicyInfo policy;
+        policy.path = values.GetString(PolicyFiledConst::FIELD_SHARED_OS_PATH);
+        policy.mode = static_cast<uint32_t>(values.GetInt(PolicyFiledConst::FIELD_SHARED_MODE));
+        policies.emplace_back(policy);
+    }
+
+    std::vector<uint32_t> setResult;
+    ret = UnSetPolicy(tokenId, policies, setResult);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "UnSetPolicy failed, ret=%{public}d", ret);
+        return ret;
+    }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "RevokeSharedDirectoryPermission success, revoked %{public}zu policies",
+        policies.size());
     return SANDBOX_MANAGER_OK;
 }
 } // namespace SandboxManager

@@ -394,6 +394,72 @@ bool SandboxManagerClient::IsRequestNeedRetry(int32_t ret)
     auto it = std::find(RETRY_CODE_LIST.begin(), RETRY_CODE_LIST.end(), ret);
     return it != RETRY_CODE_LIST.end();
 }
+
+int32_t SandboxManagerClient::SetShareFileInfo(const std::string &cfginfo, const std::string &bundleName,
+    uint32_t userId, uint32_t tokenId)
+{
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) {
+            return proxy->SetShareFileInfo(cfginfo, bundleName, userId, tokenId);
+        };
+    return CallProxyWithRetry(func, __FUNCTION__);
+}
+
+int32_t SandboxManagerClient::UpdateShareFileInfo(const std::string &cfginfo, const std::string &bundleName,
+    uint32_t userId, uint32_t tokenId)
+{
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) {
+            return proxy->UpdateShareFileInfo(cfginfo, bundleName, userId, tokenId);
+        };
+    return CallProxyWithRetry(func, __FUNCTION__);
+}
+
+int32_t SandboxManagerClient::UnsetShareFileInfo(uint32_t tokenId, const std::string &bundleName, uint32_t userId)
+{
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) {
+            return proxy->UnsetShareFileInfo(tokenId, bundleName, userId);
+        };
+    return CallProxyWithRetry(func, __FUNCTION__);
+}
+
+int32_t SandboxManagerClient::GetSharedDirectoryInfo(std::vector<SharedDirectoryInfo> &result)
+{
+    result.clear();
+    SharedDirectoryInfoVecRawData resultRawData;
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->GetSharedDirectoryInfo(resultRawData); };
+    int32_t ret = CallProxyWithRetry(func, __FUNCTION__);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Call GetSharedDirectoryInfo failed, ret=%{public}d", ret);
+        return ret;
+    }
+
+    ret = resultRawData.Unmarshalling(result);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshalling SharedDirectoryInfo failed");
+    }
+    return ret;
+}
+
+int32_t SandboxManagerClient::GrantSharedDirectoryPermission()
+{
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) {
+            return proxy->GrantSharedDirectoryPermission();
+        };
+    return CallProxyWithRetry(func, __FUNCTION__);
+}
+
+int32_t SandboxManagerClient::RevokeSharedDirectoryPermission()
+{
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) {
+            return proxy->RevokeSharedDirectoryPermission();
+        };
+    return CallProxyWithRetry(func, __FUNCTION__);
+}
 } // SandboxManager
 } // AccessControl
 } // OHOS
