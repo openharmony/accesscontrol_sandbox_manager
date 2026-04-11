@@ -14,11 +14,15 @@
  */
 
 #include "sandbox_manager_dfx_helper.h"
-
+#include "sandbox_manager_err_code.h"
 #include "accesstoken_kit.h"
+#include "cJSON.h"
 #include "hisysevent.h"
 #include "ipc_skeleton.h"
 #include "policy_info.h"
+#include "sandbox_manager_log.h"
+#include "sg_collect_client.h"
+#include <chrono>
 
 namespace OHOS {
 namespace AccessControl {
@@ -124,6 +128,66 @@ void SandboxManagerDfxHelper::WriteExceptionBranch(std::string &error, const uin
         HiviewDFX::HiSysEvent::EventType::FAULT, "TOKENID", inputTokenid, "INFO", error, "ERRNUM", errNum);
 }
 
+constexpr int64_t SG_EVENT_ID = 0x012003300;
+const std::string SG_EVENT_VERSION = "1.0";
+static int32_t ReportPolicyViolateImpl(uint32_t tokenId, const std::string &reason,
+    const std::string &path, const std::string &bundleName, int32_t errorCode)
+{
+    std::string reportBundleName = bundleName;
+    if (reportBundleName.empty()) {
+        Security::AccessToken::HapTokenInfo hapTokenInfoRes;
+        int ret = Security::AccessToken::AccessTokenKit::GetHapTokenInfo(tokenId, hapTokenInfoRes);
+        if (ret != 0) {
+            reportBundleName = "not_get";
+        } else {
+            reportBundleName = hapTokenInfoRes.bundleName;
+        }
+    }
+
+    std::string reportPath = path.empty() ? "not_specified" : path;
+    cJSON *reportJson = cJSON_CreateObject();
+    if (reportJson == nullptr) {
+        return INVALID_PARAMTER;
+    }
+
+    cJSON_AddStringToObject(reportJson, "event_msg", "sandbox policy usage detected:");
+    cJSON_AddStringToObject(reportJson, "bundle_name", reportBundleName.c_str());
+    cJSON_AddNumberToObject(reportJson, "tokenid", tokenId);
+    cJSON_AddStringToObject(reportJson, "path", reportPath.c_str());
+    cJSON_AddStringToObject(reportJson, "reason", reason.c_str());
+    cJSON_AddNumberToObject(reportJson, "errorCode", errorCode);
+
+    char *jsonStr = cJSON_PrintUnformatted(reportJson);
+    if (jsonStr == nullptr) {
+        cJSON_Delete(reportJson);
+        return INVALID_PARAMTER;
+    }
+
+    std::shared_ptr<Security::SecurityGuard::EventInfo> eventInfo =
+        std::make_shared<Security::SecurityGuard::EventInfo>(SG_EVENT_ID, SG_EVENT_VERSION, std::string(jsonStr));
+    (void)Security::SecurityGuard::NativeDataCollectKit::ReportSecurityInfo(eventInfo);
+
+    cJSON_Delete(reportJson);
+    free(jsonStr);
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t SandboxManagerDfxHelper::ReportPolicyViolate(uint32_t tokenId, const std::string &reason, int32_t errorCode)
+{
+    return ReportPolicyViolateImpl(tokenId, reason, "", "", errorCode);
+}
+
+int32_t SandboxManagerDfxHelper::ReportPolicyViolate(uint32_t tokenId, const std::string &reason,
+    const std::string &path, int32_t errorCode)
+{
+    return ReportPolicyViolateImpl(tokenId, reason, path, "", errorCode);
+}
+
+int32_t SandboxManagerDfxHelper::ReportPolicyViolate(uint32_t tokenId, const std::string &reason,
+    const std::string &path, const std::string &bundleName, int32_t errorCode)
+{
+    return ReportPolicyViolateImpl(tokenId, reason, path, bundleName, errorCode);
+}
 }
 }
 }

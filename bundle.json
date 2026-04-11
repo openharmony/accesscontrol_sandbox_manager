@@ -44,7 +44,8 @@
         "os_account",
         "relational_store",
         "safwk",
-        "samgr"
+        "samgr",
+        "security_guard"
       ],
       "third_party": []
     },

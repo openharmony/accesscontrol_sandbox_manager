@@ -39,6 +39,7 @@
 #include "sandbox_memory_manager.h"
 #endif // MEMORY_MANAGER_ENABLE
 #undef private
+#include "sandbox_manager_dfx_helper.h"
 #include "system_ability_definition.h"
 #include "sandbox_test_common.h"
 #include "token_setproc.h"
@@ -1523,7 +1524,86 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceNew005, TestSize.Level0
     policyRawData2.Marshalling(policy);
     EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->CheckPolicy(selfTokenId_, policyRawData2, resultRawData));
 }
+/**
+ * @tc.name: SandboxManagerDfxHelperReportPolicyViolateTest001
+ * @tc.desc: Test ReportPolicyViolate basic functionality
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerDfxHelperReportPolicyViolateTest001, TestSize.Level1)
+{
+    // Test basic report functionality - should not crash
+    uint32_t tokenId = 100001;
+    std::string reason = "test violate";
+
+    int32_t ret = SandboxManagerDfxHelper::ReportPolicyViolate(tokenId, reason);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+
+/**
+ * @tc.name: SandboxManagerDfxHelperReportPolicyViolateTest002
+ * @tc.desc: Test ReportPolicyViolate with path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerDfxHelperReportPolicyViolateTest002, TestSize.Level1)
+{
+    uint32_t tokenId = 100002;
+    std::string path = "/data/test/path";
+
+    int32_t ret = SandboxManagerDfxHelper::ReportPolicyViolate(tokenId, "path test", path);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+
+/**
+ * @tc.name: SandboxManagerDfxHelperReportPolicyViolateTest003
+ * @tc.desc: Test ReportPolicyViolate with path and bundleName
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerDfxHelperReportPolicyViolateTest003, TestSize.Level1)
+{
+    uint32_t tokenId = 100003;
+    std::string path = "/data/test/full/path";
+    std::string bundleName = "com.example.test";
+
+    int32_t ret = SandboxManagerDfxHelper::ReportPolicyViolate(tokenId, "full test", path, bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+
+/**
+ * @tc.name: SandboxManagerDfxHelperReportPolicyViolateTest004
+ * @tc.desc: Test ReportPolicyViolate with errorCode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerDfxHelperReportPolicyViolateTest004, TestSize.Level1)
+{
+    uint32_t tokenId = 100004;
+    int32_t errorCode = PERMISSION_DENIED;
+
+    int32_t ret = SandboxManagerDfxHelper::ReportPolicyViolate(tokenId, "permission denied", errorCode);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+
+/**
+ * @tc.name: SandboxManagerDfxHelperReportPolicyViolateTest005
+ * @tc.desc: Test ReportPolicyViolate with path, bundleName and errorCode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerDfxHelperReportPolicyViolateTest005, TestSize.Level1)
+{
+    uint32_t tokenId = 100005;
+    std::string path = "/data/test/full/params";
+    std::string bundleName = "com.example.test";
+    int32_t errorCode = INVALID_PARAMTER;
+
+    int32_t ret = SandboxManagerDfxHelper::ReportPolicyViolate(tokenId, "invalid param", path, bundleName, errorCode);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
 #endif
+
 } // SandboxManager
 } // AccessControl
 } // OHOS
