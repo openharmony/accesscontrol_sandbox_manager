@@ -325,13 +325,10 @@ static int32_t CheckShareFileInfoParams(const std::string &bundleName, uint32_t 
 
 static bool IsPathSafe(const char *path)
 {
-    if (path == nullptr) {
+    if (memchr(path, '\0', strlen(path) + 1) != path + strlen(path)) {
         return false;
     }
-    if (strcmp(path, ".") == 0 || strcmp(path, "..") == 0) {
-        return false;
-    }
-    if (strstr(path, "/0") != nullptr) {
+    if (strstr(path, "/./") != NULL || strstr(path, "/../") != NULL) {
         return false;
     }
     return true;
