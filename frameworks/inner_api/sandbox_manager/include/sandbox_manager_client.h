@@ -42,6 +42,7 @@ public:
     int32_t CleanPersistPolicyByPath(const std::vector<std::string> &filePathList);
     int32_t PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     int32_t UnPersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+    int32_t UnPersistPolicy(uint32_t tokenId);
     int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
                       std::vector<uint32_t> &result, const SetInfo &info);
     int32_t UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy);
@@ -62,6 +63,7 @@ public:
     int32_t CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList);
     int32_t SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
         const std::vector<PolicyInfo> &policy, uint64_t policyFlag, std::vector<uint32_t> &result);
+    int32_t GetPersistPolicy(uint32_t tokenId, std::vector<PolicyInfo> &policy);
     int32_t SetDenyPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     int32_t UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &policy);
     int32_t SetShareFileInfo(const std::string &cfginfo, const std::string &bundleName, uint32_t userId,

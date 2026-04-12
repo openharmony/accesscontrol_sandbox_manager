@@ -47,6 +47,14 @@ public:
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
     static int32_t UnPersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+
+    /**
+     * @brief Unpersist all policys with a given tokenId
+     * @param tokenId a given tokenId
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t UnPersistPolicy(uint32_t tokenId);
+
     /**
      * @brief Persist policys with a given tokenId
      * @param tokenId a given tokenId
@@ -56,6 +64,15 @@ public:
      */
     static int32_t PersistPolicy(
         uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
+
+    /**
+     * @brief Get persisted policys with a given tokenId
+     * @param tokenId a given tokenId
+     * @param policy output vector of PolicyInfo, see policy_info.h
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t GetPersistPolicy(uint32_t tokenId, std::vector<PolicyInfo> &policy);
+
     /**
      * @brief Unpersist policys with a given tokenId
      * @param tokenId a given tokenId

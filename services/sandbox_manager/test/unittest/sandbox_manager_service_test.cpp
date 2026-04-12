@@ -55,6 +55,7 @@ const std::string SET_POLICY_PERMISSION = "ohos.permission.SET_SANDBOX_POLICY";
 const std::string CHECK_POLICY_PERMISSION = "ohos.permission.CHECK_SANDBOX_POLICY";
 const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSIST";
 const std::string FILE_ACCESS_PERMISSION_NAME = "ohos.permission.FILE_ACCESS_MANAGER";
+const std::string KILL_APP_PROCESS_PERMISSION_NAME = "ohos.permission.KILL_APP_PROCESSES";
 const uint64_t POLICY_VECTOR_SIZE = 5000;
 const uint64_t POLICY_VECTOR_LARGE_SIZE = 400000;
 #ifdef MEMORY_MANAGER_ENABLE
@@ -91,6 +92,13 @@ Security::AccessToken::PermissionStateFull g_testState4 = {
     .grantStatus = {0},
     .grantFlags = {0},
 };
+Security::AccessToken::PermissionStateFull g_testState5 = {
+    .permissionName = KILL_APP_PROCESS_PERMISSION_NAME,
+    .isGeneral = true,
+    .resDeviceID = {"1"},
+    .grantStatus = {0},
+    .grantFlags = {0},
+};
 Security::AccessToken::HapInfoParams g_testInfoParms = {
     .userID = 1,
     .bundleName = "sandbox_manager_test",
@@ -102,7 +110,7 @@ Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
     .apl = Security::AccessToken::APL_NORMAL,
     .domain = "test.domain",
     .permList = {},
-    .permStateList = {g_testState1, g_testState2, g_testState3, g_testState4}
+    .permStateList = {g_testState1, g_testState2, g_testState3, g_testState4, g_testState5}
 };
 
 void AppendRawUint32(std::stringstream &ss, uint32_t value)

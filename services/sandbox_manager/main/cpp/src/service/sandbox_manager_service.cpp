@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "accesstoken_kit.h"
+#include "ability_manager_client.h"
 #include "common_event_support.h"
 #include "ipc_skeleton.h"
 #include "iservice_registry.h"
@@ -299,6 +300,43 @@ int32_t SandboxManagerService::UnPersistPolicy(
     return SANDBOX_MANAGER_OK;
 }
 
+int32_t SandboxManagerService::UnPersistPolicy(uint32_t tokenId)
+{
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, REVOKE_PERSIST_PERMISSION_NAME)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unpersist failed, check permission failed");
+        return PERMISSION_DENIED;
+    }
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid tokenid = %{public}u.", tokenId);
+        return INVALID_PARAMTER;
+    }
+
+    // Remove all policies associated with the token ID
+    if (!PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "UnPersistPolicy RemoveBundlePolicy failed for tokenId=%{public}u", tokenId);
+        return SANDBOX_MANAGER_DB_ERR;
+    }
+
+    // Also unset all policies by token
+    int32_t ret = PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(tokenId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "UnSetAllPolicyByToken failed for tokenId=%{public}u, error=%{public}d",
+            tokenId, ret);
+        return ret;
+    }
+
+    ret = AbilityManagerClient::GetInstance()->KillProcessForPermissionUpdate(tokenId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Kill process failed for tokenId=%{public}u, error=%{public}d",
+            tokenId, ret);
+        return SANDBOX_MANAGER_KILL_PROCESS_ERR;
+    }
+    
+    return ret;
+}
+
 int32_t SandboxManagerService::PersistPolicyByTokenId(
     uint32_t tokenId, const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData)
 {
@@ -332,12 +370,12 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
 {
     DelayUnloadService();
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
-    if (!IsFileManagerCalling(callingTokenId)) {
+    if (!(CheckPermission(callingTokenId, REVOKE_PERSIST_PERMISSION_NAME) || IsFileManagerCalling(callingTokenId))) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
         return PERMISSION_DENIED;
     }
     if (tokenId == 0) {
-        LOGE_WITH_REPORT(LABEL, "Invalid tokenid = %{public}u.", tokenId);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid tokenid = %{public}u.", tokenId);
         return INVALID_PARAMTER;
     }
 
@@ -348,6 +386,13 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
         return ret;
     }
     resultRawData.Marshalling(result);
+
+    ret = AbilityManagerClient::GetInstance()->KillProcessForPermissionUpdate(tokenId);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Kill process failed for tokenId=%{public}u, error=%{public}d",
+            tokenId, ret);
+        return SANDBOX_MANAGER_KILL_PROCESS_ERR;
+    }
     return SANDBOX_MANAGER_OK;
 }
 
@@ -603,6 +648,20 @@ int32_t SandboxManagerService::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t 
         return INVALID_PARAMTER;
     }
     return PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(tokenId, timestamp);
+}
+
+int32_t SandboxManagerService::GetPersistPolicy(uint32_t tokenId, PolicyVecRawData &policyRawData)
+{
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!CheckPermission(callingTokenId, GET_PERSIST_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
+    }
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Get persist policy failed, invalid tokenid");
+        return INVALID_PARAMTER;
+    }
+    return PolicyInfoManager::GetInstance().GetPersistPolicy(tokenId, policyRawData);
 }
 
 bool SandboxManagerService::Initialize()

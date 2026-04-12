@@ -1299,6 +1299,47 @@ int32_t PolicyInfoManager::UnSetAllPolicyByToken(const uint32_t tokenId, uint64_
     return macAdapter_.DestroySandboxPolicy(tokenId, timestamp);
 }
 
+int32_t PolicyInfoManager::GetPersistPolicy(const uint32_t tokenId, PolicyVecRawData &policyRawData)
+{
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid tokenid = %{public}u.", tokenId);
+        return INVALID_PARAMTER;
+    }
+
+    // Query all persisted policies for the given tokenId from database
+    std::vector<PolicyInfo> policies;
+    GenericValues conditions;
+    GenericValues symbols;
+    conditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(tokenId));
+
+    std::vector<GenericValues> results;
+    int32_t ret = RangeFind(conditions, symbols, results);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "RangeFind failed, ret = %{public}d.", ret);
+        return ret;
+    }
+
+    if (results.empty()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "No persisted policies found for tokenId = %{public}u.", tokenId);
+        policyRawData.Marshalling(policies);
+        return SANDBOX_MANAGER_OK;
+    }
+
+    // Convert GenericValues to PolicyInfo
+    policies.reserve(results.size());
+    for (const auto &generic : results) {
+        uint32_t policyTokenId = 0;
+        PolicyInfo policy;
+        TransferGenericToPolicy(generic, policyTokenId, policy);
+        policies.push_back(policy);
+    }
+
+    policyRawData.Marshalling(policies);
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Get %{public}zu persisted policies for tokenId = %{public}u.",
+        policies.size(), tokenId);
+    return SANDBOX_MANAGER_OK;
+}
+
 int32_t PolicyInfoManager::RangeFind(const GenericValues &conditions, const GenericValues &symbols,
     std::vector<GenericValues> &results)
 {

@@ -122,6 +122,13 @@ int32_t SandboxManagerClient::UnPersistPolicy(const std::vector<PolicyInfo> &pol
     return ret;
 }
 
+int32_t SandboxManagerClient::UnPersistPolicy(uint32_t tokenId)
+{
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) { return proxy->UnPersistPolicy(tokenId); };
+    return CallProxyWithRetry(func, __FUNCTION__);
+}
+
 int32_t SandboxManagerClient::PersistPolicyByTokenId(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
@@ -318,6 +325,20 @@ int32_t SandboxManagerClient::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t t
     std::function<int32_t(sptr<ISandboxManager> &)> func =
         [&](sptr<ISandboxManager> &proxy) { return proxy->UnSetAllPolicyByToken(tokenId, timestamp); };
     return CallProxyWithRetry(func, __FUNCTION__);
+}
+
+int32_t SandboxManagerClient::GetPersistPolicy(uint32_t tokenId, std::vector<PolicyInfo> &policy)
+{
+    PolicyVecRawData policyRawData;
+    std::function<int32_t(sptr<ISandboxManager> &)> func = [&](sptr<ISandboxManager> &proxy) {
+        return proxy->GetPersistPolicy(tokenId, policyRawData);
+    };
+    int32_t ret = CallProxyWithRetry(func, __FUNCTION__);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    policyRawData.Unmarshalling(policy);
+    return ret;
 }
 
 sptr<ISandboxManager> SandboxManagerClient::GetProxy()

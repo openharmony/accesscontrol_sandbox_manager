@@ -85,6 +85,7 @@ if (is_standard_system) {
 
     external_deps = [
       "ability_base:want",
+      "ability_runtime:ability_manager",
       "access_token:libaccesstoken_sdk",
       "appspawn:appspawn_dec_util",
       "bundle_framework:appexecfwk_base",

@@ -195,6 +195,13 @@ public:
      */
     int32_t UnSetAllPolicyByToken(const uint32_t tokenId, uint64_t timestamp = 0);
     /**
+     * @brief get all persisted policys of a certain tokenId
+     * @param tokenId token id of the object
+     * @param policyRawData output vector of PolicyInfo
+     * @return int32_t
+     */
+    int32_t GetPersistPolicy(const uint32_t tokenId, PolicyVecRawData &policyRawData);
+    /**
      * @brief clean policys when package changed
      * @param bundleName bundle name
      * @param userID a given userid
