@@ -59,7 +59,23 @@ int32_t SandboxManagerRdbOpenCallback::OnCreate(NativeRdb::RdbStore &rdbStore)
 }
 
 int32_t SandboxManagerRdbOpenCallback::OnUpgrade(
-    NativeRdb::RdbStore &rdbStore, int32_t currentVersion, int32_t targetVersion) { return NativeRdb::E_OK; }
+    NativeRdb::RdbStore &rdbStore, int32_t currentVersion, int32_t targetVersion)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "OnUpgrade: currentVersion=%{public}d, targetVersion=%{public}d",
+        currentVersion, targetVersion);
+
+    // Upgrade from version 1 | 2 to version 3: Add SHARED_FILE_INFO_TABLE
+    if (currentVersion < 3 && targetVersion >= 3) {
+        int32_t res = CreateBundlePersistentPolicyTable(rdbStore, SHARED_FILE_INFO_TABLE);
+        if (res != NativeRdb::E_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to create table SHARED_FILE_INFO_TABLE during upgrade");
+            return res;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 2");
+    }
+
+    return NativeRdb::E_OK;
+}
 
 int32_t SandboxManagerRdbOpenCallback::CreatePersistedPolicyTable(NativeRdb::RdbStore &rdbStore,
     const std::string &tableName) const
