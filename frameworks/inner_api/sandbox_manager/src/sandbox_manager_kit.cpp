@@ -333,7 +333,7 @@ int32_t SandboxManagerKit::UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &p
     return SandboxManagerClient::GetInstance().UnSetDenyPolicy(tokenId, policy);
 }
 
-static int32_t CheckSharedFileInfoParams(uint32_t tokenId, const std::string &bundleName, uint32_t userId)
+static int32_t CheckSharedFileInfoParams(uint32_t tokenId, const std::string &bundleName)
 {
     if (tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
@@ -341,10 +341,6 @@ static int32_t CheckSharedFileInfoParams(uint32_t tokenId, const std::string &bu
     }
     if (bundleName.empty()) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check bundleName failed.");
-        return INVALID_PARAMTER;
-    }
-    if (userId < 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Check userId failed.");
         return INVALID_PARAMTER;
     }
     return SANDBOX_MANAGER_OK;
@@ -355,7 +351,7 @@ int32_t SandboxManagerKit::SetShareFileInfo(const std::string &cfginfo, const st
 {
     SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, bundleName = %{public}s, userId = %{public}u",
         tokenId, bundleName.c_str(), userId);
-    int32_t ret = CheckSharedFileInfoParams(tokenId, bundleName, userId);
+    int32_t ret = CheckSharedFileInfoParams(tokenId, bundleName);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -367,7 +363,7 @@ int32_t SandboxManagerKit::UpdateShareFileInfo(const std::string &cfginfo, const
 {
     SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, bundleName = %{public}s, userId = %{public}u",
         tokenId, bundleName.c_str(), userId);
-    int32_t ret = CheckSharedFileInfoParams(tokenId, bundleName, userId);
+    int32_t ret = CheckSharedFileInfoParams(tokenId, bundleName);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -378,7 +374,7 @@ int32_t SandboxManagerKit::UnsetShareFileInfo(uint32_t tokenId, const std::strin
 {
     SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, bundleName = %{public}s, userId = %{public}u",
         tokenId, bundleName.c_str(), userId);
-    int32_t ret = CheckSharedFileInfoParams(tokenId, bundleName, userId);
+    int32_t ret = CheckSharedFileInfoParams(tokenId, bundleName);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }

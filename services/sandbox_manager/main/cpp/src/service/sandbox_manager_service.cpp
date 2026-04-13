@@ -800,7 +800,7 @@ bool SandboxManagerService::IsFileManagerCalling(uint32_t tokenCaller)
     return true;
 }
 
-static int32_t CheckShareFileInfo(uint32_t tokenId, const std::string &bundleName, uint32_t userId)
+static int32_t CheckShareFileInfo(uint32_t tokenId, const std::string &bundleName)
 {
     if (tokenId == 0) {
         LOGE_WITH_REPORT(LABEL, "Check tokenId failed.");
@@ -808,10 +808,6 @@ static int32_t CheckShareFileInfo(uint32_t tokenId, const std::string &bundleNam
     }
     if (bundleName.empty()) {
         LOGE_WITH_REPORT(LABEL, "Check bundleName failed.");
-        return INVALID_PARAMTER;
-    }
-    if (userId < 0) {
-        LOGE_WITH_REPORT(LABEL, "Check userId failed.");
         return INVALID_PARAMTER;
     }
     return SANDBOX_MANAGER_OK;
@@ -825,7 +821,7 @@ int32_t SandboxManagerService::SetShareFileInfo(
         LOGE_WITH_REPORT(LABEL, "Not foundation userid, permision denied.");
         return PERMISSION_DENIED;
     }
-    int32_t ret = CheckShareFileInfo(tokenId, bundleName, userId);
+    int32_t ret = CheckShareFileInfo(tokenId, bundleName);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -840,7 +836,7 @@ int32_t SandboxManagerService::UpdateShareFileInfo(
         LOGE_WITH_REPORT(LABEL, "Not foundation userid, permision denied.");
         return PERMISSION_DENIED;
     }
-    int32_t ret = CheckShareFileInfo(tokenId, bundleName, userId);
+    int32_t ret = CheckShareFileInfo(tokenId, bundleName);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -854,7 +850,7 @@ int32_t SandboxManagerService::UnsetShareFileInfo(uint32_t tokenId, const std::s
         LOGE_WITH_REPORT(LABEL, "Not foundation userid, permision denied.");
         return PERMISSION_DENIED;
     }
-    int32_t ret = CheckShareFileInfo(tokenId, bundleName, userId);
+    int32_t ret = CheckShareFileInfo(tokenId, bundleName);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
