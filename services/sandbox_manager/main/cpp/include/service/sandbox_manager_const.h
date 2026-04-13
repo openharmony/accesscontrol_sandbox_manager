@@ -30,6 +30,8 @@ const uint64_t MODE_FILTER = 0b11;
 const std::string SET_POLICY_PERMISSION_NAME = "ohos.permission.SET_SANDBOX_POLICY";
 const std::string CHECK_POLICY_PERMISSION_NAME = "ohos.permission.CHECK_SANDBOX_POLICY";
 const std::string ACCESS_PERSIST_PERMISSION_NAME = "ohos.permission.FILE_ACCESS_PERSIST";
+const std::string GET_PERSIST_PERMISSION_NAME = "ohos.permission.GET_FILE_ACCESS_PERSIST";
+const std::string REVOKE_PERSIST_PERMISSION_NAME = "ohos.permission.REVOKE_FILE_ACCESS_PERSIST";
 const std::string FILE_ACCESS_PERMISSION_NAME = "ohos.permission.FILE_ACCESS_MANAGER";
 const std::string ACCESS_SHARED_FILE_NAME = "ohos.permission.ACCESS_SHARED_FILE";
 

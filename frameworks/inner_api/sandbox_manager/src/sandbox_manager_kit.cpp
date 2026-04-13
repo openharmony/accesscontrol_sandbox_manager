@@ -65,6 +65,16 @@ int32_t SandboxManagerKit::UnPersistPolicy(const std::vector<PolicyInfo> &policy
     return SandboxManagerClient::GetInstance().UnPersistPolicy(policy, result);
 }
 
+int32_t SandboxManagerKit::UnPersistPolicy(uint32_t tokenId)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u", tokenId);
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "tokenId = %{public}u.", tokenId);
+        return SandboxManagerErrCode::INVALID_PARAMTER;
+    }
+    return SandboxManagerClient::GetInstance().UnPersistPolicy(tokenId);
+}
+
 int32_t SandboxManagerKit::PersistPolicy(
     uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
@@ -91,6 +101,17 @@ int32_t SandboxManagerKit::UnPersistPolicy(
     }
     result.clear();
     return SandboxManagerClient::GetInstance().UnPersistPolicyByTokenId(tokenId, policy, result);
+}
+
+int32_t SandboxManagerKit::GetPersistPolicy(uint32_t tokenId, std::vector<PolicyInfo> &policy)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u", tokenId);
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "tokenId = %{public}u.", tokenId);
+        return SandboxManagerErrCode::INVALID_PARAMTER;
+    }
+    policy.clear();
+    return SandboxManagerClient::GetInstance().GetPersistPolicy(tokenId, policy);
 }
 
 int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,

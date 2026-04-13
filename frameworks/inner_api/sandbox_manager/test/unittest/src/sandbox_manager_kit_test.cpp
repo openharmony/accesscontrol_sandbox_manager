@@ -54,6 +54,9 @@ const std::string CHECK_POLICY_PERMISSION = "ohos.permission.CHECK_SANDBOX_POLIC
 const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSIST";
 const std::string FILE_ACCESS_PERMISSION = "ohos.permission.FILE_ACCESS_MANAGER";
 const std::string DOWNLOAD_PERMISSION = "ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY";
+const std::string REVOKE_PERSIST_PERMISSION_NAME = "ohos.permission.REVOKE_FILE_ACCESS_PERSIST";
+const std::string GET_PERSIST_PERMISSION_NAME = "ohos.permission.GET_FILE_ACCESS_PERSIST";
+
 
 const Security::AccessToken::AccessTokenID INVALID_TOKENID = 0;
 const uint64_t POLICY_VECTOR_SIZE = 5000;
@@ -102,6 +105,20 @@ Security::AccessToken::PermissionStateFull g_testState5 = {
     .grantStatus = {0},
     .grantFlags = {0},
 };
+Security::AccessToken::PermissionStateFull g_testState6 = {
+    .permissionName = GET_PERSIST_PERMISSION_NAME,
+    .isGeneral = true,
+    .resDeviceID = {"1"},
+    .grantStatus = {0},
+    .grantFlags = {0},
+};
+Security::AccessToken::PermissionStateFull g_testState7 = {
+    .permissionName = REVOKE_PERSIST_PERMISSION_NAME,
+    .isGeneral = true,
+    .resDeviceID = {"1"},
+    .grantStatus = {0},
+    .grantFlags = {0},
+};
 Security::AccessToken::HapInfoParams g_testInfoParms = {
     .userID = 100,
     .bundleName = "sandbox_manager_test",
@@ -113,7 +130,8 @@ Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
     .apl = Security::AccessToken::APL_NORMAL,
     .domain = "test.domain",
     .permList = {},
-    .permStateList = {g_testState1, g_testState2, g_testState3, g_testState4, g_testState5}
+    .permStateList = {g_testState1, g_testState2, g_testState3, g_testState4,
+        g_testState5, g_testState6, g_testState7}
 };
 };
 
@@ -295,6 +313,85 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicyByTokenID001, TestSize.Level0)
     std::vector<bool> checkResult2;
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, checkResult2));
     ASSERT_EQ(false, checkResult2[0]);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: GetPersistPolicy001
+ * @tc.desc: GetPersistPolicy basic functionality test.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, GetPersistPolicy001, TestSize.Level0)
+{
+    // Step 1: Set and persist a policy first
+    PolicyInfo info = {
+        .path = "/A/B",
+        .mode = OperateMode::READ_MODE
+    };
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+    
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> setResult;
+    
+    // Set policy to MAC layer
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, setResult[0]);
+    
+    // Persist policy to database
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+    
+    // Step 2: Get persisted policy
+    std::vector<PolicyInfo> policies;
+    int32_t ret = SandboxManagerKit::GetPersistPolicy(g_mockToken, policies);
+    
+    // Verify the result
+    ASSERT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(1, policies.size());
+    EXPECT_EQ(info.path, policies[0].path);
+    EXPECT_EQ(info.mode, policies[0].mode);
+    
+    // Step 3: Clean up - unpersist the policy
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
+}
+
+/**
+ * @tc.name: GetPersistPolicy002
+ * @tc.desc: GetPersistPolicy with invalid tokenId.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, GetPersistPolicy002, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policies;
+
+    // Test with tokenId = 0 (invalid)
+    int32_t ret = SandboxManagerKit::GetPersistPolicy(0, policies);
+    EXPECT_EQ(INVALID_PARAMTER, ret);
+    EXPECT_TRUE(policies.empty());
+}
+
+/**
+ * @tc.name: GetPersistPolicy003
+ * @tc.desc: GetPersistPolicy invalid parameter test.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, GetPersistPolicy003, TestSize.Level0)
+{
+    // Test that getting policies for tokenId=0 is rejected
+    std::vector<PolicyInfo> policies;
+    int32_t ret = SandboxManagerKit::GetPersistPolicy(0, policies);
+    
+    EXPECT_EQ(INVALID_PARAMTER, ret);
+    EXPECT_TRUE(policies.empty());
 }
 #endif
 
@@ -4482,6 +4579,105 @@ HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy005, TestSize.
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
 }
 #endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: UnPersistPolicyByTokenId001
+ * @tc.desc: UnPersistPolicy with a given tokenId.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, UnPersistPolicyByTokenId001, TestSize.Level0)
+{
+    // First, set and persist some policies for the token
+    PolicyInfo info = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE
+    };
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+    
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> setResult;
+    
+    // Set policy to MAC layer
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, setResult[0]);
+
+    // Persist policy to database
+    std::vector<uint32_t> retType;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    ASSERT_EQ(1, retType.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+
+    // Verify the policy is persisted
+    std::vector<bool> checkResult1;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkResult1));
+    EXPECT_EQ(true, checkResult1[0]);
+
+    // Now use UnPersistPolicy with tokenId to remove all policies for this token
+    int32_t ret = SandboxManagerKit::UnPersistPolicy(g_mockToken);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    // Verify the policy is no longer persisted
+    std::vector<bool> checkResult2;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkResult2));
+    EXPECT_EQ(false, checkResult2[0]);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: UnPersistPolicyByTokenIdWithPolicyVector001
+ * @tc.desc: UnPersistPolicy with a given tokenId and policy vector.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, UnPersistPolicyByTokenIdWithPolicyVector001, TestSize.Level0)
+{
+    // First, set and persist some policies for the token
+    PolicyInfo info = {
+        .path = "/A/B/C",
+        .mode = OperateMode::READ_MODE
+    };
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> setResult;
+
+    // Set policy to MAC layer
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, setResult[0]);
+
+    // Persist policy to database
+    std::vector<uint32_t> retType;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(g_mockToken, policy, retType));
+    ASSERT_EQ(1, retType.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
+
+    // Verify the policy is persisted
+    std::vector<bool> checkResult1;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkResult1));
+    EXPECT_EQ(true, checkResult1[0]);
+
+    // Now use UnPersistPolicy with tokenId and policy vector to remove specific policies for this token
+    std::vector<uint32_t> unPersistResult;
+    int32_t ret = SandboxManagerKit::UnPersistPolicy(g_mockToken, policy, unPersistResult);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+
+    // Verify the policy is no longer persisted
+    std::vector<bool> checkResult2;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkResult2));
+    EXPECT_EQ(false, checkResult2[0]);
+}
+#endif
+
+
 } // SandboxManager
 } // AccessControl
 } // OHOS

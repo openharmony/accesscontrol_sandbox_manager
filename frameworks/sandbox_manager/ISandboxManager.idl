@@ -48,4 +48,6 @@ interface OHOS.AccessControl.SandboxManager.ISandboxManager {
     [ipccode 0xffc6] void GetSharedDirectoryInfo([out] SharedDirectoryInfoVecRawData resultRawData);
     [ipccode 0xffc7] void GrantSharedDirectoryPermission();
     [ipccode 0xffc8] void RevokeSharedDirectoryPermission();
+    [ipccode 0xffc9] void UnPersistPolicy([in] unsigned int tokenId);
+    [ipccode 0xffc10] void GetPersistPolicy([in] unsigned int tokenId, [out] PolicyVecRawData policyRawData);
 }

@@ -48,6 +48,7 @@ public:
     int32_t CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList) override;
     int32_t PersistPolicy(const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData) override;
     int32_t UnPersistPolicy(const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData) override;
+    int32_t UnPersistPolicy(uint32_t tokenId) override;
     int32_t PersistPolicyByTokenId(
         uint32_t tokenId, const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData) override;
     int32_t UnPersistPolicyByTokenId(
@@ -70,6 +71,7 @@ public:
         uint32_t tokenId, const PolicyVecRawData &policyRawData, BoolVecRawData &resultRawData) override;
     int32_t StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp = 0) override;
     int32_t UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp = 0) override;
+    int32_t GetPersistPolicy(uint32_t tokenId, PolicyVecRawData &policyRawData) override;
     void onRemovePackage(uint32_t tokenId);
     bool CheckPermission(const uint32_t tokenId, const std::string &permission);
     void DelayUnloadService();
