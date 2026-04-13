@@ -2017,7 +2017,7 @@ HWTEST_F(SandboxManagerKitPermissionTest, SetShareFileInfoTest003, TestSize.Leve
         }
     })";
     std::string bundleName = "com.example.test";
-    uint32_t userId = 0;
+    uint32_t userId = -1;
     uint32_t tokenId = 12345;
 
     int32_t ret = SandboxManagerKit::SetShareFileInfo(cfginfo, bundleName, userId, tokenId);
@@ -2145,7 +2145,7 @@ HWTEST_F(SandboxManagerKitPermissionTest, UpdateShareFileInfoTest003, TestSize.L
         }
     })";
     std::string bundleName = "com.example.test";
-    uint32_t userId = 0;
+    uint32_t userId = -1;
     uint32_t tokenId = 12345;
 
     int32_t ret = SandboxManagerKit::UpdateShareFileInfo(cfginfo, bundleName, userId, tokenId);
@@ -2234,7 +2234,7 @@ HWTEST_F(SandboxManagerKitPermissionTest, UnsetShareFileInfoTest003, TestSize.Le
     int32_t uid = getuid();
     setuid(FOUNDATION_UID);
     std::string bundleName = "com.example.test";
-    uint32_t userId = 0;
+    uint32_t userId = -1;
     uint32_t tokenId = 12345;
 
     int32_t ret = SandboxManagerKit::UnsetShareFileInfo(tokenId, bundleName, userId);

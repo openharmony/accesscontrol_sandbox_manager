@@ -312,7 +312,7 @@ static int32_t CheckShareFileInfoParams(const std::string &bundleName, uint32_t 
         SANDBOXMANAGER_LOG_ERROR(LABEL, "bundleName is empty.");
         return INVALID_PARAMTER;
     }
-    if (userId == 0) {
+    if (userId < 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "userId is invalid.");
         return INVALID_PARAMTER;
     }

@@ -810,7 +810,7 @@ static int32_t CheckShareFileInfo(uint32_t tokenId, const std::string &bundleNam
         LOGE_WITH_REPORT(LABEL, "Check bundleName failed.");
         return INVALID_PARAMTER;
     }
-    if (userId == 0) {
+    if (userId < 0) {
         LOGE_WITH_REPORT(LABEL, "Check userId failed.");
         return INVALID_PARAMTER;
     }
@@ -875,7 +875,7 @@ int32_t SandboxManagerService::GetSharedDirectoryInfo(SharedDirectoryInfoVecRawD
         return PERMISSION_DENIED;
     }
     int32_t userId = GetOsAccountLocalIdFromUid(IPCSkeleton::GetCallingUid());
-    if (userId <= DEFAULT_USERID) {
+    if (userId < DEFAULT_USERID) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSharedDirectoryInfo failed, get user id failed.");
         return INVALID_PARAMTER;
     }
@@ -901,7 +901,7 @@ int32_t SandboxManagerService::GrantSharedDirectoryPermission()
         return PERMISSION_DENIED;
     }
     int32_t userId = GetOsAccountLocalIdFromUid(IPCSkeleton::GetCallingUid());
-    if (userId <= DEFAULT_USERID) {
+    if (userId < DEFAULT_USERID) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSharedDirectoryInfo failed, get user id failed.");
         return INVALID_PARAMTER;
     }
@@ -918,7 +918,7 @@ int32_t SandboxManagerService::RevokeSharedDirectoryPermission()
         return PERMISSION_DENIED;
     }
     int32_t userId = GetOsAccountLocalIdFromUid(IPCSkeleton::GetCallingUid());
-    if (userId <= DEFAULT_USERID) {
+    if (userId < DEFAULT_USERID) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSharedDirectoryInfo failed, get user id failed.");
         return INVALID_PARAMTER;
     }

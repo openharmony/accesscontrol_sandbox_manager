@@ -343,7 +343,7 @@ static int32_t CheckSharedFileInfoParams(uint32_t tokenId, const std::string &bu
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check bundleName failed.");
         return INVALID_PARAMTER;
     }
-    if (userId == 0) {
+    if (userId < 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check userId failed.");
         return INVALID_PARAMTER;
     }
