@@ -105,12 +105,14 @@ void SandboxManagerRdbTest::SetUp(void)
 {
     GenericValues conditions;
     SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
 }
 
 void SandboxManagerRdbTest::TearDown(void)
 {
     GenericValues conditions;
     SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
 }
 
 /**
@@ -296,6 +298,102 @@ HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest006, TestSize.Level0)
         conditions, symbols, dbResult));
     uint64_t sizeLimit = 5;
     EXPECT_EQ(sizeLimit, dbResult.size());
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest007
+ * @tc.desc: Test BUNDLE_PERSISTENT_POLICY table - add and find
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest007, TestSize.Level0)
+{
+    // Clean up first
+    GenericValues conditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
+
+    // Add bundle persistent policy
+    GenericValues bundlePolicy;
+    bundlePolicy.Put(PolicyFiledConst::FIELD_BUNDLENAME, std::string("test.bundle"));
+    bundlePolicy.Put(PolicyFiledConst::FIELD_USERID, static_cast<int32_t>(100));
+    bundlePolicy.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, std::string("test.bundle"));
+    bundlePolicy.Put(PolicyFiledConst::FIELD_ORIGINAL_TOKENID, static_cast<int32_t>(12345));
+    bundlePolicy.Put(PolicyFiledConst::FIELD_TIMESTAMP, static_cast<int64_t>(1234567890));
+
+    std::vector<GenericValues> values = {bundlePolicy};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, values));
+
+    // Find the record
+    GenericValues findConditions;
+    findConditions.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, std::string("test.bundle"));
+    findConditions.Put(PolicyFiledConst::FIELD_USERID, static_cast<int32_t>(100));
+
+    GenericValues symbols;
+    symbols.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, std::string("="));
+    symbols.Put(PolicyFiledConst::FIELD_USERID, std::string("="));
+
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY,
+        findConditions, symbols, dbResult));
+    EXPECT_EQ(1, dbResult.size());
+
+    // Verify the data
+    EXPECT_EQ(std::string("test.bundle"), dbResult[0].GetString(PolicyFiledConst::FIELD_BUNDLENAME));
+    EXPECT_EQ(100, dbResult[0].GetInt(PolicyFiledConst::FIELD_USERID));
+    EXPECT_EQ(12345, dbResult[0].GetInt(PolicyFiledConst::FIELD_ORIGINAL_TOKENID));
+
+    // Clean up
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest008
+ * @tc.desc: Test BUNDLE_PERSISTENT_POLICY table - remove
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest008, TestSize.Level0)
+{
+    // Clean up first
+    GenericValues conditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
+
+    // Add multiple bundle persistent policies
+    GenericValues bundlePolicy1;
+    bundlePolicy1.Put(PolicyFiledConst::FIELD_BUNDLENAME, std::string("test.bundle1"));
+    bundlePolicy1.Put(PolicyFiledConst::FIELD_USERID, static_cast<int32_t>(100));
+    bundlePolicy1.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, std::string("test.bundle1"));
+    bundlePolicy1.Put(PolicyFiledConst::FIELD_ORIGINAL_TOKENID, static_cast<int32_t>(12345));
+    bundlePolicy1.Put(PolicyFiledConst::FIELD_TIMESTAMP, static_cast<int64_t>(1234567890));
+
+    GenericValues bundlePolicy2;
+    bundlePolicy2.Put(PolicyFiledConst::FIELD_BUNDLENAME, std::string("test.bundle2"));
+    bundlePolicy2.Put(PolicyFiledConst::FIELD_USERID, static_cast<int32_t>(100));
+    bundlePolicy2.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, std::string("test.bundle2"));
+    bundlePolicy2.Put(PolicyFiledConst::FIELD_ORIGINAL_TOKENID, static_cast<int32_t>(67890));
+    bundlePolicy2.Put(PolicyFiledConst::FIELD_TIMESTAMP, static_cast<int64_t>(1234567891));
+
+    std::vector<GenericValues> values = {bundlePolicy1, bundlePolicy2};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, values));
+
+    // Remove one bundle
+    GenericValues removeConditions;
+    removeConditions.Put(PolicyFiledConst::FIELD_BUNDLENAME, std::string("test.bundle1"));
+    removeConditions.Put(PolicyFiledConst::FIELD_USERID, static_cast<int32_t>(100));
+
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, removeConditions));
+
+    // Verify only one remains
+    GenericValues symbols;
+    std::vector<GenericValues> dbResult;
+    GenericValues findAllConditions;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY,
+        findAllConditions, symbols, dbResult));
+    EXPECT_EQ(1, dbResult.size());
+    EXPECT_EQ(std::string("test.bundle2"), dbResult[0].GetString(PolicyFiledConst::FIELD_BUNDLENAME));
+
+    // Clean up
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
 }
 } // SandboxManager
 } // AccessControl

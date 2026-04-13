@@ -18,9 +18,11 @@
 #include <cinttypes>
 #include <string>
 #include "policy_info_manager.h"
+#include "sandbox_manager_err_code.h"
 #include "sandbox_manager_log.h"
 #include "accesstoken_kit.h"
 #include "share_files.h"
+#include "persistent_preserve.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -73,47 +75,103 @@ bool SandboxManagerCommonEventSubscriber::UnRegisterEvent()
     return true;
 }
 
+static int32_t OnReceiveEventGetParam(const EventFwk::Want &want,
+    std::string &bundleName, int32_t &userId, uint32_t &tokenId)
+{
+    bundleName = want.GetElement().GetBundleName();
+    if (bundleName.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "OnReceiveEvent get bundleName empty.");
+        return INVALID_PARAMTER;
+    }
+
+    tokenId = static_cast<uint32_t>(want.GetParams().GetIntParam("accessTokenId", 0));
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "OnReceiveEvent get error tokenid = %{public}u of %{public}s.",
+            tokenId, bundleName.c_str());
+        return INVALID_PARAMTER;
+    }
+
+    userId = want.GetParams().GetIntParam("userId", -1);
+    if (userId == -1) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "OnReceiveEvent get error userId of %{public}s.", bundleName.c_str());
+        return INVALID_PARAMTER;
+    }
+
+    return SANDBOX_MANAGER_OK;
+}
+
 void SandboxManagerCommonEventSubscriber::OnReceiveEventRemove(const EventFwk::Want &want)
 {
-    uint32_t tokenId = static_cast<uint32_t>(want.GetParams().GetIntParam("accessTokenId", 0));
-    if (tokenId == 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Error tokenid = %{public}u.", tokenId);
+    std::string bundleName;
+    int32_t userId = -1;
+    uint32_t tokenId = 0;
+    int32_t ret = OnReceiveEventGetParam(want, bundleName, userId, tokenId);
+    if (ret != SANDBOX_MANAGER_OK) {
         return;
     }
-    PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId);
-#ifdef NOT_RESIDENT
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceiveEventRemove %{public}s, tokenId=%{public}u, userId=%{public}d",
+        bundleName.c_str(), tokenId, userId);
+
     int32_t appIndex = want.GetIntParam("appIndex", -1);
+    std::string shouldPreserve;
+    if (appIndex == 0) {
+        shouldPreserve = want.GetStringParam("ohos.fileshare.supportPreservePersistentPermission");
+        if (shouldPreserve.empty()) {
+            LOGE_WITH_REPORT(LABEL, "OnReceiveEventRemove get shouldPreserve empty.");
+            return;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "main package removed, PreserveConfig=%{public}s", shouldPreserve.c_str());
+        if (shouldPreserve == "true") {
+            std::string appIdentifier = want.GetStringParam("appIdentifier");
+            ret = PersistentPreserve::SaveBundlePersistentPolicies(bundleName, userId, appIdentifier, tokenId);
+            if (ret != SANDBOX_MANAGER_OK) {
+                LOGE_WITH_REPORT(LABEL, "SaveBundlePersistentPolicies failed for %{public}s", bundleName.c_str());
+            }
+        }
+    }
+
+    if (shouldPreserve != "true") {
+        // Remove bundle policy
+        PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId);
+    }
+#ifdef NOT_RESIDENT
     if (appIndex != 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "ReceivePackage removed only clear main, this is %{public}d", appIndex);
         return;
     }
-    std::string bundleName = want.GetElement().GetBundleName();
-    if (bundleName.empty()) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "On ReceivePackage removed failed by error input.");
-        return;
-    }
-    std::string maskName = SandboxManagerLog::MaskRealPath(bundleName.c_str());
-    SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceiveEventRemove %{public}s", maskName.c_str());
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
 #endif
-    SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenid = %{public}u.", tokenId);
+    SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceiveEventRemove Finish");
+    return;
 }
 
 void SandboxManagerCommonEventSubscriber::OnReceiveEventAdd(const EventFwk::Want &want)
 {
-    std::string bundleName = want.GetElement().GetBundleName();
-    SANDBOXMANAGER_LOG_INFO(LABEL, "On receive package:%{private}s added", bundleName.c_str());
-
-#ifdef NOT_RESIDENT
-    int32_t userID = want.GetParams().GetIntParam("userId", -1);
-    if ((userID == -1) || (bundleName.empty())) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "On ReceivePackage changed failed by error input.");
+    std::string bundleName;
+    int32_t userId = -1;
+    uint32_t tokenId = 0;
+    int32_t ret = OnReceiveEventGetParam(want, bundleName, userId, tokenId);
+    if (ret != SANDBOX_MANAGER_OK) {
         return;
     }
-    std::string maskName = SandboxManagerLog::MaskRealPath(bundleName.c_str());
-    SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceiveEventAdd %{public}s, %{public}d", maskName.c_str(), userID);
-    SandboxManagerShare::GetInstance().GetShareCfgByBundle(bundleName, userID);
+    std::string appIdentifier = want.GetStringParam("appIdentifier");
+    SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceiveEventAdd %{public}s, %{public}s, tokenId=%{public}u, userId=%{public}d",
+        bundleName.c_str(), appIdentifier.c_str(), tokenId, userId);
+
+    ret = PersistentPreserve::RestoreBundlePersistentPolicies(appIdentifier, userId, tokenId, bundleName);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return;
+    }
+    ret = PersistentPreserve::DeleteBundlePersistentPolicies(appIdentifier, userId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return;
+    }
+
+#ifdef NOT_RESIDENT
+    SandboxManagerShare::GetInstance().GetShareCfgByBundle(bundleName, userId);
 #endif
+    SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceiveEventAdd Finish");
     return;
 }
 
@@ -137,8 +195,7 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEvent(const EventFwk::CommonE
         }
         (void)PolicyInfoManager::GetInstance().CleanPolicyByPackageChanged(bundleName, userID);
 #ifdef NOT_RESIDENT
-        std::string maskName = SandboxManagerLog::MaskRealPath(bundleName.c_str());
-        SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceive Package changed %{public}s, %{public}d", maskName.c_str(), userID);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceive Package changed %{public}s, %{public}d", bundleName.c_str(), userID);
         SandboxManagerShare::GetInstance().Refresh(bundleName, userID);
 #endif
     }

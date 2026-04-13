@@ -16,6 +16,7 @@
 #include <chrono>
 #include <cinttypes>
 #include <cstdint>
+#include <ctime>
 #include <gtest/gtest.h>
 #include <string>
 #include <vector>
@@ -28,6 +29,7 @@
 #define private public
 #include "policy_info_manager.h"
 #include "share_files.h"
+#include "persistent_preserve.h"
 #undef private
 #include "sandbox_manager_const.h"
 #include "sandbox_manager_rdb.h"
@@ -2827,6 +2829,273 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest027, TestSize.Level0)
     EXPECT_FALSE(PolicyInfoManager::GetInstance().ShareMapRangeCheck(testPath4, components4));
 }
 #endif
+
+/**
+ * @tc.name: PersistentPreserveTest001
+ * @tc.desc: Test SaveBundlePersistentPolicies and DeleteBundlePersistentPolicies
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest001, TestSize.Level0)
+{
+    // Clean up first
+    GenericValues conditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
+
+    // Test SaveBundlePersistentPolicies
+    std::string bundleName = "test.bundle.preserve";
+    int32_t userId = 100;
+    std::string appIdentifier = "test.bundle.preserve";
+    uint32_t tokenId = 12345;
+
+    int32_t ret = PersistentPreserve::SaveBundlePersistentPolicies(bundleName, userId, appIdentifier, tokenId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    // Verify the record was saved
+    GenericValues findConditions;
+    findConditions.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, appIdentifier);
+    findConditions.Put(PolicyFiledConst::FIELD_USERID, userId);
+
+    GenericValues symbols;
+    symbols.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, std::string("="));
+    symbols.Put(PolicyFiledConst::FIELD_USERID, std::string("="));
+
+    std::vector<GenericValues> dbResult;
+    ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY,
+        findConditions, symbols, dbResult);
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS, ret);
+    EXPECT_EQ(1, dbResult.size());
+    EXPECT_EQ(bundleName, dbResult[0].GetString(PolicyFiledConst::FIELD_BUNDLENAME));
+    EXPECT_EQ(tokenId, static_cast<uint32_t>(dbResult[0].GetInt(PolicyFiledConst::FIELD_ORIGINAL_TOKENID)));
+
+    // Test DeleteBundlePersistentPolicies
+    ret = PersistentPreserve::DeleteBundlePersistentPolicies(appIdentifier, userId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    // Verify the record was deleted
+    dbResult.clear();
+    ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY,
+        findConditions, symbols, dbResult);
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS, ret);
+    EXPECT_EQ(0, dbResult.size());
+
+    // Clean up
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
+}
+
+/**
+ * @tc.name: PersistentPreserveTest002
+ * @tc.desc: Test SaveBundlePersistentPolicies with invalid parameters
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest002, TestSize.Level0)
+{
+    // Test with empty appIdentifier
+    int32_t ret = PersistentPreserve::SaveBundlePersistentPolicies("test.bundle", 100, "", 12345);
+    EXPECT_EQ(INVALID_PARAMTER, ret);
+}
+
+/**
+ * @tc.name: PersistentPreserveTest003
+ * @tc.desc: Test RestoreBundlePersistentPolicies with full workflow
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest003, TestSize.Level0)
+{
+    // Clean up first
+    GenericValues conditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
+
+    std::string bundleName = "test.bundle.restore";
+    int32_t userId = 100;
+    std::string appIdentifier = "test.bundle.restore";
+    uint32_t originalTokenId = 11111;
+    uint32_t newTokenId = 22222;
+
+    // Step 1: Save some persisted policies for original token
+    GenericValues policy1;
+    policy1.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(originalTokenId));
+    policy1.Put(PolicyFiledConst::FIELD_PATH, "/data/test/restore1");
+    policy1.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(OperateMode::READ_MODE));
+    policy1.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int32_t>(3));
+    policy1.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int32_t>(0));
+
+    GenericValues policy2;
+    policy2.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(originalTokenId));
+    policy2.Put(PolicyFiledConst::FIELD_PATH, "/data/test/restore2");
+    policy2.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(OperateMode::WRITE_MODE));
+    policy2.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int32_t>(3));
+    policy2.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int32_t>(0));
+
+    std::vector<GenericValues> policies = {policy1, policy2};
+    int32_t ret = SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, policies);
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS, ret);
+
+    // Step 2: Save bundle persistent policy
+    ret = PersistentPreserve::SaveBundlePersistentPolicies(bundleName, userId, appIdentifier, originalTokenId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    // Step 3: Restore policies with new token
+    ret = PersistentPreserve::RestoreBundlePersistentPolicies(appIdentifier, userId, newTokenId, bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    // Verify policies were restored with new token
+    GenericValues newTokenConditions;
+    newTokenConditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(newTokenId));
+
+    GenericValues newTokenSymbols;
+    newTokenSymbols.Put(PolicyFiledConst::FIELD_TOKENID, std::string("="));
+
+    std::vector<GenericValues> restoredPolicies;
+    ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
+        newTokenConditions, newTokenSymbols, restoredPolicies);
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS, ret);
+    EXPECT_EQ(2, restoredPolicies.size());
+
+    // Verify original token policies were removed
+    GenericValues oldTokenConditions;
+    oldTokenConditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(originalTokenId));
+
+    std::vector<GenericValues> oldPolicies;
+    ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
+        oldTokenConditions, newTokenSymbols, oldPolicies);
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS, ret);
+    EXPECT_EQ(0, oldPolicies.size());
+
+    // Step 4: Delete bundle persistent policy
+    ret = PersistentPreserve::DeleteBundlePersistentPolicies(appIdentifier, userId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    // Clean up
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
+}
+
+/**
+ * @tc.name: PersistentPreserveTest004
+ * @tc.desc: Test RestoreBundlePersistentPolicies with no bundle record
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest004, TestSize.Level0)
+{
+    // Clean up first
+    GenericValues conditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
+
+    // Test restore with non-existent app identifier
+    std::string appIdentifier = "non.existent.app";
+    int32_t userId = 100;
+    uint32_t newTokenId = 22222;
+
+    int32_t ret = PersistentPreserve::RestoreBundlePersistentPolicies(appIdentifier, userId, newTokenId, "test.bundle");
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret); // Should return OK when no record found
+
+    // Clean up
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
+}
+
+/**
+ * @tc.name: PersistentPreserveTest005
+ * @tc.desc: Test RestoreBundlePersistentPolicies with invalid parameters
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest005, TestSize.Level0)
+{
+    // Test with empty appIdentifier
+    int32_t ret = PersistentPreserve::RestoreBundlePersistentPolicies("", 100, 22222, "test.bundle");
+    EXPECT_EQ(INVALID_PARAMTER, ret);
+}
+
+/**
+ * @tc.name: PersistentPreserveTest006
+ * @tc.desc: Test RestoreBundlePersistentPolicies with no persisted policies
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest006, TestSize.Level0)
+{
+    // Clean up first
+    GenericValues conditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
+
+    std::string bundleName = "test.bundle.nopolicies";
+    int32_t userId = 100;
+    std::string appIdentifier = "test.bundle.nopolicies";
+    uint32_t originalTokenId = 33333;
+    uint32_t newTokenId = 44444;
+
+    // Save bundle persistent policy but no persisted policies
+    int32_t ret = PersistentPreserve::SaveBundlePersistentPolicies(bundleName, userId, appIdentifier, originalTokenId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    // Restore should succeed even with no policies
+    ret = PersistentPreserve::RestoreBundlePersistentPolicies(appIdentifier, userId, newTokenId, bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    // Clean up
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
+}
+
+/**
+ * @tc.name: PersistentPreserveTest013
+ * @tc.desc: Test FindBundleRecord with duplicate records - should use latest and delete old ones
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest013, TestSize.Level0)
+{
+    GenericValues conditions;
+    int64_t currentTime = static_cast<int64_t>(time(nullptr));
+    std::string appIdentifier = "test.bundle.duplicate";
+    int32_t userId = 100;
+
+    // Create 3 bundle records with same appIdentifier but different timestamps
+    std::vector<GenericValues> duplicateBundles;
+    for (int i = 0; i < 3; i++) {
+        GenericValues bundle;
+        bundle.Put(PolicyFiledConst::FIELD_BUNDLENAME, std::string("test.bundle.dup") + std::to_string(i));
+        bundle.Put(PolicyFiledConst::FIELD_USERID, userId);
+        bundle.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, appIdentifier);
+        bundle.Put(PolicyFiledConst::FIELD_ORIGINAL_TOKENID, static_cast<int32_t>(90000 + i));
+        bundle.Put(PolicyFiledConst::FIELD_TIMESTAMP, static_cast<int64_t>(currentTime - ((2 - i) * 5 * 24 * 60 * 60)));
+        duplicateBundles.push_back(bundle);
+    }
+    int32_t ret = SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, duplicateBundles);
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS, ret);
+
+    // Call FindBundleRecord - should use latest record and delete old ones
+    GenericValues bundleRecord;
+    ret = PersistentPreserve::FindBundleRecord(appIdentifier, userId, bundleRecord);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    EXPECT_FALSE(bundleRecord.GetAllKeys().empty());
+
+    // Verify latest record (tokenId = 90002) is used
+    uint32_t actualTokenId = static_cast<uint32_t>(bundleRecord.GetInt(PolicyFiledConst::FIELD_ORIGINAL_TOKENID));
+    EXPECT_EQ(90002u, actualTokenId);
+
+    // Verify only 1 record remains (old ones deleted)
+    GenericValues findConditions;
+    findConditions.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, appIdentifier);
+    findConditions.Put(PolicyFiledConst::FIELD_USERID, userId);
+    GenericValues symbols;
+    symbols.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, std::string("="));
+    symbols.Put(PolicyFiledConst::FIELD_USERID, std::string("="));
+    std::vector<GenericValues> afterFind;
+    ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY,
+        findConditions, symbols, afterFind);
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS, ret);
+    EXPECT_EQ(1, afterFind.size());
+
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
+}
 #endif
 } // SandboxManager
 } // AccessControl

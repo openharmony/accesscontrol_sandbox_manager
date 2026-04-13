@@ -29,6 +29,12 @@ public:
     const static std::string FIELD_MODE;
     const static std::string FIELD_DEPTH;
     const static std::string FIELD_FLAG;
+    // Fields for bundle persistent policy table
+    const static std::string FIELD_BUNDLENAME;
+    const static std::string FIELD_USERID;
+    const static std::string FIELD_TIMESTAMP;
+    const static std::string FIELD_APPIDENTIFIER;
+    const static std::string FIELD_ORIGINAL_TOKENID;
     // Fields for shared file info table
     const static std::string FIELD_BUNDLE_NAME;
     const static std::string FIELD_USER_ID;

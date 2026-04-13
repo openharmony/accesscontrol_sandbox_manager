@@ -64,7 +64,7 @@ private:
     OHOS::Utils::RWLock rwLock_;
     std::shared_ptr<NativeRdb::RdbStore> db_ = nullptr;
     std::mutex dbLock_;
-    static const int DATABASE_VERSION = 1;
+    static const int DATABASE_VERSION = 2;
 };
 } // namespace SandboxManager
 } // namespace AccessControl

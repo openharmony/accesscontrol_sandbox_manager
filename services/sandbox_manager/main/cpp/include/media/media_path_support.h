@@ -52,6 +52,25 @@ public:
      */
     int32_t GetMediaPermission(uint32_t tokenId, const std::vector<PolicyInfo> &mediaPolicy,
         std::vector<bool> &mediaResults);
+
+    /**
+     * @brief Called when app is being uninstalled to reserve media policies
+     * @param appIdentifier app identifier
+     * @param bundleName bundle name
+     * @param tokenId token id of the app
+     * @return SANDBOX_MANAGER_OK on success, error code otherwise
+     */
+    int32_t ReserveMediaPoliciesOnRemove(const std::string &appIdentifier,
+        const std::string &bundleName, uint32_t tokenId);
+
+    /**
+     * @brief Called when app is being installed to resume media policies
+     * @param appIdentifier app identifier
+     * @param bundleName bundle name
+     * @param tokenId token id of the app
+     * @return SANDBOX_MANAGER_OK on success, error code otherwise
+     */
+    int32_t ResumeMediaPoliciesOnAdd(const std::string &appIdentifier, const std::string &bundleName, uint32_t tokenId);
 private:
     template <typename T>
     void MediaDfx(std::vector<std::string> &uri, std::vector<T> &mode);

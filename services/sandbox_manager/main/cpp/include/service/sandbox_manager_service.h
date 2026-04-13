@@ -92,6 +92,8 @@ private:
     bool StartByEventAction(const SystemAbilityOnDemandReason& startReason);
     bool IsFileManagerCalling(uint32_t tokenCaller);
     bool PackageChangedEventAction(const SystemAbilityOnDemandReason &startReason);
+    bool PackageAddEventAction(const SystemAbilityOnDemandReason &startReason);
+    bool PackageRemoveEventAction(const SystemAbilityOnDemandReason &startReason);
     std::mutex stateMutex_;
     ServiceRunningState state_;
     static std::mutex unloadMutex_;
