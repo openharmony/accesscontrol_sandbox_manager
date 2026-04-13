@@ -66,6 +66,7 @@ void PolicyTrie::Clear()
     DeleteChildren();
     isEndOfPath_ = false;
     mode_ = 0;
+    modes_.clear();
     caseInsensitive_ = false;
 }
 
@@ -147,6 +148,7 @@ void PolicyTrie::InsertPath(const std::string &path, uint64_t mode, bool preserv
         curNode = curNode->children_[key];
     }
     curNode->isEndOfPath_ = true;
+    curNode->modes_.insert(mode);
     curNode->mode_ |= mode;
 }
 
@@ -165,7 +167,7 @@ bool PolicyTrie::IsPolicyMatch(uint64_t referMode, uint64_t searchMode)
     return false;
 }
 
-bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode)
+bool PolicyTrie::CheckPathInternal(const std::string &path, uint64_t mode, bool checkMode)
 {
     PolicyTrie *curNode = this;
     std::vector<std::string> pathSegments = SplitPath(path);
@@ -191,7 +193,11 @@ bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode)
         PolicyTrie *nextNode = it->second;
         curLevel++;
         if (curLevel >= needLevel && nextNode != nullptr && nextNode->isEndOfPath_) {
-            return IsPolicyMatch(nextNode->mode_, mode);
+            if (!checkMode) {
+                return true;
+            } else {
+                return IsPolicyMatch(nextNode->mode_, mode);
+            }
         }
 
         curNode = nextNode;
@@ -200,7 +206,17 @@ bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode)
     return false;
 }
 
-std::vector<std::string> PolicyTrie::FindMatchingPaths(const std::string &path)
+bool PolicyTrie::CheckPath(const std::string &path)
+{
+    return CheckPathInternal(path, 0, false);
+}
+
+bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode)
+{
+    return CheckPathInternal(path, mode, true);
+}
+
+std::vector<std::string> PolicyTrie::FindMatchingPaths(const std::string &path, uint64_t mode)
 {
     std::vector<std::string> results;
     std::vector<std::string> searchSegments = SplitPath(path);
@@ -222,7 +238,7 @@ std::vector<std::string> PolicyTrie::FindMatchingPaths(const std::string &path)
         bool iscaseInsensitive = currentNode->caseInsensitive_;
 
         if (segmentIndex >= searchSegments.size()) {
-            if (currentNode->isEndOfPath_) {
+            if (currentNode->isEndOfPath_ && currentNode->modes_.count(mode) != 0) {
                 results.push_back(reconstructedPath);
             }
             continue;

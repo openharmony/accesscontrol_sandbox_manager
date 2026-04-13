@@ -148,39 +148,60 @@ void PolicyInfoManager::RemoveResultByUserId(std::vector<GenericValues> &results
     }
 }
 
-int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
+void PolicyInfoManager::RemoveResultByUserIdAndPrefix(std::vector<GenericValues> &results,
+    int32_t userId, PolicyTrie &trieTree)
 {
-    SANDBOXMANAGER_LOG_INFO(LABEL, "clean policy by userId:%{public}d", userId);
-    CleanPolicyOnMac(filePathList, userId);
-    std::vector<GenericValues> results;
-    PolicyTrie trieTree;
-    BuildTrieWithAllRecords(trieTree);
-    
-    // Collect all unique paths that need to be queried from the database
-    std::set<std::string> uniquePathsToQuery;
-    for (const std::string& path : filePathList) {
-        uint32_t length = path.length();
-        if ((length == 0) || (length > POLICY_PATH_LIMIT)) {
-            LOGE_WITH_REPORT(LABEL, "Policy path check fail, length = %{public}zu.", path.length());
+    for (auto it = results.begin(); it != results.end();) {
+        std::string path = it->GetString(PolicyFiledConst::FIELD_PATH);
+        if (!trieTree.CheckPath(path)) {
+            it = results.erase(it);
             continue;
         }
-        std::vector<std::string> matchingPaths = trieTree.FindMatchingPaths(path);
-        for (const std::string& matchedPath : matchingPaths) {
-            std::string pathTmp = AdjustPath(matchedPath);
-            uniquePathsToQuery.insert(pathTmp);
+
+        uint32_t tokenId = static_cast<uint32_t>(it->GetInt(PolicyFiledConst::FIELD_TOKENID));
+        Security::AccessToken::HapTokenInfo hapTokenInfoRes;
+        int ret = Security::AccessToken::AccessTokenKit::GetHapTokenInfo(tokenId, hapTokenInfoRes);
+        if (ret != 0) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "find user id by token id failed ret:%{public}d", ret);
+            ++it;
+            continue;
+        }
+
+        if (hapTokenInfoRes.userID != userId) {
+            SANDBOXMANAGER_LOG_INFO(LABEL,
+                "userId:%{public}d hap userId:%{public}d mismatch, do not delete target:%{public}u", userId,
+                hapTokenInfoRes.userID, tokenId);
+            it = results.erase(it);
+        } else {
+            ++it;
         }
     }
-    
-    // Perform database operations for each unique path
-    for (const std::string& pathToQuery : uniquePathsToQuery) {
-        int32_t ret = SandboxManagerRdb::GetInstance().FindSubPath(
-            SANDBOX_MANAGER_PERSISTED_POLICY, pathToQuery, results);
-        if (ret != SandboxManagerRdb::SUCCESS) {
-            LOGE_WITH_REPORT(LABEL, "Database operate error.");
-        }
+}
+
+int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
+{
+    CleanPolicyOnMac(filePathList, userId);
+    PolicyTrie trieTree;
+    InitTrieWithCaseSensitivity(trieTree);
+
+    for (const std::string& path : filePathList) {
+        trieTree.InsertPath(path, 0);
     }
-    
-    if (results.empty()) {
+
+    GenericValues conditions;
+    GenericValues symbols;
+
+    std::vector<GenericValues> dbResults;
+    int32_t ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
+        conditions, symbols, dbResults);
+    if (ret != SandboxManagerRdb::SUCCESS) {
+        LOGE_WITH_REPORT(LABEL, "Database operate error when building trie with all records");
+        return SANDBOX_MANAGER_DB_ERR;
+    }
+
+    RemoveResultByUserIdAndPrefix(dbResults, userId, trieTree);
+
+    if (dbResults.empty()) {
         PolicyOperateInfo info(0, 0, 0, 0);
         SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(
             OperateTypeEnum::CLEAN_PERSIST_POLICY_BY_PATH, info);
@@ -188,18 +209,10 @@ int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vecto
         return SANDBOX_MANAGER_OK;
     }
 
-    RemoveResultByUserId(results, userId);
-
-    //clear the persistence policy
-    for (const auto& res: results) {
-        std::string currPath = res.GetString(PolicyFiledConst::FIELD_PATH);
-        std::string maskPath = SandboxManagerLog::MaskRealPath(currPath.c_str());
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Delete policy %{public}s", maskPath.c_str());
-        int32_t ret = SandboxManagerRdb::GetInstance().Remove(
-            SANDBOX_MANAGER_PERSISTED_POLICY, res);
-        if (ret != SandboxManagerRdb::SUCCESS) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Delete fail!");
-        }
+    ret = SandboxManagerRdb::GetInstance().Remove(
+        SANDBOX_MANAGER_PERSISTED_POLICY, dbResults);
+    if (ret != SandboxManagerRdb::SUCCESS) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Delete fail!");
     }
     return SANDBOX_MANAGER_OK;
 }
@@ -451,6 +464,28 @@ static void WriteRemoveDfxInfo(uint32_t policySize, uint32_t succ, uint32_t fail
     SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNPERSIST_POLICY, info);
 }
 
+void PolicyInfoManager::ValidatePolicyAtIndex(size_t i, const std::vector<PolicyInfo> &policy,
+    std::vector<uint32_t> &result, uint32_t &invalidNum, std::vector<PolicyInfo> &mediaPolicy,
+    std::vector<size_t> &validMediaIndex)
+{
+    int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
+    if (checkPolicyRet != SANDBOX_MANAGER_OK) {
+        result[i] = static_cast<uint32_t>(checkPolicyRet);
+        ++invalidNum;
+        return;
+    }
+    if (IsModeMatchPolicyType(policy[i].mode, SetPolicyType::TEMP_POLICY) != true) {
+        result[i] = SandboxRetType::INVALID_MODE;
+        return;
+    }
+    if (SandboxManagerMedia::GetInstance().IsMediaPolicy(policy[i].path)) {
+        mediaPolicy.emplace_back(policy[i]);
+        validMediaIndex.emplace_back(i);
+        ++invalidNum;
+        return;
+    }
+}
+
 /**
  * @brief Build trie tree with database results for policy operations
  */
@@ -534,7 +569,6 @@ void PolicyInfoManager::ProcessPolicyMatches(const std::vector<PolicyInfo> &poli
     }
 }
 
-
 int32_t PolicyInfoManager::RemoveNormalPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
     std::vector<uint32_t> &result, std::vector<PolicyInfo> &mediaPolicy, std::vector<size_t> &validMediaIndex)
 {
@@ -546,46 +580,50 @@ int32_t PolicyInfoManager::RemoveNormalPolicy(const uint32_t tokenId, const std:
     conditions.reserve(policySize);
     PolicyOperateInfo info(0, 0, 0, 0);
 
+    PolicyTrie trieTree;
+    InitTrieWithCaseSensitivity(trieTree);
+    BuildTrieForPolicyOperations(tokenId, trieTree, true);
+
     for (size_t i = 0; i < policySize; ++i) {
-        int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
-        if (checkPolicyRet != SANDBOX_MANAGER_OK) {
-            result[i] = static_cast<uint32_t>(checkPolicyRet);
-            ++invalidNum;
+        ValidatePolicyAtIndex(i, policy, result, invalidNum, mediaPolicy, validMediaIndex);
+        if (result[i] != 0) {
             continue;
         }
-        if (IsModeMatchPolicyType(policy[i].mode, SetPolicyType::TEMP_POLICY) != true) {
-            result[i] = SandboxRetType::INVALID_MODE;
-            continue;
-        }
-        if (SandboxManagerMedia::GetInstance().IsMediaPolicy(policy[i].path)) {
-            mediaPolicy.emplace_back(policy[i]);
-            validMediaIndex.emplace_back(i);
-            ++invalidNum;
-            continue;
-        }
-        int32_t ret = ExactFind(tokenId, policy[i]);
-        if (ret == SANDBOX_MANAGER_DB_RETURN_EMPTY) {
+
+        std::vector<std::string> matchingPaths = trieTree.FindMatchingPaths(policy[i].path, policy[i].mode);
+        if (matchingPaths.empty()) {
             result[i] = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
             ++successNum;
             continue;
         }
-        ret = UnsetSandboxPolicyAndRecord(tokenId, policy[i], conditions);
-        if (ret != SANDBOX_MANAGER_OK) {
-            ++failNum;
-            WriteRemoveDfxInfo(policySize, successNum, failNum, invalidNum, info);
-            return ret;
+
+        for (const std::string &matchedPath : matchingPaths) {
+            SANDBOXMANAGER_LOG_DEBUG(LABEL, "Processing matched path: %{public}s", matchedPath.c_str());
+            PolicyInfo matchedPolicy = policy[i];
+            matchedPolicy.path = matchedPath;
+
+            int32_t ret = UnsetSandboxPolicyAndRecord(tokenId, matchedPolicy, conditions);
+            if (ret != SANDBOX_MANAGER_OK) {
+                ++failNum;
+                WriteRemoveDfxInfo(policySize, successNum, failNum, invalidNum, info);
+                return ret;
+            }
         }
+
         SandboxManagerDfxHelper::OperateInfoSetByMode(info, policy[i].mode);
         ++successNum;
     }
+
     if (!conditions.empty()) {
         int32_t ret = SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
         if (ret != SandboxManagerRdb::SUCCESS) {
-            LOGE_WITH_REPORT(LABEL, "Database operate error");
+            LOGE_WITH_REPORT(LABEL, "Database operate error during removal, ret=%{public}d", ret);
             return SANDBOX_MANAGER_DB_ERR;
         }
+        SANDBOXMANAGER_LOG_DEBUG(LABEL, "Successfully removed %{public}zu policies from DB", conditions.size());
         WriteRemoveDfxInfo(conditions.size(), successNum, failNum, invalidNum, info);
     }
+
     return SANDBOX_MANAGER_OK;
 }
 
