@@ -1475,7 +1475,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest010, TestSize.Level0)
 #endif
 
 #ifdef DEC_ENABLED
-#ifndef NOT_RESIDENT
+#ifdef NOT_RESIDENT
 const char *source = "/data/dec";
 const char *target = "/data/mntDenyTest";
 const char *fsType = "sharefs";
