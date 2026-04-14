@@ -306,14 +306,10 @@ void SandboxManagerShare::Refresh(const std::string &bundleName, int32_t userId)
     (void)GetShareCfgByBundle(bundleName, userId);
 }
 
-static int32_t CheckShareFileInfoParams(const std::string &bundleName, uint32_t userId, uint32_t tokenId)
+static int32_t CheckShareFileInfoParams(const std::string &bundleName, uint32_t tokenId)
 {
     if (bundleName.empty()) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "bundleName is empty.");
-        return INVALID_PARAMTER;
-    }
-    if (userId == 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "userId is invalid.");
         return INVALID_PARAMTER;
     }
     if (tokenId == 0) {
@@ -567,7 +563,7 @@ int32_t SandboxManagerShare::UpdateShareFileInfoInner(cJSON *root, const std::st
 int32_t SandboxManagerShare::SetShareFileInfo(
     const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
 {
-    int32_t ret = CheckShareFileInfoParams(bundleName, userId, tokenId);
+    int32_t ret = CheckShareFileInfoParams(bundleName, tokenId);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "SetShareFileInfo param invalid.");
         return ret;
@@ -595,7 +591,7 @@ int32_t SandboxManagerShare::SetShareFileInfo(
 int32_t SandboxManagerShare::UpdateShareFileInfo(
     const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
 {
-    int32_t ret = CheckShareFileInfoParams(bundleName, userId, tokenId);
+    int32_t ret = CheckShareFileInfoParams(bundleName, tokenId);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "UpdateShareFileInfo param invalid.");
         return ret;
@@ -622,7 +618,7 @@ int32_t SandboxManagerShare::UpdateShareFileInfo(
 
 int32_t SandboxManagerShare::UnsetShareFileInfo(uint32_t tokenId, const std::string &bundleName, uint32_t userId)
 {
-    int32_t ret = CheckShareFileInfoParams(bundleName, userId, tokenId);
+    int32_t ret = CheckShareFileInfoParams(bundleName, tokenId);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "UnsetShareFileInfo param invalid.");
         return ret;

@@ -1995,43 +1995,11 @@ HWTEST_F(SandboxManagerKitPermissionTest, SetShareFileInfoTest002, TestSize.Leve
 
 /**
  * @tc.name: SetShareFileInfoTest003
- * @tc.desc: SetShareFileInfo with invalid userId.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(SandboxManagerKitPermissionTest, SetShareFileInfoTest003, TestSize.Level0)
-{
-    int32_t uid = getuid();
-    setuid(FOUNDATION_UID);
-    std::string cfginfo = R"({
-        "share_files": {
-            "scopes": [
-                {
-                    "path": "/base/files",
-                    "permission": "r+w"
-                }
-            ],
-            "sharingOSPath": "/base/files",
-            "sharingOSSubpath": "/test",
-            "sharingOSPermission": "r+w"
-        }
-    })";
-    std::string bundleName = "com.example.test";
-    uint32_t userId = 0;
-    uint32_t tokenId = 12345;
-
-    int32_t ret = SandboxManagerKit::SetShareFileInfo(cfginfo, bundleName, userId, tokenId);
-    EXPECT_EQ(INVALID_PARAMTER, ret);
-    setuid(uid);
-}
-
-/**
- * @tc.name: SetShareFileInfoTest004
  * @tc.desc: SetShareFileInfo with empty bundleName.
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitPermissionTest, SetShareFileInfoTest004, TestSize.Level0)
+HWTEST_F(SandboxManagerKitPermissionTest, SetShareFileInfoTest003, TestSize.Level0)
 {
     int32_t uid = getuid();
     setuid(FOUNDATION_UID);
@@ -2123,43 +2091,11 @@ HWTEST_F(SandboxManagerKitPermissionTest, UpdateShareFileInfoTest002, TestSize.L
 
 /**
  * @tc.name: UpdateShareFileInfoTest003
- * @tc.desc: UpdateShareFileInfo with invalid userId.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(SandboxManagerKitPermissionTest, UpdateShareFileInfoTest003, TestSize.Level0)
-{
-    int32_t uid = getuid();
-    setuid(FOUNDATION_UID);
-    std::string cfginfo = R"({
-        "share_files": {
-            "scopes": [
-                {
-                    "path": "/base/files",
-                    "permission": "r+w"
-                }
-            ],
-            "sharingOSPath": "/base/files",
-            "sharingOSSubpath": "/test",
-            "sharingOSPermission": "r+w"
-        }
-    })";
-    std::string bundleName = "com.example.test";
-    uint32_t userId = 0;
-    uint32_t tokenId = 12345;
-
-    int32_t ret = SandboxManagerKit::UpdateShareFileInfo(cfginfo, bundleName, userId, tokenId);
-    EXPECT_EQ(INVALID_PARAMTER, ret);
-    setuid(uid);
-}
-
-/**
- * @tc.name: UpdateShareFileInfoTest004
  * @tc.desc: UpdateShareFileInfo with empty bundleName.
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitPermissionTest, UpdateShareFileInfoTest004, TestSize.Level0)
+HWTEST_F(SandboxManagerKitPermissionTest, UpdateShareFileInfoTest003, TestSize.Level0)
 {
     int32_t uid = getuid();
     setuid(FOUNDATION_UID);
@@ -2225,30 +2161,11 @@ HWTEST_F(SandboxManagerKitPermissionTest, UnsetShareFileInfoTest002, TestSize.Le
 
 /**
  * @tc.name: UnsetShareFileInfoTest003
- * @tc.desc: UnsetShareFileInfo with invalid userId.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(SandboxManagerKitPermissionTest, UnsetShareFileInfoTest003, TestSize.Level0)
-{
-    int32_t uid = getuid();
-    setuid(FOUNDATION_UID);
-    std::string bundleName = "com.example.test";
-    uint32_t userId = 0;
-    uint32_t tokenId = 12345;
-
-    int32_t ret = SandboxManagerKit::UnsetShareFileInfo(tokenId, bundleName, userId);
-    EXPECT_EQ(INVALID_PARAMTER, ret);
-    setuid(uid);
-}
-
-/**
- * @tc.name: UnsetShareFileInfoTest004
  * @tc.desc: UnsetShareFileInfo with empty bundleName.
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitPermissionTest, UnsetShareFileInfoTest004, TestSize.Level0)
+HWTEST_F(SandboxManagerKitPermissionTest, UnsetShareFileInfoTest003, TestSize.Level0)
 {
     int32_t uid = getuid();
     setuid(FOUNDATION_UID);
