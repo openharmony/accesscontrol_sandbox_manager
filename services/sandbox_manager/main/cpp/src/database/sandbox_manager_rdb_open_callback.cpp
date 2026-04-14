@@ -71,7 +71,7 @@ int32_t SandboxManagerRdbOpenCallback::OnUpgrade(
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to create table SHARED_FILE_INFO_TABLE during upgrade");
             return res;
         }
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 2");
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 3");
     }
 
     return NativeRdb::E_OK;
