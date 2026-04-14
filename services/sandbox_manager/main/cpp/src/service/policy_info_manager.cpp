@@ -180,23 +180,32 @@ void PolicyInfoManager::RemoveResultByUserIdAndPrefix(std::vector<GenericValues>
 
 int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
 {
+    SANDBOXMANAGER_LOG_INFO(LABEL, "clean policy by userId:%{public}d", userId);
     CleanPolicyOnMac(filePathList, userId);
     PolicyTrie trieTree;
     InitTrieWithCaseSensitivity(trieTree);
 
-    for (const std::string& path : filePathList) {
-        trieTree.InsertPath(path, 0);
-    }
-
-    GenericValues conditions;
-    GenericValues symbols;
-
     std::vector<GenericValues> dbResults;
-    int32_t ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
-        conditions, symbols, dbResults);
-    if (ret != SandboxManagerRdb::SUCCESS) {
-        LOGE_WITH_REPORT(LABEL, "Database operate error when building trie with all records");
-        return SANDBOX_MANAGER_DB_ERR;
+    for (const std::string& path : filePathList) {
+        uint32_t length = path.length();
+        if ((length == 0) || (length > POLICY_PATH_LIMIT)) {
+            LOGE_WITH_REPORT(LABEL, "Policy path check fail, length = %{public}zu.", path.length());
+            continue;
+        }
+        std::string pathTmp = AdjustPath(path);
+        trieTree.InsertPath(pathTmp, 0);
+        int32_t ret = SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(
+            SANDBOX_MANAGER_PERSISTED_POLICY, pathTmp, dbResults);
+        if (ret != SandboxManagerRdb::SUCCESS) {
+            LOGE_WITH_REPORT(LABEL, "Database operate error.");
+        }
+    }
+    if (dbResults.empty()) {
+        PolicyOperateInfo info(0, 0, 0, 0);
+        SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(
+            OperateTypeEnum::CLEAN_PERSIST_POLICY_BY_PATH, info);
+        SANDBOXMANAGER_LOG_INFO(LABEL, "No persistence policy was found to delete.");
+        return SANDBOX_MANAGER_OK;
     }
 
     RemoveResultByUserIdAndPrefix(dbResults, userId, trieTree);
@@ -209,7 +218,7 @@ int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vecto
         return SANDBOX_MANAGER_OK;
     }
 
-    ret = SandboxManagerRdb::GetInstance().Remove(
+    int32_t ret = SandboxManagerRdb::GetInstance().Remove(
         SANDBOX_MANAGER_PERSISTED_POLICY, dbResults);
     if (ret != SandboxManagerRdb::SUCCESS) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Delete fail!");

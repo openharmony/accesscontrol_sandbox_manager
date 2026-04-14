@@ -114,6 +114,139 @@ void SandboxManagerRdbTest::TearDown(void)
 }
 
 /**
+ * @tc.name: SandboxManagerRdbTest_FindSubPathIgnoreCase_001
+ * @tc.desc: Test FindSubPathIgnoreCase func with different case paths
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_FindSubPathIgnoreCase_001, TestSize.Level0)
+{
+    // Add data with different case paths
+    GenericValues valueUpper;
+    valueUpper.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    valueUpper.Put(PolicyFiledConst::FIELD_PATH, "/USER_GRANT/A");  // Uppercase path
+    valueUpper.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
+    valueUpper.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(2)); // 2 means '/' included in path
+    valueUpper.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    GenericValues valueLower;
+    valueLower.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    valueLower.Put(PolicyFiledConst::FIELD_PATH, "/user_grant/b");  // Lowercase path
+    valueLower.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b11));
+    valueLower.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(2)); // 2 means '/' included in path
+    valueLower.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    GenericValues valueMixed;
+    valueMixed.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    valueMixed.Put(PolicyFiledConst::FIELD_PATH, "/User_Grant/C");  // Mixed case path
+    valueMixed.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b10));
+    valueMixed.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(2)); // 2 means '/' included in path
+    valueMixed.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    std::vector<GenericValues> values = {valueUpper, valueLower, valueMixed};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY,
+        values));
+
+    // Test FindSubPathIgnoreCase function, querying with lowercase path should return all matches regardless of case
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(SANDBOX_MANAGER_PERSISTED_POLICY,
+        "/user_grant", dbResult));
+
+    // Should return all three values since they all start with "/user_grant" (case insensitive)
+    uint64_t sizeLimit = 3;
+    EXPECT_EQ(sizeLimit, dbResult.size());
+
+    // Verify the results contain the expected paths
+    bool foundUpper = false, foundLower = false, foundMixed = false;
+    for (const auto &result : dbResult) {
+        std::string path = result.GetString(PolicyFiledConst::FIELD_PATH);
+        if (path == "/USER_GRANT/A") foundUpper = true;
+        else if (path == "/user_grant/b") foundLower = true;
+        else if (path == "/User_Grant/C") foundMixed = true;
+    }
+
+    EXPECT_TRUE(foundUpper);
+    EXPECT_TRUE(foundLower);
+    EXPECT_TRUE(foundMixed);
+    
+    // Clean up: Remove the inserted data using the same values vector
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_FindSubPathIgnoreCase_002
+ * @tc.desc: Test FindSubPathIgnoreCase func with exact match and subpath
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_FindSubPathIgnoreCase_002, TestSize.Level0)
+{
+    // Add data with different case paths including exact match
+    GenericValues valueExactUpper;
+    valueExactUpper.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    valueExactUpper.Put(PolicyFiledConst::FIELD_PATH, "/USER_GRANT");  // Exact uppercase match
+    valueExactUpper.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
+    valueExactUpper.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(1)); // 1 means '/' included in path
+    valueExactUpper.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    GenericValues valueSubUpper;
+    valueSubUpper.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    valueSubUpper.Put(PolicyFiledConst::FIELD_PATH, "/USER_GRANT/A");  // Subpath uppercase
+    valueSubUpper.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b11));
+    valueSubUpper.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(2)); // 2 means '/' included in path
+    valueSubUpper.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    GenericValues valueExactLower;
+    valueExactLower.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    valueExactLower.Put(PolicyFiledConst::FIELD_PATH, "/user_grant");  // Exact lowercase match
+    valueExactLower.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b10));
+    valueExactLower.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(1)); // 1 means '/' included in path
+    valueExactLower.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    GenericValues valueDifferent;
+    valueDifferent.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    valueDifferent.Put(PolicyFiledConst::FIELD_PATH, "/other_path");  // Different path
+    valueDifferent.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b00));
+    valueDifferent.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(1)); // 1 means '/' included in path
+    valueDifferent.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    std::vector<GenericValues> values = {valueExactUpper, valueSubUpper, valueExactLower, valueDifferent};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY,
+        values));
+
+    // Test FindSubPathIgnoreCase function with exact match, should return exact match and subpaths
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(SANDBOX_MANAGER_PERSISTED_POLICY,
+        "/user_grant", dbResult));
+
+    // Should return three values: exact matches and subpaths
+    // 1. "/USER_GRANT" - exact match (different case)
+    // 2. "/USER_GRANT/A" - subpath match
+    // 3. "/user_grant" - exact match (same case)
+    uint64_t sizeLimit = 3;
+    EXPECT_EQ(sizeLimit, dbResult.size());
+
+    // Verify the results contain the expected paths
+    bool foundExactUpper = false, foundSubUpper = false, foundExactLower = false, foundOther = false;
+    for (const auto &result : dbResult) {
+        std::string path = result.GetString(PolicyFiledConst::FIELD_PATH);
+        if (path == "/USER_GRANT") foundExactUpper = true;
+        else if (path == "/USER_GRANT/A") foundSubUpper = true;
+        else if (path == "/user_grant") foundExactLower = true;
+        else if (path == "/other_path") foundOther = true;
+    }
+
+    // Check that exact matches and subpath were found, but not the unrelated path
+    EXPECT_TRUE(foundExactUpper);
+    EXPECT_TRUE(foundSubUpper);
+    EXPECT_TRUE(foundExactLower);
+    EXPECT_FALSE(foundOther);  // This should not be found since it doesn't match
+    
+    // Clean up: Remove the inserted data using the same values vector
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+}
+
+/**
  * @tc.name: SandboxManagerRdbTest001
  * @tc.desc: Test add func
  * @tc.type: FUNC

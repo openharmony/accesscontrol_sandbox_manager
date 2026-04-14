@@ -303,8 +303,8 @@ int32_t SandboxManagerRdb::Modify(const DataType type, const GenericValues& modi
     return SUCCESS;
 }
 
-int32_t SandboxManagerRdb::FindSubPath(
-    const DataType type, const std::string& filePath, std::vector<GenericValues>& results)
+int32_t SandboxManagerRdb::FindSubPathIgnoreCase(
+    const DataType type, const std::string &filePath, std::vector<GenericValues> &results)
 {
     std::string tableName;
     GetTableNameByType(type, tableName);
@@ -325,8 +325,9 @@ int32_t SandboxManagerRdb::FindSubPath(
     NativeRdb::ValueObject arg2(filePath);
     bindArgs.push_back(arg1);
     bindArgs.push_back(arg2);
+
     std::string sql = "select * from " + tableName + " where " + PolicyFiledConst::FIELD_PATH
-        + " like ? or " + PolicyFiledConst::FIELD_PATH + " = ?";
+        + " LIKE ? COLLATE NOCASE or " + PolicyFiledConst::FIELD_PATH + " = ? COLLATE NOCASE";
     auto queryResultSet = db_->QuerySql(sql, bindArgs);
     if (queryResultSet == nullptr) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to find records from table %{public}s.", tableName.c_str());
