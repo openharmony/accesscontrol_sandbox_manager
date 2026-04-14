@@ -66,7 +66,7 @@ int32_t SandboxManagerRdbOpenCallback::OnUpgrade(
 
     // Upgrade from version 1 | 2 to version 3: Add SHARED_FILE_INFO_TABLE
     if (currentVersion < 3 && targetVersion >= 3) {
-        int32_t res = CreateBundlePersistentPolicyTable(rdbStore, SHARED_FILE_INFO_TABLE);
+        int32_t res = CreateSharedFileInfoTable(rdbStore, SHARED_FILE_INFO_TABLE);
         if (res != NativeRdb::E_OK) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to create table SHARED_FILE_INFO_TABLE during upgrade");
             return res;
