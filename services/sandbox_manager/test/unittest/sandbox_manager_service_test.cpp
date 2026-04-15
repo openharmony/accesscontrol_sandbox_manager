@@ -499,7 +499,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest009, TestSize.Level
 
 /**
  * @tc.name: SandboxManagerServiceTest010
- * @tc.desc: Test StartByEventAction
+ * @tc.desc: Test StartByEventAction - PACKAGE_REMOVED with various inputs
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -511,39 +511,47 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest010, TestSize.Level
     SystemAbilityOnDemandReason startReason;
     startReason.SetName("test");
     EXPECT_TRUE(sandboxManagerService_->StartByEventAction(startReason));
+
     startReason.SetName(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_REMOVED);
-    std::map<std::string, std::string> want = {{"testKey", "testVal"}}; // test input
+
+    // Test 1: Missing bundleName
+    std::map<std::string, std::string> want = {{"accessTokenId", "12345"}, {"userId", "100"}, {"appIndex", "0"}};
     OnDemandReasonExtraData extraData1(0, "test", want);
     startReason.SetExtraData(extraData1);
-    // accessTokenId not found
     EXPECT_FALSE(sandboxManagerService_->StartByEventAction(startReason));
-    // accessTokenId is empty
-    want = {{"accessTokenId", ""}};
+
+    // Test 2: Missing appIndex
+    want = {{"accessTokenId", "12345"}, {"bundleName", "test.bundle"}, {"userId", "100"}};
     OnDemandReasonExtraData extraData2(0, "test", want);
     startReason.SetExtraData(extraData2);
     EXPECT_FALSE(sandboxManagerService_->StartByEventAction(startReason));
-    // accessTokenId all text
-    want = {{"accessTokenId", "test"}}; // this is a test input
+
+    // Test 3: appIndex == 0, preserve == true, missing appIdentifier
+    want = {{"accessTokenId", "12345"}, {"bundleName", "test.bundle"}, {"userId", "100"},
+        {"appIndex", "0"}, {"ohos.fileshare.supportPreservePersistentPermission", "true"}};
     OnDemandReasonExtraData extraData3(0, "test", want);
     startReason.SetExtraData(extraData3);
     EXPECT_FALSE(sandboxManagerService_->StartByEventAction(startReason));
-    // accessTokenId first char is digit
-    want = {{"accessTokenId", "0test"}}; // this is a test input
+
+    // Test 4: appIndex == 0, preserve == false (should remove bundle policy)
+    want = {{"accessTokenId", "12345"}, {"bundleName", "test.bundle"}, {"userId", "100"},
+        {"appIndex", "0"}, {"ohos.fileshare.supportPreservePersistentPermission", "false"}};
     OnDemandReasonExtraData extraData4(0, "test", want);
     startReason.SetExtraData(extraData4);
-    EXPECT_FALSE(sandboxManagerService_->StartByEventAction(startReason));
-    // accessTokenId is 0
-    want = {{"accessTokenId", "0"}};
-    OnDemandReasonExtraData extraData5(0, "test", want);
-    startReason.SetExtraData(extraData5);
-    EXPECT_FALSE(sandboxManagerService_->StartByEventAction(startReason));
-    // normal call
-    want = {{"accessTokenId", "1"}};
-    OnDemandReasonExtraData extraData6(0, "test", want);
-    startReason.SetExtraData(extraData6);
     EXPECT_TRUE(sandboxManagerService_->StartByEventAction(startReason));
 
-    startReason.SetName(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_FULLY_REMOVED);
+    // Test 5: appIndex != 0 (should remove bundle policy)
+    want = {{"accessTokenId", "12345"}, {"bundleName", "test.bundle.hap"}, {"userId", "100"}, {"appIndex", "1"}};
+    OnDemandReasonExtraData extraData5(0, "test", want);
+    startReason.SetExtraData(extraData5);
+    EXPECT_TRUE(sandboxManagerService_->StartByEventAction(startReason));
+
+    // Test 6: appIndex == 0, preserve == true, with appIdentifier (should save)
+    want = {{"accessTokenId", "12345"}, {"bundleName", "test.bundle.preserve"}, {"userId", "100"},
+        {"appIndex", "0"}, {"ohos.fileshare.supportPreservePersistentPermission", "true"},
+        {"appIdentifier", "test.bundle.preserve"}};
+    OnDemandReasonExtraData extraData6(0, "test", want);
+    startReason.SetExtraData(extraData6);
     EXPECT_TRUE(sandboxManagerService_->StartByEventAction(startReason));
 }
 
@@ -1532,6 +1540,301 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceNew005, TestSize.Level0
     policyRawData2.Marshalling(policy);
     EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->CheckPolicy(selfTokenId_, policyRawData2, resultRawData));
 }
+
+/**
+ * @tc.name: SandboxManagerServiceTest015
+ * @tc.desc: Test StartByEventAction - PACKAGE_REMOVED with preserve config
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest015, TestSize.Level0)
+{
+    ASSERT_TRUE(sandboxManagerService_->Initialize());
+    sandboxManagerService_->OnAddSystemAbility(COMMON_EVENT_SERVICE_ID, "test");
+
+    SystemAbilityOnDemandReason startReason;
+    startReason.SetName(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_REMOVED);
+
+    // Test with preserve config = true
+    std::map<std::string, std::string> want = {
+        {"accessTokenId", "12345"},
+        {"bundleName", "test.bundle.preserve"},
+        {"userId", "100"},
+        {"appIndex", "0"},
+        {"ohos.fileshare.supportPreservePersistentPermission", "true"},
+        {"appIdentifier", "test.bundle.preserve"}
+    };
+    OnDemandReasonExtraData extraData(0, "test", want);
+    startReason.SetExtraData(extraData);
+
+    EXPECT_TRUE(sandboxManagerService_->StartByEventAction(startReason));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceTest016
+ * @tc.desc: Test StartByEventAction - PACKAGE_REMOVED without preserve config
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest016, TestSize.Level0)
+{
+    ASSERT_TRUE(sandboxManagerService_->Initialize());
+    sandboxManagerService_->OnAddSystemAbility(COMMON_EVENT_SERVICE_ID, "test");
+
+    SystemAbilityOnDemandReason startReason;
+    startReason.SetName(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_REMOVED);
+
+    // Test with preserve config = false (should remove bundle policy)
+    std::map<std::string, std::string> want = {
+        {"accessTokenId", "12345"},
+        {"bundleName", "test.bundle.remove"},
+        {"userId", "100"},
+        {"appIndex", "0"},
+        {"ohos.fileshare.supportPreservePersistentPermission", "false"}
+    };
+    OnDemandReasonExtraData extraData(0, "test", want);
+    startReason.SetExtraData(extraData);
+
+    EXPECT_TRUE(sandboxManagerService_->StartByEventAction(startReason));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceTest017
+ * @tc.desc: Test StartByEventAction - PACKAGE_REMOVED with appIndex != 0
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest017, TestSize.Level0)
+{
+    ASSERT_TRUE(sandboxManagerService_->Initialize());
+    sandboxManagerService_->OnAddSystemAbility(COMMON_EVENT_SERVICE_ID, "test");
+
+    SystemAbilityOnDemandReason startReason;
+    startReason.SetName(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_REMOVED);
+
+    // Test with appIndex != 0
+    std::map<std::string, std::string> want = {
+        {"accessTokenId", "12345"},
+        {"bundleName", "test.bundle.hap"},
+        {"userId", "100"},
+        {"appIndex", "1"}
+    };
+    OnDemandReasonExtraData extraData(0, "test", want);
+    startReason.SetExtraData(extraData);
+
+    EXPECT_TRUE(sandboxManagerService_->StartByEventAction(startReason));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceTest018
+ * @tc.desc: Test StartByEventAction - PACKAGE_ADDED event
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest018, TestSize.Level0)
+{
+    ASSERT_TRUE(sandboxManagerService_->Initialize());
+    sandboxManagerService_->OnAddSystemAbility(COMMON_EVENT_SERVICE_ID, "test");
+
+    SystemAbilityOnDemandReason startReason;
+    startReason.SetName(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_ADDED);
+
+    std::map<std::string, std::string> want = {
+        {"accessTokenId", "54321"},
+        {"bundleName", "test.bundle.add"},
+        {"userId", "100"},
+        {"appIdentifier", "test.bundle.add"}
+    };
+    OnDemandReasonExtraData extraData(0, "test", want);
+    startReason.SetExtraData(extraData);
+
+    EXPECT_TRUE(sandboxManagerService_->StartByEventAction(startReason));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceTest019
+ * @tc.desc: Test StartByEventAction - invalid appIndex value
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest019, TestSize.Level0)
+{
+    ASSERT_TRUE(sandboxManagerService_->Initialize());
+    sandboxManagerService_->OnAddSystemAbility(COMMON_EVENT_SERVICE_ID, "test");
+
+    SystemAbilityOnDemandReason startReason;
+    startReason.SetName(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_REMOVED);
+
+    // Test with invalid appIndex (text)
+    std::map<std::string, std::string> want = {
+        {"accessTokenId", "12345"},
+        {"bundleName", "test.bundle"},
+        {"userId", "100"},
+        {"appIndex", "invalid"}
+    };
+    OnDemandReasonExtraData extraData(0, "test", want);
+    startReason.SetExtraData(extraData);
+
+    EXPECT_FALSE(sandboxManagerService_->StartByEventAction(startReason));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceTest020
+ * @tc.desc: Test StartByEventAction - missing appIdentifier with preserve=true
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest020, TestSize.Level0)
+{
+    ASSERT_TRUE(sandboxManagerService_->Initialize());
+    sandboxManagerService_->OnAddSystemAbility(COMMON_EVENT_SERVICE_ID, "test");
+
+    SystemAbilityOnDemandReason startReason;
+    startReason.SetName(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_REMOVED);
+
+    // Test with preserve=true but missing appIdentifier
+    std::map<std::string, std::string> want = {
+        {"accessTokenId", "12345"},
+        {"bundleName", "test.bundle"},
+        {"userId", "100"},
+        {"appIndex", "0"},
+        {"ohos.fileshare.supportPreservePersistentPermission", "true"}
+    };
+    OnDemandReasonExtraData extraData(0, "test", want);
+    startReason.SetExtraData(extraData);
+
+    EXPECT_FALSE(sandboxManagerService_->StartByEventAction(startReason));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceTest021
+ * @tc.desc: Test StartByEventAction - PACKAGE_ADDED missing appIdentifier
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest021, TestSize.Level0)
+{
+    ASSERT_TRUE(sandboxManagerService_->Initialize());
+    sandboxManagerService_->OnAddSystemAbility(COMMON_EVENT_SERVICE_ID, "test");
+
+    SystemAbilityOnDemandReason startReason;
+    startReason.SetName(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_ADDED);
+
+    std::map<std::string, std::string> want = {
+        {"accessTokenId", "54321"},
+        {"bundleName", "test.bundle.add"},
+        {"userId", "100"}
+    };
+    OnDemandReasonExtraData extraData(0, "test", want);
+    startReason.SetExtraData(extraData);
+
+    EXPECT_FALSE(sandboxManagerService_->StartByEventAction(startReason));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceTest022
+ * @tc.desc: Test StartByEventAction - invalid preserve config value
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest022, TestSize.Level0)
+{
+    ASSERT_TRUE(sandboxManagerService_->Initialize());
+    sandboxManagerService_->OnAddSystemAbility(COMMON_EVENT_SERVICE_ID, "test");
+
+    SystemAbilityOnDemandReason startReason;
+    startReason.SetName(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_REMOVED);
+
+    std::map<std::string, std::string> want = {
+        {"accessTokenId", "12345"},
+        {"bundleName", "test.bundle"},
+        {"userId", "100"},
+        {"appIndex", "0"},
+        {"ohos.fileshare.supportPreservePersistentPermission", "false"}
+    };
+    OnDemandReasonExtraData extraData(0, "test", want);
+    startReason.SetExtraData(extraData);
+
+    EXPECT_TRUE(sandboxManagerService_->StartByEventAction(startReason));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceTest023
+ * @tc.desc: Test StartByEventAction - PACKAGE_FULLY_REMOVED event
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest023, TestSize.Level0)
+{
+    ASSERT_TRUE(sandboxManagerService_->Initialize());
+    sandboxManagerService_->OnAddSystemAbility(COMMON_EVENT_SERVICE_ID, "test");
+
+    SystemAbilityOnDemandReason startReason;
+    startReason.SetName(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_FULLY_REMOVED);
+
+    std::map<std::string, std::string> want = {
+        {"accessTokenId", "12345"},
+        {"bundleName", "test.bundle.fully"},
+        {"userId", "100"},
+        {"appIndex", "0"},
+        {"ohos.fileshare.supportPreservePersistentPermission", "false"}
+    };
+    OnDemandReasonExtraData extraData(0, "test", want);
+    startReason.SetExtraData(extraData);
+
+    EXPECT_TRUE(sandboxManagerService_->StartByEventAction(startReason));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceTest024
+ * @tc.desc: Test StartByEventAction - unknown event name
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest024, TestSize.Level0)
+{
+    ASSERT_TRUE(sandboxManagerService_->Initialize());
+    sandboxManagerService_->OnAddSystemAbility(COMMON_EVENT_SERVICE_ID, "test");
+
+    SystemAbilityOnDemandReason startReason;
+    startReason.SetName("unknown.event");
+
+    std::map<std::string, std::string> want = {
+        {"test", "value"}
+    };
+    OnDemandReasonExtraData extraData(0, "test", want);
+    startReason.SetExtraData(extraData);
+
+    EXPECT_TRUE(sandboxManagerService_->StartByEventAction(startReason));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceTest025
+ * @tc.desc: Test StartByEventAction - PACKAGE_DATA_CLEARED event
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest025, TestSize.Level0)
+{
+    ASSERT_TRUE(sandboxManagerService_->Initialize());
+    sandboxManagerService_->OnAddSystemAbility(COMMON_EVENT_SERVICE_ID, "test");
+
+    SystemAbilityOnDemandReason startReason;
+    startReason.SetName(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_DATA_CLEARED);
+
+    std::map<std::string, std::string> want = {
+        {"accessTokenId", "12345"},
+        {"bundleName", "test.bundle.clear"},
+        {"userId", "100"},
+        {"appIndex", "0"},
+        {"ohos.fileshare.supportPreservePersistentPermission", "false"}
+    };
+    OnDemandReasonExtraData extraData(0, "test", want);
+    startReason.SetExtraData(extraData);
+
+    EXPECT_TRUE(sandboxManagerService_->StartByEventAction(startReason));
+}
+
 /**
  * @tc.name: SandboxManagerDfxHelperReportPolicyViolateTest001
  * @tc.desc: Test ReportPolicyViolate basic functionality

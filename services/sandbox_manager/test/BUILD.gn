@@ -27,6 +27,7 @@ sandbox_manager_service_src = [
   "../main/cpp/src/mac/mac_adapter.cpp",
   "../main/cpp/src/media/media_path_support.cpp",
   "../main/cpp/src/share/share_files.cpp",
+  "../main/cpp/src/preserve/persistent_preserve.cpp",
 ]
 
 if (!sandbox_manager_process_resident) {
@@ -65,6 +66,7 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/mac",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/media",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/share",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/preserve",
   ]
   include_dirs += sandbox_manager_service_mock_include
 
@@ -175,6 +177,7 @@ ohos_unittest("libsandbox_policy_test") {
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/mac",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/media",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/share",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/preserve",
   ]
   include_dirs += sandbox_manager_service_mock_include
 

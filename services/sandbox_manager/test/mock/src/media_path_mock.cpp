@@ -98,5 +98,17 @@ int32_t MediaPermissionHelper::CancelPhotoUriPermission(uint32_t srcTokenId, uin
 {
     return 0;
 }
+
+int32_t MediaPermissionHelper::ReservePhotoUriPermission(const bool persistFlag, const std::string &appIdentifier,
+    const std::string &bundleName, const uint32_t bundleIndex, uint32_t tokenId)
+{
+    return 0;
+}
+
+int32_t MediaPermissionHelper::ResumePhotoUriPermission(const std::string &appIdentifier,
+    const std::string &bundleName, const uint32_t bundleIndex, uint32_t tokenId)
+{
+    return 0;
+}
 }
 }

@@ -19,6 +19,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <chrono>
 #include "accesstoken_kit.h"
 #include "ability_manager_client.h"
 #include "common_event_support.h"
@@ -37,6 +38,7 @@
 #endif
 #include "system_ability_definition.h"
 #include "share_files.h"
+#include "persistent_preserve.h"
 #include "shared_directory_info_vec_raw_data.h"
 
 namespace OHOS {
@@ -728,52 +730,135 @@ void SandboxManagerService::DelayUnloadService()
 #endif
 }
 
-bool SandboxManagerService::PackageChangedEventAction(const SystemAbilityOnDemandReason &startReason)
+template <typename T>
+static int32_t GetDemandReasonValue(std::string value, T &data)
+{
+    if (value.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Error empty value received.");
+        return INVALID_PARAMTER;
+    }
+    if (std::isdigit(value[0]) == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid digit userId string received.");
+        return INVALID_PARAMTER;
+    }
+    size_t idx = 0;
+    
+    if constexpr (std::is_same_v<T, uint32_t>) {
+        data = std::stoul(value, &idx);
+    } else {
+        data = std::stoi(value, &idx);
+    }
+    
+    if (idx != value.length()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Convert failed, %{public}s.", value.c_str());
+        return INVALID_PARAMTER;
+    }
+
+    return SANDBOX_MANAGER_OK;
+}
+
+static int32_t GetDemandReasonInfo(const SystemAbilityOnDemandReason &startReason,
+    std::string &bundleName, int32_t &userId, uint32_t &tokenId)
 {
     auto wantMap = startReason.GetExtraData().GetWant();
-    std::string bundleName;
-    int32_t userId = -1;
     for (auto i = wantMap.begin(); i != wantMap.end(); ++i) {
         std::string key = std::string(i->first.data());
         std::string value = std::string(i->second.data());
         if (key == "bundleName") {
             if (value.empty()) {
                 SANDBOXMANAGER_LOG_ERROR(LABEL, "Error empty bundleName received.");
-                return false;
+                return INVALID_PARAMTER;
             }
             bundleName = value;
         }
         if (key == "userId") {
-            if (value.empty()) {
-                SANDBOXMANAGER_LOG_ERROR(LABEL, "Error empty userId received.");
-                return false;
+            if (SANDBOX_MANAGER_OK != GetDemandReasonValue(value, userId)) {
+                return INVALID_PARAMTER;
             }
-            if (std::isdigit(value[0]) == 0) {
-                SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid digit userId string received.");
-                return false;
+            if (userId <= 0) {
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "Error userId received.");
+                return INVALID_PARAMTER;
             }
-            size_t idx = 0;
-            userId = std::stoi(value, &idx);
-            if (idx != value.length()) {
-                SANDBOXMANAGER_LOG_ERROR(LABEL, "Convert failed, userId = %{public}s.", value.c_str());
-                return false;
+        }
+        if (key == "accessTokenId") {
+            if (SANDBOX_MANAGER_OK != GetDemandReasonValue(value, tokenId)) {
+                return INVALID_PARAMTER;
             }
-            if (userId == 0) {
-                SANDBOXMANAGER_LOG_ERROR(LABEL, "Receive invalid userId.");
-                return false;
+            if (tokenId == 0) {
+                SANDBOXMANAGER_LOG_ERROR(LABEL, "Error tokenId received.");
+                return INVALID_PARAMTER;
             }
         }
     }
 
-    if ((userId == -1) || (bundleName.empty())) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "PackageChangedEventAction failed by error input.");
-        return false;
+    if (bundleName.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetDemandReasonInfo failed by error input.");
+        return INVALID_PARAMTER;
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
+static int32_t GetDemandReasonAppIndex(const SystemAbilityOnDemandReason &startReason, int &appIndex)
+{
+    auto iter = startReason.GetExtraData().GetWant().find("appIndex");
+    if (iter == startReason.GetExtraData().GetWant().end()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Extradata search appIndex failed.");
+        return INVALID_PARAMTER;
+    }
+    std::string appIndexID = iter->second;
+    if (SANDBOX_MANAGER_OK != GetDemandReasonValue(appIndexID, appIndex)) {
+        return INVALID_PARAMTER;
     }
 
-    SANDBOXMANAGER_LOG_INFO(LABEL, "bundleName = %{public}s.%{public}d", bundleName.c_str(), userId);
-    int32_t ret = PolicyInfoManager::GetInstance().CleanPolicyByPackageChanged(bundleName, userId);
+    return SANDBOX_MANAGER_OK;
+}
+
+static int32_t GetDemandPreserveConfig(const SystemAbilityOnDemandReason &startReason, std::string &config)
+{
+    auto iter = startReason.GetExtraData().GetWant().find("ohos.fileshare.supportPreservePersistentPermission");
+    if (iter == startReason.GetExtraData().GetWant().end()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Extradata search Preserve Config failed.");
+        return INVALID_PARAMTER;
+    }
+    std::string value = iter->second;
+    if (value.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Error Preserve Config received.");
+        return INVALID_PARAMTER;
+    }
+    config = value;
+    return SANDBOX_MANAGER_OK;
+}
+
+static int32_t GetDemandAppIdentifier(const SystemAbilityOnDemandReason &startReason, std::string &appIdentifier)
+{
+    auto iter = startReason.GetExtraData().GetWant().find("appIdentifier");
+    if (iter == startReason.GetExtraData().GetWant().end()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Extradata search AppIdentifier failed.");
+        return INVALID_PARAMTER;
+    }
+    std::string value = iter->second;
+    if (value.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Error AppIdentifier received.");
+        return INVALID_PARAMTER;
+    }
+    appIdentifier = value;
+    return SANDBOX_MANAGER_OK;
+}
+
+bool SandboxManagerService::PackageChangedEventAction(const SystemAbilityOnDemandReason &startReason)
+{
+    uint32_t tokenId = 0;
+    std::string bundleName;
+    int32_t userId = -1;
+    int32_t ret = GetDemandReasonInfo(startReason, bundleName, userId, tokenId);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "%{public}s  clean policy failed", bundleName.c_str());
+        return false;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "PackageChangedEventAction bundleName = %{public}s.%{public}d.%{public}u",
+        bundleName.c_str(), userId, tokenId);
+    ret = PolicyInfoManager::GetInstance().CleanPolicyByPackageChanged(bundleName, userId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "%{public}s clean policy failed", bundleName.c_str());
         return false;
     }
 
@@ -784,6 +869,83 @@ bool SandboxManagerService::PackageChangedEventAction(const SystemAbilityOnDeman
     return true;
 }
 
+bool SandboxManagerService::PackageAddEventAction(const SystemAbilityOnDemandReason &startReason)
+{
+    uint32_t tokenId = 0;
+    std::string bundleName;
+    std::string appIdentifier;
+    int32_t userId = -1;
+    int32_t ret = GetDemandReasonInfo(startReason, bundleName, userId, tokenId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return false;
+    }
+    ret = GetDemandAppIdentifier(startReason, appIdentifier);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return false;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "PackageAdd %{public}s, %{public}s, userId=%{public}d, tokenId=%{public}u",
+        bundleName.c_str(), appIdentifier.c_str(), userId, tokenId);
+    ret = PersistentPreserve::RestoreBundlePersistentPolicies(appIdentifier, userId, tokenId, bundleName);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return false;
+    }
+    ret = PersistentPreserve::DeleteBundlePersistentPolicies(appIdentifier, userId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return false;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceiveEventAdd for %{public}s", bundleName.c_str());
+    return true;
+}
+
+bool SandboxManagerService::PackageRemoveEventAction(const SystemAbilityOnDemandReason &startReason)
+{
+    uint32_t tokenId = 0;
+    std::string bundleName;
+    std::string appIdentifier;
+    int32_t userId = -1;
+    int32_t ret = GetDemandReasonInfo(startReason, bundleName, userId, tokenId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return false;
+    }
+
+    int32_t appIndex;
+    ret = GetDemandReasonAppIndex(startReason, appIndex);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return false;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "PackageRemoveEventAction bundleName=%{public}s.%{public}d.%{public}u.%{public}d",
+        bundleName.c_str(), userId, tokenId, appIndex);
+    if (appIndex == 0) {
+        std::string shouldPreserve;
+        ret = GetDemandPreserveConfig(startReason, shouldPreserve);
+        if (ret != SANDBOX_MANAGER_OK) {
+            return false;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "main package removed, PreserveConfig=%{public}s", shouldPreserve.c_str());
+        if (shouldPreserve == "true") {
+            ret = GetDemandAppIdentifier(startReason, appIdentifier);
+            if (ret != SANDBOX_MANAGER_OK) {
+                return false;
+            }
+            ret = PersistentPreserve::SaveBundlePersistentPolicies(bundleName, userId, appIdentifier, tokenId);
+            if (ret != SANDBOX_MANAGER_OK) {
+                LOGE_WITH_REPORT(LABEL, "SaveBundlePersistentPolicies failed for %{public}s", bundleName.c_str());
+            }
+            //no need remove bundle policy
+            SANDBOXMANAGER_LOG_INFO(LABEL, "RemoveBundlePolicy, tokenID = %{public}u.", tokenId);
+            return true;
+        }
+    }
+
+    // Remove bundle policy
+    if (PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId) == false) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "RemoveBundlePolicy failed, tokenID = %{public}u.", tokenId);
+        return false;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "RemoveBundlePolicy, tokenID = %{public}u.", tokenId);
+    return true;
+}
+
 bool SandboxManagerService::StartByEventAction(const SystemAbilityOnDemandReason& startReason)
 {
     std::string reasonName = startReason.GetName();
@@ -791,40 +953,13 @@ bool SandboxManagerService::StartByEventAction(const SystemAbilityOnDemandReason
     if (reasonName == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_REMOVED ||
         reasonName == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_FULLY_REMOVED ||
         reasonName == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_DATA_CLEARED) {
-        auto wantMap = startReason.GetExtraData().GetWant();
-        auto iter = startReason.GetExtraData().GetWant().find("accessTokenId");
-        if (iter == startReason.GetExtraData().GetWant().end()) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Extradata search tokenid failed.");
-            return false;
-        }
-        std::string strTokenID = iter->second;
-        // strTokenID[0] must be digit, otherwise stoull would crash
-        if (strTokenID.empty()) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Error empty token received.");
-            return false;
-        }
-        if (std::isdigit(strTokenID[0]) == 0) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid digit token string received.");
-            return false;
-        }
-        size_t idx = 0;
-        uint32_t tokenId = std::stoul(strTokenID, &idx);
-        if (idx != strTokenID.length()) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Convert failed, tokenId = %{public}s.", strTokenID.c_str());
-            return false;
-        }
-        if (tokenId == 0) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Receive invalid tokenId.");
-            return false;
-        }
-        if (PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId) == false) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "RemoveBundlePolicy failed, tokenID = %{public}u.", tokenId);
-            return false;
-        }
-        SANDBOXMANAGER_LOG_INFO(LABEL, "RemovebundlePolicy, tokenID = %{public}u.", tokenId);
+        return PackageRemoveEventAction(startReason);
     }
     if (reasonName == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_CHANGED) {
         return PackageChangedEventAction(startReason);
+    }
+    if (reasonName == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_ADDED) {
+        return PackageAddEventAction(startReason);
     }
     return true;
 }

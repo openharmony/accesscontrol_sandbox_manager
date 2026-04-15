@@ -388,6 +388,48 @@ int32_t SandboxManagerMedia::GetMediaPermission(uint32_t tokenId, const std::vec
     }
     return SANDBOX_MANAGER_OK;
 }
+
+int32_t SandboxManagerMedia::ReserveMediaPoliciesOnRemove(const std::string &appIdentifier,
+    const std::string &bundleName, uint32_t tokenId)
+{
+    if (media_ == nullptr) {
+        if (InitMedia() != SANDBOX_MANAGER_OK) {
+            LOGE_WITH_REPORT(LABEL, "InitMedia error");
+            return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+        }
+    }
+
+    int32_t ret = media_->ReservePhotoUriPermission(true, appIdentifier, bundleName, 0, tokenId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        LOGE_WITH_REPORT(LABEL, "ReserveMediaPolicies error code:%{public}d, bundleName:%{public}s, tokenId:%{public}u",
+            ret, bundleName.c_str(), tokenId);
+        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "ReserveMediaPolicies Finish: bundleName=%{public}s, tokenId=%{public}u",
+        bundleName.c_str(), tokenId);
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t SandboxManagerMedia::ResumeMediaPoliciesOnAdd(const std::string &appIdentifier,
+    const std::string &bundleName, uint32_t tokenId)
+{
+    if (media_ == nullptr) {
+        if (InitMedia() != SANDBOX_MANAGER_OK) {
+            LOGE_WITH_REPORT(LABEL, "InitMedia error");
+            return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+        }
+    }
+
+    int32_t ret = media_->ResumePhotoUriPermission(appIdentifier, bundleName, 0, tokenId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        LOGE_WITH_REPORT(LABEL, "ResumeMediaPolicies error code:%{public}d, bundleName:%{public}s, tokenId:%{public}u",
+            ret, bundleName.c_str(), tokenId);
+        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "ResumeMediaPolicies Finsh: bundleName=%{public}s, tokenId=%{public}u",
+        bundleName.c_str(), tokenId);
+    return SANDBOX_MANAGER_OK;
+}
 } // namespace SandboxManager
 } // namespace AccessControl
 } // namespace OHOS

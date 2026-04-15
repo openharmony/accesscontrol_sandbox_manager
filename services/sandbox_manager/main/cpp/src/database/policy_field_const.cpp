@@ -22,6 +22,12 @@ const std::string PolicyFiledConst::FIELD_PATH = "path";
 const std::string PolicyFiledConst::FIELD_MODE = "mode";
 const std::string PolicyFiledConst::FIELD_DEPTH = "depth";
 const std::string PolicyFiledConst::FIELD_FLAG = "flag";
+// Fields for bundle persistent policy table
+const std::string PolicyFiledConst::FIELD_BUNDLENAME = "bundleName";
+const std::string PolicyFiledConst::FIELD_USERID = "userId";
+const std::string PolicyFiledConst::FIELD_TIMESTAMP = "timestamp";
+const std::string PolicyFiledConst::FIELD_APPIDENTIFIER = "appIdentifier";
+const std::string PolicyFiledConst::FIELD_ORIGINAL_TOKENID = "tokenId";
 // Fields for shared file info table
 const std::string PolicyFiledConst::FIELD_BUNDLE_NAME = "bundleName";
 const std::string PolicyFiledConst::FIELD_USER_ID = "userId";

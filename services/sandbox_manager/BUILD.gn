@@ -52,6 +52,7 @@ if (is_standard_system) {
       "main/cpp/include/mac",
       "main/cpp/include/media",
       "main/cpp/include/share",
+      "main/cpp/include/preserve",
     ]
 
     sources = [
@@ -66,6 +67,7 @@ if (is_standard_system) {
       "main/cpp/src/service/policy_trie.cpp",
       "main/cpp/src/service/sandbox_manager_service.cpp",
       "main/cpp/src/share/share_files.cpp",
+      "main/cpp/src/preserve/persistent_preserve.cpp",
     ]
 
     cflags_cc = [ "-DHILOG_ENABLE" ]

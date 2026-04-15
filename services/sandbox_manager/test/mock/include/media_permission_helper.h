@@ -58,6 +58,10 @@ public:
     int32_t GetPhotoUrisPermission(uint32_t targetTokenld, const std::vector<std::string> &uris,
         const std::vector<PhotoPermissionType> &photoPermissionTypes, std::vector<bool> &result);
     int32_t GetUrisFromFusePaths(const std::vector<std::string> paths, std::vector<std::string> &uris);
+    int32_t ReservePhotoUriPermission(const bool persistFlag, const std::string &appIdentifier,
+        const std::string &bundleName, const uint32_t bundleIndex, uint32_t tokenId);
+    int32_t ResumePhotoUriPermission(const std::string &appIdentifier,
+        const std::string &bundleName, const uint32_t bundleIndex, uint32_t tokenId);
 };
 } // namespace Media
 } // namespace OHOS

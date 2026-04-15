@@ -26,6 +26,8 @@ namespace SandboxManager {
 namespace {
 static const std::vector<std::string> g_StringTypeColumns = {
     PolicyFiledConst::FIELD_PATH,
+    PolicyFiledConst::FIELD_BUNDLENAME,
+    PolicyFiledConst::FIELD_APPIDENTIFIER,
     PolicyFiledConst::FIELD_BUNDLE_NAME,
     PolicyFiledConst::FIELD_SHARED_OS_PATH
 };
@@ -35,6 +37,7 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {LOG_CORE,
 
 static const std::map<DataType, std::string> dataTypeToSqlTable_ = {
     {SANDBOX_MANAGER_PERSISTED_POLICY, "persisted_policy_table"},
+    {SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, "bundle_persistent_policy_table"},
     {SANDBOX_MANAGER_SHARED_FILE_INFO, "shared_file_info_table"},
 };
 }  // namespace
@@ -144,36 +147,60 @@ void ToRdbPredicates(const GenericValues &conditionValue, NativeRdb::RdbPredicat
     }
 }
 
+static void PutIntegerColumn(const std::shared_ptr<NativeRdb::ResultSet> &resultSet,
+    int32_t columnIndex, const std::string &columnName, GenericValues &value)
+{
+    // Special handling for timestamp field - always use int64_t
+    if (columnName == PolicyFiledConst::FIELD_TIMESTAMP) {
+        int64_t data = 0;
+        resultSet->GetLong(columnIndex, data);
+        value.Put(columnName, data);
+        return;
+    }
+
+    size_t typeSize = 0;
+    resultSet->GetSize(columnIndex, typeSize);
+    if (typeSize == sizeof(int64_t)) {
+        int64_t data = 0;
+        resultSet->GetLong(columnIndex, data);
+        value.Put(columnName, data);
+    } else {
+        int32_t data = 0;
+        resultSet->GetInt(columnIndex, data);
+        value.Put(columnName, data);
+    }
+}
+
+static void PutStringColumn(const std::shared_ptr<NativeRdb::ResultSet> &resultSet,
+    int32_t columnIndex, const std::string &columnName, GenericValues &value)
+{
+    std::string data;
+    resultSet->GetString(columnIndex, data);
+    value.Put(columnName, data);
+}
+
+static void ProcessColumn(const std::shared_ptr<NativeRdb::ResultSet> &resultSet,
+    const std::string &columnName, GenericValues &value)
+{
+    int32_t columnIndex = 0;
+    resultSet->GetColumnIndex(columnName, columnIndex);
+
+    NativeRdb::ColumnType type;
+    resultSet->GetColumnType(columnIndex, type);
+
+    if (type == NativeRdb::ColumnType::TYPE_INTEGER) {
+        PutIntegerColumn(resultSet, columnIndex, columnName, value);
+    } else if (type == NativeRdb::ColumnType::TYPE_STRING) {
+        PutStringColumn(resultSet, columnIndex, columnName, value);
+    }
+}
+
 void ResultToGenericValues(const std::shared_ptr<NativeRdb::ResultSet> &resultSet, GenericValues &value)
 {
     std::vector<std::string> columnNames;
     resultSet->GetAllColumnNames(columnNames);
-    uint64_t size = columnNames.size();
-    for (uint64_t i = 0; i < size; ++i) {
-        std::string columnName = columnNames[i];
-        int32_t columnIndex = 0;
-        resultSet->GetColumnIndex(columnName, columnIndex);
-
-        NativeRdb::ColumnType type;
-        resultSet->GetColumnType(columnIndex, type);
-
-        if (type == NativeRdb::ColumnType::TYPE_INTEGER) {
-            size_t typeSize = 0;
-            resultSet->GetSize(columnIndex, typeSize);
-            if (typeSize == sizeof(int64_t)) {
-                int64_t data = 0;
-                resultSet->GetLong(columnIndex, data);
-                value.Put(columnName, data);
-            } else {
-                int32_t data = 0;
-                resultSet->GetInt(columnIndex, data);
-                value.Put(columnName, data);
-            }
-        } else if (type == NativeRdb::ColumnType::TYPE_STRING) {
-            std::string data;
-            resultSet->GetString(columnIndex, data);
-            value.Put(columnName, data);
-        }
+    for (const auto &columnName : columnNames) {
+        ProcessColumn(resultSet, columnName, value);
     }
 }
 } // namespace SandboxManager

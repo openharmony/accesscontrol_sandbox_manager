@@ -41,6 +41,11 @@ int32_t SandboxManagerRdbOpenCallback::OnCreate(NativeRdb::RdbStore &rdbStore)
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to create table PERSISTED_POLICY_TABLE");
         return res;
     }
+    res = CreateBundlePersistentPolicyTable(rdbStore, BUNDLE_PERSISTENT_POLICY_TABLE);
+    if (res != NativeRdb::E_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to create table BUNDLE_PERSISTENT_POLICY_TABLE");
+        return res;
+    }
     res = CreateSharedFileInfoTable(rdbStore, SHARED_FILE_INFO_TABLE);
     if (res != NativeRdb::E_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to create table SHARED_FILE_INFO_TABLE");
@@ -59,7 +64,23 @@ int32_t SandboxManagerRdbOpenCallback::OnCreate(NativeRdb::RdbStore &rdbStore)
 }
 
 int32_t SandboxManagerRdbOpenCallback::OnUpgrade(
-    NativeRdb::RdbStore &rdbStore, int32_t currentVersion, int32_t targetVersion) { return NativeRdb::E_OK; }
+    NativeRdb::RdbStore &rdbStore, int32_t currentVersion, int32_t targetVersion)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "OnUpgrade: currentVersion=%{public}d, targetVersion=%{public}d",
+        currentVersion, targetVersion);
+
+    // Upgrade from version 1 to version 2: Add BUNDLE_PERSISTENT_POLICY_TABLE
+    if (currentVersion == 1 && targetVersion >= 2) {
+        int32_t res = CreateBundlePersistentPolicyTable(rdbStore, BUNDLE_PERSISTENT_POLICY_TABLE);
+        if (res != NativeRdb::E_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to create table BUNDLE_PERSISTENT_POLICY_TABLE during upgrade");
+            return res;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 2");
+    }
+
+    return NativeRdb::E_OK;
+}
 
 int32_t SandboxManagerRdbOpenCallback::CreatePersistedPolicyTable(NativeRdb::RdbStore &rdbStore,
     const std::string &tableName) const
@@ -105,6 +126,35 @@ int32_t SandboxManagerRdbOpenCallback::CreateSharedFileInfoTable(NativeRdb::RdbS
         .append(INTEGER_STR)
         .append("primary key(")
         .append(PolicyFiledConst::FIELD_TOKENID)
+        .append("))");
+    return rdbStore.ExecuteSql(sql);
+}
+
+int32_t SandboxManagerRdbOpenCallback::CreateBundlePersistentPolicyTable(NativeRdb::RdbStore &rdbStore,
+    const std::string &tableName) const
+{
+    std::string sql = "create table if not exists ";
+    sql.append(tableName + " (")
+        .append(PolicyFiledConst::FIELD_BUNDLENAME)
+        .append(TEXT_STR)
+        .append(PolicyFiledConst::FIELD_USERID)
+        .append(INTEGER_STR)
+        .append(PolicyFiledConst::FIELD_APPIDENTIFIER)
+        .append(TEXT_STR)
+        .append(PolicyFiledConst::FIELD_ORIGINAL_TOKENID)
+        .append(INTEGER_STR)
+        .append(PolicyFiledConst::FIELD_TIMESTAMP)
+        .append(INTEGER_STR)
+        .append("primary key(")
+        .append(PolicyFiledConst::FIELD_BUNDLENAME)
+        .append(",")
+        .append(PolicyFiledConst::FIELD_USERID)
+        .append(",")
+        .append(PolicyFiledConst::FIELD_APPIDENTIFIER)
+        .append(",")
+        .append(PolicyFiledConst::FIELD_ORIGINAL_TOKENID)
+        .append(",")
+        .append(PolicyFiledConst::FIELD_TIMESTAMP)
         .append("))");
     return rdbStore.ExecuteSql(sql);
 }
