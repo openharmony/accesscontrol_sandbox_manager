@@ -47,7 +47,7 @@ public:
     MediaPermissionHelper() = default;
     virtual ~MediaPermissionHelper() = default;
     static MediaPermissionHelper *GetMediaPermissionHelper();
-    void InitMediaPermissionHelper();
+    int32_t InitMediaPermissionHelper();
     int32_t CheckPhotoUriPermission(uint32_t tokenId,
         const std::vector<std::string> &urisSource, std::vector<bool> &result, const std::vector<uint32_t> &flags);
     int32_t GrantPhotoUriPermission(uint32_t srcTokenId, uint32_t targetTokenId, const std::vector<std::string> &uris,
