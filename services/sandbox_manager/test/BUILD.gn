@@ -89,7 +89,6 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
     "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_stub",
     "${sandbox_manager_path}/frameworks/sandbox_test_common:sandbox_test_common_source_set",
     "${sandbox_manager_path}/services/common:sandbox_manager_service_common",
-    "${sandbox_manager_path}/services/sandbox_manager:sandbox_manager_service",
   ]
 
   external_deps = [
