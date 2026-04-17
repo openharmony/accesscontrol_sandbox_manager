@@ -74,7 +74,11 @@ int32_t SandboxManagerMedia::InitMedia()
             LOGE_WITH_REPORT(LABEL, "MediaPermissionHelper error");
             return INVALID_PARAMTER;
         }
-        media_->InitMediaPermissionHelper();
+        int32_t ret = media_->InitMediaPermissionHelper();
+        if (ret != SANDBOX_MANAGER_OK) {
+            media_ = nullptr;
+            return ret;
+        }
     }
     return SANDBOX_MANAGER_OK;
 }
@@ -389,14 +393,27 @@ int32_t SandboxManagerMedia::GetMediaPermission(uint32_t tokenId, const std::vec
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t SandboxManagerMedia::ReserveMediaPoliciesOnRemove(const std::string &appIdentifier,
-    const std::string &bundleName, uint32_t tokenId)
+int32_t SandboxManagerMedia::EnsureMediaInitialized(const std::string &funcName)
 {
     if (media_ == nullptr) {
         if (InitMedia() != SANDBOX_MANAGER_OK) {
-            LOGE_WITH_REPORT(LABEL, "InitMedia error");
+            LOGE_WITH_REPORT(LABEL, "%{public}s InitMedia failed, media may not activated", funcName.c_str());
             return SANDBOX_MANAGER_MEDIA_CALL_ERR;
         }
+    } else {
+        if (media_->InitMediaPermissionHelper() != SANDBOX_MANAGER_OK) {
+            LOGE_WITH_REPORT(LABEL, "%{public}s InitMediaPermissionHelper failed", funcName.c_str());
+            return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+        }
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t SandboxManagerMedia::ReserveMediaPoliciesOnRemove(const std::string &appIdentifier,
+    const std::string &bundleName, uint32_t tokenId)
+{
+    if (EnsureMediaInitialized(__FUNCTION__) != SANDBOX_MANAGER_OK) {
+        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
 
     int32_t ret = media_->ReservePhotoUriPermission(true, appIdentifier, bundleName, 0, tokenId);
@@ -413,11 +430,8 @@ int32_t SandboxManagerMedia::ReserveMediaPoliciesOnRemove(const std::string &app
 int32_t SandboxManagerMedia::ResumeMediaPoliciesOnAdd(const std::string &appIdentifier,
     const std::string &bundleName, uint32_t tokenId)
 {
-    if (media_ == nullptr) {
-        if (InitMedia() != SANDBOX_MANAGER_OK) {
-            LOGE_WITH_REPORT(LABEL, "InitMedia error");
-            return SANDBOX_MANAGER_MEDIA_CALL_ERR;
-        }
+    if (EnsureMediaInitialized(__FUNCTION__) != SANDBOX_MANAGER_OK) {
+        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
 
     int32_t ret = media_->ResumePhotoUriPermission(appIdentifier, bundleName, 0, tokenId);
@@ -426,7 +440,7 @@ int32_t SandboxManagerMedia::ResumeMediaPoliciesOnAdd(const std::string &appIden
             ret, bundleName.c_str(), tokenId);
         return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
-    SANDBOXMANAGER_LOG_INFO(LABEL, "ResumeMediaPolicies Finsh: bundleName=%{public}s, tokenId=%{public}u",
+    SANDBOXMANAGER_LOG_INFO(LABEL, "ResumeMediaPolicies Finish: bundleName=%{public}s, tokenId=%{public}u",
         bundleName.c_str(), tokenId);
     return SANDBOX_MANAGER_OK;
 }

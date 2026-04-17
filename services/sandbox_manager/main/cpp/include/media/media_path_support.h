@@ -74,6 +74,7 @@ public:
 private:
     template <typename T>
     void MediaDfx(std::vector<std::string> &uri, std::vector<T> &mode);
+    int32_t EnsureMediaInitialized(const std::string &funcName);
     Media::MediaPermissionHelper *media_ = nullptr;
 };
 } // namespace SandboxManager

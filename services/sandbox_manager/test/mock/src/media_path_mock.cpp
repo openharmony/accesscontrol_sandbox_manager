@@ -21,9 +21,9 @@ MediaPermissionHelper *MediaPermissionHelper::GetMediaPermissionHelper()
     return &mediaLibMgr;
 }
 
-void MediaPermissionHelper::InitMediaPermissionHelper()
+int32_t MediaPermissionHelper::InitMediaPermissionHelper()
 {
-    return;
+    return 0;
 }
 
 constexpr const char* MEDIA_PATH_1 = "/data/storage/el2/media/Photo/1/1/1.jpg";
