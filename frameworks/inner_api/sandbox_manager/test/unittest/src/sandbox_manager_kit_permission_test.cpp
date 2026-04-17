@@ -55,9 +55,6 @@ const size_t MAX_POLICY_NUM = 8;
 const int DEC_POLICY_HEADER_RESERVED = 64;
 uint32_t g_selfTokenId;
 uint32_t g_mockToken;
-#ifdef DEC_ENABLED
-const int32_t FOUNDATION_UID = 5523;
-#endif
 Security::AccessToken::PermissionStateFull g_testState1 = {
     .permissionName = SET_POLICY_PERMISSION,
     .isGeneral = true,
