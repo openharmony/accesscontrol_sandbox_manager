@@ -1031,7 +1031,7 @@ int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const std::vector<Polic
         if (IsModeMatchPolicyType(policies[index].mode, SetPolicyType::TEMP_POLICY) != true) {
             result[index] = static_cast<uint32_t>(SandboxRetType::INVALID_MODE);
             ++invalidNum;
-            SANDBOXMANAGER_LOG_WARN(LABEL, "Invalid policy mode: %{public}llu", policies[index].mode);
+            SANDBOXMANAGER_LOG_WARN(LABEL, "Invalid policy mode: %{public}" PRIu64, policies[index].mode);
             continue;
         }
         validIndex.emplace_back(index);
