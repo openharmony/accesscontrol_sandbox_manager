@@ -46,7 +46,12 @@
         "relational_store",
         "safwk",
         "samgr",
-        "security_guard"
+        "security_guard",
+        "init",
+        "jsoncpp",
+        "selinux_adapter",
+        "selinux",
+        "bounds_checking_function"
       ],
       "third_party": []
     },
@@ -54,7 +59,9 @@
       "group_type":{
         "service_group": [
           "//base/accesscontrol/sandbox_manager/services/sandbox_manager:sandbox_manager_service",
-          "//base/accesscontrol/sandbox_manager/services/sandbox_manager/main/sa_profile:sandbox_manager_sa_profile_standard"
+          "//base/accesscontrol/sandbox_manager/services/sandbox_manager/main/sa_profile:sandbox_manager_sa_profile_standard",
+          "//base/accesscontrol/sandbox_manager/modules/claw_sandbox:claw_sandbox",
+          "//base/accesscontrol/sandbox_manager/modules/claw_sandbox:claw_sandbox.rc"
         ]
       },
       "inner_kits": [
