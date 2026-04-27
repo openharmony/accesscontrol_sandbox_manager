@@ -1621,10 +1621,13 @@ bool PolicyInfoManager::ShareMapRangeCheck(const std::string &path, std::vector<
     if ((components[EL_LEVEL_SEGMENT] != "el2") ||
         (components[BASE_SEGMENT] != "base") ||
         (std::find(SUB_PATHS.begin(), SUB_PATHS.end(), components[SUB_PATH_SEGMENT]) == SUB_PATHS.end())) {
-        LOGE_WITH_REPORT(LABEL, "missmatch sharemap, path = %{public}s", path.c_str());
+        std::string subPathMask = components[SUB_PATH_SEGMENT].substr(0, 3) + "*";
+        std::string maskPath = "***" + components[EL_LEVEL_SEGMENT] + "/" + components[BASE_SEGMENT] + "/" +
+            components[MAX_CHECK_COM_NUM] + "/" + subPathMask;
+        LOGE_WITH_REPORT(LABEL, "missmatch sharemap, path = %{public}s", maskPath.c_str());
         return false;
     }
-    
+
     return true;
 }
 
