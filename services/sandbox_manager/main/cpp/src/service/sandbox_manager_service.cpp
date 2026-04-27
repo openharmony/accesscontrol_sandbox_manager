@@ -21,7 +21,6 @@
 #include <cstdint>
 #include <chrono>
 #include "accesstoken_kit.h"
-#include "ability_manager_client.h"
 #include "common_event_support.h"
 #include "ipc_skeleton.h"
 #include "iservice_registry.h"
@@ -39,12 +38,14 @@
 #include "system_ability_definition.h"
 #include "share_files.h"
 #include "persistent_preserve.h"
+#include "tokenid_kit.h"
 #include "shared_directory_info_vec_raw_data.h"
 
 namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
 using namespace OHOS::AppExecFwk;
+using namespace OHOS::Security::AccessToken;
 namespace {
 static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerService"
@@ -54,6 +55,8 @@ static constexpr int32_t SA_READY_TO_UNLOAD = 0;
 static constexpr int32_t SA_REFUSE_TO_UNLOAD = -1;
 #endif
 static constexpr int32_t BASE_USER_RANGE = 200000;
+static constexpr uint32_t TOKEN_ID_LOWMASK = 0xffffffff;
+static constexpr int32_t KILL_PROCESS_FOR_PERMISSION_UPDATE = 5300;
 }
 
 REGISTER_SYSTEM_ABILITY_BY_ID(SandboxManagerService,
@@ -304,7 +307,13 @@ int32_t SandboxManagerService::UnPersistPolicy(
 int32_t SandboxManagerService::UnPersistPolicy(uint32_t tokenId)
 {
     DelayUnloadService();
-    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
+    if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unpersist failed, not system app");
+        return SANDBOX_MANAGER_NOT_SYS_APP;
+    }
+
+    AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
     if (!CheckPermission(callingTokenId, REVOKE_PERSIST_PERMISSION_NAME)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Unpersist failed, check permission failed");
         return PERMISSION_DENIED;
@@ -314,9 +323,15 @@ int32_t SandboxManagerService::UnPersistPolicy(uint32_t tokenId)
         return INVALID_PARAMTER;
     }
 
+    ATokenTypeEnum tokenType = AccessTokenKit::GetTokenType(tokenId);
+    if (tokenType == TOKEN_INVALID) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unpersist failed, tokenId not exist");
+        return INVALID_PARAMTER;
+    }
+
     // Remove all policies associated with the token ID
     if (!PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "UnPersistPolicy RemoveBundlePolicy failed for tokenId=%{public}u", tokenId);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "UnPersistPolicy failed for tokenId=%{public}u", tokenId);
         return SANDBOX_MANAGER_DB_ERR;
     }
 
@@ -328,13 +343,15 @@ int32_t SandboxManagerService::UnPersistPolicy(uint32_t tokenId)
         return ret;
     }
 
-    ret = AbilityManagerClient::GetInstance()->KillProcessForPermissionUpdate(tokenId);
-    if (ret != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Kill process failed for tokenId=%{public}u, error=%{public}d",
-            tokenId, ret);
-        return SANDBOX_MANAGER_KILL_PROCESS_ERR;
+    if (tokenType == ATokenTypeEnum::TOKEN_HAP) {
+        ret = KillProcessForPermissionUpdate(tokenId);
+        if (ret != 0) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Kill process failed for tokenId=%{public}u, error=%{public}d",
+                tokenId, ret);
+            return SANDBOX_MANAGER_KILL_PROCESS_ERR;
+        }
     }
-    
+
     return ret;
 }
 
@@ -370,11 +387,39 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
     uint32_t tokenId, const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData)
 {
     DelayUnloadService();
-    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
-    if (!(CheckPermission(callingTokenId, REVOKE_PERSIST_PERMISSION_NAME) || IsFileManagerCalling(callingTokenId))) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
+
+    uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
+    AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
+
+    bool isFileManagerService = (Security::AccessToken::AccessTokenKit::GetNativeTokenId("file_manager_service") ==
+        callingTokenId);
+    ATokenTypeEnum callingTokenType = AccessTokenKit::GetTokenType(callingTokenId);
+    ATokenTypeEnum tokenType = AccessTokenKit::GetTokenType(tokenId);
+    if (isFileManagerService) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "UnPersistPolicyByTokenId by file_manager_service");
+    } else if (callingTokenType == ATokenTypeEnum::TOKEN_HAP) {
+        if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
+            LOGE_WITH_REPORT(LABEL, "UnPersistPolicyByTokenId failed, permission denied - caller is not system app");
+            return SANDBOX_MANAGER_NOT_SYS_APP;
+        }
+
+        // System HAP apps need to check the specific permission
+        if (!CheckPermission(callingTokenId, REVOKE_PERSIST_PERMISSION_NAME)) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "UnPersistPolicyByTokenId failed, required permission: %{public}s",
+                REVOKE_PERSIST_PERMISSION_NAME.c_str());
+            return PERMISSION_DENIED;
+        }
+
+        if (tokenType == TOKEN_INVALID) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Unpersist failed, tokenId not exist");
+            return INVALID_PARAMTER;
+        }
+    } else {
+        // Non-HAP tokens (other services) are denied directly
+        LOGE_WITH_REPORT(LABEL, "UnPersistPolicyByTokenId failed, permission denied - caller is not system app");
         return PERMISSION_DENIED;
     }
+
     if (tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid tokenid = %{public}u.", tokenId);
         return INVALID_PARAMTER;
@@ -388,12 +433,15 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
     }
     resultRawData.Marshalling(result);
 
-    ret = AbilityManagerClient::GetInstance()->KillProcessForPermissionUpdate(tokenId);
-    if (ret != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Kill process failed for tokenId=%{public}u, error=%{public}d",
-            tokenId, ret);
-        return SANDBOX_MANAGER_KILL_PROCESS_ERR;
+    if (tokenType == ATokenTypeEnum::TOKEN_HAP) {
+        ret = KillProcessForPermissionUpdate(tokenId);
+        if (ret != 0) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Kill process failed for tokenId=%{public}u, error=%{public}d",
+                tokenId, ret);
+            return SANDBOX_MANAGER_KILL_PROCESS_ERR;
+        }
     }
+
     return SANDBOX_MANAGER_OK;
 }
 
@@ -654,14 +702,28 @@ int32_t SandboxManagerService::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t 
 int32_t SandboxManagerService::GetPersistPolicy(uint32_t tokenId, PolicyVecRawData &policyRawData)
 {
     DelayUnloadService();
-    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
+    if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetPersistPolicy failed, not system app");
+        return SANDBOX_MANAGER_NOT_SYS_APP;
+    }
+
+    AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
     if (!CheckPermission(callingTokenId, GET_PERSIST_PERMISSION_NAME)) {
         return PERMISSION_DENIED;
     }
+
     if (tokenId == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Get persist policy failed, invalid tokenid");
         return INVALID_PARAMTER;
     }
+
+    ATokenTypeEnum tokenType = AccessTokenKit::GetTokenType(tokenId);
+    if (tokenType == TOKEN_INVALID) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Get persist policy failed, tokenId not exist");
+        return INVALID_PARAMTER;
+    }
+
     return PolicyInfoManager::GetInstance().GetPersistPolicy(tokenId, policyRawData);
 }
 
@@ -1058,7 +1120,12 @@ static int32_t GetOsAccountLocalIdFromUid(const int32_t callingUid)
 int32_t SandboxManagerService::GetSharedDirectoryInfo(SharedDirectoryInfoVecRawData &resultRawData)
 {
     DelayUnloadService();
-    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
+    if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSharedDirectoryInfo failed, not system app");
+        return SANDBOX_MANAGER_NOT_SYS_APP;
+    }
+    AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
     if (!CheckPermission(callingTokenId, ACCESS_SHARED_FILE_NAME)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
         return PERMISSION_DENIED;
@@ -1080,7 +1147,13 @@ int32_t SandboxManagerService::GetSharedDirectoryInfo(SharedDirectoryInfoVecRawD
 int32_t SandboxManagerService::GrantSharedDirectoryPermission()
 {
     DelayUnloadService();
-    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
+    if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GrantSharedDirectoryPermission failed, not system app");
+        return SANDBOX_MANAGER_NOT_SYS_APP;
+    }
+
+    AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
     if (!CheckPermission(callingTokenId, ACCESS_SHARED_FILE_NAME)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
         return PERMISSION_DENIED;
@@ -1093,7 +1166,13 @@ int32_t SandboxManagerService::GrantSharedDirectoryPermission()
 int32_t SandboxManagerService::RevokeSharedDirectoryPermission()
 {
     DelayUnloadService();
-    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
+    if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "RevokeSharedDirectoryPermission failed, not system app");
+        return SANDBOX_MANAGER_NOT_SYS_APP;
+    }
+
+    AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
     if (!CheckPermission(callingTokenId, ACCESS_SHARED_FILE_NAME)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
         return PERMISSION_DENIED;
@@ -1101,6 +1180,52 @@ int32_t SandboxManagerService::RevokeSharedDirectoryPermission()
     int32_t userId = GetOsAccountLocalIdFromUid(IPCSkeleton::GetCallingUid());
 
     return PolicyInfoManager::GetInstance().RevokeSharedDirectoryPermission(callingTokenId, userId);
+}
+
+int32_t SandboxManagerService::KillProcessForPermissionUpdate(uint32_t accessTokenId)
+{
+    // Get the system ability manager
+    auto systemAbilityMgr = SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
+    if (systemAbilityMgr == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to get system ability manager");
+        return INVALID_PARAMTER;
+    }
+
+    // Get the ability manager service using the lightweight approach
+    auto abilityManagerRemote = systemAbilityMgr->GetSystemAbility(ABILITY_MGR_SERVICE_ID);
+    if (abilityManagerRemote == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to get ability manager service");
+        return INVALID_PARAMTER;
+    }
+
+    // Create a proxy to the ability manager service
+    sptr<IRemoteObject> proxy = abilityManagerRemote;
+    // Prepare the data to send to the ability manager
+    MessageParcel data;
+    MessageParcel reply;
+    MessageOption option;
+
+    if (!data.WriteInterfaceToken(u"ohos.aafwk.AbilityManager")) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write interface token failed");
+        return INVALID_PARAMTER;
+    }
+
+    if (!data.WriteUint32(accessTokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Write accessTokenId failed");
+        return INVALID_PARAMTER;
+    }
+
+    // Call the ability manager service
+    int32_t ret = proxy->SendRequest(static_cast<uint32_t>(KILL_PROCESS_FOR_PERMISSION_UPDATE),
+                                     data, reply, option);
+    if (ret != NO_ERROR) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "SendRequest failed, error: %{public}d", ret);
+        return ret;
+    }
+
+    // Read the result
+    int32_t result = reply.ReadInt32();
+    return result;
 }
 } // namespace SandboxManager
 } // namespace AccessControl

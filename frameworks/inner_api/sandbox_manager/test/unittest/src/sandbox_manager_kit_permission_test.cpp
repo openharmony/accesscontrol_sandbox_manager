@@ -54,7 +54,7 @@ const std::string FILE_ACCESS_PERMISSION = "ohos.permission.FILE_ACCESS_MANAGER"
 const size_t MAX_POLICY_NUM = 8;
 const int DEC_POLICY_HEADER_RESERVED = 64;
 uint32_t g_selfTokenId;
-uint32_t g_mockToken;
+uint64_t g_mockToken;
 Security::AccessToken::PermissionStateFull g_testState1 = {
     .permissionName = SET_POLICY_PERMISSION,
     .isGeneral = true,
@@ -87,7 +87,8 @@ Security::AccessToken::HapInfoParams g_testInfoParms = {
     .userID = 100,
     .bundleName = "sandbox_manager_test",
     .instIndex = 0,
-    .appIDDesc = "test"
+    .appIDDesc = "test",
+    .isSystemApp = true
 };
 
 Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
@@ -156,7 +157,7 @@ void SandboxManagerKitPermissionTest::SetUp()
     Security::AccessToken::AccessTokenIDEx tokenIdEx = {0};
     tokenIdEx = Security::AccessToken::AccessTokenKit::AllocHapToken(g_testInfoParms, g_testPolicyPrams);
     EXPECT_NE(0, tokenIdEx.tokenIdExStruct.tokenID);
-    g_mockToken = tokenIdEx.tokenIdExStruct.tokenID;
+    g_mockToken = tokenIdEx.tokenIDEx;
     EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
 }
 

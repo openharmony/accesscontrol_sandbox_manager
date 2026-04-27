@@ -103,7 +103,8 @@ Security::AccessToken::HapInfoParams g_testInfoParms = {
     .userID = 1,
     .bundleName = "sandbox_manager_test",
     .instIndex = 0,
-    .appIDDesc = "test"
+    .appIDDesc = "test",
+    .isSystemApp = true
 };
 
 Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
@@ -192,7 +193,7 @@ void SandboxManagerServiceTest::SetUp(void)
     Security::AccessToken::AccessTokenIDEx tokenIdEx = {0};
     tokenIdEx = Security::AccessToken::AccessTokenKit::AllocHapToken(g_testInfoParms, g_testPolicyPrams);
     ASSERT_NE(0, tokenIdEx.tokenIdExStruct.tokenID);
-    sysGrantToken_ = tokenIdEx.tokenIdExStruct.tokenID;
+    sysGrantToken_ = tokenIdEx.tokenIDEx;
 }
 
 void SandboxManagerServiceTest::TearDown(void)
@@ -1914,6 +1915,98 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerDfxHelperReportPolicyViolateTe
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
 }
 #endif
+
+/**
+ * @tc.name: GetPersistPolicyTest001
+ * @tc.desc: Test GetPersistPolicy with invalid token ID
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, GetPersistPolicyTest001, TestSize.Level0)
+{
+    PolicyVecRawData policyRawData;
+    
+    EXPECT_EQ(0, SetSelfTokenID(sysGrantToken_));
+
+    // Test invalid token ID (0), reteurn permission denied first.
+    int32_t result = sandboxManagerService_->GetPersistPolicy(0, policyRawData);
+    EXPECT_EQ(PERMISSION_DENIED, result);
+    
+    // Restore original token
+    EXPECT_EQ(0, SetSelfTokenID(selfTokenId_));
+}
+
+/**
+ * @tc.name: GetPersistPolicyTest002
+ * @tc.desc: Test GetPersistPolicy without required permissions
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, GetPersistPolicyTest002, TestSize.Level0)
+{
+    PolicyVecRawData policyRawData;
+    
+    // Use regular token without system privileges
+    int32_t result = sandboxManagerService_->GetPersistPolicy(static_cast<uint32_t>(selfTokenId_), policyRawData);
+    // Should return not system app error
+    EXPECT_EQ(SANDBOX_MANAGER_NOT_SYS_APP, result);
+}
+
+/**
+ * @tc.name: UnPersistPolicyByTokenIdTest001
+ * @tc.desc: Test UnPersistPolicyByTokenId without system app privileges
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, UnPersistPolicyByTokenIdTest001, TestSize.Level0)
+{
+    PolicyVecRawData policyRawData;
+    Uint32VecRawData resultRawData;
+    uint32_t tokenId = static_cast<uint32_t>(selfTokenId_);
+
+    // Use regular token without system privileges
+    // Should return permission denied since caller is not system app
+    int32_t result = sandboxManagerService_->UnPersistPolicyByTokenId(tokenId, policyRawData, resultRawData);
+    EXPECT_EQ(PERMISSION_DENIED, result);
+}
+
+/**
+ * @tc.name: UnPersistPolicyByTokenIdTest002
+ * @tc.desc: Test UnPersistPolicyByTokenId with foundation token id
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, UnPersistPolicyByTokenIdTest002, TestSize.Level0)
+{
+    PolicyVecRawData policyRawData;
+    Uint32VecRawData resultRawData;
+    uint32_t tokenId = static_cast<uint32_t>(selfTokenId_);
+    
+    // Switch to foundation token which has system privileges but may lack specific permission
+    int32_t uid = getuid();
+    setuid(FOUNDATION_UID);
+    
+    // Should return permission denied since foundation token may not have required permission
+    int32_t result = sandboxManagerService_->UnPersistPolicyByTokenId(tokenId, policyRawData, resultRawData);
+    EXPECT_EQ(PERMISSION_DENIED, result);
+    
+    // Restore original uid
+    setuid(uid);
+}
+
+/**
+ * @tc.name: UnPersistPolicyTest001
+ * @tc.desc: Test UnPersistPolicy without system app privileges
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, UnPersistPolicyTest001, TestSize.Level0)
+{
+    // Use regular token without system privileges
+    // Should return permission denied since caller is not system app
+    int32_t result = sandboxManagerService_->UnPersistPolicy(static_cast<uint32_t>(selfTokenId_));
+    EXPECT_EQ(SANDBOX_MANAGER_NOT_SYS_APP, result);
+}
 
 } // SandboxManager
 } // AccessControl

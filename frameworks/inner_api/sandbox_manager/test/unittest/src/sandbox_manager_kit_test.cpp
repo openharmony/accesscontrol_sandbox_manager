@@ -69,7 +69,7 @@ const int32_t FOUNDATION_UID = 5523;
 const size_t MAX_POLICY_NUM = 8;
 const int DEC_POLICY_HEADER_RESERVED = 64;
 uint32_t g_selfTokenId;
-uint32_t g_mockToken;
+uint64_t g_mockToken;
 Security::AccessToken::PermissionStateFull g_testState1 = {
     .permissionName = SET_POLICY_PERMISSION,
     .isGeneral = true,
@@ -123,7 +123,8 @@ Security::AccessToken::HapInfoParams g_testInfoParms = {
     .userID = 100,
     .bundleName = "sandbox_manager_test",
     .instIndex = 0,
-    .appIDDesc = "test"
+    .appIDDesc = "test",
+    .isSystemApp = true
 };
 
 Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
@@ -217,7 +218,7 @@ void SandboxManagerKitTest::SetUp()
     Security::AccessToken::AccessTokenIDEx tokenIdEx = {0};
     tokenIdEx = Security::AccessToken::AccessTokenKit::AllocHapToken(g_testInfoParms, g_testPolicyPrams);
     EXPECT_NE(0, tokenIdEx.tokenIdExStruct.tokenID);
-    g_mockToken = tokenIdEx.tokenIdExStruct.tokenID;
+    g_mockToken = tokenIdEx.tokenIDEx;
     EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
     g_uid = getuid();
     setuid(FOUNDATION_UID);
@@ -891,7 +892,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy014, TestSize.Level0)
     EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, flag));
     tokenId = 1;
     EXPECT_NE(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::PersistPolicy(tokenId, policy, result));
-    EXPECT_NE(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::UnPersistPolicy(tokenId, policy, result));
+    EXPECT_EQ(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::UnPersistPolicy(tokenId, policy, result));
     EXPECT_NE(SandboxManagerErrCode::INVALID_PARAMTER,
               SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, result));
     EXPECT_NE(SandboxManagerErrCode::INVALID_PARAMTER, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, flag));
@@ -4137,6 +4138,9 @@ HWTEST_F(SandboxManagerKitTest, TestSetPolicyInputBundleName005, TestSize.Level0
     EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[2]);
 }
 
+/* The device type phone does not allow setting policies for /storage/Users/currentUser/,
+    The DEC_EXT macro takes effect on the PC platform. */
+#ifdef DEC_EXT
 /**
  * @tc.name: TestAccessing001
  * @tc.desc: test accessing appdata
@@ -4578,6 +4582,7 @@ HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy005, TestSize.
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
 }
+#endif
 #endif
 
 #ifdef DEC_ENABLED
