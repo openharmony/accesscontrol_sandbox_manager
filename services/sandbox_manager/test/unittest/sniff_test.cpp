@@ -182,6 +182,7 @@ HWTEST_F(SniffTest, SniffTest003, TestSize.Level0)
     EXPECT_EQ(RET_OK, TestAccess(TOKEN_ID, childPath, 0));
 }
 
+#ifdef DEC_EXT
 /**
  * @tc.name: SniffTest004
  * @tc.desc: Authorizing the appdata root grants access to all supported sniff paths.
@@ -196,6 +197,7 @@ HWTEST_F(SniffTest, SniffTest004, TestSize.Level0)
     ASSERT_EQ(RET_OK, SetPath(TOKEN_ID, APPDATA_ROOT, DEC_MODE_RW, true, 0, USER_ID));
     ExpectAccessResult(TOKEN_ID, alphaPaths, RET_OK);
 }
+#endif // DEC_EXT
 
 /**
  * @tc.name: SniffTest005
@@ -213,6 +215,7 @@ HWTEST_F(SniffTest, SniffTest005, TestSize.Level0)
     ExpectAccessResult(TOKEN_ID, barPaths, -1);
 }
 
+#ifdef DEC_EXT
 /**
  * @tc.name: SniffTest006
  * @tc.desc: DestroyByTokenid revokes previously granted sniff access.
@@ -254,6 +257,7 @@ HWTEST_F(SniffTest, SniffTest006, TestSize.Level0)
     ASSERT_EQ(RET_OK, DestroyByTokenid(TOKEN_ID, 0));
     ExpectAccessResult(TOKEN_ID, alphaPaths, -1);
 }
+#endif // DEC_EXT
 
 /**
  * @tc.name: SniffTest007
