@@ -39,6 +39,16 @@ ohos_unittest("claw_sandbox_test") {
     "unittest/src/claw_sandbox_exec_test.cpp",
   ]
 
+  if (is_enable_aids) {
+    sources += [
+      "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_aids.cpp",
+    ]
+  } else {
+    sources += [
+      "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_aids_default.cpp",
+    ]
+  }
+
   cflags_cc = [ "-DHILOG_ENABLE" ]
 
   deps = []

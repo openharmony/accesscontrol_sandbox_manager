@@ -23,6 +23,16 @@ if(!defined(ohos_lite)) {
       "src/sandbox_exec.cpp",
     ]
 
+    if (is_enable_aids) {
+      sources += [
+        "src/sandbox_aids.cpp",
+      ]
+    } else {
+      sources += [
+        "src/sandbox_aids_default.cpp",
+      ]
+    }
+
     include_dirs = [
       "include",
     ]

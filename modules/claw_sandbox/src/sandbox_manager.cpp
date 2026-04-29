@@ -14,6 +14,7 @@
  */
 
 #include "sandbox_manager.h"
+#include "sandbox_aids.h"
 #include "sandbox_error.h"
 #include "sandbox_log.h"
 
@@ -218,26 +219,32 @@ int SandboxManager::Execute()
         return ret;
     }
 
-    // Step 12: Set UID/GID (with SECBIT_KEEP_CAPS to preserve capabilities across setuid)
+    // Step 12: Set SetAinfo
+    ret = SetAinfo();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    // Step 13: Set UID/GID (with SECBIT_KEEP_CAPS to preserve capabilities across setuid)
     ret = SetUidGid();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 13: Create a new process group (must be done BEFORE SetSeccomp,
+    // Step 14: Create a new process group (must be done BEFORE SetSeccomp,
     //          because seccomp blocks setpgid/setsid to prevent process group escape)
     ret = SetProcessGroup();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 14: Set Seccomp (always applied to block setpgid/setsid for process group protection)
+    // Step 15: Set Seccomp (always applied to block setpgid/setsid for process group protection)
     ret = SetSeccomp();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 15: Drop Capabilities (must be after seccomp to avoid interfering with
+    // Step 16: Drop Capabilities (must be after seccomp to avoid interfering with
     //          setpgid/setsid; capset() syscall is not blocked by seccomp in
     //          block mode, and in whitelist mode it will be allowed if listed)
     ret = DropCapabilities();
@@ -245,7 +252,7 @@ int SandboxManager::Execute()
         return ret;
     }
 
-    // Step 16: Execute the command
+    // Step 17: Execute the command
     return ExecuteCommand();
 }
 
@@ -629,6 +636,17 @@ int SandboxManager::SetAccessToken()
         std::cerr << "Error: SetSelfTokenID failed: " << ret << std::endl;
         SANDBOX_LOGE("SetSelfTokenID failed: %{public}d", ret);
         return SANDBOX_ERR_SET_TOKENID_FAILED;
+    }
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::SetAinfo()
+{
+    AidsClient aids;
+    int ret = aids.setLabel();
+    if (ret != 0) {
+        // Setting up an AI identity is optional for the time being
+        SANDBOX_LOGW("SetAinfo failed: %{public}d", ret);
     }
     return SANDBOX_SUCCESS;
 }
