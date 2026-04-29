@@ -335,11 +335,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest004, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 
-    info.path = "/storage/Users/currentUser";
-    policy[0] = info;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
-    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
-
+    /* Setting policy for /storage/Users/currentUser is not allowed on phones. */
     info.path = "/storage/Users/currentUser/a";
     policy[0] = info;
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, 0));
