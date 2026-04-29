@@ -316,13 +316,13 @@ HWTEST_F(NewPolicyTests, RemovePolicyCaseInsensitiveTest, TestSize.Level0)
 HWTEST_F(NewPolicyTests, AddPolicyCaseInsensitiveTest, TestSize.Level0)
 {
     // Ensure /storage/Users/currentUser is configured as case-insensitive
-    PolicyInfoManager::GetInstance().caseInsensitivePaths_.push_back("/storage/Users/currentUser");
+    PolicyInfoManager::GetInstance().caseInsensitivePaths_.push_back("/storage/Users/currentUser/Insensitive");
 
     SetConstraint("/storage/Users");
 
     // Step 1: Set a temporary policy first with mixed case
     PolicyInfo setPolicy;
-    setPolicy.path = "/storage/Users/currentUser";
+    setPolicy.path = "/storage/Users/currentUser/Insensitive";
     setPolicy.mode = OperateMode::READ_MODE;
 
     std::vector<PolicyInfo> setPolicies = {setPolicy};
@@ -335,8 +335,8 @@ HWTEST_F(NewPolicyTests, AddPolicyCaseInsensitiveTest, TestSize.Level0)
 
     // Step 2: Add two policies with different cases (mixed case and lowercase)
     std::vector<PolicyInfo> addPolicies = {
-        {"/storage/Users/currentUser/Download/TEST.TXT", OperateMode::READ_MODE},  // Mixed case
-        {"/storage/Users/currentUser/Download/test.txt", OperateMode::READ_MODE}   // Lowercase
+        {"/storage/Users/currentUser/Insensitive/Download/Test.TXT", OperateMode::READ_MODE},  // Mixed case
+        {"/storage/Users/currentUser/Insensitive/Download/test.txt", OperateMode::READ_MODE}   // Lowercase
     };
     std::vector<uint32_t> addResult;
 
@@ -349,8 +349,8 @@ HWTEST_F(NewPolicyTests, AddPolicyCaseInsensitiveTest, TestSize.Level0)
 
     // Step 3: Verify both policies exist using different case variations
     std::vector<PolicyInfo> matchPolicies = {
-        {"/storage/Users/currentUser/Download/TEST.TXT", OperateMode::READ_MODE},   // Mixed case
-        {"/storage/Users/currentUser/Download/test.txt", OperateMode::READ_MODE}    // Lowercase
+        {"/storage/Users/currentUser/Insensitive/DOWNLOAD/Test.TXT", OperateMode::READ_MODE},   // Mixed case
+        {"/storage/Users/currentUser/Insensitive/download/test.txt", OperateMode::READ_MODE}    // Lowercase
     };  // Combined into single vector
     std::vector<uint32_t> matchResult;
     ret = PolicyInfoManager::GetInstance().MatchPolicy(g_mockToken, matchPolicies, matchResult);
@@ -360,8 +360,8 @@ HWTEST_F(NewPolicyTests, AddPolicyCaseInsensitiveTest, TestSize.Level0)
 
     // Step 4: Remove policies with lowercase path
     std::vector<PolicyInfo> removePolicies = {
-        {"/storage/Users/currentUser/Download/TEST.TXT", OperateMode::READ_MODE},   // Mixed case
-        {"/storage/Users/currentUser/Download/test.txt", OperateMode::READ_MODE}    // Lowercase
+        {"/storage/Users/currentUser/Insensitive/DOWNload/Test.TXT", OperateMode::READ_MODE},   // Mixed case
+        {"/storage/Users/currentUser/Insensitive/downLOAD/test.txt", OperateMode::READ_MODE}    // Lowercase
     };
     std::vector<uint32_t> removeResult;
 
