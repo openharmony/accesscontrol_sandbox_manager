@@ -3,133 +3,77 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
- 
 import("//build/ohos.gni")
 import("//build/ohos_var.gni")
-import("../..//sandbox_manager.gni")
+import("../../sandbox_manager.gni")
 
 if(!defined(ohos_lite)) {
-    ohos_executable("claw_sandbox") {
-        include_dirs = [
-            "sandbox",
-        ]
+  ohos_executable("claw_sandbox") {
+    sources = [
+      "src/sandbox_loader.cpp",
+      "src/sandbox_cmd_parser.cpp",
+      "src/sandbox_manager.cpp",
+      "src/sandbox_exec.cpp",
+    ]
 
-        sources = [
-            "${sandbox_manager_path}/modules/claw_sandbox/sandbox/sandbox_loader.cpp",
-            "${sandbox_manager_path}/modules/claw_sandbox/sandbox/sandbox_manager.cpp",
-            "${sandbox_manager_path}/modules/claw_sandbox/sandbox/command_parser.cpp",
-        ]
+    include_dirs = [
+      "include",
+    ]
 
-        branch_protector_ret = "pac_ret"
-        sanitize = {
-            cif = true
-            cfi_cross_dso = true
-            debug = false
-        }
-
-        cflags = [
-            "-fPIC",
-            "-g",
-            "-Wall",
-            "-std=c++17",
-        ]
-
-        if (target_cpu == "arm") {
-            cflags += [ "-DBINDER_IPC_32BIT" ]
-        }
-
-        external_deps = [
-            "access_token:libaccesstoken_sdk",
-            "access_token:libtokenid_sdk",
-            "access_token:libtokensetproc_shared",
-            "bounds_checking_function:libsec_shared",
-            "jsoncpp:jsoncpp",
-            "hilog:libhilog",
-            "ipc:ipc_single",
-            "init:libbegetutil",
-            "c_utils:utils",
-            "selinux:libselinux",
-            "selinux_adapter:libhap_restorecon",
-        ]
-
-        defines = [ "SANDBOX_STUB_MAINTHREAD" ]
-        if (claw_sandbox_need_set_seccomp) {
-            defines += [ "WITH_SECCOMP" ]
-            external_deps += [ "init:seccomp" ]
-            include_dirs += [ "//base/startup/init/interfaces/innerkits/seccomp/include" ]
-        }
-
-        install_enable = true
-        part_name = "sandbox_manager"
-        subsystem_name = "accesscontrol"
+    branch_protector_ret = "pac_ret"
+    sanitize = {
+      cif = true
+      cfi_cross_dso = true
+      debug = false
     }
 
-    ohos_shared_library("cli_sandbox") {
-        include_dirs = [
-            "sandbox",
-        ]
+    cflags = [
+      "-fPIC",
+      "-g",
+      "-Wall",
+      "-std=c++17",
+    ]
 
-        sources = [
-            "${sandbox_manager_path}/modules/claw_sandbox/sandbox/sandbox_loader.cpp",
-            "${sandbox_manager_path}/modules/claw_sandbox/sandbox/sandbox_manager.cpp",
-            "${sandbox_manager_path}/modules/claw_sandbox/sandbox/command_parser.cpp",
-        ]
-
-        branch_protector_ret = "pac_ret"
-        sanitize = {
-            cif = true
-            cfi_cross_dso = true
-            debug = false
-        }
-
-        cflags = [
-            "-fPIC",
-            "-g",
-            "-Wall",
-            "-std=c++17",
-        ]
-
-        if (target_cpu == "arm") {
-            cflags += [ "-DBINDER_IPC_32BIT" ]
-        }
-
-        external_deps = [
-            "access_token:libaccesstoken_sdk",
-            "access_token:libtokenid_sdk",
-            "access_token:libtokensetproc_shared",
-            "bounds_checking_function:libsec_shared",
-            "jsoncpp:jsoncpp",
-            "hilog:libhilog",
-            "ipc:ipc_single",
-            "init:libbegetutil",
-            "c_utils:utils",
-            "selinux:libselinux",
-            "selinux_adapter:libhap_restorecon",
-        ]
-
-        defines = [ "SANDBOX_NO_EXECUTE" ]
-        if (claw_sandbox_need_set_seccomp) {
-            defines += [ "WITH_SECCOMP" ]
-            external_deps += [ "init:seccomp" ]
-            include_dirs += [ "//base/startup/init/interfaces/innerkits/seccomp/include" ]
-        }
-
-        install_enable = true
-        part_name = "sandbox_manager"
-        subsystem_name = "accesscontrol"
+    if (target_cpu == "arm") {
+      cflags += [ "-DBINDER_IPC_32BIT" ]
     }
 
-    ohos_prebuilt_etc("claw_sandbox.rc") {
-        relative_install_dir = "cli"
-        source = "etc/claw_sandbox_template.json"
-        part_name = "sandbox_manager"
-        subsystem_name = "accesscontrol"
+    external_deps = [
+      "access_token:libaccesstoken_sdk",
+      "access_token:libtokenid_sdk",
+      "access_token:libtokensetproc_shared",
+      "bounds_checking_function:libsec_shared",
+      "cJSON:cjson",
+      "hilog:libhilog",
+      "ipc:ipc_single",
+      "init:libbegetutil",
+      "c_utils:utils",
+      "selinux:libselinux",
+      "selinux_adapter:libhap_restorecon",
+    ]
+
+    defines = [ "SANDBOX_STUB_MAINTHREAD" ]
+    if (!is_emulator && claw_sandbox_need_set_seccomp) {
+      defines += [ "WITH_SECCOMP" ]
+      external_deps += [ "init:seccomp" ]
     }
+
+    install_enable = true
+    part_name = "sandbox_manager"
+    subsystem_name = "accesscontrol"
+  }
+
+  ohos_prebuilt_etc("claw_sandbox.rc") {
+    relative_install_dir = "sandbox"
+    source = "etc/claw_sandbox_template.json"
+    part_name = "sandbox_manager"
+    subsystem_name = "accesscontrol"
+  }
 }

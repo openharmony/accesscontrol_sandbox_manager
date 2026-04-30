@@ -1,470 +1,596 @@
 {
-  "common": {
-    "mount-paths": [
-      {
-        "src-path": "/data/app/el1/bundle/public/<PackageName>",
-        "sandbox-path": "/data/storage/el1/bundle",
-        "sandbox-flags": ["bind", "rec"],
-        "check-action-status": true
-      },
-      {
-        "src-path": "/system/etc/hosts",
-        "sandbox-path": "/data/service/el1/public/hosts_user/hosts",
-        "sandbox-flags": ["bind", "rec"],
-        "check-action-status": false
-      }
-    ]
-  },
+  "system-mounts": [
+    {
+      "source": "/proc",
+      "target": "/proc",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/sys",
+      "target": "/sys",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/dev",
+      "target": "/dev",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/tmp",
+      "target": "/tmp",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/usr",
+      "target": "/usr",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/etc",
+      "target": "/etc",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/lib",
+      "target": "/lib",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/bin",
+      "target": "/bin",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/sbin",
+      "target": "/sbin",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/sys_prod",
+      "target": "/sys_prod",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/system/fonts",
+      "target": "/system/fonts",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/system/lib",
+      "target": "/system/lib",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/system/usr",
+      "target": "/system/usr",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/system/profile",
+      "target": "/system/profile",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/system/bin",
+      "target": "/system/bin",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/system/lib64",
+      "target": "/system/lib64",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/system/etc",
+      "target": "/system/etc",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/system/framework",
+      "target": "/system/framework",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/system/resource",
+      "target": "/system/resource",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/vendor/lib",
+      "target": "/vendor/lib",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/vendor/lib64",
+      "target": "/vendor/lib64",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/config",
+      "target": "/config",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    }
+  ],
+  "app-mounts": [
+    {
+      "source": "/data/storage/el1/bundle",
+      "target": "/data/storage/el1/bundle",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    }
+  ],
   "permission": {
     "ohos.permission.FILE_ACCESS_MANAGER":[{
       "sandbox-switch": "ON",
       "gids": [1006, 1008],
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/mnt/user/<currentUserId>/nosharefs/docs",
-          "sandbox-path": "/storage/Users",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/mnt/user/<currentUserId>/nosharefs/docs",
+          "target": "/storage/Users",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "/data/service/el1/public/storage_daemon/share/public",
-          "sandbox-path": "/storage/Share",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/storage_daemon/share/public",
+          "target": "/storage/Share",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "/mnt/data/external",
-          "sandbox-path": "/storage/External",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/mnt/data/external",
+          "target": "/storage/External",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "/storage/media/<currentUserId>/local/files/.Recent",
-          "sandbox-path": "/storage/Users/<currentUserId>/.Recent",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/storage/media/<currentUserId>/local/files/.Recent",
+          "target": "/storage/Users/<currentUserId>/.Recent",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "/mnt/data/<currentUserId>/hmdfs",
-          "sandbox-path": "/storage/hmdfs",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/mnt/data/<currentUserId>/hmdfs",
+          "target": "/storage/hmdfs",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "/mnt/data/<currentUserId>/userExternal",
-          "sandbox-path": "/storage/userExternal",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/mnt/data/<currentUserId>/userExternal",
+          "target": "/storage/userExternal",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "",
-          "sandbox-path": "",
-          "sandbox-flags": [],
+          "source": "",
+          "target": "",
+          "mount-flags": [],
           "dec-paths": [ "/storage/Users/<currentUserId>/appdata/el2/shareFiles" ]
         }
       ]
     }],
     "ohos.permission.SANDBOX_ACCESS_MANAGER":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/mnt/hmdfs/<currentUserId>/cloud/data/<PackageName>",
-          "sandbox-path": "/data/storage/el2/cloud",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/mnt/hmdfs/<currentUserId>/cloud/data/<PackageName>",
+          "target": "/data/storage/el2/cloud",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.MANAGE_PRIVATE_PHOTOS":[{
       "sandbox-switch": "ON",
       "gids": [1008],
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/storage/cloud/<currentUserId>/files/.thumbs/Photo",
-          "sandbox-path": "/storage/Share/.thumbs/Photo",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/storage/cloud/<currentUserId>/files/.thumbs/Photo",
+          "target": "/storage/Share/.thumbs/Photo",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.GET_EDM_CONFIG":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el1/public/edm/config/system",
-          "sandbox-path": "/data/ecust/system",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/edm/config/system",
+          "target": "/data/ecust/system",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.GET_ENTERPRISE_CONFIG":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el1/public/edm/config/application/<PackageName>/all",
-          "sandbox-path": "/data/ecust/forAll",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/edm/config/application/<PackageName>/all",
+          "target": "/data/ecust/forAll",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "/data/service/el1/public/edm/config/application/<PackageName>/<currentUserId>",
-          "sandbox-path": "/data/ecust/currentUser",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/edm/config/application/<PackageName>/<currentUserId>",
+          "target": "/data/ecust/currentUser",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.ENTERPRISE_READ_LOG":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el1/public/edm/log/<currentUserId>/<PackageName>",
-          "sandbox-path": "/data/edm/log",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/edm/log/<currentUserId>/<PackageName>",
+          "target": "/data/edm/log",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.ACTIVATE_THEME_PACKAGE":[{
       "sandbox-switch": "ON",
       "gids": [3817],
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el1/public/themes/<currentUserId>/a/system",
-          "sandbox-path": "/data/themes/a/system",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/themes/<currentUserId>/a/system",
+          "target": "/data/themes/a/system",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "/data/service/el1/public/themes/<currentUserId>/b/system",
-          "sandbox-path": "/data/themes/b/system",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/themes/<currentUserId>/b/system",
+          "target": "/data/themes/b/system",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "/data/service/el1/public/themes/<currentUserId>/fa",
-          "sandbox-path": "/data/themes/f",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/themes/<currentUserId>/fa",
+          "target": "/data/themes/f",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "/data/service/el1/public/themes/<currentUserId>/share",
-          "sandbox-path": "/data/themes/s",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/themes/<currentUserId>/share",
+          "target": "/data/themes/s",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.THEME_SKIN":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el1/public/themes/<currentUserId>/a/skin",
-          "sandbox-path": "/data/themes/a/skin",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/themes/<currentUserId>/a/skin",
+          "target": "/data/themes/a/skin",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "/data/service/el1/public/themes/<currentUserId>/b/skin",
-          "sandbox-path": "/data/themes/b/skin",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/themes/<currentUserId>/b/skin",
+          "target": "/data/themes/b/skin",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.GET_WALLPAPER":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el1/public/wallpaper/<currentUserId>",
-          "sandbox-path": "/data/wallpaper",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/wallpaper/<currentUserId>",
+          "target": "/data/wallpaper",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.MANAGE_MEDIA_SHARED_RESOURCE":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el1/public/camera_service/network_resource",
-          "sandbox-path": "/data/camera_service/network_resource",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/camera_service/network_resource",
+          "target": "/data/camera_service/network_resource",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.ACCESS_BUNDLE_DIR":[{
       "sandbox-switch": "ON",
       "gids": [1010],
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/app/el1/bundle/public",
-          "sandbox-path": "/data/bundles/",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/app/el1/bundle/public",
+          "target": "/data/bundles/",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "/data/service/el1/public/bms/bundle_manager_service/uninstalled_preload",
-          "sandbox-path": "/data/bms/uninstalled_preload/",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/bms/bundle_manager_service/uninstalled_preload",
+          "target": "/data/bms/uninstalled_preload/",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.ACCESS_APP_INSTALL_DIR":[{
       "sandbox-switch": "ON",
       "gids": [2002],
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el1/public/bms/bundle_manager_service/app_install/<currentUserId>/",
-          "sandbox-path": "/data/bms_app_install/",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/bms/bundle_manager_service/app_install/<currentUserId>/",
+          "target": "/data/bms_app_install/",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.ACCESS_BBOX_DIR":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/log/bbox/",
-          "sandbox-path": "/data/log/bbox/",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/log/bbox/",
+          "target": "/data/log/bbox/",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.ACCESS_PROTOCOL_DFX_DATA":[{
       "sandbox-switch": "ON",
       "gids": [1007],
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el1/public/chr/protocol",
-          "sandbox-path": "/data/log/protocol",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/chr/protocol",
+          "target": "/data/log/protocol",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "/log/chr",
-          "sandbox-path": "/log/chr",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/log/chr",
+          "target": "/log/chr",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.ACCESS_MEDIALIB_THUMB_DB":[{
       "sandbox-switch": "ON",
       "gids": [3008],
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/app/el2/<currentUserId>/database/com.ohos.medialibrary.medialibrarydata",
-          "sandbox-path": "/data/medialibrary/database",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/app/el2/<currentUserId>/database/com.ohos.medialibrary.medialibrarydata",
+          "target": "/data/medialibrary/database",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.ACCESS_SHADER_CACHE_DIR":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el1/public/shader_cache/local",
-          "sandbox-path": "/data/storage/shader_caches/local",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el1/public/shader_cache/local",
+          "target": "/data/storage/shader_caches/local",
+          "mount-flags": [ "bind", "rec" ]
         },
         {
-          "src-path": "/data/app/el1/public/shader_cache/cloud",
-          "sandbox-path": "/data/storage/shader_caches/cloud",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/app/el1/public/shader_cache/cloud",
+          "target": "/data/storage/shader_caches/cloud",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.ACCESS_DLP_FILE" : [{
       "sandbox-switch": "ON",
       "sandbox-shared" : "true",
-      "mount-paths" : [
+      "mounts" : [
         {
-          "src-path" : "/mnt/data/<currentUserId>",
-          "sandbox-path" : "/mnt/data",
-          "sandbox-flags" : [ "bind", "rec" ],
+          "source" : "/mnt/data/<currentUserId>",
+          "target" : "/mnt/data",
+          "mount-flags" : [ "bind", "rec" ],
           "mount-shared-flag" : "true",
-          "check-action-status": "true"
+          "check-exists": "true"
         },
         {
-          "src-path" : "",
-          "sandbox-path" : "",
-          "sandbox-flags" : [],
+          "source" : "",
+          "target" : "",
+          "mount-flags" : [],
           "dec-paths": [ "/mnt/data/fuse", "/mnt/sandbox/<permissionUserId>/<PackageName>/storage/Users/currentUser" ]
         }
       ]
     }],
     "ohos.permission.ACCESS_HIVIEWX":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/log/UserView",
-          "sandbox-path": "/data/log/UserView",
-          "sandbox-flags": [ "bind", "rec" ],
+          "source": "/data/log/UserView",
+          "target": "/data/log/UserView",
+          "mount-flags": [ "bind", "rec" ],
           "dec-paths": [ "/data/log/UserView" ]
         }
       ]
     }],
     "ohos.permission.RECEIVE_UPDATE_MESSAGE":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el1/public/update/param_service/install/system/etc/<PackageName>",
-          "sandbox-path": "/data/service/el1/public/update/param_service/install/system/etc/<PackageName>",
-          "sandbox-flags": [ "bind", "rec" ],
-          "check-action-status": "false"
+          "source": "/data/service/el1/public/update/param_service/install/system/etc/<PackageName>",
+          "target": "/data/service/el1/public/update/param_service/install/system/etc/<PackageName>",
+          "mount-flags": [ "bind", "rec" ],
+          "check-exists": "false"
         }
       ]
     }],
     "ohos.permission.CLOUD_ROM_UPDATE":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el1/public/update/cloudRom/",
-          "sandbox-path": "/data/service/el1/public/update/cloudRom/",
-          "sandbox-flags": [ "bind", "rec" ],
-          "check-action-status": "false"
+          "source": "/data/service/el1/public/update/cloudRom/",
+          "target": "/data/service/el1/public/update/cloudRom/",
+          "mount-flags": [ "bind", "rec" ],
+          "check-exists": "false"
         }
       ]
     }],
     "ohos.permission.READ_DFX_XPOWER":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/log/xpower",
-          "sandbox-path": "/data/log/xpower",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/log/xpower",
+          "target": "/data/log/xpower",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.PROTECT_SCREEN_LOCK_DATA":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/app/el5/<currentUserId>/base/<PackageName>",
-          "sandbox-path": "/data/storage/el5/base",
-          "sandbox-flags": [ "bind", "rec" ],
-          "check-action-status": "false"
+          "source": "/data/app/el5/<currentUserId>/base/<PackageName>",
+          "target": "/data/storage/el5/base",
+          "mount-flags": [ "bind", "rec" ],
+          "check-exists": "false"
         },
         {
-          "src-path": "/data/app/el5/<currentUserId>/database/<PackageName>",
-          "sandbox-path": "/data/storage/el5/database",
-          "sandbox-flags": [ "bind", "rec" ],
-          "check-action-status": "false"
+          "source": "/data/app/el5/<currentUserId>/database/<PackageName>",
+          "target": "/data/storage/el5/database",
+          "mount-flags": [ "bind", "rec" ],
+          "check-exists": "false"
         }
       ]
     }],
     "ohos.permission.ACCESS_FILE_CONTENT_SHARE":[{
       "sandbox-switch": "ON",
       "gids": [1006, 1008],
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el2/<currentUserId>/file_monitor_service/content_share",
-          "sandbox-path": "/storage/ContentShare",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/service/el2/<currentUserId>/file_monitor_service/content_share",
+          "target": "/storage/ContentShare",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.ACCESS_RINGTONE_RESOURCE":[{
       "sandbox-switch": "ON",
       "gids": [1008],
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/storage/media/<currentUserId>/local/files",
-          "sandbox-path": "/storage/media/local/files",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/storage/media/<currentUserId>/local/files",
+          "target": "/storage/media/local/files",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "",
-          "sandbox-path": "",
-          "sandbox-flags": [],
+          "source": "",
+          "target": "",
+          "mount-flags": [],
           "dec-paths": [ "/storage/Users/<currentUserId>/Download" ]
         }
       ]
     }],
     "ohos.permission.READ_WRITE_DESKTOP_DIRECTORY":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "",
-          "sandbox-path": "",
-          "sandbox-flags": [],
+          "source": "",
+          "target": "",
+          "mount-flags": [],
           "dec-paths": [ "/storage/Users/<currentUserId>/Desktop" ]
         }
       ]
     }],
     "ohos.permission.READ_WRITE_DOCUMENTS_DIRECTORY":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "",
-          "sandbox-path": "",
-          "sandbox-flags": [],
+          "source": "",
+          "target": "",
+          "mount-flags": [],
           "dec-paths": [ "/storage/Users/<currentUserId>/Documents" ]
         }
       ]
     }],
     "ohos.permission.ACCESS_FACTORY_OTA_DIR":[{
       "sandbox-switch": "ON",
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/update/sd_package",
-          "sandbox-path": "/data/update/sd_package",
-          "sandbox-flags": [ "bind", "rec" ],
-          "check-action-status": "false"
+          "source": "/data/update/sd_package",
+          "target": "/data/update/sd_package",
+          "mount-flags": [ "bind", "rec" ],
+          "check-exists": "false"
         }
       ]
     }],
     "ohos.permission.GET_ALL_PROCESSES":[{
       "sandbox-switch": "ON",
       "gids": [3009],
-      "mount-paths": []
+      "mounts": []
     }],
     "ohos.permission.ACCESS_ANALYTICS":[{
       "sandbox-switch": "ON",
       "gids": [1007],
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/log/faultlog/faultlogger",
-          "sandbox-path": "/data/log/faultlog/faultlogger",
-          "sandbox-flags": [ "bind", "rec" ]
+          "source": "/data/log/faultlog/faultlogger",
+          "target": "/data/log/faultlog/faultlogger",
+          "mount-flags": [ "bind", "rec" ]
         }
       ]
     }],
     "ohos.permission.ACCESS_APP_CLONE_DIR":[{
       "sandbox-switch": "ON",
       "gids":[2002],
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/service/el1/public/bms/bundle_manager_service/app_install/<currentUserId>/app_clone",
-          "sandbox-path": "/data/bms_app_clone/",
-          "sandbox-flags": ["bind", "rec"]
+          "source": "/data/service/el1/public/bms/bundle_manager_service/app_install/<currentUserId>/app_clone",
+          "target": "/data/bms_app_clone/",
+          "mount-flags": ["bind", "rec"]
         }
       ]
     }],
     "ohos.permission.ACCESS_MEDIALIB_RESTORE":[{
       "sandbox-switch": "ON",
       "gids":[1008],
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/storage/media/<currentUserId>/local/files/.backup",
-          "sandbox-path": "/data/storage/el2/base/files/mediadata/",
-          "sandbox-flags": ["bind", "rec"]
+          "source": "/storage/media/<currentUserId>/local/files/.backup",
+          "target": "/data/storage/el2/base/files/mediadata/",
+          "mount-flags": ["bind", "rec"]
         }
       ]
     }],
     "ohos.permission.ACCESS_DFX_LOG_DIR":[{
       "sandbox-switch": "ON",
       "gids":[1007],
-      "mount-paths": [
+      "mounts": [
         {
-          "src-path": "/data/log/hilog",
-          "sandbox-path": "/data/log/hilog",
-          "sandbox-flags": ["bind", "rec"]
+          "source": "/data/log/hilog",
+          "target": "/data/log/hilog",
+          "mount-flags": ["bind", "rec"]
         },
         {
-          "src-path": "/data/log/logpack",
-          "sandbox-path": "/data/log/logpack",
-          "sandbox-flags": ["bind", "rec"]
+          "source": "/data/log/logpack",
+          "target": "/data/log/logpack",
+          "mount-flags": ["bind", "rec"]
         },
         {
-          "src-path": "/data/log/hiview/unified_collection/trace",
-          "sandbox-path": "/data/log/hiview/unified_collection/trace",
-          "sandbox-flags": ["bind", "rec"]
+          "source": "/data/log/hiview/unified_collection/trace",
+          "target": "/data/log/hiview/unified_collection/trace",
+          "mount-flags": ["bind", "rec"]
         },
         {
-          "src-path": "/data/virt_service/rgm_hmos/anco_hmos_data/log/LogService/uploading",
-          "sandbox-path": "/data/virt_service/rgm_hmos/anco_hmos_data/log/LogService/uploading",
-          "sandbox-flags": ["bind", "rec"]
+          "source": "/data/virt_service/rgm_hmos/anco_hmos_data/log/LogService/uploading",
+          "target": "/data/virt_service/rgm_hmos/anco_hmos_data/log/LogService/uploading",
+          "mount-flags": ["bind", "rec"]
         },
         {
-          "src-path": "/data/virt_service/rgm_hmos/anco_hmos_log/LogService",
-          "sandbox-path": "/data/virt_service/rgm_hmos/anco_hmos_log/LogService",
-          "sandbox-flags": ["bind", "rec"]
+          "source": "/data/virt_service/rgm_hmos/anco_hmos_log/LogService",
+          "target": "/data/virt_service/rgm_hmos/anco_hmos_log/LogService",
+          "mount-flags": ["bind", "rec"]
         }
       ]
     }]

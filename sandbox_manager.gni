@@ -19,5 +19,5 @@ declare_args() {
   sandbox_manager_process_resident = false
   sandbox_manager_with_dec = false
   sandbox_manager_dec_ext = false
-  claw_sandbox_need_set_seccomp = false
+  claw_sandbox_need_set_seccomp = true
 }
