@@ -13,38 +13,27 @@
  * limitations under the License.
  */
 
-#ifndef SANDBOX_SANDBOX_LOG_H
-#define SANDBOX_SANDBOX_LOG_H
+#ifndef CLAW_SANDBOX_LOG_H
+#define CLAW_SANDBOX_LOG_H
 
-#include <cctype>
-#include <cerrno>
-#include <cinttypes>
-#include <climits>
-#include <cstdint>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <unistd.h>
-#include <sys/types.h>
-
 #include "hilog/log.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define OHOS_SANDBOX_HILOG 1
-
-#if OHOS_SANDBOX_HILOG == 1
-
 #ifndef APP_FILE_NAME
 #define APP_FILE_NAME   (strrchr((__FILE__), '/') ? strrchr((__FILE__), '/') + 1 : (__FILE__))
 #endif
 
+#define OHOS_SANDBOX_HILOG 1
+
+#if OHOS_SANDBOX_HILOG == 1
+
 #define SANDBOX_DOMAIN 0xD005B02
 #ifndef SANDBOX_LABEL
-#define SANDBOX_LABEL "SANDBOX"
+#define SANDBOX_LABEL "CLAW_SANDBOX"
 #endif
 
 #undef LOG_TAG
@@ -72,22 +61,22 @@ extern "C" {
 
 #elif OHOS_SANDBOX_HILOG == 0
 
-#define SANDBOX_LOG_TAG "[SANDBOX] "
+#define SANDBOX_LOG_TAG "[CLAW_SANDBOX] "
 
 #define SANDBOX_LOGI(fmt, ...) \
-    printf("I " SANDBOX_LOG_TAG fmt "\n", ##__VA_ARGS__)
+    printf("I " SANDBOX_LOG_TAG "%s:%d " fmt "\n", (APP_FILE_NAME), (__LINE__), ##__VA_ARGS__)
 
 #define SANDBOX_LOGV(fmt, ...) \
-    printf("V " SANDBOX_LOG_TAG fmt "\n", ##__VA_ARGS__)
+    printf("V " SANDBOX_LOG_TAG "%s:%d " fmt "\n", (APP_FILE_NAME), (__LINE__), ##__VA_ARGS__)
 
 #define SANDBOX_LOGW(fmt, ...) \
-    printf("W " SANDBOX_LOG_TAG fmt "\n", ##__VA_ARGS__)
+    printf("W " SANDBOX_LOG_TAG "%s:%d " fmt "\n", (APP_FILE_NAME), (__LINE__), ##__VA_ARGS__)
 
 #define SANDBOX_LOGE(fmt, ...) \
-    fprintf(stderr, "E " SANDBOX_LOG_TAG fmt "\n", ##__VA_ARGS__)
+    fprintf(stderr, "E " SANDBOX_LOG_TAG "%s:%d " fmt "\n", (APP_FILE_NAME), (__LINE__), ##__VA_ARGS__)
 
 #define SANDBOX_LOGD(fmt, ...) \
-    printf("D " SANDBOX_LOG_TAG fmt "\n", ##__VA_ARGS__)
+    printf("D " SANDBOX_LOG_TAG "%s:%d " fmt "\n", (APP_FILE_NAME), (__LINE__), ##__VA_ARGS__)
 
 #else
 
