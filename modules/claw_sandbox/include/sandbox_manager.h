@@ -88,6 +88,7 @@ private:
     // 15-step workflow (all return int error codes)
     int ValidateConfig();
     int LoadTemplate();
+    int GenerateTokenId();
     int EnterCallerSandbox();
     int CreateNewRoot();
     int UnshareNamespaces();
@@ -99,7 +100,6 @@ private:
     int SetUidGid();
     int SetProcessGroup();
     int SetSeccomp();
-    int SetSelinux();
     int DropCapabilities();
     int ExecuteCommand();
 

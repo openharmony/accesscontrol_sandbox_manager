@@ -36,6 +36,20 @@ constexpr double UINT32_MAX_VALUE = 4294967295.0;
 // Maximum length for hex sandbox name
 constexpr size_t MAX_NAME_LENGTH = 64;
 
+// Maximum length constraints for config string fields
+constexpr size_t MAX_CLI_NAME_LENGTH = 256;
+constexpr size_t MAX_SUB_CLI_NAME_LENGTH = 256;
+constexpr size_t MAX_CHALLENGE_LENGTH = 40960;
+constexpr size_t MAX_APPID_LENGTH = 10240;
+constexpr size_t MAX_BUNDLE_NAME_LENGTH = 256;
+
+// Maximum constraints for nsFlags array
+constexpr size_t MAX_NS_FLAGS_COUNT = 10;
+constexpr size_t MAX_NS_FLAG_STRING_LENGTH = 24;
+
+// Maximum command line length (2MB)
+constexpr size_t MAX_CMD_LINE_LENGTH = 0x200000;
+
 // Helper: clean up cJSON root and return error code
 static inline int CleanupAndReturn(cJSON *root, int ret)
 {
@@ -86,8 +100,9 @@ static int ParseUint32Field(cJSON *root, const char *key, uint32_t &out)
     return SANDBOX_SUCCESS;
 }
 
-// Helper: parse a required string field
-static int ParseStringField(cJSON *root, const char *key, std::string &out)
+// Helper: parse a required string field with maximum length check
+static int ParseStringFieldWithMaxLen(cJSON *root, const char *key,
+    std::string &out, size_t maxLen)
 {
     cJSON *item = cJSON_GetObjectItem(root, key);
     if (!cJSON_IsString(item) || item->valuestring == nullptr) {
@@ -95,7 +110,15 @@ static int ParseStringField(cJSON *root, const char *key, std::string &out)
         SANDBOX_LOGE("Config field '%{public}s' missing or not a string", key);
         return SANDBOX_ERR_CONFIG_INVALID;
     }
-    out = item->valuestring;
+    std::string val = item->valuestring;
+    if (val.length() > maxLen) {
+        std::cerr << "Error: Config field '" << key << "' exceeds max length ("
+                  << maxLen << ")" << std::endl;
+        SANDBOX_LOGE("Config field '%{public}s' exceeds max length (%{public}zu)",
+            key, maxLen);
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    out = val;
     return SANDBOX_SUCCESS;
 }
 
@@ -141,6 +164,13 @@ static int ParseNsFlagsField(cJSON *root, std::vector<std::string> &out)
         return SANDBOX_ERR_CONFIG_INVALID;
     }
     int size = cJSON_GetArraySize(item);
+    if (static_cast<size_t>(size) > MAX_NS_FLAGS_COUNT) {
+        std::cerr << "Error: nsFlags array size (" << size << ") exceeds max ("
+                  << MAX_NS_FLAGS_COUNT << ")" << std::endl;
+        SANDBOX_LOGE("nsFlags array size (%{public}d) exceeds max (%{public}zu)",
+            size, MAX_NS_FLAGS_COUNT);
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
     for (int i = 0; i < size; i++) {
         cJSON *flagItem = cJSON_GetArrayItem(item, i);
         if (!cJSON_IsString(flagItem) || flagItem->valuestring == nullptr) {
@@ -148,7 +178,15 @@ static int ParseNsFlagsField(cJSON *root, std::vector<std::string> &out)
             SANDBOX_LOGE("nsFlags[%{public}d] should be string", i);
             return SANDBOX_ERR_CONFIG_INVALID;
         }
-        out.push_back(flagItem->valuestring);
+        std::string flagVal = flagItem->valuestring;
+        if (flagVal.length() > MAX_NS_FLAG_STRING_LENGTH) {
+            std::cerr << "Error: nsFlags[" << i << "] exceeds max length ("
+                      << MAX_NS_FLAG_STRING_LENGTH << ")" << std::endl;
+            SANDBOX_LOGE("nsFlags[%{public}d] exceeds max length (%{public}zu)",
+                i, MAX_NS_FLAG_STRING_LENGTH);
+            return SANDBOX_ERR_CONFIG_INVALID;
+        }
+        out.push_back(flagVal);
     }
     return SANDBOX_SUCCESS;
 }
@@ -183,15 +221,23 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
     if (ret != SANDBOX_SUCCESS) {
         return CleanupAndReturn(root, ret);
     }
-    ret = ParseStringField(root, "challenge", config.challenge);
+    ret = ParseStringFieldWithMaxLen(root, "challenge", config.challenge, MAX_CHALLENGE_LENGTH);
     if (ret != SANDBOX_SUCCESS) {
         return CleanupAndReturn(root, ret);
     }
-    ret = ParseStringField(root, "appid", config.appid);
+    ret = ParseStringFieldWithMaxLen(root, "appid", config.appid, MAX_APPID_LENGTH);
     if (ret != SANDBOX_SUCCESS) {
         return CleanupAndReturn(root, ret);
     }
-    ret = ParseStringField(root, "bundleName", config.bundleName);
+    ret = ParseStringFieldWithMaxLen(root, "bundleName", config.bundleName, MAX_BUNDLE_NAME_LENGTH);
+    if (ret != SANDBOX_SUCCESS) {
+        return CleanupAndReturn(root, ret);
+    }
+    ret = ParseStringFieldWithMaxLen(root, "cliName", config.cliName, MAX_CLI_NAME_LENGTH);
+    if (ret != SANDBOX_SUCCESS) {
+        return CleanupAndReturn(root, ret);
+    }
+    ret = ParseStringFieldWithMaxLen(root, "subCliName", config.subCliName, MAX_SUB_CLI_NAME_LENGTH);
     if (ret != SANDBOX_SUCCESS) {
         return CleanupAndReturn(root, ret);
     }
@@ -212,6 +258,13 @@ CmdInfo CmdParser::ParseCommand(const std::string &cmdline)
 {
     CmdInfo info;
     info.raw = cmdline;
+
+    if (cmdline.length() > MAX_CMD_LINE_LENGTH) {
+        std::cerr << "Error: Command line exceeds max length ("
+                  << MAX_CMD_LINE_LENGTH << ")" << std::endl;
+        SANDBOX_LOGE("Command line exceeds max length (%{public}zu)", MAX_CMD_LINE_LENGTH);
+        return info;
+    }
 
     std::string trimmed = Trim(cmdline);
     if (trimmed.empty()) {
