@@ -20,6 +20,8 @@
 #include <vector>
 #include <cstdint>
 
+#include "accesstoken_kit.h"
+
 namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
@@ -38,6 +40,10 @@ struct SandboxConfig {
     std::string currentUserId;             // Current user ID for <currentUserId> substitution
     std::string name;                      // Optional hex sandbox name (max 64 chars)
     std::vector<std::string> nsFlags;      // Optional namespace flags, e.g. ["net","pid"]
+    std::string cliName;                   // CLI name (required)
+    std::string subCliName;                // Sub-CLI name (required)
+    OHOS::Security::AccessToken::AccessTokenIDEx tokenIdEx;             // Temporary tokenId
+    std::vector<OHOS::Security::AccessToken::PermissionWithValue> kernelPermList;  // Kernel Permission List
 };
 
 /**

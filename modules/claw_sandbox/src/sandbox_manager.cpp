@@ -25,6 +25,7 @@
 #include <random>
 #include <iomanip>
 #include <grp.h>
+#include <dirent.h>
 #include <sys/mount.h>
 #include <sys/syscall.h>
 #include <sys/prctl.h>
@@ -160,81 +161,81 @@ int SandboxManager::Execute()
         return ret;
     }
 
-    // Step 3: setns into the caller's sandbox
+    // Step 3: Generaete temporary tokenid
+    ret = GenerateTokenId();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    // Step 4: setns into the caller's sandbox
     ret = EnterCallerSandbox();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 4: Create sandbox path (using config_.name or auto-generated name)
+    // Step 5: Create sandbox path (using config_.name or auto-generated name)
     ret = CreateNewRoot();
     if (ret != SANDBOX_SUCCESS) {
         Cleanup();
         return ret;
     }
 
-    // Step 5: unshare to create namespaces
+    // Step 6: unshare to create namespaces
     ret = UnshareNamespaces();
     if (ret != SANDBOX_SUCCESS) {
         Cleanup();
         return ret;
     }
 
-    // Step 6: Set the new root directory as a mount point
+    // Step 7: Set the new root directory as a mount point
     ret = MountNewRoot();
     if (ret != SANDBOX_SUCCESS) {
         Cleanup();
         return ret;
     }
 
-    // Step 7: Create and mount system directories
+    // Step 8: Create and mount system directories
     ret = MountSystemDirs();
     if (ret != SANDBOX_SUCCESS) {
         Cleanup();
         return ret;
     }
 
-    // Step 8: Create and mount application directories
+    // Step 9: Create and mount application directories
     ret = MountAppDirs();
     if (ret != SANDBOX_SUCCESS) {
         Cleanup();
         return ret;
     }
 
-    // Step 9: pivot_root to switch root directory
+    // Step 10: pivot_root to switch root directory
     ret = PivotRoot();
     if (ret != SANDBOX_SUCCESS) {
         Cleanup();
         return ret;
     }
 
-    // Step 10: Set AccessToken
+    // Step 11: Set AccessToken
     ret = SetAccessToken();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 11: Set UID/GID (with SECBIT_KEEP_CAPS to preserve capabilities across setuid)
+    // Step 12: Set UID/GID (with SECBIT_KEEP_CAPS to preserve capabilities across setuid)
     ret = SetUidGid();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 12: Create a new process group (must be done BEFORE SetSeccomp,
+    // Step 13: Create a new process group (must be done BEFORE SetSeccomp,
     //          because seccomp blocks setpgid/setsid to prevent process group escape)
     ret = SetProcessGroup();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 13: Set Seccomp (always applied to block setpgid/setsid for process group protection)
+    // Step 14: Set Seccomp (always applied to block setpgid/setsid for process group protection)
     ret = SetSeccomp();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Step 14: Set Selinux label
-    ret = SetSelinux();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
@@ -250,8 +251,6 @@ int SandboxManager::Execute()
     // Step 16: Execute the command
     return ExecuteCommand();
 }
-
-// ==================== 15-step workflow implementation ====================
 
 int SandboxManager::ValidateConfig()
 {
@@ -601,9 +600,34 @@ int SandboxManager::PivotRoot()
     return SANDBOX_SUCCESS;
 }
 
+int SandboxManager::GenerateTokenId()
+{
+    CliInitInfo initInfo = {
+        .hostTokenId = config_.callerTokenId,
+        .challenge = config_.challenge,
+        .cliInfo = {
+            .cliName = config_.cliName,
+            .subCliName = config_.subCliName
+        }
+    };
+    AccessTokenIDEx tokenIdEx;
+    std::vector<PermissionWithValue> kernelPermList;
+
+    int ret = AccessTokenKit::InitCliToken(initInfo, tokenIdEx, kernelPermList);
+    if (ret != 0) {
+        std::cerr << "Error: InitCliToken failed: " << ret << std::endl;
+        SANDBOX_LOGE("InitCliToken failed: %{public}d", ret);
+        return SANDBOX_ERR_GEN_TOKENID_FAILED;
+    }
+
+    config_.tokenIdEx = tokenIdEx;
+    config_.kernelPermList = kernelPermList;
+    return SANDBOX_SUCCESS;
+}
+
 int SandboxManager::SetAccessToken()
 {
-    int ret = SetSelfTokenID(config_.callerTokenId);
+    int ret = SetSelfTokenID(config_.tokenIdEx.tokenIDEx);
     if (ret != 0) {
         std::cerr << "Error: SetSelfTokenID failed: " << ret << std::endl;
         SANDBOX_LOGE("SetSelfTokenID failed: %{public}d", ret);
@@ -922,24 +946,6 @@ int SandboxManager::SetSeccomp()
     }
 
     SANDBOX_LOGD("Custom seccomp filter installed (allow list + blocked syscalls)");
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::SetSelinux()
-{
-    if (!is_selinux_enabled()) {
-        SANDBOX_LOGI("SELinux is not enabled, skipping");
-        return SANDBOX_SUCCESS;
-    }
-
-    if (setcon(SELINUX_LABEL) != 0) {
-        std::cerr << "Error: setcon(" << SELINUX_LABEL << ") failed: "
-                  << strerror(errno) << std::endl;
-        SANDBOX_LOGE("setcon(%{public}s) failed: %{public}s",
-            SELINUX_LABEL, strerror(errno));
-        return SANDBOX_ERR_SET_SELINUX_FAILED;
-    }
-
     return SANDBOX_SUCCESS;
 }
 

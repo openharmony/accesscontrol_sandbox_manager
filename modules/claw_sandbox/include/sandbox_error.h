@@ -47,6 +47,7 @@ enum SandboxError : int {
     SANDBOX_ERR_SET_SELINUX_FAILED = -16,  // Set Selinux label failed
     SANDBOX_ERR_SET_CAP_FAILED     = -17,  // Drop Capability failed
     SANDBOX_ERR_SANDBOX_PATH_EXHAUSTED = -18,  // Sandbox path creation exhausted (all retries failed)
+    SANDBOX_ERR_GEN_TOKENID_FAILED = -19,  // Generate tokenid failed
 };
 
 } // namespace SANDBOX
