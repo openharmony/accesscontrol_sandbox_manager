@@ -59,9 +59,6 @@ namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
-// SELinux label constant (consistent with the original implementation)
-constexpr const char *SELINUX_LABEL = "u:r:claw_cli:s0";
-
 // Number of capability data structures (CAP_NUM = 2 for _LINUX_CAPABILITY_VERSION_3)
 constexpr int CAP_NUM = 2;
 
