@@ -22,6 +22,7 @@ group("sandbox_manager_build_module_test") {
       "frameworks/inner_api/sandbox_manager/test:unittest",
       "frameworks/test:unittest",
       "services/sandbox_manager/test:unittest",
+      "modules/claw_sandbox/test:unittest",
     ]
   }
 }
