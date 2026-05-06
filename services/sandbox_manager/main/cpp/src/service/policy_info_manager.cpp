@@ -1979,7 +1979,7 @@ static int32_t QuerySharedFileInfoByUserId(int32_t userId, std::vector<GenericVa
     int32_t ret = SandboxManagerRdb::GetInstance().Find(
         SANDBOX_MANAGER_SHARED_FILE_INFO, conditions, symbols, results);
     if (ret != SandboxManagerRdb::SUCCESS) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Find shared file info from DB failed, ret=%{public}d", ret);
+        LOGE_WITH_REPORT(LABEL, "Find shared file info from DB failed, ret=%{public}d", ret);
         return SANDBOX_MANAGER_DB_ERR;
     }
 
@@ -2039,7 +2039,7 @@ int32_t PolicyInfoManager::GrantSharedDirectoryPermission(const uint32_t tokenId
     setInfo.timestamp = 0;
     ret = SetPolicy(tokenId, policies, policyFlag, setResult, userId, setInfo);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "SetPolicy failed, ret=%{public}d", ret);
+        LOGE_WITH_REPORT(LABEL, "SetPolicy failed, ret=%{public}d", ret);
         return ret;
     }
 
@@ -2075,7 +2075,7 @@ int32_t PolicyInfoManager::RevokeSharedDirectoryPermission(const uint32_t tokenI
     std::vector<uint32_t> setResult;
     ret = UnSetPolicy(tokenId, policies, setResult);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "UnSetPolicy failed, ret=%{public}d", ret);
+        LOGE_WITH_REPORT(LABEL, "UnSetPolicy failed, ret=%{public}d", ret);
         return ret;
     }
 

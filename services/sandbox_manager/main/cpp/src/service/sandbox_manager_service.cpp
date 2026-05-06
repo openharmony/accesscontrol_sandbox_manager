@@ -1055,19 +1055,6 @@ bool SandboxManagerService::IsFileManagerCalling(uint32_t tokenCaller)
     return true;
 }
 
-static int32_t CheckShareFileInfo(uint32_t tokenId, const std::string &bundleName)
-{
-    if (tokenId == 0) {
-        LOGE_WITH_REPORT(LABEL, "Check tokenId failed.");
-        return INVALID_PARAMTER;
-    }
-    if (bundleName.empty()) {
-        LOGE_WITH_REPORT(LABEL, "Check bundleName failed.");
-        return INVALID_PARAMTER;
-    }
-    return SANDBOX_MANAGER_OK;
-}
-
 int32_t SandboxManagerService::SetShareFileInfo(
     const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
 {
@@ -1075,10 +1062,6 @@ int32_t SandboxManagerService::SetShareFileInfo(
     if (IPCSkeleton::GetCallingUid() != FOUNDATION_UID) {
         LOGE_WITH_REPORT(LABEL, "Not foundation userid, permision denied.");
         return PERMISSION_DENIED;
-    }
-    int32_t ret = CheckShareFileInfo(tokenId, bundleName);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
     }
     return SandboxManagerShare::GetInstance().SetShareFileInfo(cfginfo, bundleName, userId, tokenId);
 }
@@ -1091,10 +1074,6 @@ int32_t SandboxManagerService::UpdateShareFileInfo(
         LOGE_WITH_REPORT(LABEL, "Not foundation userid, permision denied.");
         return PERMISSION_DENIED;
     }
-    int32_t ret = CheckShareFileInfo(tokenId, bundleName);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
     return SandboxManagerShare::GetInstance().UpdateShareFileInfo(cfginfo, bundleName, userId, tokenId);
 }
 
@@ -1104,10 +1083,6 @@ int32_t SandboxManagerService::UnsetShareFileInfo(uint32_t tokenId, const std::s
     if (IPCSkeleton::GetCallingUid() != FOUNDATION_UID) {
         LOGE_WITH_REPORT(LABEL, "Not foundation userid, permision denied.");
         return PERMISSION_DENIED;
-    }
-    int32_t ret = CheckShareFileInfo(tokenId, bundleName);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
     }
     return SandboxManagerShare::GetInstance().UnsetShareFileInfo(tokenId, bundleName, userId);
 }
