@@ -374,10 +374,6 @@ int32_t SandboxManagerKit::UnsetShareFileInfo(uint32_t tokenId, const std::strin
 {
     SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, bundleName = %{public}s, userId = %{public}u",
         tokenId, bundleName.c_str(), userId);
-    int32_t ret = CheckSharedFileInfoParams(tokenId, bundleName);
-    if (ret != SANDBOX_MANAGER_OK) {
-        return ret;
-    }
     return SandboxManagerClient::GetInstance().UnsetShareFileInfo(tokenId, bundleName, userId);
 }
 
