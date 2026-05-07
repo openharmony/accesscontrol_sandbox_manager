@@ -56,6 +56,11 @@ struct SandboxPolicyInfo {
     bool persist = false;
 };
 
+struct AuthInfo {
+    uint64_t tokenid;
+    int32_t count;
+};
+
 #define SANDBOX_IOCTL_BASE 's'
 #define SET_POLICY 1
 #define UN_SET_POLICY 2
@@ -65,6 +70,7 @@ struct SandboxPolicyInfo {
 #define DEL_POLICY_BY_USER 7
 #define DENY_POLICY_ID 9
 #define DEL_DENY_POLICY_ID 10
+#define GET_MAX_AUTH_ID 13
 
 #define SET_POLICY_CMD _IOWR(SANDBOX_IOCTL_BASE, SET_POLICY, struct SandboxPolicyInfo)
 #define UN_SET_POLICY_CMD _IOWR(SANDBOX_IOCTL_BASE, UN_SET_POLICY, struct SandboxPolicyInfo)
@@ -74,6 +80,8 @@ struct SandboxPolicyInfo {
 #define DEL_DEC_POLICY_BY_USER_CMD _IOWR(SANDBOX_IOCTL_BASE, DEL_POLICY_BY_USER, struct SandboxPolicyInfo)
 #define DENY_DEC_RULE_CMD _IOWR(SANDBOX_IOCTL_BASE, DENY_POLICY_ID, struct SandboxPolicyInfo)
 #define DEL_DENY_DEC_RULE_CMD _IOWR(SANDBOX_IOCTL_BASE, DEL_DENY_POLICY_ID, struct SandboxPolicyInfo)
+#define GET_MAX_AUTH_CMD _IOR(SANDBOX_IOCTL_BASE, GET_MAX_AUTH_ID, struct AuthInfo)
+
 MacAdapter::MacAdapter() {}
 
 MacAdapter::~MacAdapter()
@@ -273,7 +281,7 @@ void MacAdapter::DenyInit()
     return;
 }
 
-void MacAdapter::Init()
+void MacAdapter::Init(bool initDeny)
 {
     if (access(DEV_NODE, F_OK) == 0) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Node exists, mac is support.");
@@ -290,7 +298,9 @@ void MacAdapter::Init()
     FDSAN_MARK(fd_);
     SANDBOXMANAGER_LOG_INFO(LABEL, "Open node success.");
 
-    DenyInit();
+    if (initDeny) {
+        DenyInit();
+    }
     return;
 }
 
@@ -626,6 +636,28 @@ int32_t MacAdapter::DestroySandboxPolicy(uint32_t tokenId, uint64_t timestamp)
         LOGE_WITH_REPORT(LABEL, "Destroy policy failed, errno=%{public}d.", errno);
         return SANDBOX_MANAGER_MAC_IOCTL_ERR;
     }
+
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t MacAdapter::GetMaxAuthTokenId(uint64_t &tokenId, int32_t &count)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Get max auth token id.");
+
+    if (fd_ < 0) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Not init yet.");
+        return SANDBOX_MANAGER_MAC_NOT_INIT;
+    }
+
+    AuthInfo authInfo = {0};
+    if (ioctl(fd_, GET_MAX_AUTH_CMD, &authInfo) < 0) {
+        LOGE_WITH_REPORT(LABEL, "Get max auth token id failed, errno = %{public}d.", errno);
+        return SANDBOX_MANAGER_MAC_IOCTL_ERR;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Get max auth token id success, tokenId=%{public}" PRIu64 ", count=%{public}d.",
+        authInfo.tokenid, authInfo.count);
+    tokenId = authInfo.tokenid;
+    count = authInfo.count;
 
     return SANDBOX_MANAGER_OK;
 }

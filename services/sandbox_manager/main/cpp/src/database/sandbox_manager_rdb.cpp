@@ -378,6 +378,88 @@ int32_t SandboxManagerRdb::Find(const DataType type, const GenericValues& condit
     }
     return SUCCESS;
 }
+
+int32_t SandboxManagerRdb::GetRecordCount(const DataType type, int32_t &count)
+{
+    std::string tableName;
+    GetTableNameByType(type, tableName);
+    if (tableName.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Cannot find tableName by type: %{public}u, please check", type);
+        return FAILURE;
+    }
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "GetRecordCount tableName: %{public}s", tableName.c_str());
+
+    OHOS::Utils::UniqueReadGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
+    std::shared_ptr<NativeRdb::RdbStore> db = GetRdb();
+    if (db == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
+        return FAILURE;
+    }
+
+    std::string sql = "SELECT COUNT(*) FROM " + tableName;
+    auto queryResultSet = db_->QuerySql(sql);
+    if (queryResultSet == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to get record count from table %{public}s.", tableName.c_str());
+        return FAILURE;
+    }
+
+    count = 0;
+    if (queryResultSet->GoToNextRow() == NativeRdb::E_OK) {
+        int64_t countValue = 0;
+        int32_t res = queryResultSet->GetLong(0, countValue);
+        if (res == NativeRdb::E_OK) {
+            count = static_cast<int32_t>(countValue);
+        }
+    }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Table %{public}s record count: %{public}d", tableName.c_str(), count);
+    return SUCCESS;
+}
+
+int32_t SandboxManagerRdb::GetTokenIdWithMostRecords(const DataType type, uint32_t &tokenId, uint32_t &count)
+{
+    std::string tableName;
+    GetTableNameByType(type, tableName);
+    if (tableName.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Cannot find tableName by type: %{public}u, please check", type);
+        return FAILURE;
+    }
+    SANDBOXMANAGER_LOG_DEBUG(LABEL, "GetTokenIdWithMostRecords tableName: %{public}s", tableName.c_str());
+
+    OHOS::Utils::UniqueReadGuard<OHOS::Utils::RWLock> lock(this->rwLock_);
+    std::shared_ptr<NativeRdb::RdbStore> db = GetRdb();
+    if (db == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
+        return FAILURE;
+    }
+
+    std::string sql = "SELECT " + PolicyFiledConst::FIELD_TOKENID + ", COUNT(*) as count" +
+                      " FROM " + tableName +
+                      " GROUP BY " + PolicyFiledConst::FIELD_TOKENID +
+                      " ORDER BY count DESC LIMIT 1";
+    auto queryResultSet = db_->QuerySql(sql);
+    if (queryResultSet == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to get tokenId with most records from table %{public}s.",
+            tableName.c_str());
+        return FAILURE;
+    }
+
+    tokenId = 0;
+    count = 0;
+    if (queryResultSet->GoToNextRow() == NativeRdb::E_OK) {
+        int64_t tokenIdValue = 0;
+        int64_t countValue = 0;
+        int32_t res = queryResultSet->GetLong(0, tokenIdValue);
+        int32_t resCount = queryResultSet->GetLong(1, countValue);
+        if (res == NativeRdb::E_OK && resCount == NativeRdb::E_OK) {
+            tokenId = static_cast<uint32_t>(tokenIdValue);
+            count = static_cast<uint32_t>(countValue);
+            SANDBOXMANAGER_LOG_INFO(LABEL, "Tokenid with most records: %{public}u, count: %{public}u", tokenId, count);
+        }
+    }
+
+    return SUCCESS;
+}
 } // namespace SANDBOXMANAGER
 } // namespace Security
 } // namespace OHOS

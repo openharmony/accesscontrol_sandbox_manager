@@ -33,7 +33,7 @@ class MacAdapter {
 public:
     explicit MacAdapter();
     virtual ~MacAdapter();
-    void Init();
+    void Init(bool initDeny = true);
     bool IsMacSupport();
 
     int32_t SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
@@ -47,6 +47,7 @@ public:
     int32_t CheckSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     int32_t DestroySandboxPolicy(uint32_t tokenId, uint64_t timestamp);
     int32_t UnSetSandboxPolicyByUser(int32_t userId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
+    int32_t GetMaxAuthTokenId(uint64_t &tokenId, int32_t &count);
     void CheckResult(std::vector<uint32_t> &result);
     int32_t ReadDenyFile(const char *jsonPath, std::string& rawData);
     int32_t SetDenyCfg(std::string& json);

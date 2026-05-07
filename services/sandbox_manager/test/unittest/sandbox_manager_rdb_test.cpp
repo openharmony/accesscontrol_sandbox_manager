@@ -434,6 +434,63 @@ HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest006, TestSize.Level0)
 }
 
 /**
+ * @tc.name: SandboxManagerRdbTest_GetRecordCount_001
+ * @tc.desc: Test GetRecordCount normal, empty, and invalid type branches
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_GetRecordCount_001, TestSize.Level0)
+{
+    int32_t count = -1;
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS,
+        SandboxManagerRdb::GetInstance().GetRecordCount(SANDBOX_MANAGER_PERSISTED_POLICY, count));
+    EXPECT_EQ(0, count);
+
+    std::vector<GenericValues> values = {g_value1, g_value2, g_value3, g_value4, g_value5};
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS,
+        SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS,
+        SandboxManagerRdb::GetInstance().GetRecordCount(SANDBOX_MANAGER_PERSISTED_POLICY, count));
+    EXPECT_EQ(5, count);
+
+    count = -1;
+    EXPECT_EQ(SandboxManagerRdb::FAILURE,
+        SandboxManagerRdb::GetInstance().GetRecordCount(static_cast<DataType>(999), count));
+    EXPECT_EQ(-1, count);
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_GetTokenIdWithMostRecords_001
+ * @tc.desc: Test GetTokenIdWithMostRecords normal, empty, and invalid type branches
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_GetTokenIdWithMostRecords_001, TestSize.Level0)
+{
+    uint32_t tokenId = 1;
+    uint32_t count = 1;
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS,
+        SandboxManagerRdb::GetInstance().GetTokenIdWithMostRecords(SANDBOX_MANAGER_PERSISTED_POLICY, tokenId, count));
+    EXPECT_EQ(static_cast<uint32_t>(0), tokenId);
+    EXPECT_EQ(static_cast<uint32_t>(0), count);
+
+    std::vector<GenericValues> values = {g_value1, g_value2, g_value3, g_value4, g_value5};
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS,
+        SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS,
+        SandboxManagerRdb::GetInstance().GetTokenIdWithMostRecords(SANDBOX_MANAGER_PERSISTED_POLICY, tokenId, count));
+    EXPECT_EQ(static_cast<uint32_t>(1), tokenId);
+    EXPECT_EQ(static_cast<uint32_t>(3), count);
+
+    tokenId = 1;
+    count = 1;
+    EXPECT_EQ(SandboxManagerRdb::FAILURE,
+        SandboxManagerRdb::GetInstance().GetTokenIdWithMostRecords(static_cast<DataType>(999), tokenId, count));
+    EXPECT_EQ(static_cast<uint32_t>(1), tokenId);
+    EXPECT_EQ(static_cast<uint32_t>(1), count);
+}
+
+/**
  * @tc.name: SandboxManagerRdbTest007
  * @tc.desc: Test BUNDLE_PERSISTENT_POLICY table - add and find
  * @tc.type: FUNC

@@ -17,6 +17,7 @@ import("../../../sandbox_manager.gni")
 sandbox_manager_service_src = [
   "${sandbox_manager_path}/services/common/utils/data_size_report_adapter.cpp",
   "../main/cpp/src/service/sandbox_manager_service.cpp",
+  "../main/cpp/src/service/sandbox_stats_reporter.cpp",
   "../main/cpp/src/sensitive/sandbox_manager_event_subscriber.cpp",
   "../main/cpp/src/service/policy_info_manager.cpp",
   "../main/cpp/src/service/policy_trie.cpp",

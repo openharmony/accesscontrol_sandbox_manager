@@ -32,6 +32,7 @@
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_event_subscriber.h"
 #include "sandbox_manager_log.h"
+#include "sandbox_stats_reporter.h"
 #ifdef MEMORY_MANAGER_ENABLE
 #include "sandbox_memory_manager.h"
 #endif
@@ -475,6 +476,8 @@ int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const PolicyVecRawDat
         return ret;
     }
     resultRawData.Marshalling(result);
+
+    DelayedSingleton<SandboxStatsReporter>::GetInstance()->Report();
     return SANDBOX_MANAGER_OK;
 }
 

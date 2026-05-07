@@ -38,3 +38,13 @@ TEMPORARY_POLICY_OPERATE_SUCCESS:
   SUCCESS_NUM: {type: UINT32, desc: policy success number}
   FAIL_NUM: {type: UINT32, desc: fail policy number}
   INVALID_NUM: {type: UINT32, desc: invalid policy number}
+
+AUTHORIZATION_STAT:
+  __BASE: {type: STATISTIC, level: MINOR, desc: authorization stat, preserve: true}
+  TEMPORARY_RULE_NUM: {type: UINT32, desc: temporary rule number}
+  PERSIST_RULE_NUM: {type: INT32, desc: persist rule number}
+  KERNEL_MEMORY_USAGE: {type: UINT64, desc: kernel memory usage}
+  TOP_TEMP_APP: {type: STRING, desc: top temporary authorization app}
+  TOP_TEMP_NUM: {type: UINT32, desc: top temporary authorization number}
+  TOP_PERSIST_APP: {type: STRING, desc: top persist authorization app}
+  TOP_PERSIST_NUM: {type: UINT32, desc: top persist authorization number}
