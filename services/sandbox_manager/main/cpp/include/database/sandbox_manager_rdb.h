@@ -53,6 +53,10 @@ public:
     int32_t Find(const DataType type, const GenericValues &conditions,
         const GenericValues &symbols, std::vector<GenericValues> &results);
 
+    int32_t GetRecordCount(const DataType type, int32_t &count);
+
+    int32_t GetTokenIdWithMostRecords(const DataType type, uint32_t &tokenId, uint32_t &count);
+
 private:
     SandboxManagerRdb();
     int32_t OpenDataBase();

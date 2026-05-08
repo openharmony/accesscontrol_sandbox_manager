@@ -66,6 +66,7 @@ if (is_standard_system) {
       "main/cpp/src/service/policy_info_manager.cpp",
       "main/cpp/src/service/policy_trie.cpp",
       "main/cpp/src/service/sandbox_manager_service.cpp",
+      "main/cpp/src/service/sandbox_stats_reporter.cpp",
       "main/cpp/src/share/share_files.cpp",
       "main/cpp/src/preserve/persistent_preserve.cpp",
     ]
@@ -101,6 +102,7 @@ if (is_standard_system) {
       "eventhandler:libeventhandler",
       "hilog:libhilog",
       "ipc:ipc_core",
+      "hisysevent:libhisysevent",
       "media_library:media_permission_helper",
       "os_account:os_account_innerkits",
       "relational_store:native_rdb",

@@ -32,6 +32,7 @@
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_event_subscriber.h"
 #define private public
+#include "sandbox_stats_reporter.h"
 #include "sandbox_manager_event_subscriber.h"
 #include "policy_info_manager.h"
 #include "sandbox_manager_service.h"
@@ -2006,6 +2007,53 @@ HWTEST_F(SandboxManagerServiceTest, UnPersistPolicyTest001, TestSize.Level0)
     // Should return permission denied since caller is not system app
     int32_t result = sandboxManagerService_->UnPersistPolicy(static_cast<uint32_t>(selfTokenId_));
     EXPECT_EQ(SANDBOX_MANAGER_NOT_SYS_APP, result);
+}
+
+/**
+ * @tc.name: SandboxStatsReporterTest001
+ * @tc.desc: Test persisted policy top app helper with records and no-record branches.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxStatsReporterTest001, TestSize.Level0)
+{
+    GenericValues value1;
+    value1.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(123));
+    value1.Put(PolicyFiledConst::FIELD_PATH, "/stats_reporter/a");
+    value1.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
+    value1.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(2));
+    value1.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    GenericValues value2;
+    value2.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(123));
+    value2.Put(PolicyFiledConst::FIELD_PATH, "/stats_reporter/b");
+    value2.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
+    value2.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(2));
+    value2.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    std::vector<GenericValues> values = {value1, value2};
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS,
+        SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    SandboxStatsReporter reporter;
+    EXPECT_EQ(2, reporter.GetPersistRecordCount());
+
+    uint32_t persistTokenId = 0;
+    uint32_t topPersistRuleNum = 0;
+    std::string persistBundleName = "not_get";
+    reporter.GetTopPersistApp(persistTokenId, topPersistRuleNum, persistBundleName);
+    EXPECT_EQ(123, persistTokenId);
+    EXPECT_EQ(static_cast<uint32_t>(2), topPersistRuleNum);
+
+    GenericValues conditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
+    persistTokenId = 0;
+    topPersistRuleNum = 0;
+    persistBundleName = "not_get";
+    reporter.GetTopPersistApp(persistTokenId, topPersistRuleNum, persistBundleName);
+    EXPECT_EQ(static_cast<uint32_t>(0), persistTokenId);
+    EXPECT_EQ(static_cast<uint32_t>(0), topPersistRuleNum);
+    EXPECT_EQ(std::string("not_get"), persistBundleName);
 }
 
 } // SandboxManager
