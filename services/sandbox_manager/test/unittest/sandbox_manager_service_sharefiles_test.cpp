@@ -26,7 +26,9 @@ namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
 namespace {
+#ifdef DEC_ENABLED
 const size_t MAX_JSON_SIZE = 5 * 1024 * 1024;
+#endif
 } // namespace
 
 class SandboxManagerServiceSharefilesTest : public testing::Test {
