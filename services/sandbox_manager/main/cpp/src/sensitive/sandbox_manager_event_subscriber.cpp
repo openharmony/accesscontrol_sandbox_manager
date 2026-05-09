@@ -187,6 +187,11 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEvent(const EventFwk::CommonE
     }
 
     if (action == EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_CHANGED) {
+        bool isModuleUpdate = want.GetBoolParam("isModuleUpdate", false);
+        if (isModuleUpdate != true) {
+            SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceive Package changed is not ModuleUpdate.");
+            return;
+        }
         std::string bundleName = want.GetElement().GetBundleName();
         int32_t userID = want.GetParams().GetIntParam("userId", -1);
         if ((userID == -1) || (bundleName.empty())) {

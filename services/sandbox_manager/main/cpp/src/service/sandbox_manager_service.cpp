@@ -910,12 +910,39 @@ static int32_t GetDemandAppIdentifier(const SystemAbilityOnDemandReason &startRe
     return SANDBOX_MANAGER_OK;
 }
 
+static int32_t GetDemandIsModuleUpdate(const SystemAbilityOnDemandReason &startReason, std::string &isModuleUpdate)
+{
+    auto iter = startReason.GetExtraData().GetWant().find("isModuleUpdate");
+    if (iter == startReason.GetExtraData().GetWant().end()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Extradata search isModuleUpdate failed.");
+        return INVALID_PARAMTER;
+    }
+    std::string value = iter->second;
+    if (value.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Error isModuleUpdate received.");
+        return INVALID_PARAMTER;
+    }
+    isModuleUpdate = value;
+    return SANDBOX_MANAGER_OK;
+}
+
 bool SandboxManagerService::PackageChangedEventAction(const SystemAbilityOnDemandReason &startReason)
 {
     uint32_t tokenId = 0;
     std::string bundleName;
     int32_t userId = -1;
-    int32_t ret = GetDemandReasonInfo(startReason, bundleName, userId, tokenId);
+    std::string isModuleUpdate;
+    int32_t ret = GetDemandIsModuleUpdate(startReason, isModuleUpdate);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return false;
+    }
+
+    if (isModuleUpdate != "true") {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "PackageChangedEventAction is not ModuleUpdate.");
+        return false;
+    }
+
+    ret = GetDemandReasonInfo(startReason, bundleName, userId, tokenId);
     if (ret != SANDBOX_MANAGER_OK) {
         return false;
     }
