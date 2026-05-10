@@ -31,6 +31,7 @@
 #include "sandbox_manager_const.h"
 #include "sandbox_manager_log.h"
 #include "sandbox_manager_err_code.h"
+#include "media_path_support.h"
 
 using namespace testing::ext;
 
@@ -75,6 +76,128 @@ void MediaPathMockTest::TearDown(void)
         PolicyInfoManager::GetInstance().macAdapter_.isMacSupport_ = false;
     }
 }
+
+/**
+ * @tc.name: MediaModeTest001
+ * @tc.desc: Test CalculateOperateMode function with PERSIST_READ_IMAGEVIDEO
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(MediaPathMockTest, MediaModeTest001, TestSize.Level0)
+{
+    std::vector<Media::PhotoPermissionType> photoPermissionList;
+    photoPermissionList.push_back(Media::PhotoPermissionType::TEMPORARY_READ_IMAGEVIDEO);
+    photoPermissionList.push_back(Media::PhotoPermissionType::PERSIST_READ_IMAGEVIDEO);
+
+    int32_t result = SandboxManagerMedia::GetInstance().CalculateOperateMode(photoPermissionList);
+
+    // Expect READ_MODE to be set due to PERSIST_READ_IMAGEVIDEO
+    EXPECT_EQ(OperateMode::READ_MODE, result);
+    // Verify that the photoPermissionList has been modified as expected
+    // Since the mock implementation doesn't change the list, we just verify it's still valid
+    EXPECT_EQ(2, photoPermissionList.size());
+}
+
+/**
+ * @tc.name: MediaModeTest002
+ * @tc.desc: Test CalculateOperateMode function with empty vector
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(MediaPathMockTest, MediaModeTest002, TestSize.Level0)
+{
+    std::vector<Media::PhotoPermissionType> photoPermissionList;
+
+    int32_t result = SandboxManagerMedia::GetInstance().CalculateOperateMode(photoPermissionList);
+
+    EXPECT_EQ(0, result); // Empty list should return 0
+    EXPECT_EQ(0, photoPermissionList.size());
+}
+
+/**
+ * @tc.name: MediaModeTest003
+ * @tc.desc: Test CalculateOperateMode function with all possible permission types
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(MediaPathMockTest, MediaModeTest003, TestSize.Level0)
+{
+    std::vector<Media::PhotoPermissionType> photoPermissionList;
+    photoPermissionList.push_back(Media::PhotoPermissionType::TEMPORARY_READ_IMAGEVIDEO);
+    photoPermissionList.push_back(Media::PhotoPermissionType::PERSIST_READ_IMAGEVIDEO);
+    photoPermissionList.push_back(Media::PhotoPermissionType::TEMPORARY_WRITE_IMAGEVIDEO);
+    photoPermissionList.push_back(Media::PhotoPermissionType::TEMPORARY_READWRITE_IMAGEVIDEO);
+    photoPermissionList.push_back(Media::PhotoPermissionType::PERSIST_READWRITE_IMAGEVIDEO);
+    photoPermissionList.push_back(Media::PhotoPermissionType::PERSIST_WRITE_IMAGEVIDEO);
+    photoPermissionList.push_back(Media::PhotoPermissionType::GRANT_PERSIST_READWRITE_IMAGEVIDEO);
+
+    int32_t result = SandboxManagerMedia::GetInstance().CalculateOperateMode(photoPermissionList);
+
+    // Should return combined modes: READ_MODE | WRITE_MODE | (WRITE_MODE | READ_MODE) = READ_MODE | WRITE_MODE
+    EXPECT_EQ(OperateMode::READ_MODE | OperateMode::WRITE_MODE, result);
+    EXPECT_EQ(7, photoPermissionList.size());
+}
+
+/**
+ * @tc.name: MediaPathMockTest_CancelPhotoUriPersistPermission
+ * @tc.desc: Test CancelPhotoUriPersistPermission clears all permissions
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(MediaPathMockTest, MediaPathMockTest_CancelPhotoUriPersistPermission, TestSize.Level0)
+{
+    uint32_t testTokenId = 1001;
+    
+    // Directly use the MediaPermissionHelper to grant permissions to testTokenId
+    std::vector<std::string> uris = {"/data/storage/el2/media/test1.jpg", "/data/storage/el2/media/test2.jpg"};
+    std::vector<Media::PhotoPermissionType> photoPermissionTypes = {
+        Media::PhotoPermissionType::PERSIST_READ_IMAGEVIDEO,
+        Media::PhotoPermissionType::PERSIST_WRITE_IMAGEVIDEO
+    };
+    
+    // Access the MediaPermissionHelper instance through SandboxManagerMedia
+    SandboxManagerMedia &mediaInstance = SandboxManagerMedia::GetInstance();
+    int32_t initResult = mediaInstance.InitMedia();
+    EXPECT_EQ(0, initResult);
+
+    Media::MediaPermissionHelper *helper = Media::MediaPermissionHelper::GetMediaPermissionHelper();
+    EXPECT_NE(nullptr, helper);
+
+    // Step 1: Grant permissions to the test token ID
+    int32_t grantResult = helper->GrantPhotoUriPermission(1000, testTokenId, uris, photoPermissionTypes,
+        Media::HideSensitiveType::ALL_DESENSITIZE);
+    EXPECT_EQ(0, grantResult);
+
+    // Step 2: Verify permissions were granted
+    std::vector<Media::PhotoPermissionType> retrievedPermissions;
+    int32_t getResult = mediaInstance.GetPhotoUriPersistPermission(testTokenId, retrievedPermissions);
+    EXPECT_EQ(0, getResult);
+    EXPECT_EQ(2, retrievedPermissions.size());
+    
+    // Check that both expected permission types are present (order not guaranteed)
+    bool hasReadPermission = false;
+    bool hasWritePermission = false;
+    for (const auto& perm : retrievedPermissions) {
+        if (perm == Media::PhotoPermissionType::PERSIST_READ_IMAGEVIDEO) {
+            hasReadPermission = true;
+        } else if (perm == Media::PhotoPermissionType::PERSIST_WRITE_IMAGEVIDEO) {
+            hasWritePermission = true;
+        }
+    }
+    EXPECT_TRUE(hasReadPermission);
+    EXPECT_TRUE(hasWritePermission);
+
+    // Step 3: Cancel the persist permissions
+    int32_t cancelResult = mediaInstance.CancelPhotoUriPersistPermission(testTokenId);
+    EXPECT_EQ(0, cancelResult);
+
+    // Step 4: Try to get permissions again - should be empty now after cancellation
+    std::vector<Media::PhotoPermissionType> permissionsAfterCancel;
+    int32_t getResultAfterCancel = mediaInstance.GetPhotoUriPersistPermission(testTokenId, permissionsAfterCancel);
+    EXPECT_EQ(0, getResultAfterCancel);
+    EXPECT_TRUE(permissionsAfterCancel.empty()); // Mock clears all entries
+}
+
 
 #ifdef DEC_ENABLED
 /**

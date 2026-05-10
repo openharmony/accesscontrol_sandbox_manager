@@ -1366,24 +1366,43 @@ int32_t PolicyInfoManager::GetPersistPolicy(const uint32_t tokenId, PolicyVecRaw
         return ret;
     }
 
-    if (results.empty()) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "No persisted policies found for tokenId = %{public}u.", tokenId);
-        policyRawData.Marshalling(policies);
-        return SANDBOX_MANAGER_OK;
+    if (!results.empty()) {
+        policies.reserve(results.size());
+        // Convert GenericValues to PolicyInfo
+        for (const auto &generic : results) {
+            uint32_t policyTokenId = 0;
+            PolicyInfo policy;
+            TransferGenericToPolicy(generic, policyTokenId, policy);
+            policies.push_back(policy);
+        }
     }
 
-    // Convert GenericValues to PolicyInfo
-    policies.reserve(results.size());
-    for (const auto &generic : results) {
-        uint32_t policyTokenId = 0;
-        PolicyInfo policy;
-        TransferGenericToPolicy(generic, policyTokenId, policy);
-        policies.push_back(policy);
-    }
+    (void)GetMediaPolicies(tokenId, policies);
 
     policyRawData.Marshalling(policies);
     SANDBOXMANAGER_LOG_INFO(LABEL, "Get %{public}zu persisted policies for tokenId = %{public}u.",
         policies.size(), tokenId);
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::GetMediaPolicies(const uint32_t tokenId, std::vector<PolicyInfo> &policies)
+{
+    std::vector<Media::PhotoPermissionType> photoPermissionList;
+    int32_t ret = SandboxManagerMedia::GetInstance().GetPhotoUriPersistPermission(tokenId, photoPermissionList);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_WARN(LABEL, "Get photo uri persist permission failed, ret=%{public}d", ret);
+        return ret;
+    } else {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Get photo uri persist permission success, tokenId=%{public}u", tokenId);
+        if (!photoPermissionList.empty()) {
+            PolicyInfo policy;
+            policy.path = "/data/storage/el2/media";
+            policy.mode =
+                static_cast<uint64_t>(SandboxManagerMedia::GetInstance().CalculateOperateMode(photoPermissionList));
+            policies.emplace_back(policy);
+        }
+    }
+
     return SANDBOX_MANAGER_OK;
 }
 

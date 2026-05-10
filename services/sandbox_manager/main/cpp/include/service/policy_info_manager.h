@@ -408,6 +408,14 @@ private:
         PolicyTrie &trieTree, std::vector<uint32_t> &result);
 
     /**
+     * @brief Retrieve media-related policies for the given token ID
+     * @param tokenId token id of the object
+     * @param policies vector of PolicyInfo to append media policies to
+     * @return SANDBOX_MANAGER_OK on success, error code on failure
+     */
+    int32_t GetMediaPolicies(const uint32_t tokenId, std::vector<PolicyInfo> &policies);
+
+    /**
      * @brief Template helper for batch processing with PolicyVecRawData
      * @param policyRawData raw policy data to process in batches
      * @param result output vector for aggregated results

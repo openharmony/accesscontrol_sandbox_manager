@@ -71,6 +71,13 @@ public:
      * @return SANDBOX_MANAGER_OK on success, error code otherwise
      */
     int32_t ResumeMediaPoliciesOnAdd(const std::string &appIdentifier, const std::string &bundleName, uint32_t tokenId);
+
+    int32_t GetPhotoUriPersistPermission(uint32_t tokenId,
+        std::vector<Media::PhotoPermissionType> &photoPermissionList);
+
+    int32_t CancelPhotoUriPersistPermission(uint32_t tokenId);
+
+    int32_t CalculateOperateMode(std::vector<Media::PhotoPermissionType> &photoPermissionList);
 private:
     template <typename T>
     void MediaDfx(std::vector<std::string> &uri, std::vector<T> &mode);

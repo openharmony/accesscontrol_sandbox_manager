@@ -37,6 +37,8 @@
 #include "dec_test.h"
 #include "token_setproc.h"
 #include "sandbox_test_common.h"
+#include "sandbox_manager_service.h"
+#include "media_path_support.h"
 
 using namespace testing::ext;
 
@@ -384,6 +386,171 @@ HWTEST_F(NewPolicyTests, AddPolicyCaseInsensitiveTest, TestSize.Level0)
 }
 
 #endif
+
+/**
+ * @tc.name: GetMediaPoliciesTest
+ * @tc.desc: Test PolicyInfoManager::GetMediaPolicies function
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, GetMediaPoliciesTest, TestSize.Level0)
+{
+    uint32_t testTokenId = 1001;
+    std::vector<PolicyInfo> policies;
+
+    // Initialize media functionality
+    int32_t initResult = SandboxManagerMedia::GetInstance().InitMedia();
+    EXPECT_EQ(SANDBOX_MANAGER_OK, initResult);
+
+    // Step 1: Use MediaPermissionHelper to add some media permissions
+    Media::MediaPermissionHelper* helper = Media::MediaPermissionHelper::GetMediaPermissionHelper();
+    EXPECT_NE(nullptr, helper);
+
+    std::vector<std::string> uris = {"/data/storage/el2/media/test1.jpg", "/data/storage/el2/media/test2.jpg"};
+    std::vector<Media::PhotoPermissionType> photoPermissionTypes = {
+        Media::PhotoPermissionType::PERSIST_READ_IMAGEVIDEO,
+        Media::PhotoPermissionType::PERSIST_WRITE_IMAGEVIDEO
+    };
+
+    // Grant permissions to the test token ID
+    int32_t grantResult = helper->GrantPhotoUriPermission(1000, testTokenId, uris, photoPermissionTypes,
+        Media::HideSensitiveType::ALL_DESENSITIZE);
+    EXPECT_EQ(0, grantResult);
+
+    // Step 2: Call GetMediaPolicies to retrieve media policies
+    int32_t getResult = PolicyInfoManager::GetInstance().GetMediaPolicies(testTokenId, policies);
+    EXPECT_EQ(0, getResult);
+
+    // Step 3: Verify that media policies were added to the policies vector
+    // There should be one policy added for media permissions
+    EXPECT_EQ(1, policies.size());
+
+    if (!policies.empty()) {
+        // Check that the path is set correctly for media policies
+        EXPECT_EQ("/data/storage/el2/media", policies[0].path);
+        
+        // The mode should be a combination of READ_MODE and WRITE_MODE based on the input permissions
+        int32_t expectedMode = 0;
+        for (const auto& perm : photoPermissionTypes) {
+            if (perm == Media::PhotoPermissionType::PERSIST_READ_IMAGEVIDEO) {
+                expectedMode |= OperateMode::READ_MODE;
+            } else if (perm == Media::PhotoPermissionType::PERSIST_WRITE_IMAGEVIDEO) {
+                expectedMode |= OperateMode::WRITE_MODE;
+            } else if (perm == Media::PhotoPermissionType::GRANT_PERSIST_READWRITE_IMAGEVIDEO) {
+                expectedMode |= (OperateMode::WRITE_MODE | OperateMode::READ_MODE);
+            }
+        }
+        EXPECT_EQ(expectedMode, policies[0].mode);
+    }
+}
+
+/**
+ * @tc.name: GetPersistPolicyTest
+ * @tc.desc: Test PolicyInfoManager::GetPersistPolicy function
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, GetPersistPolicyTest, TestSize.Level0)
+{
+    uint32_t testTokenId = g_mockToken; // Use the mock token from test setup
+    PolicyVecRawData policyRawData;
+
+    // Step 1: First set a temporary policy
+    PolicyInfo policy;
+    policy.path = "/data/storage/el2/test/persist_policy";
+    policy.mode = OperateMode::READ_MODE;
+    std::vector<PolicyInfo> policiesToSet = {policy};
+    std::vector<uint32_t> setResults;
+
+    int32_t setRet = PolicyInfoManager::GetInstance().SetPolicy(testTokenId, policiesToSet, 1, setResults, 0);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, setRet);
+    ASSERT_EQ(1, setResults.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResults[0]);
+
+    // Step 2: Then add the policy to persist it
+    std::vector<uint32_t> addResults;
+    int32_t addRet = PolicyInfoManager::GetInstance().AddPolicy(testTokenId, policiesToSet, addResults);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, addRet);
+    ASSERT_EQ(1, addResults.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, addResults[0]);
+
+    // Step 3: Call GetPersistPolicy to retrieve all persisted policies for the token
+    int32_t getResult = PolicyInfoManager::GetInstance().GetPersistPolicy(testTokenId, policyRawData);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, getResult);
+
+    // Step 4: Verify the retrieved policy
+    std::vector<PolicyInfo> retrievedPolicies;
+    policyRawData.Unmarshalling(retrievedPolicies);
+    
+    EXPECT_GT(retrievedPolicies.size(), 0); // At least one policy should be retrieved
+    
+    // Find the specific policy we added
+    bool foundTestPolicy = false;
+    for (const auto& retrievedPolicy : retrievedPolicies) {
+        if (retrievedPolicy.path == policy.path && retrievedPolicy.mode == policy.mode) {
+            foundTestPolicy = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(foundTestPolicy);
+
+    // Step 5: Test with an invalid token ID to verify error handling
+    PolicyVecRawData emptyPolicyRawData;
+    int32_t invalidResult = PolicyInfoManager::GetInstance().GetPersistPolicy(0, emptyPolicyRawData);
+    EXPECT_EQ(INVALID_PARAMTER, invalidResult);
+}
+
+/**
+ * @tc.name: GetMediaPoliciesFailedTest
+ * @tc.desc: Test PolicyInfoManager::GetMediaPolicies function when GetPhotoUriPersistPermission fails
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, GetMediaPoliciesFailedTest, TestSize.Level0)
+{
+    uint32_t testTokenId = 0;
+    std::vector<PolicyInfo> policies;
+
+    // Initialize media functionality
+    int32_t initResult = SandboxManagerMedia::GetInstance().InitMedia();
+    EXPECT_EQ(SANDBOX_MANAGER_OK, initResult);
+
+    // Note: We are not granting any permissions to this token ID, so when GetPhotoUriPersistPermission
+    // is called, it should return an error or empty list
+    
+    // Step 1: Call GetMediaPolicies to retrieve media policies for a token that has no permissions
+    int32_t getResult = PolicyInfoManager::GetInstance().GetMediaPolicies(testTokenId, policies);
+    // The function should return OK but the policies vector should remain empty
+    EXPECT_NE(SANDBOX_MANAGER_OK, getResult);
+
+    // Step 2: Verify that no policies were added to the policies vector
+    EXPECT_EQ(0, policies.size());
+}
+
+/**
+ * @tc.name: GetPersistPolicyTest_EmptyResults
+ * @tc.desc: Test PolicyInfoManager::GetPersistPolicy function when no policies exist for token
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, GetPersistPolicyTest_EmptyResults, TestSize.Level0)
+{
+    // Use a token ID that has no persisted policies
+    uint32_t testTokenId = 9999; // Arbitrary token ID that shouldn't have policies
+    PolicyVecRawData policyRawData;
+
+    // Call GetPersistPolicy to retrieve policies for the token that has none
+    int32_t getResult = PolicyInfoManager::GetInstance().GetPersistPolicy(testTokenId, policyRawData);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, getResult);
+
+    // Verify that no policies were retrieved (empty results branch)
+    std::vector<PolicyInfo> retrievedPolicies;
+    policyRawData.Unmarshalling(retrievedPolicies);
+
+    // Should have no policies since none were added for this token
+    EXPECT_EQ(0, retrievedPolicies.size());
+}
+
 } // namespace SandboxManager
 } // namespace AccessControl
 } // namespace OHOS

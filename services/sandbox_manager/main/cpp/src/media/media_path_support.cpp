@@ -444,6 +444,59 @@ int32_t SandboxManagerMedia::ResumeMediaPoliciesOnAdd(const std::string &appIden
         bundleName.c_str(), tokenId);
     return SANDBOX_MANAGER_OK;
 }
+
+int32_t SandboxManagerMedia::GetPhotoUriPersistPermission(uint32_t tokenId,
+    std::vector<Media::PhotoPermissionType> &photoPermissionList)
+{
+    if (EnsureMediaInitialized(__FUNCTION__) != SANDBOX_MANAGER_OK) {
+        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+    }
+
+    int32_t ret = media_->GetPhotoUriPersistPermission(tokenId, photoPermissionList);
+    if (ret != SANDBOX_MANAGER_OK) {
+        LOGE_WITH_REPORT(LABEL, "Get photo uri persist permission error code:%{public}d, tokenId:%{public}u",
+            ret, tokenId);
+        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Get photo uri persist permission finish, tokenId=%{public}u getSize=%{public}zu",
+        tokenId, photoPermissionList.size());
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t SandboxManagerMedia::CancelPhotoUriPersistPermission(uint32_t tokenId)
+{
+    if (EnsureMediaInitialized(__FUNCTION__) != SANDBOX_MANAGER_OK) {
+        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+    }
+
+    int32_t ret = media_->CancelPhotoUriPersistPermission(tokenId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        LOGE_WITH_REPORT(LABEL, "Cancel photo uri persist permission error code:%{public}d, tokenId:%{public}u",
+            ret, tokenId);
+        return SANDBOX_MANAGER_MEDIA_CALL_ERR;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Cancel photo uri persist permission finish, tokenId=%{public}u",
+        tokenId);
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t SandboxManagerMedia::CalculateOperateMode(std::vector<Media::PhotoPermissionType> &photoPermissionList)
+{
+    uint32_t mode = 0;
+
+    for (const auto &permission:photoPermissionList) {
+        if (permission == Media::PhotoPermissionType::PERSIST_READ_IMAGEVIDEO) {
+            mode |= static_cast<uint32_t>(OperateMode::READ_MODE);
+        } else if (permission == Media::PhotoPermissionType::PERSIST_WRITE_IMAGEVIDEO) {
+            mode |= static_cast<uint32_t>(OperateMode::WRITE_MODE);
+        } else if (permission == Media::PhotoPermissionType::GRANT_PERSIST_READWRITE_IMAGEVIDEO) {
+            mode |= static_cast<uint32_t>(OperateMode::WRITE_MODE | OperateMode::READ_MODE);
+        }
+    }
+
+    return static_cast<int32_t>(mode);
+}
+
 } // namespace SandboxManager
 } // namespace AccessControl
 } // namespace OHOS
