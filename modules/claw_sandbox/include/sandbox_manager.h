@@ -54,6 +54,12 @@ public:
      */
     int Execute();
 
+    /**
+     * @brief Recursively delete the sandbox directory tree named by config.name
+     * @return SANDBOX_SUCCESS on success, error code on failure
+     */
+    int DeleteSandboxDir();
+
 private:
     // Template configuration items (defined before use)
     struct MountEntry {

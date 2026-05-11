@@ -25,7 +25,7 @@
 #include <random>
 #include <iomanip>
 #include <grp.h>
-#include <dirent.h>
+#include <filesystem>
 #include <sys/mount.h>
 #include <sys/syscall.h>
 #include <sys/prctl.h>
@@ -135,6 +135,63 @@ int SandboxManager::Initialize(const SandboxConfig &config, const CmdInfo &cmdIn
     // Derive currentUserId from uid (not parsed from JSON config)
     config_.currentUserId = std::to_string(config_.uid / UID_BASE);
     initialized_ = true;
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::DeleteSandboxDir()
+{
+    if (!initialized_) {
+        std::cerr << "Error: SandboxManager not initialized" << std::endl;
+        SANDBOX_LOGE("SandboxManager not initialized");
+        return SANDBOX_ERR_GENERIC;
+    }
+
+    int ret = ValidateConfig();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    if (config_.name.empty()) {
+        std::cerr << "Error: sandbox name is empty" << std::endl;
+        SANDBOX_LOGE("sandbox name is empty");
+        return SANDBOX_ERR_BAD_PARAMETERS;
+    }
+
+    ret = EnterCallerSandbox();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    std::string sandboxPath = std::string(SANDBOX_BASE_DIR) + "/" + config_.name;
+    struct stat st;
+    if (lstat(sandboxPath.c_str(), &st) != 0) {
+        if (errno == ENOENT) {
+            std::cerr << "Error: Sandbox directory does not exist: " << sandboxPath << std::endl;
+            SANDBOX_LOGE("Sandbox directory does not exist: %{public}s", sandboxPath.c_str());
+            return SANDBOX_ERR_PATH_INVALID;
+        }
+        std::cerr << "Error: Failed to stat sandbox directory " << sandboxPath
+                  << ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to stat sandbox directory %{public}s: %{public}s",
+            sandboxPath.c_str(), strerror(errno));
+        return SANDBOX_ERR_GENERIC;
+    }
+
+    if (!S_ISDIR(st.st_mode)) {
+        std::cerr << "Error: Sandbox path is not a directory: " << sandboxPath << std::endl;
+        SANDBOX_LOGE("Sandbox path is not a directory: %{public}s", sandboxPath.c_str());
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+
+    std::error_code ec;
+    std::filesystem::remove_all(sandboxPath, ec);
+    if (ec) {
+        std::cerr << "Error: remove_all " << sandboxPath << " failed: " << ec.message() << std::endl;
+        SANDBOX_LOGE("remove_all %{public}s failed: %{public}s", sandboxPath.c_str(), ec.message().c_str());
+        return SANDBOX_ERR_GENERIC;
+    }
+
+    SANDBOX_LOGD("Deleted sandbox directory %{public}s", sandboxPath.c_str());
     return SANDBOX_SUCCESS;
 }
 
@@ -1010,16 +1067,6 @@ int SandboxManager::SetProcessGroup()
 
 int SandboxManager::ExecuteCommand()
 {
-    // If no command was provided, fall back to default shell (/bin/sh -i)
-    if (cmdInfo_.argv.empty()) {
-        SANDBOX_LOGD("No command provided, falling back to default shell");
-        execl("/system/bin/sh", "sh", "-i", nullptr);
-        int execErrno = errno;
-        std::cerr << "Error: execl(/system/bin/sh) failed: " << strerror(execErrno) << std::endl;
-        SANDBOX_LOGE("execl(/system/bin/sh) failed: %{public}s", strerror(execErrno));
-        return SANDBOX_ERR_CMD_INVALID;
-    }
-
     // Build the argv array
     std::vector<char*> argv;
     for (auto& arg : cmdInfo_.argv) {

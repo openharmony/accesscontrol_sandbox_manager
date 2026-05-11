@@ -50,6 +50,13 @@ constexpr size_t MAX_NS_FLAG_STRING_LENGTH = 24;
 // Maximum command line length (2MB)
 constexpr size_t MAX_CMD_LINE_LENGTH = 0x200000;
 
+constexpr const char *WHITESPACE_CHARS = " \t\n\r\f\v";
+
+static bool IsWhitespace(char c)
+{
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
+}
+
 // Helper: clean up cJSON root and return error code
 static inline int CleanupAndReturn(cJSON *root, int ret)
 {
@@ -271,82 +278,18 @@ CmdInfo CmdParser::ParseCommand(const std::string &cmdline)
         return info;
     }
 
-    if (NeedShellFallback(trimmed)) {
-        SANDBOX_LOGD("CmdParser: %{public}s - falling back to sh -c", trimmed.c_str());
-        info.isMultiCommand = true;
-        info.argv = {"sh", "-c", trimmed};
-        return info;
-    }
-
     info.argv = Parse(trimmed);
     return info;
 }
 
 std::string CmdParser::Trim(const std::string &str)
 {
-    size_t first = str.find_first_not_of(" \t\n\r\f\v");
+    size_t first = str.find_first_not_of(WHITESPACE_CHARS);
     if (first == std::string::npos) {
         return "";
     }
-    size_t last = str.find_last_not_of(" \t\n\r\f\v");
+    size_t last = str.find_last_not_of(WHITESPACE_CHARS);
     return str.substr(first, last - first + 1);
-}
-
-bool CmdParser::NeedShellFallback(const std::string &cmd)
-{
-    size_t pos = 0;
-    bool inQuote = false;
-    char quoteChar = '\0';
-
-    while (pos < cmd.length()) {
-        char c = cmd[pos];
-
-        if (!inQuote && (c == '"' || c == '\'')) {
-            inQuote = true;
-            quoteChar = c;
-            pos++;
-            continue;
-        } else if (inQuote && c == quoteChar) {
-            inQuote = false;
-            quoteChar = '\0';
-            pos++;
-            continue;
-        }
-
-        if (!inQuote) {
-            char next = (pos + 1 < cmd.length()) ? cmd[pos + 1] : '\0';
-            if (c == '&' && next == '&') {
-                return true;
-            }
-            if (c == '|' && next == '|') {
-                return true;
-            }
-            if (c == ';') {
-                return true;
-            }
-            if (c == '|') {
-                return true;
-            }
-            if (c == '>' || c == '<') {
-                return true;
-            }
-            if (c == '$') {
-                return true;
-            }
-            if (c == '*' || c == '?') {
-                return true;
-            }
-            if (c == '`') {
-                return true;
-            }
-            if (c == '#') {
-                return true;
-            }
-        }
-
-        pos++;
-    }
-    return false;
 }
 
 std::vector<std::string> CmdParser::Parse(const std::string &commandLine)
@@ -362,15 +305,13 @@ std::vector<std::string> CmdParser::Parse(const std::string &commandLine)
         if (!inQuote && (c == '"' || c == '\'')) {
             inQuote = true;
             quoteChar = c;
-            current += c;
         } else if (inQuote && c == quoteChar) {
             inQuote = false;
-            current += c;
             if (!current.empty()) {
                 args.push_back(current);
                 current.clear();
             }
-        } else if (!inQuote && (c == ' ' || c == '\t')) {
+        } else if (!inQuote && IsWhitespace(c)) {
             if (!current.empty()) {
                 args.push_back(current);
                 current.clear();

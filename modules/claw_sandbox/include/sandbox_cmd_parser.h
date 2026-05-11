@@ -52,8 +52,6 @@ struct SandboxConfig {
 struct CmdInfo {
     std::string raw;                       // Original command line string
     std::vector<std::string> argv;         // Parsed argument vector
-    bool isShellScript = false;            // True if it is a .sh script
-    bool isMultiCommand = false;           // True if it contains shell operators (&&, |, ;)
 };
 
 /**
@@ -85,7 +83,6 @@ public:
 
 private:
     static std::string Trim(const std::string &str);
-    static bool NeedShellFallback(const std::string &cmd);
     static std::vector<std::string> Parse(const std::string &commandLine);
 };
 

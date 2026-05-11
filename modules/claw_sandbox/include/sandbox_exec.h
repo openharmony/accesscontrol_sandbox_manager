@@ -29,7 +29,9 @@ namespace SANDBOX {
  *
  * Responsible for parsing command line arguments, creating a SandboxManager
  * instance, and executing the sandbox workflow.
- * Usage: claw_sandbox --config <jsonstr> --cmd <cmdline>
+ * Usage:
+ *   claw_sandbox --config <jsonstr> --cmd <cmdline>
+ *   claw_sandbox -d --config <jsonstr>
  *
  * All public methods return SandboxError enum values:
  * - SANDBOX_SUCCESS (0): Success
@@ -71,6 +73,15 @@ public:
         return helpRequested_;
     }
 
+    /**
+     * @brief Check if delete mode was requested with -d
+     * @return true if delete mode was requested
+     */
+    bool HasDeleteRequested() const
+    {
+        return deleteRequested_;
+    }
+
 private:
     int ParseConfigArg(int argc, char *argv[]);
     int ParseCmdArg(int argc, char *argv[]);
@@ -80,6 +91,7 @@ private:
     bool configParsed_ = false;
     bool cmdParsed_ = false;
     bool helpRequested_ = false;
+    bool deleteRequested_ = false;
 };
 
 } // namespace SANDBOX

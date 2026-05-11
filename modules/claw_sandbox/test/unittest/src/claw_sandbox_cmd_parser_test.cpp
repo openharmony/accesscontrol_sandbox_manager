@@ -384,9 +384,8 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig014, TestSize.Level0)
  */
 HWTEST_F(ClawSandboxCmdParserTest, ParseCommand001, TestSize.Level0)
 {
-    // Test simple command without quotes or shell operators
+    // Test simple command without quotes
     CmdInfo info = CmdParser::ParseCommand("echo hello world");
-    EXPECT_FALSE(info.isMultiCommand);
     ASSERT_EQ(3U, info.argv.size());
     EXPECT_EQ("echo", info.argv[0]);
     EXPECT_EQ("hello", info.argv[1]);
@@ -394,120 +393,55 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseCommand001, TestSize.Level0)
 
     // Test double-quoted arguments are preserved as-is
     CmdInfo info2 = CmdParser::ParseCommand("echo \"hello world\"");
-    EXPECT_FALSE(info2.isMultiCommand);
     ASSERT_EQ(2U, info2.argv.size());
     EXPECT_EQ("echo", info2.argv[0]);
-    EXPECT_EQ("\"hello world\"", info2.argv[1]);
+    EXPECT_EQ("hello world", info2.argv[1]);
 
     // Test single-quoted arguments are preserved as-is
     CmdInfo info3 = CmdParser::ParseCommand("echo 'hello world'");
-    EXPECT_FALSE(info3.isMultiCommand);
     ASSERT_EQ(2U, info3.argv.size());
     EXPECT_EQ("echo", info3.argv[0]);
-    EXPECT_EQ("'hello world'", info3.argv[1]);
+    EXPECT_EQ("hello world", info3.argv[1]);
 
     // Test empty string returns empty argv
     CmdInfo info4 = CmdParser::ParseCommand("");
-    EXPECT_FALSE(info4.isMultiCommand);
     EXPECT_TRUE(info4.argv.empty());
 
     // Test whitespace-only string returns empty argv
     CmdInfo info5 = CmdParser::ParseCommand("   \t  \n  ");
-    EXPECT_FALSE(info5.isMultiCommand);
     EXPECT_TRUE(info5.argv.empty());
 
     // Test raw command string is preserved with leading/trailing spaces
     CmdInfo info6 = CmdParser::ParseCommand("  mycommand arg1 arg2  ");
     EXPECT_EQ("  mycommand arg1 arg2  ", info6.raw);
-    EXPECT_FALSE(info6.isMultiCommand);
     ASSERT_EQ(3U, info6.argv.size());
     EXPECT_EQ("mycommand", info6.argv[0]);
     EXPECT_EQ("arg1", info6.argv[1]);
     EXPECT_EQ("arg2", info6.argv[2]);
+
+    // Test all Trim whitespace characters are treated as argument separators
+    CmdInfo info7 = CmdParser::ParseCommand("cmd\narg1\rarg2\farg3\varg4");
+    ASSERT_EQ(5U, info7.argv.size());
+    EXPECT_EQ("cmd", info7.argv[0]);
+    EXPECT_EQ("arg1", info7.argv[1]);
+    EXPECT_EQ("arg2", info7.argv[2]);
+    EXPECT_EQ("arg3", info7.argv[3]);
+    EXPECT_EQ("arg4", info7.argv[4]);
 }
 
 /**
  * @tc.name: ParseCommand002
- * @tc.desc: ParseCommand with various shell operators that trigger multi-command fallback
+ * @tc.desc: ParseCommand with mixed quoted and unquoted arguments
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxCmdParserTest, ParseCommand002, TestSize.Level0)
 {
-    // Test && operator triggers multi-command fallback
-    CmdInfo info1 = CmdParser::ParseCommand("ls && echo done");
-    EXPECT_TRUE(info1.isMultiCommand);
-    ASSERT_EQ(3U, info1.argv.size());
-    EXPECT_EQ("sh", info1.argv[0]);
-    EXPECT_EQ("-c", info1.argv[1]);
-    EXPECT_EQ("ls && echo done", info1.argv[2]);
-
-    // Test | (pipe) operator triggers multi-command fallback
-    CmdInfo info2 = CmdParser::ParseCommand("cat file | grep foo");
-    EXPECT_TRUE(info2.isMultiCommand);
-    ASSERT_EQ(3U, info2.argv.size());
-    EXPECT_EQ("sh", info2.argv[0]);
-    EXPECT_EQ("-c", info2.argv[1]);
-
-    // Test ; (semicolon) operator triggers multi-command fallback
-    CmdInfo info3 = CmdParser::ParseCommand("echo a; echo b");
-    EXPECT_TRUE(info3.isMultiCommand);
-
-    // Test redirection (>) triggers multi-command fallback
-    CmdInfo info4 = CmdParser::ParseCommand("echo hello > out.txt");
-    EXPECT_TRUE(info4.isMultiCommand);
-
-    // Test || operator triggers multi-command fallback
-    CmdInfo info5 = CmdParser::ParseCommand("cmd1 || cmd2");
-    EXPECT_TRUE(info5.isMultiCommand);
-
-    // Test # (comment) triggers multi-command fallback
-    CmdInfo info6 = CmdParser::ParseCommand("echo hello # comment");
-    EXPECT_TRUE(info6.isMultiCommand);
-}
-
-/**
- * @tc.name: ParseCommand003
- * @tc.desc: ParseCommand with special characters ($ * `) that trigger multi-command fallback
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxCmdParserTest, ParseCommand003, TestSize.Level0)
-{
-    // Test shell variable ($) triggers multi-command fallback
-    CmdInfo info1 = CmdParser::ParseCommand("echo $HOME");
-    EXPECT_TRUE(info1.isMultiCommand);
-
-    // Test glob character (*) triggers multi-command fallback
-    CmdInfo info2 = CmdParser::ParseCommand("ls *.txt");
-    EXPECT_TRUE(info2.isMultiCommand);
-
-    // Test backtick (`) triggers multi-command fallback
-    CmdInfo info3 = CmdParser::ParseCommand("echo `date`");
-    EXPECT_TRUE(info3.isMultiCommand);
-
-    // Test shell operators inside quotes should NOT trigger fallback
-    CmdInfo info4 = CmdParser::ParseCommand("echo \"a && b\"");
-    EXPECT_FALSE(info4.isMultiCommand);
-    ASSERT_EQ(2U, info4.argv.size());
-    EXPECT_EQ("echo", info4.argv[0]);
-    EXPECT_EQ("\"a && b\"", info4.argv[1]);
-}
-
-/**
- * @tc.name: ParseCommand004
- * @tc.desc: ParseCommand with mixed quoted and unquoted arguments
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxCmdParserTest, ParseCommand004, TestSize.Level0)
-{
     CmdInfo info = CmdParser::ParseCommand("cmd arg1 \"arg with spaces\" arg3");
-    EXPECT_FALSE(info.isMultiCommand);
     ASSERT_EQ(4U, info.argv.size());
     EXPECT_EQ("cmd", info.argv[0]);
     EXPECT_EQ("arg1", info.argv[1]);
-    EXPECT_EQ("\"arg with spaces\"", info.argv[2]);
+    EXPECT_EQ("arg with spaces", info.argv[2]);
     EXPECT_EQ("arg3", info.argv[3]);
 }
 

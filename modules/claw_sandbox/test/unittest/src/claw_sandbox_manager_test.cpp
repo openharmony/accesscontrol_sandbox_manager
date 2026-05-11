@@ -470,6 +470,61 @@ HWTEST_F(ClawSandboxManagerTest, ReplaceVariable006, TestSize.Level0)
     EXPECT_EQ("", result);
 }
 
+/**
+ * @tc.name: DeleteSandboxDir001
+ * @tc.desc: DeleteSandboxDir returns early when manager is not initialized
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, DeleteSandboxDir001, TestSize.Level0)
+{
+    SandboxManager uninitializedManager;
+    int ret = uninitializedManager.DeleteSandboxDir();
+    EXPECT_EQ(SANDBOX_ERR_GENERIC, ret);
+    EXPECT_FALSE(uninitializedManager.initialized_);
+    EXPECT_TRUE(uninitializedManager.config_.name.empty());
+    EXPECT_TRUE(uninitializedManager.newRootPath_.empty());
+}
+
+/**
+ * @tc.name: DeleteSandboxDir002
+ * @tc.desc: DeleteSandboxDir returns bad parameter when sandbox name is empty
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, DeleteSandboxDir002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = 12345;
+    CmdInfo cmdInfo;
+
+    manager.Initialize(config, cmdInfo);
+    int ret = manager.DeleteSandboxDir();
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
+}
+
+/**
+ * @tc.name: DeleteSandboxDir003
+ * @tc.desc: DeleteSandboxDir returns bad parameter when base config is invalid
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, DeleteSandboxDir003, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.name = "abcdef0123456789";
+    CmdInfo cmdInfo;
+
+    manager.Initialize(config, cmdInfo);
+    int ret = manager.DeleteSandboxDir();
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
+}
+
 // ==================== LoadDefaultConfig tests ====================
 
 /**

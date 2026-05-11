@@ -98,7 +98,7 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments004, TestSize.Level0)
 
 /**
  * @tc.name: ParseArguments005
- * @tc.desc: ParseArguments with --config and valid JSON but no --cmd
+ * @tc.desc: ParseArguments with --config and valid JSON but no --cmd returns error
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -111,8 +111,7 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments005, TestSize.Level0)
         "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"sub"})";
     char *argv[] = {arg0, arg1, arg2, nullptr};
     int ret = exec.ParseArguments(3, argv);
-    // --cmd is optional, so this should succeed
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
     EXPECT_FALSE(exec.HasHelpRequested());
 }
 
@@ -200,18 +199,38 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments010, TestSize.Level0)
     char arg1[] = "-c";
     char arg2[] = R"({"callerTokenId":1, "callerPid":1, "uid":20020026, "gid":20020026, "challenge":"c",
         "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"sub"})";
-    char *argv[] = {arg0, arg1, arg2, nullptr};
-    int ret = exec.ParseArguments(3, argv);
+    char arg3[] = "--cmd";
+    char arg4[] = "ls";
+    char *argv[] = {arg0, arg1, arg2, arg3, arg4, nullptr};
+    int ret = exec.ParseArguments(5, argv);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
 /**
  * @tc.name: ParseArguments011
- * @tc.desc: ParseArguments with -m alias for --cmd
+ * @tc.desc: ParseArguments with -c alias but missing --cmd returns error
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxExecTest, ParseArguments011, TestSize.Level0)
+{
+    SandboxExec exec;
+    char arg0[] = "claw_sandbox";
+    char arg1[] = "-c";
+    char arg2[] = R"({"callerTokenId":1, "callerPid":1, "uid":20020026, "gid":20020026, "challenge":"c",
+        "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"sub"})";
+    char *argv[] = {arg0, arg1, arg2, nullptr};
+    int ret = exec.ParseArguments(3, argv);
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
+}
+
+/**
+ * @tc.name: ParseArguments012
+ * @tc.desc: ParseArguments with -m alias for --cmd
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxExecTest, ParseArguments012, TestSize.Level0)
 {
     SandboxExec exec;
     char arg0[] = "claw_sandbox";
@@ -223,6 +242,71 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments011, TestSize.Level0)
     char *argv[] = {arg0, arg1, arg2, arg3, arg4, nullptr};
     int ret = exec.ParseArguments(5, argv);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
+}
+
+/**
+ * @tc.name: ParseArguments013
+ * @tc.desc: ParseArguments with -d and valid config enters delete mode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxExecTest, ParseArguments013, TestSize.Level0)
+{
+    SandboxExec exec;
+    char arg0[] = "claw_sandbox";
+    char arg1[] = "-d";
+    char arg2[] = "--config";
+    char arg3[] = R"({"callerTokenId":1, "callerPid":1, "uid":20020026, "gid":20020026,
+        "challenge":"c", "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"sub",
+        "name":"abcdef0123456789"})";
+    char *argv[] = {arg0, arg1, arg2, arg3, nullptr};
+    int ret = exec.ParseArguments(4, argv);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_FALSE(exec.HasHelpRequested());
+    EXPECT_TRUE(exec.HasDeleteRequested());
+}
+
+/**
+ * @tc.name: ParseArguments014
+ * @tc.desc: ParseArguments with -d and config without name still parses normally
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxExecTest, ParseArguments014, TestSize.Level0)
+{
+    SandboxExec exec;
+    char arg0[] = "claw_sandbox";
+    char arg1[] = "-d";
+    char arg2[] = "--config";
+    char arg3[] = R"({"callerTokenId":1, "callerPid":1, "uid":20020026, "gid":20020026,
+        "challenge":"c", "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"sub"})";
+    char *argv[] = {arg0, arg1, arg2, arg3, nullptr};
+    int ret = exec.ParseArguments(4, argv);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_TRUE(exec.HasDeleteRequested());
+}
+
+/**
+ * @tc.name: ParseArguments015
+ * @tc.desc: ParseArguments with -d and --cmd still uses normal parsing
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxExecTest, ParseArguments015, TestSize.Level0)
+{
+    SandboxExec exec;
+    char arg0[] = "claw_sandbox";
+    char arg1[] = "-d";
+    char arg2[] = "--config";
+    char arg3[] = R"({"callerTokenId":1, "callerPid":1, "uid":20020026, "gid":20020026,
+        "challenge":"c", "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"sub",
+        "name":"abcdef0123456789"})";
+    char arg4[] = "--cmd";
+    char arg5[] = "ls -la";
+    char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, nullptr};
+    int ret = exec.ParseArguments(6, argv);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_TRUE(exec.HasDeleteRequested());
 }
 
 // ==================== Run tests ====================
