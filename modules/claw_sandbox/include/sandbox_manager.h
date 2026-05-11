@@ -85,6 +85,11 @@ private:
         std::map<std::string, PermissionConfig> permissions;  // permission name -> config
     };
 
+    // Expose individual steps for testing (not intended for public use)
+    int ExecuteEarlySteps();
+    int ExecuteMountSteps();
+    int ExecuteLateSteps();
+
     // 15-step workflow (all return int error codes)
     int ValidateConfig();
     int LoadTemplate();
@@ -137,6 +142,7 @@ private:
 
     // Seccomp sub-helpers
     int BuildSeccompFilter(struct sock_fprog &prog);
+    int InstallCustomSeccompFilter();
 
     // CreateNewRoot sub-helpers
     int CreateSandboxWithName(const std::string &name);

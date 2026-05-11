@@ -112,8 +112,8 @@ static int ParseStringFieldWithMaxLen(cJSON *root, const char *key,
     }
     std::string val = item->valuestring;
     if (val.length() > maxLen) {
-        std::cerr << "Error: Config field '" << key << "' exceeds max length ("
-                  << maxLen << ")" << std::endl;
+        std::cerr << "Error: Config field '" << key << "' exceeds max length (" <<
+                  maxLen << ")" << std::endl;
         SANDBOX_LOGE("Config field '%{public}s' exceeds max length (%{public}zu)",
             key, maxLen);
         return SANDBOX_ERR_CONFIG_INVALID;
@@ -154,6 +154,7 @@ static int ParseNameField(cJSON *root, std::string &out)
 // Helper: parse optional nsFlags string array
 static int ParseNsFlagsField(cJSON *root, std::vector<std::string> &out)
 {
+    out.clear();
     cJSON *item = cJSON_GetObjectItem(root, "nsFlags");
     if (item == nullptr) {
         return SANDBOX_SUCCESS;
@@ -165,8 +166,8 @@ static int ParseNsFlagsField(cJSON *root, std::vector<std::string> &out)
     }
     int size = cJSON_GetArraySize(item);
     if (static_cast<size_t>(size) > MAX_NS_FLAGS_COUNT) {
-        std::cerr << "Error: nsFlags array size (" << size << ") exceeds max ("
-                  << MAX_NS_FLAGS_COUNT << ")" << std::endl;
+        std::cerr << "Error: nsFlags array size (" << size << ") exceeds max (" <<
+                  MAX_NS_FLAGS_COUNT << ")" << std::endl;
         SANDBOX_LOGE("nsFlags array size (%{public}d) exceeds max (%{public}zu)",
             size, MAX_NS_FLAGS_COUNT);
         return SANDBOX_ERR_CONFIG_INVALID;
@@ -180,8 +181,8 @@ static int ParseNsFlagsField(cJSON *root, std::vector<std::string> &out)
         }
         std::string flagVal = flagItem->valuestring;
         if (flagVal.length() > MAX_NS_FLAG_STRING_LENGTH) {
-            std::cerr << "Error: nsFlags[" << i << "] exceeds max length ("
-                      << MAX_NS_FLAG_STRING_LENGTH << ")" << std::endl;
+            std::cerr << "Error: nsFlags[" << i << "] exceeds max length (" <<
+                      MAX_NS_FLAG_STRING_LENGTH << ")" << std::endl;
             SANDBOX_LOGE("nsFlags[%{public}d] exceeds max length (%{public}zu)",
                 i, MAX_NS_FLAG_STRING_LENGTH);
             return SANDBOX_ERR_CONFIG_INVALID;
@@ -198,8 +199,8 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
     cJSON *root = cJSON_Parse(jsonStr.c_str());
     if (root == nullptr) {
         const char *p = cJSON_GetErrorPtr();
-        std::cerr << "Error: Failed to parse config JSON: "
-                  << (p != nullptr ? p : "unknown") << std::endl;
+        std::cerr << "Error: Failed to parse config JSON: " <<
+                  (p != nullptr ? p : "unknown") << std::endl;
         SANDBOX_LOGE("Failed to parse config JSON: %{public}s",
             p != nullptr ? p : "unknown");
         return SANDBOX_ERR_CONFIG_INVALID;
@@ -260,8 +261,8 @@ CmdInfo CmdParser::ParseCommand(const std::string &cmdline)
     info.raw = cmdline;
 
     if (cmdline.length() > MAX_CMD_LINE_LENGTH) {
-        std::cerr << "Error: Command line exceeds max length ("
-                  << MAX_CMD_LINE_LENGTH << ")" << std::endl;
+        std::cerr << "Error: Command line exceeds max length (" <<
+                  MAX_CMD_LINE_LENGTH << ")" << std::endl;
         SANDBOX_LOGE("Command line exceeds max length (%{public}zu)", MAX_CMD_LINE_LENGTH);
         return info;
     }

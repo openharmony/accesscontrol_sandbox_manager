@@ -28,6 +28,14 @@ namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
+// System app mask constant (must match the one in sandbox_manager.cpp)
+static constexpr uint64_t TEST_SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32);
+
+// A callerTokenId that has SYSTEM_APP_MASK set and a non-zero low 32-bit token ID.
+// The low 32 bits (AccessTokenID) will be passed to AccessTokenKit::GetTokenTypeFlag.
+// In the real device test environment, this requires a properly initialized token system.
+static constexpr uint64_t TEST_HAP_TOKEN_ID = TEST_SYSTEM_APP_MASK | 0x200D000D;
+
 void ClawSandboxManagerTest::SetUpTestCase() {}
 void ClawSandboxManagerTest::TearDownTestCase() {}
 void ClawSandboxManagerTest::SetUp() {}
@@ -48,7 +56,7 @@ HWTEST_F(ClawSandboxManagerTest, Initialize001, TestSize.Level0)
     config.uid = 20020026;
     config.gid = 20020026;
     config.callerPid = 1000;
-    config.callerTokenId = 12345;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
 
     int ret = manager.Initialize(config, cmdInfo);
@@ -68,7 +76,7 @@ HWTEST_F(ClawSandboxManagerTest, Initialize002, TestSize.Level0)
     config.uid = 20020026;  // uid / 200000 = 100
     config.gid = 20020026;
     config.callerPid = 1000;
-    config.callerTokenId = 12345;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
 
     manager.Initialize(config, cmdInfo);
@@ -92,7 +100,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig001, TestSize.Level0)
     config.uid = 20020026;
     config.gid = 20020026;
     config.callerPid = 1000;
-    config.callerTokenId = 12345;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
 
     manager.Initialize(config, cmdInfo);
@@ -113,7 +121,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig002, TestSize.Level0)
     config.uid = 20020026;
     config.gid = 20020026;
     config.callerPid = 0;
-    config.callerTokenId = 12345;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
 
     manager.Initialize(config, cmdInfo);
@@ -134,7 +142,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig003, TestSize.Level0)
     config.uid = 20020026;
     config.gid = 20020026;
     config.callerPid = static_cast<uint32_t>(-1);  // Will be interpreted as large positive
-    config.callerTokenId = 12345;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
 
     manager.Initialize(config, cmdInfo);
@@ -156,7 +164,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig004, TestSize.Level0)
     config.uid = 1000;  // Below UID_BASE (200000)
     config.gid = 20020026;
     config.callerPid = 1000;
-    config.callerTokenId = 12345;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
 
     manager.Initialize(config, cmdInfo);
@@ -177,7 +185,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig005, TestSize.Level0)
     config.uid = 20020026;
     config.gid = 1000;  // Below UID_BASE (200000)
     config.callerPid = 1000;
-    config.callerTokenId = 12345;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
 
     manager.Initialize(config, cmdInfo);
@@ -203,6 +211,54 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig006, TestSize.Level0)
 
     manager.Initialize(config, cmdInfo);
     int ret = manager.ValidateConfig();
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
+}
+
+/**
+ * @tc.name: ValidateConfig007
+ * @tc.desc: ValidateConfig with callerTokenId missing SYSTEM_APP_MASK returns error
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ValidateConfig007, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    // Token without SYSTEM_APP_MASK (bit 32 not set) - should fail system app check
+    config.callerTokenId = 0x200D000D;
+    CmdInfo cmdInfo;
+
+    manager.Initialize(config, cmdInfo);
+    int ret = manager.ValidateConfig();
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
+}
+
+/**
+ * @tc.name: ValidateConfig008
+ * @tc.desc: ValidateConfig with callerTokenId having SYSTEM_APP_MASK but zero low bits
+ *          still fails because callerTokenId == 0 check comes first
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ValidateConfig008, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    // SYSTEM_APP_MASK alone without any low bits -> callerTokenId != 0, but
+    // GetTokenTypeFlag(0) will likely not return TOKEN_HAP
+    config.callerTokenId = TEST_SYSTEM_APP_MASK;
+    CmdInfo cmdInfo;
+
+    manager.Initialize(config, cmdInfo);
+    int ret = manager.ValidateConfig();
+    // This will fail at the TOKEN_HAP type check since GetTokenTypeFlag(0)
+    // should not return TOKEN_HAP
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
 }
 
@@ -1070,6 +1126,245 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter002, TestSize.Level0)
     EXPECT_NE(prog.filter, nullptr);
 
     cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: BuildSeccompFilter003
+ * @tc.desc: Verify BPF JGE instruction in setuid uid range filter uses correct
+ *          jump targets (jt=1, jf=0) meaning uid >= UID_MIN_LIMIT skips KILL.
+ *          Also verify the UID_MIN_LIMIT constant value (20000000).
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter003, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    struct sock_fprog prog;
+    int ret = manager.BuildSeccompFilter(prog);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_NE(prog.filter, nullptr);
+
+    // BPF instruction layout (no allow list):
+    //   [0] LD arch
+    //   [1] JEQ AUDIT_ARCH_AARCH64
+    //   [2] RET KILL
+    //   [3] LD nr
+    //   [4-5] setpgid errno filter
+    //   [6-7] setsid errno filter
+    //   [8-11] setuid uid range filter (4 insns)
+    //   [12-18] setreuid uid range filter (7 insns)
+    //   [19-28] setresuid uid range filter (10 insns)
+    //   [29-32] setfsuid uid range filter (4 insns)
+    //   [33] default action
+    //
+    // setuid uid range filter (indices 8-11):
+    //   [8]  JEQ __NR_setuid, jt=0, jf=3
+    //   [9]  LD args[0]
+    //   [10] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- KEY: >= limit -> skip KILL
+    //   [11] RET KILL
+    constexpr size_t SETUID_FILTER_IDX = 8;
+    constexpr size_t SETUID_JGE_IDX = SETUID_FILTER_IDX + 2;  // idx 10
+
+    // Verify JGE instruction: BPF_JMP | BPF_JGE | BPF_K
+    EXPECT_EQ(prog.filter[SETUID_JGE_IDX].code,
+              static_cast<uint16_t>(BPF_JMP | BPF_JGE | BPF_K));
+    // Verify jt=1 (if uid >= UID_MIN_LIMIT, skip 1 instruction = skip KILL)
+    EXPECT_EQ(prog.filter[SETUID_JGE_IDX].jt, static_cast<uint8_t>(1));
+    // Verify jf=0 (if uid < UID_MIN_LIMIT, fall through to KILL)
+    EXPECT_EQ(prog.filter[SETUID_JGE_IDX].jf, static_cast<uint8_t>(0));
+    // Verify the limit value is UID_MIN_LIMIT (20000000)
+    EXPECT_EQ(prog.filter[SETUID_JGE_IDX].k, static_cast<uint32_t>(20000000));
+}
+
+/**
+ * @tc.name: BuildSeccompFilter004
+ * @tc.desc: Verify BPF JGE instructions in setreuid uid range filter check
+ *          BOTH args[0] (ruid) and args[1] (euid) with correct jump targets.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter004, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    struct sock_fprog prog;
+    int ret = manager.BuildSeccompFilter(prog);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_NE(prog.filter, nullptr);
+
+    // setreuid uid range filter (indices 12-18):
+    //   [12] JEQ __NR_setreuid, jt=0, jf=6
+    //   [13] LD args[0] (ruid)
+    //   [14] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- ruid >= limit?
+    //   [15] RET KILL
+    //   [16] LD args[1] (euid)
+    //   [17] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- euid >= limit?
+    //   [18] RET KILL
+    constexpr size_t SETREUID_RUID_JGE_IDX = 14;
+    constexpr size_t SETREUID_EUID_JGE_IDX = 17;
+
+    // Verify args[0] (ruid) JGE: jt=1, jf=0
+    EXPECT_EQ(prog.filter[SETREUID_RUID_JGE_IDX].code,
+              static_cast<uint16_t>(BPF_JMP | BPF_JGE | BPF_K));
+    EXPECT_EQ(prog.filter[SETREUID_RUID_JGE_IDX].jt, static_cast<uint8_t>(1));
+    EXPECT_EQ(prog.filter[SETREUID_RUID_JGE_IDX].jf, static_cast<uint8_t>(0));
+    EXPECT_EQ(prog.filter[SETREUID_RUID_JGE_IDX].k, static_cast<uint32_t>(20000000));
+
+    // Verify args[1] (euid) JGE: jt=1, jf=0
+    EXPECT_EQ(prog.filter[SETREUID_EUID_JGE_IDX].code,
+              static_cast<uint16_t>(BPF_JMP | BPF_JGE | BPF_K));
+    EXPECT_EQ(prog.filter[SETREUID_EUID_JGE_IDX].jt, static_cast<uint8_t>(1));
+    EXPECT_EQ(prog.filter[SETREUID_EUID_JGE_IDX].jf, static_cast<uint8_t>(0));
+    EXPECT_EQ(prog.filter[SETREUID_EUID_JGE_IDX].k, static_cast<uint32_t>(20000000));
+}
+
+/**
+ * @tc.name: BuildSeccompFilter005
+ * @tc.desc: Verify BPF JGE instructions in setresuid uid range filter check
+ *          ALL THREE args (ruid, euid, suid) with correct jump targets.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter005, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    struct sock_fprog prog;
+    int ret = manager.BuildSeccompFilter(prog);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_NE(prog.filter, nullptr);
+
+    // setresuid uid range filter (indices 19-28):
+    //   [19] JEQ __NR_setresuid, jt=0, jf=9
+    //   [20] LD args[0] (ruid)
+    //   [21] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- ruid >= limit?
+    //   [22] RET KILL
+    //   [23] LD args[1] (euid)
+    //   [24] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- euid >= limit?
+    //   [25] RET KILL
+    //   [26] LD args[2] (suid)
+    //   [27] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- suid >= limit?
+    //   [28] RET KILL
+    constexpr size_t SETRESUID_RUID_JGE_IDX = 21;
+    constexpr size_t SETRESUID_EUID_JGE_IDX = 24;
+    constexpr size_t SETRESUID_SUID_JGE_IDX = 27;
+
+    // Verify args[0] (ruid) JGE: jt=1, jf=0
+    EXPECT_EQ(prog.filter[SETRESUID_RUID_JGE_IDX].code,
+              static_cast<uint16_t>(BPF_JMP | BPF_JGE | BPF_K));
+    EXPECT_EQ(prog.filter[SETRESUID_RUID_JGE_IDX].jt, static_cast<uint8_t>(1));
+    EXPECT_EQ(prog.filter[SETRESUID_RUID_JGE_IDX].jf, static_cast<uint8_t>(0));
+    EXPECT_EQ(prog.filter[SETRESUID_RUID_JGE_IDX].k, static_cast<uint32_t>(20000000));
+
+    // Verify args[1] (euid) JGE: jt=1, jf=0
+    EXPECT_EQ(prog.filter[SETRESUID_EUID_JGE_IDX].code,
+              static_cast<uint16_t>(BPF_JMP | BPF_JGE | BPF_K));
+    EXPECT_EQ(prog.filter[SETRESUID_EUID_JGE_IDX].jt, static_cast<uint8_t>(1));
+    EXPECT_EQ(prog.filter[SETRESUID_EUID_JGE_IDX].jf, static_cast<uint8_t>(0));
+    EXPECT_EQ(prog.filter[SETRESUID_EUID_JGE_IDX].k, static_cast<uint32_t>(20000000));
+
+    // Verify args[2] (suid) JGE: jt=1, jf=0
+    EXPECT_EQ(prog.filter[SETRESUID_SUID_JGE_IDX].code,
+              static_cast<uint16_t>(BPF_JMP | BPF_JGE | BPF_K));
+    EXPECT_EQ(prog.filter[SETRESUID_SUID_JGE_IDX].jt, static_cast<uint8_t>(1));
+    EXPECT_EQ(prog.filter[SETRESUID_SUID_JGE_IDX].jf, static_cast<uint8_t>(0));
+    EXPECT_EQ(prog.filter[SETRESUID_SUID_JGE_IDX].k, static_cast<uint32_t>(20000000));
+}
+
+/**
+ * @tc.name: BuildSeccompFilter006
+ * @tc.desc: Verify setfsuid uid range filter also uses correct JGE jump targets.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter006, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    struct sock_fprog prog;
+    int ret = manager.BuildSeccompFilter(prog);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_NE(prog.filter, nullptr);
+
+    // setfsuid uid range filter (indices 29-32):
+    //   [29] JEQ __NR_setfsuid, jt=0, jf=3
+    //   [30] LD args[0]
+    //   [31] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- KEY: >= limit -> skip KILL
+    //   [32] RET KILL
+    constexpr size_t SETFSUID_JGE_IDX = 31;
+
+    // Verify JGE instruction: jt=1, jf=0
+    EXPECT_EQ(prog.filter[SETFSUID_JGE_IDX].code,
+              static_cast<uint16_t>(BPF_JMP | BPF_JGE | BPF_K));
+    EXPECT_EQ(prog.filter[SETFSUID_JGE_IDX].jt, static_cast<uint8_t>(1));
+    EXPECT_EQ(prog.filter[SETFSUID_JGE_IDX].jf, static_cast<uint8_t>(0));
+    EXPECT_EQ(prog.filter[SETFSUID_JGE_IDX].k, static_cast<uint32_t>(20000000));
+}
+
+/**
+ * @tc.name: BuildSeccompFilter007
+ * @tc.desc: Verify total BPF instruction count is correct when no allow list.
+ *          Expected: 4 (arch) + 4 (blocked: setpgid, setsid) + 25 (uid range)
+ *          + 1 (default) = 34 instructions.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter007, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    struct sock_fprog prog;
+    int ret = manager.BuildSeccompFilter(prog);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_NE(prog.filter, nullptr);
+
+    // Expected instruction count:
+    //   ARCH_CHECK_BPF_CNT = 4
+    //   blockedSyscalls * BPF_PER_SYSCALL = 2 * 2 = 4
+    //   BPF_PER_UID_SYSCALL_1ARG (setuid) = 4
+    //   BPF_PER_UID_SYSCALL_2ARG (setreuid) = 7
+    //   BPF_PER_UID_SYSCALL_3ARG (setresuid) = 10
+    //   BPF_PER_UID_SYSCALL_1ARG (setfsuid) = 4
+    //   default action = 1
+    //   Total = 4 + 4 + 4 + 7 + 10 + 4 + 1 = 34
+    constexpr size_t EXPECTED_TOTAL_LEN = 34;
+    EXPECT_EQ(prog.len, EXPECTED_TOTAL_LEN);
 }
 
 } // namespace SANDBOX
