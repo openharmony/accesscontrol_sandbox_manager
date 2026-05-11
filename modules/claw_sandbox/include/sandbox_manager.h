@@ -97,6 +97,7 @@ private:
     int MountAppDirs();
     int PivotRoot();
     int SetAccessToken();
+    int SetAinfo();
     int SetUidGid();
     int SetProcessGroup();
     int SetSeccomp();
