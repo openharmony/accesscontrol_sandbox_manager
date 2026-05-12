@@ -140,7 +140,9 @@ void SandboxExec::PrintUsage()
     printf("Example:\n");
     printf("  claw_sandbox --config '{\"callerTokenId\":1234,"
            "\"uid\":20020026,\"gid\":20020026,\"callerPid\":1234,"
-           "\"appid\":\"com.example\",\"nsFlags\":[\"net\",\"pid\"]}'"
+           "\"appid\":\"com.example\",\"nsFlags\":[\"net\",\"mnt\"],"
+           "\"challenge\":\"challenge_value\",\"bundleName\":\"com.example.bundle\","
+           "\"cliName\":\"ohos-timer\",\"subCliName\":\"\"}' "
            " --cmd \"ls -la\"\n");
 }
 

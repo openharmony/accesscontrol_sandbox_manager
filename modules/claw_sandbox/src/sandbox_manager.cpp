@@ -80,6 +80,11 @@ constexpr int HEX_MAX = 15;
 constexpr int HEX_CNT = 16;
 constexpr int UID_BASE = 200000;
 
+// Minimum UID allowed by seccomp filter (20000000 = 20 million).
+// Any attempt to setuid/setreuid/setresuid/setfsuid to a UID below this
+// value will be blocked by the seccomp filter, returning EACCES.
+constexpr unsigned int UID_MIN_LIMIT = 20000000;
+
 // Namespace path buffer size
 constexpr size_t NS_PATH_BUF_SIZE = 256;
 
@@ -88,6 +93,33 @@ constexpr size_t ARCH_CHECK_BPF_CNT = 4;
 
 // BPF instructions per syscall entry (JUMP + RET)
 constexpr size_t BPF_PER_SYSCALL = 2;
+
+// BPF instructions per uid-range-checked syscall entry (1 argument):
+//   JUMP(nr match) + LD(args[0]) + JUMP(>= limit) + RET(KILL)
+constexpr size_t BPF_PER_UID_SYSCALL_1ARG = 4;
+
+// BPF instructions per uid-range-checked syscall entry (2 arguments: setreuid):
+//   JUMP(nr match) + [LD(args[i]) + JUMP(>= limit) + RET(KILL)] * 2
+constexpr size_t BPF_PER_UID_SYSCALL_2ARG = 7;
+
+// BPF instructions per uid-range-checked syscall entry (3 arguments: setresuid):
+//   JUMP(nr match) + [LD(args[i]) + JUMP(>= limit) + RET(KILL)] * 3
+constexpr size_t BPF_PER_UID_SYSCALL_3ARG = 10;
+
+// BPF jump offset when syscall number does NOT match a uid-range-checked syscall.
+// This skips all remaining instructions for that syscall (total insns - 1 for the JEQ itself).
+constexpr uint8_t BPF_JEQ_SKIP_1ARG = BPF_PER_UID_SYSCALL_1ARG - 1;  // 3
+constexpr uint8_t BPF_JEQ_SKIP_2ARG = BPF_PER_UID_SYSCALL_2ARG - 1;  // 6
+constexpr uint8_t BPF_JEQ_SKIP_3ARG = BPF_PER_UID_SYSCALL_3ARG - 1;  // 9
+
+// Number of default blocked syscalls (setpgid, setsid)
+constexpr size_t BLOCKED_SYSCALL_COUNT = 2;
+
+// System app mask: bit 32 of AccessTokenIDEx indicates system app
+constexpr uint64_t SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32);
+
+// Low 32-bit mask for extracting AccessTokenID from AccessTokenIDEx
+constexpr uint64_t TOKEN_ID_LOWMASK = 0xFFFFFFFF;
 
 // Mount flag string to numeric value mapping table
 static const std::map<std::string, unsigned long> MOUNT_FLAGS_MAP = {
@@ -147,74 +179,103 @@ int SandboxManager::Execute()
         return SANDBOX_ERR_GENERIC;
     }
 
-    // Step 1: Validate configuration parameters
+    // Steps 1-4: Validate, load template, generate token, enter caller sandbox
+    int ret = ExecuteEarlySteps();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    // Steps 5-10: Create root, unshare, mount, pivot_root (with cleanup on failure)
+    ret = ExecuteMountSteps();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    // Steps 11-16: Set token, uid/gid, process group, seccomp, drop caps, exec
+    return ExecuteLateSteps();
+}
+
+/**
+ * @brief Execute steps 1-4: validate config, load template, generate token,
+ *        and enter the caller's sandbox namespace.
+ *        These steps do NOT require cleanup on failure.
+ */
+int SandboxManager::ExecuteEarlySteps()
+{
     int ret = ValidateConfig();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 2: Load built-in template configuration
     ret = LoadTemplate();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 3: Generaete temporary tokenid
     ret = GenerateTokenId();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 4: setns into the caller's sandbox
     ret = EnterCallerSandbox();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
+    return SANDBOX_SUCCESS;
+}
 
-    // Step 5: Create sandbox path (using config_.name or auto-generated name)
-    ret = CreateNewRoot();
+/**
+ * @brief Execute steps 5-10: create root, unshare namespaces, mount directories,
+ *        and pivot_root. These steps require cleanup on failure.
+ */
+int SandboxManager::ExecuteMountSteps()
+{
+    int ret = CreateNewRoot();
     if (ret != SANDBOX_SUCCESS) {
         Cleanup();
         return ret;
     }
 
-    // Step 6: unshare to create namespaces
     ret = UnshareNamespaces();
     if (ret != SANDBOX_SUCCESS) {
         Cleanup();
         return ret;
     }
 
-    // Step 7: Set the new root directory as a mount point
     ret = MountNewRoot();
     if (ret != SANDBOX_SUCCESS) {
         Cleanup();
         return ret;
     }
 
-    // Step 8: Create and mount system directories
     ret = MountSystemDirs();
     if (ret != SANDBOX_SUCCESS) {
         Cleanup();
         return ret;
     }
 
-    // Step 9: Create and mount application directories
     ret = MountAppDirs();
     if (ret != SANDBOX_SUCCESS) {
         Cleanup();
         return ret;
     }
 
-    // Step 10: pivot_root to switch root directory
     ret = PivotRoot();
     if (ret != SANDBOX_SUCCESS) {
         Cleanup();
         return ret;
     }
+    return SANDBOX_SUCCESS;
+}
 
-    // Step 11: Set AccessToken
-    ret = SetAccessToken();
+/**
+ * @brief Execute steps 11-16: set access token, uid/gid, process group,
+ *        seccomp filter, drop capabilities, and execute the command.
+ *        These steps do NOT require cleanup on failure.
+ */
+int SandboxManager::ExecuteLateSteps()
+{
+    int ret = SetAccessToken();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
@@ -275,6 +336,23 @@ int SandboxManager::ValidateConfig()
             (unsigned long long)config_.callerTokenId);
         return SANDBOX_ERR_BAD_PARAMETERS;
     }
+
+    // Validate callerTokenId: must be TOKEN_HAP and System Hap
+    AccessTokenID accessTokenId = static_cast<AccessTokenID>(
+        config_.callerTokenId & TOKEN_ID_LOWMASK);
+    ATokenTypeEnum tokenType = AccessTokenKit::GetTokenTypeFlag(accessTokenId);
+    if (tokenType != TOKEN_HAP) {
+        std::cerr << "Error: callerTokenId type is not TOKEN_HAP, type=" <<
+                  static_cast<int>(tokenType) << std::endl;
+        SANDBOX_LOGE("callerTokenId type is not TOKEN_HAP, type=%{public}d",
+            static_cast<int>(tokenType));
+        return SANDBOX_ERR_BAD_PARAMETERS;
+    }
+    if ((config_.callerTokenId & SYSTEM_APP_MASK) != SYSTEM_APP_MASK) {
+        std::cerr << "Error: callerTokenId is not System Hap" << std::endl;
+        SANDBOX_LOGE("callerTokenId is not System Hap");
+        return SANDBOX_ERR_BAD_PARAMETERS;
+    }
     return SANDBOX_SUCCESS;
 }
 
@@ -284,9 +362,74 @@ int SandboxManager::LoadTemplate()
     return LoadJsonConfig(templatePath);
 }
 
-int SandboxManager::EnterCallerSandbox()
+/**
+ * @brief Open /proc/<pid> directory and verify its uid/gid match the expected
+ *        values. This prevents TOCTOU races where the PID is reused by a
+ *        different process after the original caller exits.
+ *
+ * @param pid Process ID to open
+ * @param expectedUid Expected UID of the process directory
+ * @param expectedGid Expected GID of the process directory
+ * @param[out] procFd Output file descriptor for the opened proc directory
+ * @return SANDBOX_SUCCESS on success, SANDBOX_ERR_NS_FAILED on failure
+ */
+static int OpenCallerProcDir(pid_t pid, uid_t expectedUid, gid_t expectedGid,
+                             int &procFd)
 {
-    // Get Gid by group name
+    char procPath[NS_PATH_BUF_SIZE] = {0};
+    int ret = snprintf_s(procPath, sizeof(procPath), sizeof(procPath) - 1,
+                         "/proc/%d", pid);
+    if (ret < 0) {
+        std::cerr << "Error: snprintf_s failed for proc path" << std::endl;
+        SANDBOX_LOGE("snprintf_s failed for proc path");
+        return SANDBOX_ERR_NS_FAILED;
+    }
+
+    procFd = open(procPath, O_RDONLY | O_DIRECTORY);
+    if (procFd < 0) {
+        std::cerr << "Error: Failed to open " << procPath << ": " <<
+                  strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to open %{public}s: %{public}s",
+            procPath, strerror(errno));
+        return SANDBOX_ERR_NS_FAILED;
+    }
+
+    struct stat procStat;
+    if (fstat(procFd, &procStat) != 0) {
+        std::cerr << "Error: fstat failed for " << procPath << ": " <<
+                  strerror(errno) << std::endl;
+        SANDBOX_LOGE("fstat failed for %{public}s: %{public}s",
+            procPath, strerror(errno));
+        close(procFd);
+        procFd = -1;
+        return SANDBOX_ERR_NS_FAILED;
+    }
+
+    if (procStat.st_uid != expectedUid || procStat.st_gid != expectedGid) {
+        std::cerr << "Error: PID " << pid <<
+                  " uid/gid mismatch: expected " <<
+                  expectedUid << "/" << expectedGid <<
+                  ", got " << procStat.st_uid << "/" << procStat.st_gid <<
+                  " (PID may have been reused)" << std::endl;
+        SANDBOX_LOGE("PID %{public}d uid/gid mismatch: expected "
+            "%{public}u/%{public}u, got %{public}u/%{public}u",
+            pid, expectedUid, expectedGid,
+            procStat.st_uid, procStat.st_gid);
+        close(procFd);
+        procFd = -1;
+        return SANDBOX_ERR_NS_FAILED;
+    }
+
+    return SANDBOX_SUCCESS;
+}
+
+/**
+ * @brief Set the supplementary group list to the "readproc" group GID.
+ *        This is required to read /proc/<pid> entries for the caller process.
+ * @return SANDBOX_SUCCESS on success, SANDBOX_ERR_NS_FAILED on failure
+ */
+static int SetReadProcGroup(void)
+{
     struct group *grp = getgrnam(READ_PROC_GROUP);
     if (grp == nullptr) {
         std::cerr << "Error: Cannot find readproc group" << std::endl;
@@ -300,33 +443,56 @@ int SandboxManager::EnterCallerSandbox()
         SANDBOX_LOGE("setgroups failed: %{public}s", strerror(errno));
         return SANDBOX_ERR_NS_FAILED;
     }
+    return SANDBOX_SUCCESS;
+}
 
-    // Enter the caller's mount namespace
-    char nsPath[NS_PATH_BUF_SIZE] = {0};
-    int ret = snprintf_s(nsPath, sizeof(nsPath), sizeof(nsPath) - 1,
-                         "/proc/%d/ns/mnt", config_.callerPid);
-    if (ret < 0) {
-        std::cerr << "Error: snprintf_s failed for ns path" << std::endl;
-        SANDBOX_LOGE("snprintf_s failed");
+int SandboxManager::EnterCallerSandbox()
+{
+    int ret = SetReadProcGroup();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    // Step 1: Open /proc/<callerPid> directory and verify uid/gid.
+    // Holding this fd prevents PID reuse from causing us to enter the
+    // namespace of a different process (TOCTOU race condition).
+    int procFd = -1;
+    ret = OpenCallerProcDir(static_cast<pid_t>(config_.callerPid),
+                            static_cast<uid_t>(config_.uid),
+                            static_cast<gid_t>(config_.gid),
+                            procFd);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    // Step 2: Open the mount namespace file via openat() using the pinned
+    // proc directory fd. This avoids constructing a /proc/<pid>/ns/mnt
+    // path that could be subject to a race condition.
+    int nsFd = openat(procFd, "ns/mnt", O_RDONLY);
+    if (nsFd < 0) {
+        std::cerr << "Error: Failed to open ns/mnt for pid " <<
+                  config_.callerPid << ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to open ns/mnt for pid %{public}d: %{public}s",
+            config_.callerPid, strerror(errno));
+        close(procFd);
         return SANDBOX_ERR_NS_FAILED;
     }
 
-    int fd = open(nsPath, O_RDONLY);
-    if (fd < 0) {
-        std::cerr << "Error: Failed to open " << nsPath << ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to open %{public}s: %{public}s",
-            nsPath, strerror(errno));
-        return SANDBOX_ERR_NS_FAILED;
-    }
+    // Step 3: Close the proc directory fd now that we hold the ns fd.
+    // The ns fd keeps the namespace alive independently.
+    close(procFd);
 
-    if (setns(fd, 0) < 0) {
-        std::cerr << "Error: setns failed for " << nsPath << ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("setns failed for %{public}s: %{public}s",
-            nsPath, strerror(errno));
-        close(fd);
+    // Step 4: Enter the caller's mount namespace via setns().
+    if (setns(nsFd, 0) < 0) {
+        std::cerr << "Error: setns failed for pid " << config_.callerPid <<
+                  ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("setns failed for pid %{public}d: %{public}s",
+            config_.callerPid, strerror(errno));
+        close(nsFd);
         return SANDBOX_ERR_NS_FAILED;
     }
-    close(fd);
+    close(nsFd);
+
     SANDBOX_LOGD("Entered caller sandbox (pid=%{public}d)", config_.callerPid);
     return SANDBOX_SUCCESS;
 }
@@ -387,8 +553,8 @@ int SandboxManager::CreateSandboxWithName(const std::string &name)
     std::string sandboxPath = std::string(SANDBOX_BASE_DIR) + "/" + name;
     int ret = CreateDirRecursive(sandboxPath, DIR_MODE);
     if (ret != SANDBOX_SUCCESS) {
-        std::cerr << "Error: Failed to create sandbox directory: " << sandboxPath
-                  << " (" << strerror(errno) << ")" << std::endl;
+        std::cerr << "Error: Failed to create sandbox directory: " << sandboxPath <<
+                  " (" << strerror(errno) << ")" << std::endl;
         SANDBOX_LOGE("Failed to create sandbox directory: %{public}s, errno: %{public}s",
             sandboxPath.c_str(), strerror(errno));
         return ret;
@@ -410,8 +576,8 @@ int SandboxManager::CreateSandboxAutoName()
         }
         int ret = CreateDirRecursive(sandboxPath, DIR_MODE);
         if (ret != SANDBOX_SUCCESS) {
-            std::cerr << "Error: Failed to create sandbox directory: " << sandboxPath
-                      << " (" << strerror(errno) << ")" << std::endl;
+            std::cerr << "Error: Failed to create sandbox directory: " << sandboxPath <<
+                      " (" << strerror(errno) << ")" << std::endl;
             SANDBOX_LOGE("Failed to create sandbox directory: %{public}s, errno: %{public}s",
                 sandboxPath.c_str(), strerror(errno));
             return ret;
@@ -451,8 +617,8 @@ int SandboxManager::UnshareNamespaces()
 {
     int flags = CmdParser::ConvertNsFlags(config_.nsFlags);
     if (unshare(flags) < 0) {
-        std::cerr << "Error: unshare(0x" << std::hex << flags << std::dec
-                  << ") failed: " << strerror(errno) << std::endl;
+        std::cerr << "Error: unshare(0x" << std::hex << flags << std::dec <<
+                  ") failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("unshare(0x%{public}x) failed: %{public}s",
             flags, strerror(errno));
         return SANDBOX_ERR_NS_FAILED;
@@ -494,8 +660,8 @@ int SandboxManager::MountSystemEntry(const MountEntry &entry, const std::string 
     // Simple bind mount without remount readonly or propagation changes
     unsigned long mountFlags = ConvertMountFlags(entry.mountFlags);
     if (mount(entry.source.c_str(), target.c_str(), nullptr, mountFlags, nullptr) < 0) {
-        std::cerr << "Error: Failed to mount " << entry.source << " -> " << target
-                  << ": " << strerror(errno) << std::endl;
+        std::cerr << "Error: Failed to mount " << entry.source << " -> " << target <<
+                  ": " << strerror(errno) << std::endl;
         SANDBOX_LOGE("Failed to mount %{public}s -> %{public}s: %{public}s",
             entry.source.c_str(), target.c_str(), strerror(errno));
         return SANDBOX_ERR_MOUNT_FAILED;
@@ -527,8 +693,8 @@ int SandboxManager::MountSingleEntry(const MountEntry &entry, const std::string 
     unsigned long propFlags = allFlags & PROPAGATION_MASK;
 
     if (mount(entry.source.c_str(), target.c_str(), nullptr, mountFlags, nullptr) < 0) {
-        std::cerr << "Error: Failed to mount " << entry.source << " -> " << target
-                  << ": " << strerror(errno) << std::endl;
+        std::cerr << "Error: Failed to mount " << entry.source << " -> " << target <<
+                  ": " << strerror(errno) << std::endl;
         SANDBOX_LOGE("Failed to mount %{public}s -> %{public}s: %{public}s",
             entry.source.c_str(), target.c_str(), strerror(errno));
         return SANDBOX_ERR_MOUNT_FAILED;
@@ -631,7 +797,15 @@ int SandboxManager::GenerateTokenId()
 
 int SandboxManager::SetAccessToken()
 {
-    int ret = SetSelfTokenID(config_.tokenIdEx.tokenIDEx);
+    // supports privacy records for cli process
+    int ret = SetFirstCallerTokenID(config_.callerTokenId);
+    if (ret != 0) {
+        std::cerr << "Error: SetFirstCallerTokenID failed: " << ret << std::endl;
+        SANDBOX_LOGE("SetFirstCallerTokenID failed: %{public}d", ret);
+        return SANDBOX_ERR_SET_TOKENID_FAILED;
+    }
+
+    ret = SetSelfTokenID(config_.tokenIdEx.tokenIDEx);
     if (ret != 0) {
         std::cerr << "Error: SetSelfTokenID failed: " << ret << std::endl;
         SANDBOX_LOGE("SetSelfTokenID failed: %{public}d", ret);
@@ -663,6 +837,7 @@ int SandboxManager::SetUidGid()
     // continue — setresuid() will clear effective capabilities, but
     // DropCapabilities() (Step 15) will still zero out permitted and
     // inheritable sets via capset().
+#ifdef __LINUX__
     if (prctl(PR_SET_SECUREBITS,
               SECBIT_KEEP_CAPS | SECBIT_KEEP_CAPS_LOCKED,
               0, 0, 0) < 0) {
@@ -670,6 +845,7 @@ int SandboxManager::SetUidGid()
             "Effective capabilities will be cleared by setresuid().",
             strerror(errno));
     }
+#endif
 
     std::vector<gid_t> gids = {config_.gid};
     if (setgroups(gids.size(), gids.data()) == -1) {
@@ -808,6 +984,18 @@ static const std::map<std::string, int> SYSCALL_MAP = []() {
 #ifdef __NR_wait4
     m["wait4"] = __NR_wait4;
 #endif
+#ifdef __NR_setuid
+    m["setuid"] = __NR_setuid;
+#endif
+#ifdef __NR_setreuid
+    m["setreuid"] = __NR_setreuid;
+#endif
+#ifdef __NR_setresuid
+    m["setresuid"] = __NR_setresuid;
+#endif
+#ifdef __NR_setfsuid
+    m["setfsuid"] = __NR_setfsuid;
+#endif
     return m;
 }();
 
@@ -843,10 +1031,173 @@ static void AppendErrnoFilter(std::vector<struct sock_filter> &filter,
                               size_t &idx, int nr)
 {
     filter[idx++] = BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, nr, 0, 1);
-    filter[idx++] = BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO + EACCES);
+    filter[idx++] = BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EACCES);
 }
 
-int SandboxManager::BuildSeccompFilter(struct sock_fprog &prog)
+/**
+ * @brief Append a BPF rule that checks whether the first argument (args[0])
+ *        of a single-argument uid-related syscall (setuid, setfsuid) is
+ *        >= UID_MIN_LIMIT.
+ *
+ * If uid >= UID_MIN_LIMIT, the syscall is allowed (skip the RET instruction).
+ * If uid < UID_MIN_LIMIT, the process is killed with SIGKILL (SECCOMP_RET_KILL).
+ *
+ * This prevents sandboxed processes from switching to a UID below 20000000
+ * (20 million), which is the minimum UID for application processes.
+ *
+ * BPF instruction layout (BPF_PER_UID_SYSCALL_1ARG = 4 insns):
+ *   1. BPF_JUMP(JEQ, nr) - check if syscall number matches
+ *   2. BPF_STMT(LD, args[0]) - load the first argument (uid)
+ *   3. BPF_JUMP(JGE, UID_MIN_LIMIT, jt=1, jf=0) - if >= limit, skip KILL
+ *   4. BPF_STMT(RET, KILL) - kill if uid < limit
+ */
+static void AppendUidRangeFilter(std::vector<struct sock_filter> &filter,
+                                 size_t &idx, int nr)
+{
+    // Check if syscall number matches
+    filter[idx++] = BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, nr, 0,
+                             BPF_JEQ_SKIP_1ARG);
+    // Load args[0] (the uid value being set)
+    filter[idx++] = BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+                             offsetof(struct seccomp_data, args[0]));
+    // If args[0] >= UID_MIN_LIMIT, skip the next instruction (allow).
+    // If args[0] < UID_MIN_LIMIT, fall through to KILL.
+    filter[idx++] = BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K,
+                             UID_MIN_LIMIT, 1, 0);
+    // args[0] < UID_MIN_LIMIT: kill with SIGKILL
+    filter[idx++] = BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL);
+}
+
+/**
+ * @brief Append a BPF rule that checks BOTH arguments of the setreuid syscall
+ *        (ruid=args[0], euid=args[1]) against UID_MIN_LIMIT.
+ *
+ * setreuid has two arguments: ruid (real UID) and euid (effective UID).
+ * BOTH must be >= UID_MIN_LIMIT for the syscall to be allowed.
+ * If either argument is < UID_MIN_LIMIT, the process is killed with SIGKILL.
+ *
+ * BPF instruction layout (BPF_PER_UID_SYSCALL_2ARG = 7 insns):
+ *   1. BPF_JUMP(JEQ, nr) - check if this is setreuid
+ *   2. BPF_STMT(LD, args[0]) - load ruid
+ *   3. BPF_JUMP(JGE, UID_MIN_LIMIT, jt=1, jf=0) - if ruid >= limit, check euid
+ *   4. BPF_STMT(RET, KILL) - ruid < limit: kill
+ *   5. BPF_STMT(LD, args[1]) - load euid
+ *   6. BPF_JUMP(JGE, UID_MIN_LIMIT, jt=1, jf=0) - if euid >= limit, allow
+ *   7. BPF_STMT(RET, KILL) - euid < limit: kill
+ */
+static void AppendSetreuidRangeFilter(std::vector<struct sock_filter> &filter,
+                                      size_t &idx, int nr)
+{
+    // Check if syscall number matches setreuid
+    filter[idx++] = BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, nr, 0,
+                             BPF_JEQ_SKIP_2ARG);
+    // Load args[0] (ruid)
+    filter[idx++] = BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+                             offsetof(struct seccomp_data, args[0]));
+    // If ruid >= UID_MIN_LIMIT, continue to check euid (skip 1 insn).
+    // If ruid < UID_MIN_LIMIT, fall through to KILL.
+    filter[idx++] = BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K,
+                             UID_MIN_LIMIT, 1, 0);
+    // ruid < UID_MIN_LIMIT: kill with SIGKILL
+    filter[idx++] = BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL);
+    // Load args[1] (euid)
+    filter[idx++] = BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+                             offsetof(struct seccomp_data, args[1]));
+    // If euid >= UID_MIN_LIMIT, skip the next instruction (allow).
+    // If euid < UID_MIN_LIMIT, fall through to KILL.
+    filter[idx++] = BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K,
+                             UID_MIN_LIMIT, 1, 0);
+    // euid < UID_MIN_LIMIT: kill with SIGKILL
+    filter[idx++] = BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL);
+}
+
+/**
+ * @brief Append a BPF rule that checks ALL THREE arguments of the setresuid
+ *        syscall (ruid=args[0], euid=args[1], suid=args[2]) against UID_MIN_LIMIT.
+ *
+ * setresuid has three arguments: ruid (real UID), euid (effective UID),
+ * and suid (saved UID). ALL THREE must be >= UID_MIN_LIMIT for the syscall
+ * to be allowed. If any argument is < UID_MIN_LIMIT, the process is killed
+ * with SIGKILL.
+ *
+ * BPF instruction layout (BPF_PER_UID_SYSCALL_3ARG = 10 insns):
+ *   1. BPF_JUMP(JEQ, nr) - check if this is setresuid
+ *   2. BPF_STMT(LD, args[0]) - load ruid
+ *   3. BPF_JUMP(JGE, UID_MIN_LIMIT, jt=1, jf=0) - if ruid >= limit, check euid
+ *   4. BPF_STMT(RET, KILL) - ruid < limit: kill
+ *   5. BPF_STMT(LD, args[1]) - load euid
+ *   6. BPF_JUMP(JGE, UID_MIN_LIMIT, jt=1, jf=0) - if euid >= limit, check suid
+ *   7. BPF_STMT(RET, KILL) - euid < limit: kill
+ *   8. BPF_STMT(LD, args[2]) - load suid
+ *   9. BPF_JUMP(JGE, UID_MIN_LIMIT, jt=1, jf=0) - if suid >= limit, allow
+ *  10. BPF_STMT(RET, KILL) - suid < limit: kill
+ */
+static void AppendSetresuidRangeFilter(std::vector<struct sock_filter> &filter,
+                                       size_t &idx, int nr)
+{
+    // Check if syscall number matches setresuid
+    filter[idx++] = BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, nr, 0,
+                             BPF_JEQ_SKIP_3ARG);
+    // Load args[0] (ruid)
+    filter[idx++] = BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+                             offsetof(struct seccomp_data, args[0]));
+    // If ruid >= UID_MIN_LIMIT, continue to check euid (skip 1 insn).
+    // If ruid < UID_MIN_LIMIT, fall through to KILL.
+    filter[idx++] = BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K,
+                             UID_MIN_LIMIT, 1, 0);
+    // ruid < UID_MIN_LIMIT: kill with SIGKILL
+    filter[idx++] = BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL);
+    // Load args[1] (euid)
+    filter[idx++] = BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+                             offsetof(struct seccomp_data, args[1]));
+    // If euid >= UID_MIN_LIMIT, continue to check suid (skip 1 insn).
+    // If euid < UID_MIN_LIMIT, fall through to KILL.
+    filter[idx++] = BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K,
+                             UID_MIN_LIMIT, 1, 0);
+    // euid < UID_MIN_LIMIT: kill with SIGKILL
+    filter[idx++] = BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL);
+    // Load args[2] (suid)
+    filter[idx++] = BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+                             offsetof(struct seccomp_data, args[2]));
+    // If suid >= UID_MIN_LIMIT, skip the next instruction (allow).
+    // If suid < UID_MIN_LIMIT, fall through to KILL.
+    filter[idx++] = BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K,
+                             UID_MIN_LIMIT, 1, 0);
+    // suid < UID_MIN_LIMIT: kill with SIGKILL
+    filter[idx++] = BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL);
+}
+
+static void AppendArchCheck(std::vector<struct sock_filter> &filter, size_t &idx)
+{
+    // Load architecture field
+    filter[idx++] = BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+                             offsetof(struct seccomp_data, arch));
+    // Allow AUDIT_ARCH_AARCH64 (ARM64)
+    filter[idx++] = BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K,
+                             AUDIT_ARCH_AARCH64, 1, 0);
+    // Kill on unsupported architecture
+    filter[idx++] = BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL);
+    // Load syscall number
+    filter[idx++] = BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
+                             offsetof(struct seccomp_data, nr));
+}
+
+static void AppendAllowList(std::vector<struct sock_filter> &filter, size_t &idx,
+                            const std::vector<std::string> &allowList)
+{
+    for (const auto &name : allowList) {
+        int nr = ResolveSyscallName(name);
+        if (nr < 0) {
+            SANDBOX_LOGW("Unknown syscall in seccompAllowList: %{public}s",
+                         name.c_str());
+            continue;
+        }
+        AppendAllowFilter(filter, idx, nr);
+    }
+}
+
+static void AppendBlockedSyscalls(std::vector<struct sock_filter> &filter,
+                                  size_t &idx)
 {
     // Default blocked syscalls: setpgid and setsid
     // (prevents descendant processes from escaping the process group)
@@ -854,6 +1205,65 @@ int SandboxManager::BuildSeccompFilter(struct sock_fprog &prog)
         __NR_setpgid, __NR_setsid,
     };
 
+    // Use SECCOMP_RET_ERRNO | EACCES instead of SECCOMP_RET_KILL,
+    // so the calling process receives an error instead of being killed.
+    // This allows shells (e.g. sh -c) to continue running even if they
+    // attempt job control via setpgid/setsid.
+    for (int nr : blockedSyscalls) {
+        AppendErrnoFilter(filter, idx, nr);
+    }
+}
+
+static void AppendUidRangeSyscalls(std::vector<struct sock_filter> &filter,
+                                   size_t &idx)
+{
+    // UID-related syscalls that must be restricted:
+    // the first argument (uid) must be >= UID_MIN_LIMIT (20000000).
+    // This prevents sandboxed processes from switching to a system UID.
+    static const std::vector<int> uidRangeSyscalls = {
+#ifdef __NR_setuid
+        __NR_setuid,
+#endif
+#ifdef __NR_setreuid
+        __NR_setreuid,
+#endif
+#ifdef __NR_setresuid
+        __NR_setresuid,
+#endif
+#ifdef __NR_setfsuid
+        __NR_setfsuid,
+#endif
+    };
+
+    // Different syscalls have different argument counts:
+    //   setuid(uid):      1 arg  (args[0])
+    //   setreuid(ruid, euid): 2 args (args[0], args[1]) - BOTH must be >= limit
+    //   setresuid(ruid, euid, suid): 3 args (args[0], args[1], args[2]) - ALL must be >= limit
+    //   setfsuid(uid):    1 arg  (args[0])
+    //
+    // Each argument check uses BPF_JGE (jump if greater than or equal):
+    //   jt=1: if uid >= UID_MIN_LIMIT, skip the BLOCK instruction (allow)
+    //   jf=0: if uid < UID_MIN_LIMIT, fall through to BLOCK
+    for (int nr : uidRangeSyscalls) {
+#ifdef __NR_setreuid
+        if (nr == __NR_setreuid) {
+            AppendSetreuidRangeFilter(filter, idx, nr);
+            continue;
+        }
+#endif
+#ifdef __NR_setresuid
+        if (nr == __NR_setresuid) {
+            AppendSetresuidRangeFilter(filter, idx, nr);
+            continue;
+        }
+#endif
+        // setuid, setfsuid (single-argument syscalls)
+        AppendUidRangeFilter(filter, idx, nr);
+    }
+}
+
+int SandboxManager::BuildSeccompFilter(struct sock_fprog &prog)
+{
     // Determine default action:
     // - If allow list is non-empty: default KILL (whitelist mode, only listed syscalls allowed)
     // - If allow list is empty: default ALLOW (only blocked syscalls denied)
@@ -862,45 +1272,39 @@ int SandboxManager::BuildSeccompFilter(struct sock_fprog &prog)
 
     // Calculate total BPF instructions:
     // ARCH_CHECK_BPF_CNT for arch check (aarch64) + allowList * BPF_PER_SYSCALL
-    // + blockedSyscalls * BPF_PER_SYSCALL + 1 for default action
+    // + blockedSyscalls * BPF_PER_SYSCALL
+    // + uid range syscalls (1-arg: 4, 2-arg: 7, 3-arg: 10)
+    // + 1 for default action
+    //
+    // uidRangeSyscalls layout:
+    //   setuid:     BPF_PER_UID_SYSCALL_1ARG (4 insns)
+    //   setreuid:   BPF_PER_UID_SYSCALL_2ARG (7 insns)
+    //   setresuid:  BPF_PER_UID_SYSCALL_3ARG (10 insns)
+    //   setfsuid:   BPF_PER_UID_SYSCALL_1ARG (4 insns)
     size_t totalLen = ARCH_CHECK_BPF_CNT
                       + templateConfig_.seccompAllowList.size() * BPF_PER_SYSCALL
-                      + blockedSyscalls.size() * BPF_PER_SYSCALL + 1;
+                      + BLOCKED_SYSCALL_COUNT * BPF_PER_SYSCALL
+                      + BPF_PER_UID_SYSCALL_1ARG  // setuid
+                      + BPF_PER_UID_SYSCALL_2ARG  // setreuid
+                      + BPF_PER_UID_SYSCALL_3ARG  // setresuid
+                      + BPF_PER_UID_SYSCALL_1ARG  // setfsuid
+                      + 1;
     seccompFilter_.resize(totalLen);
     size_t idx = 0;
 
-    // Load architecture field
-    seccompFilter_[idx++] = BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
-                                     offsetof(struct seccomp_data, arch));
-    // Allow AUDIT_ARCH_AARCH64 (ARM64)
-    seccompFilter_[idx++] = BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K,
-                                     AUDIT_ARCH_AARCH64, 1, 0);
-    // Kill on unsupported architecture
-    seccompFilter_[idx++] = BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL);
-    // Load syscall number
-    seccompFilter_[idx++] = BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
-                                     offsetof(struct seccomp_data, nr));
+    // Step 1: Architecture check (must be AARCH64)
+    AppendArchCheck(seccompFilter_, idx);
 
-    // Apply allow list from template config (seccompAllowList)
-    for (const auto &name : templateConfig_.seccompAllowList) {
-        int nr = ResolveSyscallName(name);
-        if (nr < 0) {
-            SANDBOX_LOGW("Unknown syscall in seccompAllowList: %{public}s", name.c_str());
-            continue;
-        }
-        AppendAllowFilter(seccompFilter_, idx, nr);
-    }
+    // Step 2: Apply allow list from template config (seccompAllowList)
+    AppendAllowList(seccompFilter_, idx, templateConfig_.seccompAllowList);
 
-    // Apply blocked syscalls (setpgid, setsid)
-    // Use SECCOMP_RET_ERRNO + EACCES instead of SECCOMP_RET_KILL,
-    // so the calling process receives an error instead of being killed.
-    // This allows shells (e.g. sh -c) to continue running even if they
-    // attempt job control via setpgid/setsid.
-    for (int nr : blockedSyscalls) {
-        AppendErrnoFilter(seccompFilter_, idx, nr);
-    }
+    // Step 3: Apply blocked syscalls (setpgid, setsid)
+    AppendBlockedSyscalls(seccompFilter_, idx);
 
-    // Default action: KILL if allow list present, ALLOW if only block
+    // Step 4: Apply UID range check for setuid/setreuid/setresuid/setfsuid
+    AppendUidRangeSyscalls(seccompFilter_, idx);
+
+    // Step 5: Default action
     seccompFilter_[idx++] = BPF_STMT(BPF_RET | BPF_K, defaultAction);
 
     prog.len = static_cast<unsigned short>(idx);
@@ -908,12 +1312,55 @@ int SandboxManager::BuildSeccompFilter(struct sock_fprog &prog)
     return SANDBOX_SUCCESS;
 }
 
+static int SetNoNewPrivs(void)
+{
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0) {
+        std::cerr << "Error: PR_SET_NO_NEW_PRIVS failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("PR_SET_NO_NEW_PRIVS failed: %{public}s", strerror(errno));
+        return SANDBOX_ERR_SET_SECCOMP_FAILED;
+    }
+    return SANDBOX_SUCCESS;
+}
+
+#ifdef WITH_SECCOMP
+static int SetAppSeccompPolicy(void)
+{
+    const char *filterName = APP_NAME;
+    bool ret = SetSeccompPolicyWithName(APP, filterName);
+    if (!ret) {
+        std::cerr << "Error: SetSeccompPolicyWithName failed for filter: " <<
+                  filterName << std::endl;
+        SANDBOX_LOGE("SetSeccompPolicyWithName failed for filter: %{public}s",
+                     filterName);
+        return SANDBOX_ERR_SET_SECCOMP_FAILED;
+    }
+    SANDBOX_LOGD("APP-level seccomp policy set: %{public}s", filterName);
+    return SANDBOX_SUCCESS;
+}
+#endif
+
+int SandboxManager::InstallCustomSeccompFilter()
+{
+    struct sock_fprog prog;
+    int buildRet = BuildSeccompFilter(prog);
+    if (buildRet != SANDBOX_SUCCESS) {
+        return buildRet;
+    }
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) < 0) {
+        std::cerr << "Error: PR_SET_SECCOMP failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("PR_SET_SECCOMP failed: %{public}s", strerror(errno));
+        return SANDBOX_ERR_SET_SECCOMP_FAILED;
+    }
+    SANDBOX_LOGD("Custom seccomp filter installed (allow list + blocked syscalls)");
+    return SANDBOX_SUCCESS;
+}
+
 int SandboxManager::SetSeccomp()
 {
     // Apply seccomp filters in the correct order:
     // 1. PR_SET_NO_NEW_PRIVS (required before any seccomp filter)
-    // 2. SetSeccompPolicyWithName (APP-level filter, if WITH_SECCOMP defined)
-    // 3. Custom seccomp filter (blocked syscalls: setpgid/setsid, optional whitelist)
+    // 2. Custom seccomp filter (blocked syscalls: setpgid/setsid, optional whitelist)
+    // 3. SetSeccompPolicyWithName (APP-level filter, if WITH_SECCOMP defined)
     //
     // The custom filter MUST be installed BEFORE SetSeccompPolicyWithName,
     // because the APP-level filter (SetSeccompPolicyWithName) is a strict
@@ -924,43 +1371,20 @@ int SandboxManager::SetSeccomp()
     // The custom filter explicitly allows prctl (see BuildSeccompFilter),
     // so SetSeccompPolicyWithName's internal prctl(PR_SET_SECCOMP, ...)
     // will pass through the custom filter successfully.
-    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0) {
-        std::cerr << "Error: PR_SET_NO_NEW_PRIVS failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("PR_SET_NO_NEW_PRIVS failed: %{public}s", strerror(errno));
-        return SANDBOX_ERR_SET_SECCOMP_FAILED;
+    int ret = SetNoNewPrivs();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+    ret = InstallCustomSeccompFilter();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
     }
 #ifdef WITH_SECCOMP
-    // Step 2: Set APP-level seccomp policy on top of the custom filter.
-    // The custom filter allows prctl, so this prctl(PR_SET_SECCOMP, ...)
-    // call will pass through successfully.
-    const char *filterName = APP_NAME;
-    bool ret = SetSeccompPolicyWithName(APP, filterName);
-    if (!ret) {
-        std::cerr << "Error: SetSeccompPolicyWithName failed for filter: "
-                  << filterName << std::endl;
-        SANDBOX_LOGE("SetSeccompPolicyWithName failed for filter: %{public}s",
-                     filterName);
-        return SANDBOX_ERR_SET_SECCOMP_FAILED;
+    ret = SetAppSeccompPolicy();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
     }
-    SANDBOX_LOGD("APP-level seccomp policy set: %{public}s", filterName);
 #endif
-    // Step 2: Install custom seccomp filter first.
-    // This adds blocked syscalls (setpgid, setsid) and optional whitelist.
-    // prctl is explicitly allowed so that SetSeccompPolicyWithName can
-    // install its own filter on top.
-    struct sock_fprog prog;
-    int buildRet = BuildSeccompFilter(prog);
-    if (buildRet != SANDBOX_SUCCESS) {
-        return buildRet;
-    }
-
-    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) < 0) {
-        std::cerr << "Error: PR_SET_SECCOMP failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("PR_SET_SECCOMP failed: %{public}s", strerror(errno));
-        return SANDBOX_ERR_SET_SECCOMP_FAILED;
-    }
-
-    SANDBOX_LOGD("Custom seccomp filter installed (allow list + blocked syscalls)");
     return SANDBOX_SUCCESS;
 }
 
@@ -975,6 +1399,7 @@ int SandboxManager::DropCapabilities()
     // If it succeeded, effective capabilities were preserved across setresuid.
     // If it failed, effective capabilities were cleared, but permitted and
     // inheritable sets remain and will be zeroed by capset() below.
+#ifdef __LINUX__
     if (prctl(PR_SET_SECUREBITS,
               SECBIT_KEEP_CAPS | SECBIT_NO_SETUID_FIXUP |
               SECBIT_KEEP_CAPS_LOCKED | SECBIT_NO_SETUID_FIXUP_LOCKED,
@@ -983,6 +1408,7 @@ int SandboxManager::DropCapabilities()
             "setuid/setgid fixup protection not applied.",
             strerror(errno));
     }
+#endif
 
     struct __user_cap_header_struct capHeader;
     capHeader.version = _LINUX_CAPABILITY_VERSION_3;
@@ -1051,8 +1477,8 @@ int SandboxManager::ExecuteCommand()
 
     // Only reached if exec fails
     int execErrno = errno;
-    std::cerr << "Error: execvp(" << (argv[0] ? argv[0] : "null")
-              << ") failed: " << strerror(execErrno) << std::endl;
+    std::cerr << "Error: execvp(" << (argv[0] ? argv[0] : "null") <<
+              ") failed: " << strerror(execErrno) << std::endl;
     SANDBOX_LOGE("execvp(%{public}s) failed: %{public}s",
         argv[0] ? argv[0] : "null", strerror(execErrno));
     return SANDBOX_ERR_CMD_INVALID;
@@ -1075,8 +1501,8 @@ int SandboxManager::MountDir(const std::string &source, const std::string &targe
     unsigned long propFlags = allFlags & PROPAGATION_MASK;
 
     if (mount(source.c_str(), target.c_str(), nullptr, bindFlags, nullptr) < 0) {
-        std::cerr << "Error: mount " << source << " -> " << target
-                  << " failed: " << strerror(errno) << std::endl;
+        std::cerr << "Error: mount " << source << " -> " << target <<
+                  " failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("mount %{public}s -> %{public}s failed: %{public}s",
             source.c_str(), target.c_str(), strerror(errno));
         return SANDBOX_ERR_MOUNT_FAILED;
