@@ -17,10 +17,9 @@
 #include "sandbox_error.h"
 #include "sandbox_log.h"
 
+#include <cstdio>
 #include <cstring>
 #include <iostream>
-
-#include "securec.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -34,6 +33,9 @@ int SandboxExec::ParseArguments(int argc, char *argv[])
             PrintUsage();
             helpRequested_ = true;
             return SANDBOX_SUCCESS;
+        }
+        if (strcmp(argv[i], "-d") == 0) {
+            deleteRequested_ = true;
         }
     }
 
@@ -52,8 +54,7 @@ int SandboxExec::ParseArguments(int argc, char *argv[])
         return SANDBOX_ERR_BAD_PARAMETERS;
     }
 
-    // --cmd is optional; if not provided, ExecuteCommand() will fall back to
-    // a default shell (/bin/sh -i), matching the original behavior.
+    // --cmd is required for sandbox execution, but delete mode only needs config.name.
     return SANDBOX_SUCCESS;
 }
 
@@ -94,9 +95,13 @@ int SandboxExec::ParseCmdArg(int argc, char *argv[])
                 return SANDBOX_ERR_CMD_INVALID;
             }
             cmdParsed_ = true;
-            SANDBOX_LOGD("Command parsed: raw=%{public}s, isScript=%{public}d, isMulti=%{public}d",
-                cmdInfo_.raw.c_str(), cmdInfo_.isShellScript, cmdInfo_.isMultiCommand);
+            SANDBOX_LOGD("Command parsed: raw=%{public}s", cmdInfo_.raw.c_str());
         }
+    }
+    if (!cmdParsed_ && !deleteRequested_) {
+        std::cerr << "Error: Missing required argument: --cmd" << std::endl;
+        SANDBOX_LOGE("Missing required argument: --cmd");
+        return SANDBOX_ERR_BAD_PARAMETERS;
     }
     return SANDBOX_SUCCESS;
 }
@@ -116,6 +121,9 @@ int SandboxExec::Run()
         SANDBOX_LOGE("Failed to initialize SandboxManager");
         return SANDBOX_ERR_GENERIC;
     }
+    if (deleteRequested_) {
+        return manager.DeleteSandboxDir();
+    }
 
     SANDBOX_LOGD("Starting sandbox execution...");
 
@@ -130,11 +138,14 @@ int SandboxExec::Run()
 
 void SandboxExec::PrintUsage()
 {
-    printf("Usage: claw_sandbox --config <jsonstr> --cmd <cmdline>\n");
+    printf("Usage:\n");
+    printf("  claw_sandbox --config <jsonstr> --cmd <cmdline>\n");
+    printf("  claw_sandbox -d --config <jsonstr>\n");
     printf("\n");
     printf("Options:\n");
     printf("  --config <jsonstr>   JSON configuration string\n");
     printf("  --cmd <cmdline>      Command to execute in sandbox\n");
+    printf("  -d                   Delete sandbox directory named in config.name\n");
     printf("  --help, -h           Show this help message\n");
     printf("\n");
     printf("Example:\n");
@@ -144,6 +155,10 @@ void SandboxExec::PrintUsage()
            "\"challenge\":\"challenge_value\",\"bundleName\":\"com.example.bundle\","
            "\"cliName\":\"ohos-timer\",\"subCliName\":\"\"}' "
            " --cmd \"ls -la\"\n");
+    printf("  claw_sandbox -d --config '{\"callerTokenId\":1234,"
+           "\"uid\":20020026,\"gid\":20020026,\"callerPid\":1234,"
+           "\"challenge\":\"c\",\"appid\":\"com.example\",\"bundleName\":\"com.example.app\","
+           "\"cliName\":\"cli\",\"subCliName\":\"sub\",\"name\":\"abcdef0123456789\"}'\n");
 }
 
 } // namespace SANDBOX
