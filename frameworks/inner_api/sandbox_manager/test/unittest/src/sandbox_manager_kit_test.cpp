@@ -4699,11 +4699,11 @@ HWTEST_F(SandboxManagerKitTest, UnPersistPolicyByTokenIdWithPolicyVector001, Tes
  */
 HWTEST_F(SandboxManagerKitTest, GetSharedDirectoryInfoTest001, TestSize.Level0)
 {
+    setuid(g_uid);
     EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
     std::vector<SharedDirectoryInfo> result;
     int32_t ret = SandboxManagerKit::GetSharedDirectoryInfo(result);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
-    setuid(g_uid);
 }
 
 /**
@@ -4714,10 +4714,10 @@ HWTEST_F(SandboxManagerKitTest, GetSharedDirectoryInfoTest001, TestSize.Level0)
  */
 HWTEST_F(SandboxManagerKitTest, GrantSharedDirectoryPermissionTest001, TestSize.Level0)
 {
+    setuid(g_uid);
     EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
     int32_t ret = SandboxManagerKit::GrantSharedDirectoryPermission();
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
-    setuid(g_uid);
 }
 
 /**
@@ -4728,10 +4728,10 @@ HWTEST_F(SandboxManagerKitTest, GrantSharedDirectoryPermissionTest001, TestSize.
  */
 HWTEST_F(SandboxManagerKitTest, RevokeSharedDirectoryPermissionTest001, TestSize.Level0)
 {
+    setuid(g_uid);
     EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
     int32_t ret = SandboxManagerKit::RevokeSharedDirectoryPermission();
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
-    setuid(g_uid);
 }
 #endif
 } // SandboxManager
