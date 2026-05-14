@@ -68,18 +68,22 @@ SandboxManagerMedia &SandboxManagerMedia::GetInstance()
 int32_t SandboxManagerMedia::InitMedia()
 {
     std::lock_guard<std::mutex> lock(g_instanceMutex);
-    if (media_ == nullptr) {
-        media_ = Media::MediaPermissionHelper::GetMediaPermissionHelper();
-        if (media_ == nullptr) {
-            LOGE_WITH_REPORT(LABEL, "MediaPermissionHelper error");
-            return INVALID_PARAMTER;
-        }
-        int32_t ret = media_->InitMediaPermissionHelper();
-        if (ret != SANDBOX_MANAGER_OK) {
-            media_ = nullptr;
-            return ret;
-        }
+    if (media_ != nullptr) {
+        return SANDBOX_MANAGER_OK;
     }
+
+    auto helper = Media::MediaPermissionHelper::GetMediaPermissionHelper();
+    if (helper == nullptr) {
+        LOGE_WITH_REPORT(LABEL, "MediaPermissionHelper error");
+        return INVALID_PARAMTER;
+    }
+
+    int32_t ret = helper->InitMediaPermissionHelper();
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+
+    media_ = helper;
     return SANDBOX_MANAGER_OK;
 }
 

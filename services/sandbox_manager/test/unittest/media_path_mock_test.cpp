@@ -17,8 +17,10 @@
 #include <cinttypes>
 #include <cstdint>
 #include <gtest/gtest.h>
-#include <string>
+#include <thread>
+#include <atomic>
 #include <vector>
+#include <string>
 #include "access_token.h"
 #include "accesstoken_kit.h"
 #include "generic_values.h"
@@ -252,6 +254,59 @@ HWTEST_F(MediaPathMockTest, MediaPathMockTest005, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().RemovePolicy(selfTokenId_, policy, result31));
     EXPECT_EQ(sizeLimit, result11.size());
     EXPECT_EQ(SandboxRetType::INVALID_MODE, result31[0]);
+}
+#endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: MediaPathMockTest006
+ * @tc.desc: Test concurrent AddMediaPolicy calls - verify thread safety
+ * @tc.type: FUNC
+ * @tc.require: AR000GTUAB
+ */
+HWTEST_F(MediaPathMockTest, MediaPathMockTest006, TestSize.Level0)
+{
+    PolicyInfo info;
+    info.path = MEDIA_PATH_1;
+    info.mode = OperateMode::READ_MODE;
+
+    constexpr int THREAD_COUNT = 5;
+    std::vector<std::thread> threads;
+    std::atomic<int> successCount(0);
+    std::atomic<int> readyCount(0);
+    std::atomic<bool> start(false);
+
+    for (int i = 0; i < THREAD_COUNT; ++i) {
+        threads.emplace_back([this, &info, &readyCount, &start, &successCount]() {
+            readyCount.fetch_add(1);
+            while (!start.load()) {
+                std::this_thread::yield();
+            }
+
+            std::vector<PolicyInfo> policy = {info};
+            std::vector<size_t> policyIndex = {0};
+            std::vector<uint32_t> results;
+            int32_t ret = PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, policy, results);
+
+            if (ret == SANDBOX_MANAGER_OK && !results.empty() &&
+                results[0] == SandboxRetType::OPERATE_SUCCESSFULLY) {
+                successCount.fetch_add(1);
+            }
+        });
+    }
+
+    while (readyCount.load() < THREAD_COUNT) {
+        std::this_thread::yield();
+    }
+
+    start.store(true);
+    for (auto &t : threads) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+
+    EXPECT_EQ(THREAD_COUNT, successCount.load());
 }
 #endif
 } // SandboxManager
