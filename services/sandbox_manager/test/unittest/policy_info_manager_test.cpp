@@ -3093,6 +3093,48 @@ HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest013, TestSize.Level0)
     SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
 }
 #endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: GetSharedDirectoryInfoTest001
+ * @tc.desc: Test GetSharedDirectoryInfo interface call
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, GetSharedDirectoryInfoTest001, TestSize.Level0)
+{
+    int32_t userId = 100;
+    std::vector<SharedDirectoryInfo> result;
+    int32_t ret = PolicyInfoManager::GetInstance().GetSharedDirectoryInfo(result, userId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+
+/**
+ * @tc.name: GrantSharedDirectoryPermissionTest001
+ * @tc.desc: Test GrantSharedDirectoryPermission interface call
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, GrantSharedDirectoryPermissionTest001, TestSize.Level0)
+{
+    int32_t userId = 100;
+    int32_t ret = PolicyInfoManager::GetInstance().GrantSharedDirectoryPermission(g_mockToken, userId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+
+/**
+ * @tc.name: RevokeSharedDirectoryPermissionTest001
+ * @tc.desc: Test RevokeSharedDirectoryPermission interface call
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, RevokeSharedDirectoryPermissionTest001, TestSize.Level0)
+{
+    int32_t userId = 100;
+    int32_t ret = PolicyInfoManager::GetInstance().RevokeSharedDirectoryPermission(g_mockToken, userId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+#endif
 } // SandboxManager
 } // AccessControl
 } // OHOS
