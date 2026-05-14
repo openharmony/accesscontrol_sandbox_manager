@@ -57,6 +57,7 @@ const std::string CHECK_POLICY_PERMISSION = "ohos.permission.CHECK_SANDBOX_POLIC
 const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSIST";
 const std::string FILE_ACCESS_PERMISSION_NAME = "ohos.permission.FILE_ACCESS_MANAGER";
 const std::string KILL_APP_PROCESS_PERMISSION_NAME = "ohos.permission.KILL_APP_PROCESSES";
+const std::string REVOKE_PERSIST_PERMISSION_NAME = "ohos.permission.REVOKE_FILE_ACCESS_PERSIST";
 const uint64_t POLICY_VECTOR_SIZE = 5000;
 const uint64_t POLICY_VECTOR_LARGE_SIZE = 400000;
 #ifdef MEMORY_MANAGER_ENABLE
@@ -100,6 +101,13 @@ Security::AccessToken::PermissionStateFull g_testState5 = {
     .grantStatus = {0},
     .grantFlags = {0},
 };
+Security::AccessToken::PermissionStateFull g_testState6 = {
+    .permissionName = REVOKE_PERSIST_PERMISSION_NAME,
+    .isGeneral = true,
+    .resDeviceID = {"1"},
+    .grantStatus = {0},
+    .grantFlags = {0},
+};
 Security::AccessToken::HapInfoParams g_testInfoParms = {
     .userID = 1,
     .bundleName = "sandbox_manager_test",
@@ -112,7 +120,7 @@ Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
     .apl = Security::AccessToken::APL_NORMAL,
     .domain = "test.domain",
     .permList = {},
-    .permStateList = {g_testState1, g_testState2, g_testState3, g_testState4, g_testState5}
+    .permStateList = {g_testState1, g_testState2, g_testState3, g_testState4, g_testState5, g_testState6}
 };
 
 void AppendRawUint32(std::stringstream &ss, uint32_t value)
@@ -2054,6 +2062,48 @@ HWTEST_F(SandboxManagerServiceTest, SandboxStatsReporterTest001, TestSize.Level0
     EXPECT_EQ(static_cast<uint32_t>(0), persistTokenId);
     EXPECT_EQ(static_cast<uint32_t>(0), topPersistRuleNum);
     EXPECT_EQ(std::string("not_get"), persistBundleName);
+}
+
+/**
+ * @tc.name: SandboxManagerService_UnPersistPolicy_MediaBranch
+ * @tc.desc: Test SandboxManagerService::UnPersistPolicy function to cover media branch
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerService_UnPersistPolicy_MediaBranch, TestSize.Level0)
+{
+    // Create a new token ID that simulates a HAP token type
+    // We need to use the proper token allocation methods to create a HAP token
+    Security::AccessToken::HapInfoParams hapInfoParams = {
+        .userID = 100,
+        .bundleName = "test.bundle.media.branch",
+        .instIndex = 0,
+        .appIDDesc = "test_media_app"
+    };
+    Security::AccessToken::HapPolicyParams hapPolicyParams = {
+        .apl = Security::AccessToken::APL_NORMAL,
+        .domain = "test.domain",
+        .permList = {},
+        .permStateList = {g_testState1, g_testState2, g_testState3}
+    };
+
+    Security::AccessToken::AccessTokenIDEx tokenIdEx =
+        Security::AccessToken::AccessTokenKit::AllocHapToken(hapInfoParams, hapPolicyParams);
+    uint32_t testTokenId = tokenIdEx.tokenIdExStruct.tokenID;
+    ASSERT_NE(0, testTokenId);
+
+    EXPECT_EQ(0, SetSelfTokenID(sysGrantToken_));
+
+    // Call UnPersistPolicy with the HAP token - this should trigger the media branch
+    int32_t result = sandboxManagerService_->UnPersistPolicy(testTokenId);
+    
+    // Verify the result
+    EXPECT_EQ(SANDBOX_MANAGER_OK, result);
+
+    EXPECT_EQ(0, SetSelfTokenID(selfTokenId_));
+
+    // Clean up
+    Security::AccessToken::AccessTokenKit::DeleteToken(testTokenId);
 }
 
 } // SandboxManager

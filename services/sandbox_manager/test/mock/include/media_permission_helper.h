@@ -15,6 +15,7 @@
 #ifndef MEDIA_LIBRARY_EXTEND_MANAGER_H
 #define MEDIA_LIBRARY_EXTEND_MANAGER_H
 
+#include <map>
 #include <string>
 
 namespace OHOS {
@@ -62,6 +63,11 @@ public:
         const std::string &bundleName, const uint32_t bundleIndex, uint32_t tokenId);
     int32_t ResumePhotoUriPermission(const std::string &appIdentifier,
         const std::string &bundleName, const uint32_t bundleIndex, uint32_t tokenId);
+    int32_t GetPhotoUriPersistPermission(uint32_t tokenId,
+        std::vector<Media::PhotoPermissionType> &photoPermissionList);
+    int32_t CancelPhotoUriPersistPermission(uint32_t tokenId);
+private:
+    std::map<uint32_t, std::vector<PhotoPermissionType>> allPhotoPermissionTypes_;
 };
 } // namespace Media
 } // namespace OHOS

@@ -24,6 +24,7 @@
 #include "common_event_support.h"
 #include "ipc_skeleton.h"
 #include "iservice_registry.h"
+#include "media_path_support.h"
 #include "os_account_manager.h"
 #include "policy_info.h"
 #include "policy_info_manager.h"
@@ -310,7 +311,7 @@ int32_t SandboxManagerService::UnPersistPolicy(uint32_t tokenId)
     DelayUnloadService();
     uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
     if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unpersist failed, not system app");
+        LOGE_WITH_REPORT(LABEL, "Unpersist failed, not system app");
         return SANDBOX_MANAGER_NOT_SYS_APP;
     }
 
@@ -350,6 +351,14 @@ int32_t SandboxManagerService::UnPersistPolicy(uint32_t tokenId)
             SANDBOXMANAGER_LOG_ERROR(LABEL, "Kill process failed for tokenId=%{public}u, error=%{public}d",
                 tokenId, ret);
             return SANDBOX_MANAGER_KILL_PROCESS_ERR;
+        }
+
+        ret = SandboxManagerMedia::GetInstance().CancelPhotoUriPersistPermission(tokenId);
+        if (ret != 0) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL,
+                "Cancel photo uri persist permission failed for tokenId=%{public}u, error=%{public}d",
+                tokenId, ret);
+            return SANDBOX_MANAGER_MEDIA_CALL_ERR;
         }
     }
 

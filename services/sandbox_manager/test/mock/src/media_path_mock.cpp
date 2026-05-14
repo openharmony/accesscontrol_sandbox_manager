@@ -12,6 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#include <set>
 #include "media_permission_helper.h"
 namespace OHOS {
 namespace Media {
@@ -90,6 +92,15 @@ int32_t MediaPermissionHelper::GrantPhotoUriPermission(uint32_t srcTokenId, uint
     const std::vector<std::string> &uris, const std::vector<PhotoPermissionType> &photoPermissionTypes,
     HideSensitiveType hideSensitiveTpye)
 {
+    /* Add persist permission, update the permissions of the target app. */
+    std::set<PhotoPermissionType> types;
+    for (auto type:photoPermissionTypes) {
+        types.insert(type);
+    }
+
+    for (auto type:types) {
+        allPhotoPermissionTypes_[targetTokenId].emplace_back(type);
+    }
     return 0;
 }
 
@@ -108,6 +119,29 @@ int32_t MediaPermissionHelper::ReservePhotoUriPermission(const bool persistFlag,
 int32_t MediaPermissionHelper::ResumePhotoUriPermission(const std::string &appIdentifier,
     const std::string &bundleName, const uint32_t bundleIndex, uint32_t tokenId)
 {
+    return 0;
+}
+
+int32_t MediaPermissionHelper::GetPhotoUriPersistPermission(uint32_t tokenId,
+    std::vector<Media::PhotoPermissionType> &photoPermissionList)
+{
+    if (tokenId == 0) {
+        return -1;
+    }
+    if (allPhotoPermissionTypes_.find(tokenId) != allPhotoPermissionTypes_.end()) {
+        photoPermissionList = allPhotoPermissionTypes_[tokenId];
+    } else {
+        photoPermissionList.clear();
+    }
+    return 0;
+}
+
+int32_t MediaPermissionHelper::CancelPhotoUriPersistPermission(uint32_t tokenId)
+{
+    auto iter = allPhotoPermissionTypes_.find(tokenId);
+    if (iter != allPhotoPermissionTypes_.end()) {
+        allPhotoPermissionTypes_.erase(iter);
+    }
     return 0;
 }
 }
