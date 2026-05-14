@@ -56,6 +56,7 @@ const std::string FILE_ACCESS_PERMISSION = "ohos.permission.FILE_ACCESS_MANAGER"
 const std::string DOWNLOAD_PERMISSION = "ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY";
 const std::string REVOKE_PERSIST_PERMISSION_NAME = "ohos.permission.REVOKE_FILE_ACCESS_PERSIST";
 const std::string GET_PERSIST_PERMISSION_NAME = "ohos.permission.GET_FILE_ACCESS_PERSIST";
+const std::string ACCESS_SHARED_FILE = "ohos.permission.ACCESS_SHARED_FILE";
 
 
 const Security::AccessToken::AccessTokenID INVALID_TOKENID = 0;
@@ -119,6 +120,13 @@ Security::AccessToken::PermissionStateFull g_testState7 = {
     .grantStatus = {0},
     .grantFlags = {0},
 };
+Security::AccessToken::PermissionStateFull g_testState8 = {
+    .permissionName = ACCESS_SHARED_FILE,
+    .isGeneral = true,
+    .resDeviceID = {"1"},
+    .grantStatus = {0},
+    .grantFlags = {0},
+};
 Security::AccessToken::HapInfoParams g_testInfoParms = {
     .userID = 100,
     .bundleName = "sandbox_manager_test",
@@ -132,7 +140,7 @@ Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
     .domain = "test.domain",
     .permList = {},
     .permStateList = {g_testState1, g_testState2, g_testState3, g_testState4,
-        g_testState5, g_testState6, g_testState7}
+        g_testState5, g_testState6, g_testState7, g_testState8}
 };
 };
 
@@ -4682,7 +4690,50 @@ HWTEST_F(SandboxManagerKitTest, UnPersistPolicyByTokenIdWithPolicyVector001, Tes
 }
 #endif
 
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: GetSharedDirectoryInfoTest001
+ * @tc.desc: Test GetSharedDirectoryInfo interface call
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, GetSharedDirectoryInfoTest001, TestSize.Level0)
+{
+    setuid(g_uid);
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    std::vector<SharedDirectoryInfo> result;
+    int32_t ret = SandboxManagerKit::GetSharedDirectoryInfo(result);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
 
+/**
+ * @tc.name: GrantSharedDirectoryPermissionTest001
+ * @tc.desc: Test GrantSharedDirectoryPermission interface call
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, GrantSharedDirectoryPermissionTest001, TestSize.Level0)
+{
+    setuid(g_uid);
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    int32_t ret = SandboxManagerKit::GrantSharedDirectoryPermission();
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+
+/**
+ * @tc.name: RevokeSharedDirectoryPermissionTest001
+ * @tc.desc: Test RevokeSharedDirectoryPermission interface call
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, RevokeSharedDirectoryPermissionTest001, TestSize.Level0)
+{
+    setuid(g_uid);
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    int32_t ret = SandboxManagerKit::RevokeSharedDirectoryPermission();
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+#endif
 } // SandboxManager
 } // AccessControl
 } // OHOS
