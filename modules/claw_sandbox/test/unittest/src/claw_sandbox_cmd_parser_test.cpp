@@ -18,12 +18,31 @@
 #include "sandbox_error.h"
 #include <sched.h>
 #include <cstdint>
+#include <unistd.h>
+
+/*
+ * NOTE: execvp() and execl() are mocked via linker interposition in
+ * execvp_mock_stub.cpp. That file defines the actual execvp() and execl()
+ * symbols, which the linker resolves in preference to the libc versions.
+ * This approach is more reliable than preprocessor-based mocking because
+ * it operates at the linker level.
+ */
+
+#define private public
+#include "sandbox_manager.h"
+#undef private
 
 using namespace testing::ext;
 
 namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
+
+// System app mask constant (must match the one in sandbox_manager.cpp)
+static constexpr uint64_t TEST_SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32);
+
+// A callerTokenId that has SYSTEM_APP_MASK set and a non-zero low 32-bit token ID.
+static constexpr uint64_t TEST_HAP_TOKEN_ID = TEST_SYSTEM_APP_MASK | 0x200D000D;
 
 void ClawSandboxCmdParserTest::SetUpTestCase() {}
 void ClawSandboxCmdParserTest::TearDownTestCase() {}
@@ -64,7 +83,8 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig001, TestSize.Level0)
     EXPECT_EQ("testCli", config.cliName);
     EXPECT_EQ("testSubCli", config.subCliName);
     EXPECT_TRUE(config.name.empty());
-    EXPECT_TRUE(config.nsFlags.empty());
+    // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS | CLONE_NEWNET
+    EXPECT_EQ(static_cast<int>(CLONE_NEWNS | CLONE_NEWNET), config.nsFlags);
 }
 
 /**
@@ -204,10 +224,8 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig007, TestSize.Level0)
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
-    ASSERT_EQ(3U, config.nsFlags.size());
-    EXPECT_EQ("net", config.nsFlags[0]);
-    EXPECT_EQ("pid", config.nsFlags[1]);
-    EXPECT_EQ("uts", config.nsFlags[2]);
+    int expectedFlags = CLONE_NEWNS | CLONE_NEWNET | CLONE_NEWPID | CLONE_NEWUTS;
+    EXPECT_EQ(expectedFlags, config.nsFlags);
 }
 
 /**
@@ -558,6 +576,55 @@ HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags008, TestSize.Level0)
     int result = CmdParser::ConvertNsFlags(flags);
     // CLONE_NEWNS is already in the base flags
     EXPECT_TRUE(result & CLONE_NEWNS);
+}
+
+// ==================== ExecuteCommand tests ====================
+
+/**
+ * @tc.name: ExecuteCommand001
+ * @tc.desc: ExecuteCommand with valid command - execvp is mocked via linker
+ *           interposition (execvp_mock_stub.cpp) to return -1 with errno=EACCES,
+ *           so ExecuteCommand returns SANDBOX_ERR_CMD_INVALID
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ExecuteCommand001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    cmdInfo.argv = {"echo", "hello"};
+    manager.Initialize(config, cmdInfo);
+
+    int ret = manager.ExecuteCommand();
+    // execvp_mock_stub.cpp returns -1 with errno=EACCES, so ExecuteCommand
+    // should return SANDBOX_ERR_CMD_INVALID
+    EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
+}
+
+/**
+ * @tc.name: ExecuteCommand002
+ * @tc.desc: ExecuteCommand with empty cmd falls back to execl which fails
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ExecuteCommand002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    int ret = manager.ExecuteCommand();
+    EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
 }
 
 } // namespace SANDBOX
