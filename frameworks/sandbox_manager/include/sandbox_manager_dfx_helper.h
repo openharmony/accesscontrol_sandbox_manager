@@ -99,6 +99,8 @@ public:
         const std::string &path, int32_t errorCode = 0);
     static int32_t ReportPolicyViolate(uint32_t tokenId, const std::string &reason,
         const std::string &path, const std::string &bundleName, int32_t errorCode = 0);
+    static void WriteShareConfigAudit(const std::string &path, uint32_t mode,
+        const std::string &info, const std::string &bundleName);
 };
 } // SandboxManager
 } // AccessControl

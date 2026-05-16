@@ -393,7 +393,6 @@ private:
     void AddToUserGrantMap(std::string permission, std::vector<std::string>pathList);
     bool CheckPathWithinShareMap(int32_t userID, const std::string &path,
         const PolicyInfo &policy, std::vector<std::string> &components, size_t index);
-    bool ShareMapRangeCheck(const std::string &path, std::vector<std::string> &components);
     uint32_t CalculateBatchSize(uint32_t policyCount, uint32_t batchSize);
 
     /**

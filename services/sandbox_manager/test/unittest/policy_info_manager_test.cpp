@@ -2801,29 +2801,6 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest026, TestSize.Level0)
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
 }
 
-/**
- * @tc.name: ShareTest027
- * @tc.desc: ShareMapRangeCheck
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(PolicyInfoManagerTest, ShareTest027, TestSize.Level0)
-{
-    const std::string testPath1 = "/storage/Users/currentUser/appdata/el2/base/com.testshare/haps";
-    const std::string testPath2 = "/storage/Users/currentUser/appdata/el3/base/com.testshare/haps";
-    const std::string testPath3 = "/storage/Users/currentUser/appdata/el2/test/com.testshare/haps";
-    const std::string testPath4 = "/storage/Users/currentUser/appdata/el2/base/com.testshare/hap";
-
-    std::vector<std::string> components1 = PolicyInfoManager::GetInstance().splitPath(testPath1);
-    std::vector<std::string> components2 = PolicyInfoManager::GetInstance().splitPath(testPath2);
-    std::vector<std::string> components3 = PolicyInfoManager::GetInstance().splitPath(testPath3);
-    std::vector<std::string> components4 = PolicyInfoManager::GetInstance().splitPath(testPath4);
-
-    EXPECT_TRUE(PolicyInfoManager::GetInstance().ShareMapRangeCheck(testPath1, components1));
-    EXPECT_FALSE(PolicyInfoManager::GetInstance().ShareMapRangeCheck(testPath2, components2));
-    EXPECT_FALSE(PolicyInfoManager::GetInstance().ShareMapRangeCheck(testPath3, components3));
-    EXPECT_FALSE(PolicyInfoManager::GetInstance().ShareMapRangeCheck(testPath4, components4));
-}
 #endif
 
 /**

@@ -23,6 +23,8 @@
 #include "sandbox_manager_log.h"
 #include "sg_collect_client.h"
 #include <chrono>
+#include <deque>
+#include <mutex>
 
 namespace OHOS {
 namespace AccessControl {
@@ -187,6 +189,47 @@ int32_t SandboxManagerDfxHelper::ReportPolicyViolate(uint32_t tokenId, const std
     const std::string &path, const std::string &bundleName, int32_t errorCode)
 {
     return ReportPolicyViolateImpl(tokenId, reason, path, bundleName, errorCode);
+}
+
+namespace {
+static constexpr int64_t REPORT_WINDOW_SECONDS = 5;
+static constexpr size_t MAX_REPORTS_PER_WINDOW = 10;
+static std::deque<std::chrono::steady_clock::time_point> g_reportTimeQueue;
+static std::mutex g_reportMutex;
+
+bool ShouldReportShareConfig()
+{
+    std::lock_guard<std::mutex> lock(g_reportMutex);
+
+    auto now = std::chrono::steady_clock::now();
+    auto windowThreshold = now - std::chrono::seconds(REPORT_WINDOW_SECONDS);
+
+    // Remove timestamps outside the time window
+    while (!g_reportTimeQueue.empty() && g_reportTimeQueue.front() <= windowThreshold) {
+        g_reportTimeQueue.pop_front();
+    }
+
+    // Check if limit reached
+    if (g_reportTimeQueue.size() >= MAX_REPORTS_PER_WINDOW) {
+        return false;
+    }
+
+    // Record this report
+    g_reportTimeQueue.push_back(now);
+    return true;
+}
+}
+
+void SandboxManagerDfxHelper::WriteShareConfigAudit(const std::string &path, uint32_t mode,
+    const std::string &info, const std::string &bundleName)
+{
+    if (!ShouldReportShareConfig()) {
+        return;
+    }
+
+    HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::SANDBOX_MANAGER, "SHARE_CONFIG_AUDIT",
+        HiviewDFX::HiSysEvent::EventType::STATISTIC, "PATH", path, "MODE", mode,
+        "INFO", info, "BUNDLE_NAME", bundleName);
 }
 }
 }
