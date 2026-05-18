@@ -32,6 +32,7 @@
 #include <sys/prctl.h>
 #include <sys/capability.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <linux/securebits.h>
 #include <linux/capability.h>
 #include <linux/seccomp.h>
@@ -40,6 +41,7 @@
 #ifdef WITH_SECCOMP
 #include "seccomp_policy.h"
 #endif
+#include <selinux/context.h>
 #include <selinux/selinux.h>
 #include <access_token.h>
 #include <unistd.h>
@@ -75,10 +77,31 @@ constexpr int MAX_TRY_CNT = 3;
 // Sandbox directory mode
 constexpr mode_t DIR_MODE = 0711;
 
+// Base value for signal exit codes (128 + signal_number follows shell convention)
+constexpr int SIGNAL_EXIT_BASE = 128;
+
 // Hex string generation constants
 constexpr int HEX_MAX = 15;
 constexpr int HEX_CNT = 16;
 constexpr int UID_BASE = 200000;
+
+// User ID base for MCS level calculation (same as UID_BASE in hap_restorecon.cpp)
+constexpr uint32_t MCS_UID_BASE = 200000;
+
+// Minimum user ID threshold for MCS level calculation
+constexpr uint32_t MCS_USER_BASE = 100;
+
+// MCS category segment offsets (matching hap_restorecon.cpp)
+constexpr int CATEGORY_SEG0_OFFSET = 0;
+constexpr int CATEGORY_SEG1_OFFSET = 256;
+constexpr int CATEGORY_SEG2_OFFSET = 512;
+constexpr int CATEGORY_SEG3_OFFSET = 768;
+constexpr int CATEGORY_SEG4_OFFSET = 1024;
+
+// MCS category mask and shift values
+constexpr int CATEGORY_MASK = 0xff;
+constexpr int SHIFT_8 = 8;
+constexpr int SHIFT_16 = 16;
 
 // Minimum UID allowed by seccomp filter (20000000 = 20 million).
 // Any attempt to setuid/setreuid/setresuid/setfsuid to a UID below this
@@ -236,25 +259,25 @@ int SandboxManager::Execute()
         return SANDBOX_ERR_GENERIC;
     }
 
-    // Steps 1-4: Validate, load template, generate token, enter caller sandbox
+    // Steps 1-5: Validate, load template, set selinux MCS, generate token, enter caller sandbox
     int ret = ExecuteEarlySteps();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Steps 5-10: Create root, unshare, mount, pivot_root (with cleanup on failure)
+    // Steps 6-11: Create root, unshare, mount, pivot_root (with cleanup on failure)
     ret = ExecuteMountSteps();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Steps 11-16: Set token, uid/gid, process group, seccomp, drop caps, exec
+    // Steps 12-18: Set token, selinux context, uid/gid, process group, seccomp, drop caps, exec
     return ExecuteLateSteps();
 }
 
 /**
- * @brief Execute steps 1-4: validate config, load template, generate token,
- *        and enter the caller's sandbox namespace.
+ * @brief Execute steps 1-5: validate config, load template, set selinux MCS,
+ *        generate token, and enter the caller's sandbox namespace.
  *        These steps do NOT require cleanup on failure.
  */
 int SandboxManager::ExecuteEarlySteps()
@@ -265,6 +288,13 @@ int SandboxManager::ExecuteEarlySteps()
     }
 
     ret = LoadTemplate();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    // Step 3: Set SELinux MCS level for the current process (before GenerateTokenId,
+    //         because setcon() must happen before token/uid changes)
+    ret = SetSelinuxMCS();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
@@ -289,44 +319,48 @@ int SandboxManager::ExecuteMountSteps()
 {
     int ret = CreateNewRoot();
     if (ret != SANDBOX_SUCCESS) {
-        Cleanup();
         return ret;
     }
 
     ret = UnshareNamespaces();
     if (ret != SANDBOX_SUCCESS) {
-        Cleanup();
         return ret;
     }
 
     ret = MountNewRoot();
     if (ret != SANDBOX_SUCCESS) {
-        Cleanup();
         return ret;
     }
 
     ret = MountSystemDirs();
     if (ret != SANDBOX_SUCCESS) {
-        Cleanup();
         return ret;
     }
 
     ret = MountAppDirs();
     if (ret != SANDBOX_SUCCESS) {
-        Cleanup();
         return ret;
     }
 
     ret = PivotRoot();
     if (ret != SANDBOX_SUCCESS) {
-        Cleanup();
+        return ret;
+    }
+
+    ret = ForkAfterUnshare();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    ret = MountProcFs();
+    if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
     return SANDBOX_SUCCESS;
 }
 
 /**
- * @brief Execute steps 11-16: set access token, uid/gid, process group,
+ * @brief Execute steps 12-18: set access token, uid/gid, process group,
  *        seccomp filter, drop capabilities, and execute the command.
  *        These steps do NOT require cleanup on failure.
  */
@@ -337,32 +371,32 @@ int SandboxManager::ExecuteLateSteps()
         return ret;
     }
 
-    // Step 12: Set SetAinfo
+    // Step 13: Set SetAinfo
     ret = SetAinfo();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 13: Set UID/GID (with SECBIT_KEEP_CAPS to preserve capabilities across setuid)
+    // Step 14: Set UID/GID (with SECBIT_KEEP_CAPS to preserve capabilities across setuid)
     ret = SetUidGid();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 14: Create a new process group (must be done BEFORE SetSeccomp,
+    // Step 15: Create a new process group (must be done BEFORE SetSeccomp,
     //          because seccomp blocks setpgid/setsid to prevent process group escape)
     ret = SetProcessGroup();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 15: Set Seccomp (always applied to block setpgid/setsid for process group protection)
+    // Step 16: Set Seccomp (always applied to block setpgid/setsid for process group protection)
     ret = SetSeccomp();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 16: Drop Capabilities (must be after seccomp to avoid interfering with
+    // Step 17: Drop Capabilities (must be after seccomp to avoid interfering with
     //          setpgid/setsid; capset() syscall is not blocked by seccomp in
     //          block mode, and in whitelist mode it will be allowed if listed)
     ret = DropCapabilities();
@@ -370,7 +404,7 @@ int SandboxManager::ExecuteLateSteps()
         return ret;
     }
 
-    // Step 17: Execute the command
+    // Step 18: Execute the command
     return ExecuteCommand();
 }
 
@@ -556,13 +590,14 @@ int SandboxManager::EnterCallerSandbox()
 
 static std::string GenerateSandboxName(void)
 {
+    // Use std::random_device for cryptographically secure random bytes.
+    // On most platforms (Linux/macOS), std::random_device is backed by
+    // /dev/urandom, providing non-deterministic random numbers.
     std::random_device rd;
-    std::mt19937_64 gen(rd());
-    std::uniform_int_distribution<> dis(0, HEX_MAX);
-
     std::ostringstream oss;
     for (int i = 0; i < HEX_CNT; ++i) {
-        oss << std::hex << dis(gen);
+        unsigned int val = rd();
+        oss << std::hex << (val % (HEX_MAX + 1));
     }
     return oss.str();
 }
@@ -672,12 +707,11 @@ int SandboxManager::CreateNewRoot()
 
 int SandboxManager::UnshareNamespaces()
 {
-    int flags = CmdParser::ConvertNsFlags(config_.nsFlags);
-    if (unshare(flags) < 0) {
-        std::cerr << "Error: unshare(0x" << std::hex << flags << std::dec <<
+    if (unshare(config_.nsFlags) < 0) {
+        std::cerr << "Error: unshare(0x" << std::hex << config_.nsFlags << std::dec <<
                   ") failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("unshare(0x%{public}x) failed: %{public}s",
-            flags, strerror(errno));
+            config_.nsFlags, strerror(errno));
         return SANDBOX_ERR_NS_FAILED;
     }
 
@@ -699,6 +733,60 @@ int SandboxManager::MountNewRoot()
     return SANDBOX_SUCCESS;
 }
 
+/**
+ * @brief If CLONE_NEWPID is set, fork a child process after unsharing namespaces.
+ *       This is required to enter the new PID namespace, as the original process
+ *       will still be in the old PID namespace until it forks. The child process will
+ *       continue executing the sandbox setup, while the parent process will wait for
+ *       the child to exit and then exit itself. This also has the benefit of making
+ *       the sandboxed process a child of the init process in the new PID namespace,
+ *       which can help with reaping zombie processes.
+ * @return SANDBOX_SUCCESS on success, SANDBOX_ERR_NS_FAILED on failure
+ */
+int SandboxManager::ForkAfterUnshare()
+{
+    if ((config_.nsFlags & CLONE_NEWPID) == 0) {
+        return SANDBOX_SUCCESS;
+    }
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        std::cerr << "Error: fork failed after unshare: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("fork failed after unshare: %{public}s", strerror(errno));
+        return SANDBOX_ERR_GENERIC;
+    } else if (pid > 0) {
+        // Parent process: wait for child to exit and then exit
+        int status = 0;
+        waitpid(pid, &status, 0);
+        if (WIFEXITED(status)) {
+            SANDBOX_LOGD("Child process exited with status %{public}d", WEXITSTATUS(status));
+            // use _exit to avoid call deconstructors and lower down the risk of
+            // multiple Cleanup calls if the child process called exit() instead of _exit()
+            _exit(WEXITSTATUS(status));
+        } else if (WIFSIGNALED(status)) {
+            SANDBOX_LOGD("Child process killed by signal %{public}d", WTERMSIG(status));
+            _exit(SIGNAL_EXIT_BASE + WTERMSIG(status));
+        } else {
+            SANDBOX_LOGD("Child process exited with unknown status");
+            _exit(SANDBOX_ERR_GENERIC);
+        }
+    }
+    // Child process continues with sandbox setup in new PID namespace
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::MountProcFs()
+{
+    if ((config_.nsFlags & CLONE_NEWPID) != 0) {
+        if (mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, nullptr) < 0) {
+            std::cerr << "Error: mount procfs failed: " << strerror(errno) << std::endl;
+            SANDBOX_LOGE("mount procfs failed: %{public}s", strerror(errno));
+            return SANDBOX_ERR_MOUNT_FAILED;
+        }
+    }
+    return SANDBOX_SUCCESS;
+}
+
 int SandboxManager::MountSystemEntry(const MountEntry &entry, const std::string &targetPrefix)
 {
     std::string target = targetPrefix + entry.target;
@@ -716,6 +804,12 @@ int SandboxManager::MountSystemEntry(const MountEntry &entry, const std::string 
 
     // Simple bind mount without remount readonly or propagation changes
     unsigned long mountFlags = ConvertMountFlags(entry.mountFlags);
+    if (entry.source == "/proc" && (config_.nsFlags & CLONE_NEWPID) != 0) {
+        // Always mount procfs via mount -t proc, never bind-mount the host's /proc.
+        // Bind-mounting /proc would expose the host process list inside the sandbox,
+        // which is a security concern regardless of PID namespace isolation.
+        return SANDBOX_SUCCESS;
+    }
     if (mount(entry.source.c_str(), target.c_str(), nullptr, mountFlags, nullptr) < 0) {
         std::cerr << "Error: Failed to mount " << entry.source << " -> " << target <<
                   ": " << strerror(errno) << std::endl;
@@ -880,6 +974,113 @@ int SandboxManager::SetAinfo()
         SANDBOX_LOGW("SetAinfo failed: %{public}d", ret);
     }
     return SANDBOX_SUCCESS;
+}
+
+/**
+ * @brief Build MCS level string from uid and apply it to the given context.
+ *        Logic matches UserAndMCSRangeSet in hap_restorecon.cpp.
+ * @param uid User ID from sandbox config
+ * @param con Context to apply the MCS range to
+ * @return SANDBOX_SUCCESS on success, error code on failure
+ */
+static int ApplyMcsLevel(uint32_t uid, context_t con)
+{
+    if (uid < MCS_UID_BASE) {
+        return SANDBOX_SUCCESS;
+    }
+    uint32_t userId = uid / MCS_UID_BASE;
+    uint32_t appId = uid % MCS_UID_BASE;
+    if (userId < MCS_USER_BASE) {
+        return SANDBOX_SUCCESS;
+    }
+
+    // Build MCS level string: "s0:x<seg0>,x<seg1>,x<seg2>,x<seg3>,x<seg4>"
+    std::string level = "s0:x" +
+        std::to_string(CATEGORY_SEG0_OFFSET + (appId & CATEGORY_MASK)) +
+        ",x" + std::to_string(CATEGORY_SEG1_OFFSET + ((appId >> SHIFT_8) & CATEGORY_MASK)) +
+        ",x" + std::to_string(CATEGORY_SEG2_OFFSET + ((appId >> SHIFT_16) & CATEGORY_MASK)) +
+        ",x" + std::to_string(CATEGORY_SEG3_OFFSET + (userId & CATEGORY_MASK)) +
+        ",x" + std::to_string(CATEGORY_SEG4_OFFSET + ((userId >> SHIFT_8) & CATEGORY_MASK));
+    int ret = context_range_set(con, level.c_str());
+    if (ret != 0) {
+        SANDBOX_LOGE("ApplyMcsLevel: context_range_set failed, level=%{public}s",
+                     level.c_str());
+        return SANDBOX_ERR_SET_SELINUX_FAILED;
+    }
+    return SANDBOX_SUCCESS;
+}
+
+/**
+ * @brief Get the current SELinux context, apply MCS level based on uid,
+ *        validate, and set the new process context.
+ * @param uid User ID for MCS level calculation
+ * @return SANDBOX_SUCCESS on success, error code on failure
+ */
+static int SetSelinuxContext(uint32_t uid)
+{
+    // Get the current SELinux context
+    char *curContext = nullptr;
+    if (getcon(&curContext) < 0) {
+        SANDBOX_LOGE("SetSelinuxMCS: getcon failed, errno=%{public}d", errno);
+        return SANDBOX_ERR_SET_SELINUX_FAILED;
+    }
+
+    // Create a new context_t from the current context string
+    context_t con = context_new(curContext);
+    freecon(curContext);
+    curContext = nullptr;
+    if (con == nullptr) {
+        SANDBOX_LOGE("SetSelinuxMCS: context_new failed");
+        return SANDBOX_ERR_SET_SELINUX_FAILED;
+    }
+
+    // Apply MCS level based on uid
+    int ret = ApplyMcsLevel(uid, con);
+    if (ret != SANDBOX_SUCCESS) {
+        context_free(con);
+        return ret;
+    }
+
+    // Get the resulting context string
+    const char *newContext = context_str(con);
+    if (newContext == nullptr) {
+        SANDBOX_LOGE("SetSelinuxMCS: context_str returned null");
+        context_free(con);
+        return SANDBOX_ERR_SET_SELINUX_FAILED;
+    }
+
+    // Validate the context against the SELinux policy
+    if (security_check_context(newContext) < 0) {
+        SANDBOX_LOGE("SetSelinuxMCS: security_check_context failed for %{public}s",
+                     newContext);
+        context_free(con);
+        return SANDBOX_ERR_SET_SELINUX_FAILED;
+    }
+
+    // Apply the new SELinux context
+    if (setcon(newContext) < 0) {
+        SANDBOX_LOGE("SetSelinuxMCS: setcon failed for %{public}s, errno=%{public}d",
+                     newContext, errno);
+        context_free(con);
+        return SANDBOX_ERR_SET_SELINUX_FAILED;
+    }
+
+    SANDBOX_LOGI("SetSelinuxMCS: context set to %{public}s", newContext);
+    context_free(con);
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::SetSelinuxMCS()
+{
+    // Check if SELinux is enabled; if not, skip context setting
+    if (is_selinux_enabled() < 1) {
+        SANDBOX_LOGW("SELinux is not enabled, skipping SetSelinuxMCS");
+        return SANDBOX_SUCCESS;
+    }
+
+    // Get the current SELinux context, apply MCS level based on uid,
+    // validate, and set it as the new process context.
+    return SetSelinuxContext(config_.uid);
 }
 
 int SandboxManager::SetUidGid()
@@ -1382,16 +1583,20 @@ static int SetNoNewPrivs(void)
 #ifdef WITH_SECCOMP
 static int SetAppSeccompPolicy(void)
 {
-    const char *filterName = APP_NAME;
-    bool ret = SetSeccompPolicyWithName(APP, filterName);
+    const char *filterName1 = APP_NAME;
+    const char *filterName2 = APP_CUSTOM;
+    bool ret = SetSeccompPolicyWithName(APP, filterName1);
     if (!ret) {
-        std::cerr << "Error: SetSeccompPolicyWithName failed for filter: " <<
-                  filterName << std::endl;
-        SANDBOX_LOGE("SetSeccompPolicyWithName failed for filter: %{public}s",
-                     filterName);
-        return SANDBOX_ERR_SET_SECCOMP_FAILED;
+        ret = SetSeccompPolicyWithName(APP, filterName2);
+        if (!ret) {
+            std::cerr << "Error: SetSeccompPolicyWithName failed for filter: " <<
+                    filterName1 << " or " << filterName2 << std::endl;
+            SANDBOX_LOGE("SetSeccompPolicyWithName failed for filter: %{public}s or %{public}s",
+                         filterName1, filterName2);
+            return SANDBOX_ERR_SET_SECCOMP_FAILED;
+        }
     }
-    SANDBOX_LOGD("APP-level seccomp policy set: %{public}s", filterName);
+    SANDBOX_LOGD("APP-level seccomp policy set: %{public}s or %{public}s", filterName1, filterName2);
     return SANDBOX_SUCCESS;
 }
 #endif
@@ -1572,7 +1777,7 @@ static int MkdirIfNotExist(const std::string &dirPath)
     if (stat(dirPath.c_str(), &st) == 0) {
         return SANDBOX_SUCCESS;
     }
-    if (mkdir(dirPath.c_str(), S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) < 0) {
+    if (mkdir(dirPath.c_str(), DIR_MODE) < 0) {
         if (errno == EEXIST) {
             return SANDBOX_SUCCESS;
         }
@@ -1656,7 +1861,6 @@ int SandboxManager::LoadDefaultConfig()
         {"/config", "/config", {"bind", "rec"}, false},
     };
     templateConfig_.appMounts = {};
-    templateConfig_.selinuxContext = "u:r:claw_cli:s0";
     return SANDBOX_SUCCESS;
 }
 

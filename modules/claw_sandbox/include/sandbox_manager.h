@@ -87,7 +87,6 @@ private:
         std::vector<MountEntry> systemMounts;
         std::vector<MountEntry> appMounts;
         std::vector<std::string> seccompAllowList;
-        std::string selinuxContext;
         std::map<std::string, PermissionConfig> permissions;  // permission name -> config
     };
 
@@ -107,8 +106,11 @@ private:
     int MountSystemDirs();
     int MountAppDirs();
     int PivotRoot();
+    int ForkAfterUnshare();
+    int MountProcFs();
     int SetAccessToken();
     int SetAinfo();
+    int SetSelinuxMCS();
     int SetUidGid();
     int SetProcessGroup();
     int SetSeccomp();

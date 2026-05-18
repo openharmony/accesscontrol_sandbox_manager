@@ -39,7 +39,7 @@ struct SandboxConfig {
     std::string bundleName;                // Bundle name for <PackageName> substitution
     std::string currentUserId;             // Current user ID for <currentUserId> substitution
     std::string name;                      // Optional hex sandbox name (max 64 chars)
-    std::vector<std::string> nsFlags;      // Optional namespace flags, e.g. ["net","pid"]
+    int nsFlags = 0;                       // Optional namespace flags (bitmask), e.g. CLONE_NEWNET | CLONE_NEWPID
     std::string cliName;                   // CLI name (required)
     std::string subCliName;                // Sub-CLI name (required)
     OHOS::Security::AccessToken::AccessTokenIDEx tokenIdEx;             // Temporary tokenId

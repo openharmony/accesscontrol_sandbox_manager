@@ -50,6 +50,11 @@ constexpr size_t MAX_NS_FLAG_STRING_LENGTH = 24;
 // Maximum command line length (2MB)
 constexpr size_t MAX_CMD_LINE_LENGTH = 0x200000;
 
+// Default Namespace flags if not specified in config
+// mnt|net namespaces are required for sandbox isolation, so they are included in the default flags.
+// The rest of the namespaces are optional and can be added via the "nsFlags" config field.
+constexpr uint32_t DEFAULT_NS_FLAGS = CLONE_NEWNS | CLONE_NEWNET;
+
 constexpr const char *WHITESPACE_CHARS = " \t\n\r\f\v";
 
 static bool IsWhitespace(char c)
@@ -158,10 +163,10 @@ static int ParseNameField(cJSON *root, std::string &out)
     return SANDBOX_SUCCESS;
 }
 
-// Helper: parse optional nsFlags string array
-static int ParseNsFlagsField(cJSON *root, std::vector<std::string> &out)
+// Helper: parse optional nsFlags string array and convert directly to bitmask
+static int ParseNsFlagsField(cJSON *root, int &out)
 {
-    out.clear();
+    out = DEFAULT_NS_FLAGS;
     cJSON *item = cJSON_GetObjectItem(root, "nsFlags");
     if (item == nullptr) {
         return SANDBOX_SUCCESS;
@@ -179,6 +184,7 @@ static int ParseNsFlagsField(cJSON *root, std::vector<std::string> &out)
             size, MAX_NS_FLAGS_COUNT);
         return SANDBOX_ERR_CONFIG_INVALID;
     }
+    std::vector<std::string> flags;
     for (int i = 0; i < size; i++) {
         cJSON *flagItem = cJSON_GetArrayItem(item, i);
         if (!cJSON_IsString(flagItem) || flagItem->valuestring == nullptr) {
@@ -194,8 +200,9 @@ static int ParseNsFlagsField(cJSON *root, std::vector<std::string> &out)
                 i, MAX_NS_FLAG_STRING_LENGTH);
             return SANDBOX_ERR_CONFIG_INVALID;
         }
-        out.push_back(flagVal);
+        flags.push_back(flagVal);
     }
+    out = CmdParser::ConvertNsFlags(flags);
     return SANDBOX_SUCCESS;
 }
 
@@ -333,9 +340,7 @@ std::vector<std::string> CmdParser::Parse(const std::string &commandLine)
 
 int CmdParser::ConvertNsFlags(const std::vector<std::string> &nsFlags)
 {
-    // CLONE_NEWNS | CLONE_NEWNET (mount namespace) is always enabled for sandbox isolation
-    int flags = CLONE_NEWNS | CLONE_NEWNET;
-
+    int flags = DEFAULT_NS_FLAGS;
     for (const auto &flag : nsFlags) {
         if (flag == "mnt") {
             flags |= CLONE_NEWNS;
