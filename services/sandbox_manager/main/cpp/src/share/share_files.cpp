@@ -48,7 +48,6 @@ namespace {
 static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerShare"
 };
-static std::mutex g_instanceMutex;
 constexpr size_t MAX_JSON_SIZE = 5 * 1024 * 1024;
 constexpr int32_t MAIN_USER_ID = 100;
 constexpr size_t MAX_SHARED_OS_SUB_PATH_LENGTH = 32;
@@ -56,14 +55,8 @@ constexpr size_t MAX_SHARED_OS_SUB_PATH_LENGTH = 32;
 
 SandboxManagerShare &SandboxManagerShare::GetInstance()
 {
-    static SandboxManagerShare *instance = nullptr;
-    if (instance == nullptr) {
-        std::lock_guard<std::mutex> lock(g_instanceMutex);
-        if (instance == nullptr) {
-            instance = new SandboxManagerShare();
-        }
-    }
-    return *instance;
+    static SandboxManagerShare instance;
+    return instance;
 }
 
 SandboxManagerShare::SandboxManagerShare()

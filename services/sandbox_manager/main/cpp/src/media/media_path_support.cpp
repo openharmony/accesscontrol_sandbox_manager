@@ -39,7 +39,6 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerMedia"
 };
 
-static std::mutex g_instanceMutex;
 inline static const std::string MEDIA_PATH_1 = "/data/storage/el2/media";
 inline static const bool CANCEL_PERSIST_FLAG = true; // true means persist
 }
@@ -55,19 +54,14 @@ void SandboxManagerMedia::MediaDfx(std::vector<std::string> &uri, std::vector<T>
 
 SandboxManagerMedia &SandboxManagerMedia::GetInstance()
 {
-    static SandboxManagerMedia *instance = nullptr;
-    if (instance == nullptr) {
-        std::lock_guard<std::mutex> lock(g_instanceMutex);
-        if (instance == nullptr) {
-            instance = new SandboxManagerMedia();
-        }
-    }
-    return *instance;
+    static SandboxManagerMedia instance;
+    return instance;
 }
 
 int32_t SandboxManagerMedia::InitMedia()
 {
-    std::lock_guard<std::mutex> lock(g_instanceMutex);
+    static std::mutex initMutex;
+    std::lock_guard<std::mutex> lock(initMutex);
     if (media_ != nullptr) {
         return SANDBOX_MANAGER_OK;
     }

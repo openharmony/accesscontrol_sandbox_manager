@@ -25,19 +25,12 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerMemmgr"
 };
 constexpr int32_t MAX_RUNNING_NUM = 256;
-std::recursive_mutex g_instanceMutex;
 }
 
 SandboxMemoryManager& SandboxMemoryManager::GetInstance()
 {
-    static SandboxMemoryManager* instance = nullptr;
-    if (instance == nullptr) {
-        std::lock_guard<std::recursive_mutex> lock(g_instanceMutex);
-        if (instance == nullptr) {
-            instance = new SandboxMemoryManager();
-        }
-    }
-    return *instance;
+    static SandboxMemoryManager instance;
+    return instance;
 }
 
 void SandboxMemoryManager::AddFunctionRuningNum()

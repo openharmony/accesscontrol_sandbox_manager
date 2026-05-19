@@ -31,7 +31,6 @@ namespace {
 static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerClient"
 };
-static std::mutex g_instanceMutex;
 static const int32_t SANDBOX_MANAGER_LOAD_SA_TIMEOUT_SEC = 4;
 static const int32_t SANDBOX_MANAGER_LOAD_SA_TRY_TIMES = 2;
 static const int32_t SA_REQUEST_RETRY_TIMES = 1;
@@ -43,21 +42,9 @@ static const std::vector<int32_t> RETRY_CODE_LIST = {
 
 SandboxManagerClient& SandboxManagerClient::GetInstance()
 {
-    static SandboxManagerClient* instance = nullptr;
-    if (instance == nullptr) {
-        std::lock_guard<std::mutex> lock(g_instanceMutex);
-        if (instance == nullptr) {
-            instance = new SandboxManagerClient();
-        }
-    }
-    return *instance;
+    static SandboxManagerClient instance;
+    return instance;
 }
-
-SandboxManagerClient::SandboxManagerClient()
-{}
-
-SandboxManagerClient::~SandboxManagerClient()
-{}
 
 int32_t SandboxManagerClient::CleanPersistPolicyByPath(const std::vector<std::string> &filePathList)
 {
