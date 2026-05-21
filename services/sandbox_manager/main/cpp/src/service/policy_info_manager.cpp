@@ -1601,23 +1601,26 @@ bool PolicyInfoManager::CheckPathWithinBundleName(const std::string &path, const
     return true;
 }
 
-static bool CheckShareMode(uint32_t permission, uint32_t mode, const std::string &path)
+static bool CheckShareMode(uint32_t permission, uint32_t mode, const std::string &path, const std::string &bundleName)
 {
+    std::string info;
+    bool result = true;
+
     /* Before applying the general configuration, unconfigured items are not controlled. */
     if (permission == SHARE_BUNDLE_UNSET) {
-        return true;
-    }
-    if (permission == SHARE_PATH_UNSET) {
-        LOGE_WITH_REPORT(LABEL, "sharemap unset, path = %{public}s", path.c_str());
-        return false;
+        info = "bundle_unset";
+    } else if (permission == SHARE_PATH_UNSET) {
+        info = "path_unset";
+        result = false;
+    } else if ((permission & mode) != mode) {
+        info = "mode_mismatch";
+        result = false;
+    } else {
+        info = "successful";
     }
 
-    if ((permission & mode) != mode) {
-        LOGE_WITH_REPORT(LABEL, "sharemap mode mismatch, path = %{public}s, mode = %{public}u", path.c_str(), mode);
-        return false;
-    }
-
-    return true;
+    SandboxManagerDfxHelper::WriteShareConfigAudit(path, mode, info, bundleName);
+    return result;
 }
 
 static std::string RemoveClonePrefix(const std::string &bundleName)
@@ -1634,20 +1637,15 @@ static std::string RemoveClonePrefix(const std::string &bundleName)
     return bundleName;
 }
 
-bool PolicyInfoManager::ShareMapRangeCheck(const std::string &path, std::vector<std::string> &components)
+static std::string GenerateMaskedPath(const std::vector<std::string> &components)
 {
-    /* Private interface, used only to report sharemap. Input has already been checked. */
-    if ((components[EL_LEVEL_SEGMENT] != "el2") ||
-        (components[BASE_SEGMENT] != "base") ||
-        (std::find(SUB_PATHS.begin(), SUB_PATHS.end(), components[SUB_PATH_SEGMENT]) == SUB_PATHS.end())) {
-        std::string subPathMask = components[SUB_PATH_SEGMENT].substr(0, 3) + "*";
-        std::string maskPath = "***" + components[EL_LEVEL_SEGMENT] + "/" + components[BASE_SEGMENT] + "/" +
-            components[MAX_CHECK_COM_NUM] + "/" + subPathMask;
-        LOGE_WITH_REPORT(LABEL, "missmatch sharemap, path = %{public}s", maskPath.c_str());
-        return false;
+    if (components.size() <= SUB_PATH_SEGMENT) {
+        return "invalid_path";
     }
-
-    return true;
+    std::string subMask = components[SUB_PATH_SEGMENT].substr(0, 3) + "*";
+    std::string pathMask = "***" + components[EL_LEVEL_SEGMENT] + "/" + components[BASE_SEGMENT] + "/" +
+        components[MAX_CHECK_COM_NUM] + "/" + subMask;
+    return pathMask;
 }
 
 bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::string &path,
@@ -1660,19 +1658,22 @@ bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::strin
     }
 
     if (components.size() <= MAX_CHECK_COM_NUM + 1) {
+        std::string reportBundleName = (components.size() == MAX_CHECK_COM_NUM + 1) ?
+            components[MAX_CHECK_COM_NUM] : "unknown_bundle";
+        SandboxManagerDfxHelper::WriteShareConfigAudit(path, policy.mode, "components_lacking", reportBundleName);
         return true;
     }
 
-    (void)ShareMapRangeCheck(path, components);
     std::string bundleNameTmp = components[MAX_CHECK_COM_NUM];
     std::string bundleRemoveIndex = RemoveClonePrefix(bundleNameTmp);
     std::string pathTmp = APPDATA_PATH_WITH_SLASH + components[EL_LEVEL_SEGMENT] + "/" +
         components[BASE_SEGMENT] + "/" + bundleRemoveIndex + "/" + components[SUB_PATH_SEGMENT];
+    std::string maskedPath = GenerateMaskedPath(components);
     uint32_t permission = SandboxManagerShare::GetInstance().FindPermission(bundleNameTmp, userID, pathTmp);
     if ((permission == SHARE_BUNDLE_UNSET) || (permission == SHARE_PATH_UNSET)) {
         /* refresh only once when multiple paths are input */
         if (index != 0) {
-            return CheckShareMode(permission, policy.mode, path);
+            return CheckShareMode(permission, policy.mode, maskedPath, bundleNameTmp);
         }
         if (SandboxManagerShare::GetInstance().GetAllShareCfg(userID) != SANDBOX_MANAGER_OK) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "refresh GetAllShareCfg failed");
@@ -1681,7 +1682,7 @@ bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::strin
         permission = SandboxManagerShare::GetInstance().FindPermission(bundleNameTmp, userID, pathTmp);
     }
 
-    return CheckShareMode(permission, policy.mode, path);
+    return CheckShareMode(permission, policy.mode, maskedPath, bundleNameTmp);
 }
 
 bool PolicyInfoManager::CheckPathWithinRule(int32_t userID, const std::string &path,
