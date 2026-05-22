@@ -50,8 +50,7 @@ struct SandboxConfig {
  * @brief Parsed command info from --cmd argument
  */
 struct CmdInfo {
-    std::string raw;                       // Original command line string
-    std::vector<std::string> argv;         // Parsed argument vector
+    std::vector<std::string> argv;         // Argument vector
 };
 
 /**
@@ -68,11 +67,12 @@ public:
     static int ParseConfig(const std::string &jsonStr, SandboxConfig &config);
 
     /**
-     * @brief Parse --cmd command line into CmdInfo
-     * @param cmdline Command line string
-     * @return Parsed CmdInfo
+     * @brief Build CmdInfo from an argv array (--cmd <argv> array form)
+     * @param argc Number of remaining arguments after --cmd
+     * @param argv Pointer to the first argument after --cmd
+     * @return Parsed CmdInfo with argv set from the array
      */
-    static CmdInfo ParseCommand(const std::string &cmdline);
+    static CmdInfo ParseCommandFromArgv(int argc, char *argv[]);
 
     /**
      * @brief Convert namespace flag strings to CLONE_XXX bitmask
@@ -80,10 +80,6 @@ public:
      * @return Combined CLONE_XXX flags (CLONE_NEWNS is always included)
      */
     static int ConvertNsFlags(const std::vector<std::string> &nsFlags);
-
-private:
-    static std::string Trim(const std::string &str);
-    static std::vector<std::string> Parse(const std::string &commandLine);
 };
 
 } // namespace SANDBOX

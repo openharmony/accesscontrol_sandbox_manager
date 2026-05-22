@@ -16,9 +16,6 @@
 #include "sandbox_cmd_parser.h"
 #include "sandbox_error.h"
 #include "sandbox_log.h"
-#include <cstring>
-#include <sstream>
-#include <algorithm>
 #include <iostream>
 #include "cJSON.h"
 #include <sched.h>
@@ -47,20 +44,10 @@ constexpr size_t MAX_BUNDLE_NAME_LENGTH = 256;
 constexpr size_t MAX_NS_FLAGS_COUNT = 10;
 constexpr size_t MAX_NS_FLAG_STRING_LENGTH = 24;
 
-// Maximum command line length (2MB)
-constexpr size_t MAX_CMD_LINE_LENGTH = 0x200000;
-
 // Default Namespace flags if not specified in config
 // mnt|net namespaces are required for sandbox isolation, so they are included in the default flags.
 // The rest of the namespaces are optional and can be added via the "nsFlags" config field.
 constexpr uint32_t DEFAULT_NS_FLAGS = CLONE_NEWNS | CLONE_NEWNET;
-
-constexpr const char *WHITESPACE_CHARS = " \t\n\r\f\v";
-
-static bool IsWhitespace(char c)
-{
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
-}
 
 // Helper: clean up cJSON root and return error code
 static inline int CleanupAndReturn(cJSON *root, int ret)
@@ -269,73 +256,21 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
     return SANDBOX_SUCCESS;
 }
 
-CmdInfo CmdParser::ParseCommand(const std::string &cmdline)
+CmdInfo CmdParser::ParseCommandFromArgv(int argc, char *argv[])
 {
     CmdInfo info;
-    info.raw = cmdline;
-
-    if (cmdline.length() > MAX_CMD_LINE_LENGTH) {
-        std::cerr << "Error: Command line exceeds max length (" <<
-                  MAX_CMD_LINE_LENGTH << ")" << std::endl;
-        SANDBOX_LOGE("Command line exceeds max length (%{public}zu)", MAX_CMD_LINE_LENGTH);
+    if (argc <= 0 || argv == nullptr) {
         return info;
     }
 
-    std::string trimmed = Trim(cmdline);
-    if (trimmed.empty()) {
-        return info;
-    }
-
-    info.argv = Parse(trimmed);
-    return info;
-}
-
-std::string CmdParser::Trim(const std::string &str)
-{
-    size_t first = str.find_first_not_of(WHITESPACE_CHARS);
-    if (first == std::string::npos) {
-        return "";
-    }
-    size_t last = str.find_last_not_of(WHITESPACE_CHARS);
-    return str.substr(first, last - first + 1);
-}
-
-std::vector<std::string> CmdParser::Parse(const std::string &commandLine)
-{
-    std::vector<std::string> args;
-    std::string current;
-    char quoteChar = '\0';
-    bool inQuote = false;
-
-    for (size_t i = 0; i < commandLine.length(); i++) {
-        char c = commandLine[i];
-
-        if (!inQuote && (c == '"' || c == '\'')) {
-            inQuote = true;
-            quoteChar = c;
-        } else if (inQuote && c == quoteChar) {
-            inQuote = false;
-            if (!current.empty()) {
-                args.push_back(current);
-                current.clear();
-            }
-        } else if (!inQuote && IsWhitespace(c)) {
-            if (!current.empty()) {
-                args.push_back(current);
-                current.clear();
-            }
-        } else {
-            current += c;
+    for (int i = 0; i < argc; i++) {
+        if (argv[i] != nullptr) {
+            info.argv.push_back(argv[i]);
         }
     }
 
-    if (!current.empty()) {
-        args.push_back(current);
-    }
-
-    SANDBOX_LOGD("CmdParser: %{public}s - parsed to %{public}zu args",
-        commandLine.c_str(), args.size());
-    return args;
+    SANDBOX_LOGD("CmdParser: argv array - parsed to %{public}zu args", info.argv.size());
+    return info;
 }
 
 int CmdParser::ConvertNsFlags(const std::vector<std::string> &nsFlags)

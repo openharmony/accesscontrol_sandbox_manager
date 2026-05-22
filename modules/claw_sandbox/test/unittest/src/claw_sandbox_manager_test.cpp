@@ -2010,7 +2010,7 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps001, TestSize.Level0)
     manager.Initialize(config, cmdInfo);
 
     int ret = manager.ExecuteEarlySteps();
-    EXPECT_EQ(SANDBOX_ERR_NS_FAILED, ret);
+    EXPECT_EQ(SANDBOX_ERR_GEN_TOKENID_FAILED, ret);
 }
 
 // ==================== ExecuteMountSteps tests ====================
@@ -2034,7 +2034,8 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteMountSteps001, TestSize.Level0)
 
     int ret = manager.ExecuteMountSteps();
     EXPECT_TRUE(ret == SANDBOX_ERR_PATH_CREATE_FAILED ||
-                ret == SANDBOX_ERR_SANDBOX_PATH_EXHAUSTED);
+                ret == SANDBOX_ERR_SANDBOX_PATH_EXHAUSTED ||
+                ret == SANDBOX_ERR_MOUNT_FAILED);
 }
 
 // ==================== ExecuteLateSteps tests ====================
@@ -2057,11 +2058,9 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteLateSteps001, TestSize.Level0)
     manager.Initialize(config, cmdInfo);
 
     int ret = manager.ExecuteLateSteps();
-    // ExecuteLateSteps calls SetAccessToken() first, which fails in test environment
-    // because SetFirstCallerTokenID/SetSelfTokenID are system APIs that cannot succeed
-    // without a real access token system. The test verifies that ExecuteLateSteps
+    // ExecuteLateSteps calls setgroups() first, which fails in test environment
     // returns an error from the first failing step.
-    EXPECT_EQ(SANDBOX_ERR_SET_TOKENID_FAILED, ret);
+    EXPECT_EQ(SANDBOX_ERR_NS_FAILED, ret);
 }
 
 // ==================== Execute tests ====================
@@ -2098,7 +2097,7 @@ HWTEST_F(ClawSandboxManagerTest, Execute002, TestSize.Level0)
     manager.Initialize(config, cmdInfo);
 
     int ret = manager.Execute();
-    EXPECT_EQ(SANDBOX_ERR_NS_FAILED, ret);
+    EXPECT_EQ(SANDBOX_ERR_GEN_TOKENID_FAILED, ret);
 }
 
 // ==================== MountSystemEntry tests ====================

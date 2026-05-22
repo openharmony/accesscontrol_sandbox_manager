@@ -134,7 +134,7 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments006, TestSize.Level0)
 
 /**
  * @tc.name: ParseArguments007
- * @tc.desc: ParseArguments with --cmd but missing value returns error
+ * @tc.desc: ParseArguments with --cmd but missing value returns CMD_INVALID
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -145,12 +145,12 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments007, TestSize.Level0)
     char arg1[] = "--cmd";
     char *argv[] = {arg0, arg1, nullptr};
     int ret = exec.ParseArguments(2, argv);
-    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
+    EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
 }
 
 /**
  * @tc.name: ParseArguments008
- * @tc.desc: ParseArguments with --cmd and empty string returns error
+ * @tc.desc: ParseArguments with --cmd and only empty string returns CMD_INVALID
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -162,12 +162,13 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments008, TestSize.Level0)
     char arg2[] = "";
     char *argv[] = {arg0, arg1, arg2, nullptr};
     int ret = exec.ParseArguments(3, argv);
-    EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
 }
 
 /**
  * @tc.name: ParseArguments009
- * @tc.desc: ParseArguments with valid --config and --cmd
+ * @tc.desc: ParseArguments with --cmd argv where argv[1] is a flag (-la),
+ *           config.subCliName must be empty
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -176,19 +177,21 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments009, TestSize.Level0)
     SandboxExec exec;
     char arg0[] = "claw_sandbox";
     char arg1[] = "--config";
+    // subCliName is empty because argv[1] (-la) is a flag
     char arg2[] = R"({"callerTokenId":1, "callerPid":1, "uid":20020026, "gid":20020026, "challenge":"c",
-        "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"sub"})";
+        "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":""})";
     char arg3[] = "--cmd";
-    char arg4[] = "ls -la";
-    char *argv[] = {arg0, arg1, arg2, arg3, arg4, nullptr};
-    int ret = exec.ParseArguments(5, argv);
+    char arg4[] = "ls";
+    char arg5[] = "-la";
+    char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, nullptr};
+    int ret = exec.ParseArguments(6, argv);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_FALSE(exec.HasHelpRequested());
 }
 
 /**
  * @tc.name: ParseArguments010
- * @tc.desc: ParseArguments with -c alias for --config
+ * @tc.desc: ParseArguments with -c alias for --config and --cmd argv array
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -226,7 +229,8 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments011, TestSize.Level0)
 
 /**
  * @tc.name: ParseArguments012
- * @tc.desc: ParseArguments with -m alias for --cmd
+ * @tc.desc: ParseArguments with -m alias for --cmd (argv array form),
+ *           argv[1] is "hello" (not a flag), config.subCliName must match
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -235,12 +239,14 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments012, TestSize.Level0)
     SandboxExec exec;
     char arg0[] = "claw_sandbox";
     char arg1[] = "--config";
+    // subCliName matches argv[1] ("hello")
     char arg2[] = R"({"callerTokenId":1, "callerPid":1, "uid":20020026, "gid":20020026, "challenge":"c",
-        "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"sub"})";
+        "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"hello"})";
     char arg3[] = "-m";
-    char arg4[] = "echo hello";
-    char *argv[] = {arg0, arg1, arg2, arg3, arg4, nullptr};
-    int ret = exec.ParseArguments(5, argv);
+    char arg4[] = "echo";
+    char arg5[] = "hello";
+    char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, nullptr};
+    int ret = exec.ParseArguments(6, argv);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
@@ -288,7 +294,8 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments014, TestSize.Level0)
 
 /**
  * @tc.name: ParseArguments015
- * @tc.desc: ParseArguments with -d and --cmd still uses normal parsing
+ * @tc.desc: ParseArguments with -d and --cmd argv array,
+ *           argv[1] is "-la" (a flag), config.subCliName must be empty
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -298,15 +305,111 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments015, TestSize.Level0)
     char arg0[] = "claw_sandbox";
     char arg1[] = "-d";
     char arg2[] = "--config";
+    // subCliName is empty because argv[1] (-la) is a flag
     char arg3[] = R"({"callerTokenId":1, "callerPid":1, "uid":20020026, "gid":20020026,
-        "challenge":"c", "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"sub",
+        "challenge":"c", "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"",
         "name":"abcdef0123456789"})";
     char arg4[] = "--cmd";
-    char arg5[] = "ls -la";
+    char arg5[] = "ls";
+    char arg6[] = "-la";
+    char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, arg6, nullptr};
+    int ret = exec.ParseArguments(7, argv);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_TRUE(exec.HasDeleteRequested());
+}
+
+/**
+ * @tc.name: ParseArguments016
+ * @tc.desc: ParseArguments with --cmd argv where argv[1] is a flag (-v) but
+ *           config.subCliName is non-empty, should return CMD_INVALID
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxExecTest, ParseArguments016, TestSize.Level0)
+{
+    SandboxExec exec;
+    char arg0[] = "claw_sandbox";
+    char arg1[] = "--config";
+    // subCliName is non-empty but argv[1] (-v) is a flag -> mismatch
+    char arg2[] = R"({"callerTokenId":1, "callerPid":1, "uid":20020026, "gid":20020026, "challenge":"c",
+        "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"sub"})";
+    char arg3[] = "--cmd";
+    char arg4[] = "ls";
+    char arg5[] = "-v";
+    char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, nullptr};
+    int ret = exec.ParseArguments(6, argv);
+    EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseArguments017
+ * @tc.desc: ParseArguments with --cmd argv where argv[1] is not a flag ("world")
+ *           but config.subCliName does not match, should return CMD_INVALID
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxExecTest, ParseArguments017, TestSize.Level0)
+{
+    SandboxExec exec;
+    char arg0[] = "claw_sandbox";
+    char arg1[] = "--config";
+    // subCliName is "sub" but argv[1] is "world" -> mismatch
+    char arg2[] = R"({"callerTokenId":1, "callerPid":1, "uid":20020026, "gid":20020026, "challenge":"c",
+        "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"sub"})";
+    char arg3[] = "--cmd";
+    char arg4[] = "echo";
+    char arg5[] = "world";
+    char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, nullptr};
+    int ret = exec.ParseArguments(6, argv);
+    EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseArguments018
+ * @tc.desc: ParseArguments with --cmd argv where argv[1] is an empty string,
+ *           !secondArg.empty() is false (short-circuit), goes to else branch,
+ *           then subCliName mismatch returns CMD_INVALID
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxExecTest, ParseArguments018, TestSize.Level0)
+{
+    SandboxExec exec;
+    char arg0[] = "claw_sandbox";
+    char arg1[] = "--config";
+    // subCliName is "sub" but argv[1] is "" -> mismatch in else branch
+    char arg2[] = R"({"callerTokenId":1, "callerPid":1, "uid":20020026, "gid":20020026, "challenge":"c",
+        "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":"sub"})";
+    char arg3[] = "--cmd";
+    char arg4[] = "ls";
+    char arg5[] = "";
+    char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, nullptr};
+    int ret = exec.ParseArguments(6, argv);
+    EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseArguments019
+ * @tc.desc: ParseArguments with --cmd argv where argv[1] is an empty string
+ *           and config.subCliName is also empty, covers the success path
+ *           of the else branch when secondArg is empty
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxExecTest, ParseArguments019, TestSize.Level0)
+{
+    SandboxExec exec;
+    char arg0[] = "claw_sandbox";
+    char arg1[] = "--config";
+    // subCliName is "" and argv[1] is "" -> match in else branch
+    char arg2[] = R"({"callerTokenId":1, "callerPid":1, "uid":20020026, "gid":20020026, "challenge":"c",
+        "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":""})";
+    char arg3[] = "--cmd";
+    char arg4[] = "ls";
+    char arg5[] = "";
     char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, nullptr};
     int ret = exec.ParseArguments(6, argv);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
-    EXPECT_TRUE(exec.HasDeleteRequested());
 }
 
 // ==================== Run tests ====================

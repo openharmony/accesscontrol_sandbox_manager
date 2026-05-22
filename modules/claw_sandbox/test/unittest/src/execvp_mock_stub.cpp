@@ -37,6 +37,7 @@
  * well). We only include <errno.h> for the errno macro and EACCES constant.
  */
 #include <cerrno>
+#include <unistd.h>
 
 extern "C" {
 /*
@@ -75,6 +76,18 @@ int execl(const char *path, const char *arg, ...)
     (void)arg;
     errno = EACCES;
     return -1;
+}
+
+/*
+ * Mock setresuid() for platforms where it may use a direct syscall path instead
+ * of delegating to setresuid().
+ */
+int setresuid(uid_t ruid, uid_t euid, uid_t suid)
+{
+    (void)ruid;
+    (void)euid;
+    (void)suid;
+    return 0;
 }
 
 }  // extern "C"
