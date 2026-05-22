@@ -31,6 +31,7 @@ namespace {
 constexpr uint32_t TOKEN_ID = 2145839127U;
 constexpr uint32_t ANOTHER_TOKEN_ID = 2145839128U;
 constexpr int32_t USER_ID = 100;
+constexpr int32_t ACCESS_UID = 123;
 constexpr int32_t EL1_PATH = 0;
 constexpr int32_t EL2_PATH_BASE = 1;
 constexpr int32_t EL2_PATH_CLOUD = 2;
@@ -60,10 +61,11 @@ std::vector<std::string> GetSourcePaths(const std::string &name)
     };
 }
 
-void ExpectAccessResult(uint32_t tokenId, const std::vector<std::string> &paths, int32_t expected)
+void ExpectAccessResult(uint32_t tokenId, const std::vector<std::string> &paths, int32_t expected,
+    int32_t uid = ACCESS_UID, int32_t gid = 0)
 {
     for (const auto &path : paths) {
-        EXPECT_EQ(expected, TestAccess(tokenId, path, 0)) << path;
+        EXPECT_EQ(expected, TestAccess(tokenId, path, 0, uid, gid)) << path;
     }
 }
 }
@@ -159,7 +161,7 @@ HWTEST_F(SniffTest, SniffTest002, TestSize.Level0)
 {
     const auto alphaPaths = GetSniffPaths("alpha");
 
-    EXPECT_EQ(-1, TestAccess(TOKEN_ID, alphaPaths[EL2_PATH_BASE], 0));
+    EXPECT_EQ(-1, TestAccess(TOKEN_ID, alphaPaths[EL2_PATH_BASE], 0, ACCESS_UID));
     ASSERT_EQ(RET_OK,
         SetPath(TOKEN_ID, alphaPaths[EL2_PATH_BASE], DEC_MODE_RW, true, 0, USER_ID));
     ExpectAccessResult(TOKEN_ID, alphaPaths, 0);
@@ -177,9 +179,9 @@ HWTEST_F(SniffTest, SniffTest003, TestSize.Level0)
     const auto alphaPaths = GetSniffPaths("alpha");
     const std::string childPath = alphaPaths[EL1_PATH] + "/docs";
 
-    EXPECT_EQ(-1, TestAccess(TOKEN_ID, childPath, 0));
+    EXPECT_EQ(-1, TestAccess(TOKEN_ID, childPath, 0, ACCESS_UID));
     ASSERT_EQ(RET_OK, SetPath(TOKEN_ID, alphaPaths[EL1_PATH], DEC_MODE_RW, true, 0, USER_ID));
-    EXPECT_EQ(RET_OK, TestAccess(TOKEN_ID, childPath, 0));
+    EXPECT_EQ(RET_OK, TestAccess(TOKEN_ID, childPath, 0, ACCESS_UID));
 }
 
 #ifdef DEC_EXT
@@ -270,10 +272,10 @@ HWTEST_F(SniffTest, SniffTest007, TestSize.Level0)
     const auto alphaPaths = GetSniffPaths("alpha");
 
     ASSERT_EQ(RET_OK, SetPath(TOKEN_ID, alphaPaths[EL1_PATH], DEC_MODE_RW, true, 0, USER_ID));
-    EXPECT_EQ(RET_OK, TestAccess(TOKEN_ID, alphaPaths[EL1_PATH], 0));
+    EXPECT_EQ(RET_OK, TestAccess(TOKEN_ID, alphaPaths[EL1_PATH], 0, ACCESS_UID));
 
     ASSERT_EQ(RET_OK, DeletePathByUser(USER_ID, alphaPaths[EL1_PATH]));
-    EXPECT_EQ(-1, TestAccess(TOKEN_ID, alphaPaths[EL1_PATH], 0));
+    EXPECT_EQ(-1, TestAccess(TOKEN_ID, alphaPaths[EL1_PATH], 0, ACCESS_UID));
 }
 } // namespace SandboxManager
 } // namespace AccessControl
