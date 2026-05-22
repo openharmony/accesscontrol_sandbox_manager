@@ -25,6 +25,9 @@ namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
+// Minimum argv count for subCliName validation: argv[0] is the command, argv[1] is the potential subCliName
+constexpr size_t MIN_ARGV_FOR_SUBCLI_NAME = 2;
+
 int SandboxExec::ParseArguments(int argc, char *argv[])
 {
     // Check for --help/-h first, so it works regardless of other arguments
@@ -84,24 +87,65 @@ int SandboxExec::ParseCmdArg(int argc, char *argv[])
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--cmd") == 0 || strcmp(argv[i], "-m") == 0) {
             if (i + 1 >= argc) {
-                std::cerr << "Error: --cmd requires a command string argument" << std::endl;
-                SANDBOX_LOGE("--cmd requires a command string argument");
-                return SANDBOX_ERR_BAD_PARAMETERS;
+                std::cerr << "Error: --cmd requires at least one argument" << std::endl;
+                SANDBOX_LOGE("--cmd requires at least one argument");
+                return SANDBOX_ERR_CMD_INVALID;
             }
-            cmdInfo_ = CmdParser::ParseCommand(argv[++i]);
+            // --cmd takes ALL remaining arguments as the argv array
+            int cmdArgc = argc - i - 1;
+            char **cmdArgv = &argv[i + 1];
+            cmdInfo_ = CmdParser::ParseCommandFromArgv(cmdArgc, cmdArgv);
             if (cmdInfo_.argv.empty()) {
                 std::cerr << "Error: Empty command after parsing" << std::endl;
                 SANDBOX_LOGE("Empty command after parsing");
                 return SANDBOX_ERR_CMD_INVALID;
             }
             cmdParsed_ = true;
-            SANDBOX_LOGD("Command parsed: raw=%{public}s", cmdInfo_.raw.c_str());
+            SANDBOX_LOGD("Command parsed: %{public}zu args", cmdInfo_.argv.size());
+
+            int ret = ValidateSubCliName();
+            if (ret != SANDBOX_SUCCESS) {
+                return ret;
+            }
+            break;  // --cmd consumes all remaining args, stop parsing
         }
     }
     if (!cmdParsed_ && !deleteRequested_) {
         std::cerr << "Error: Missing required argument: --cmd" << std::endl;
         SANDBOX_LOGE("Missing required argument: --cmd");
         return SANDBOX_ERR_BAD_PARAMETERS;
+    }
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxExec::ValidateSubCliName()
+{
+    if (cmdInfo_.argv.size() < MIN_ARGV_FOR_SUBCLI_NAME) {
+        return SANDBOX_SUCCESS;
+    }
+    const std::string &secondArg = cmdInfo_.argv[1];
+    if (secondArg.empty()) {
+        return SANDBOX_SUCCESS;
+    }
+    if (secondArg[0] == '-') {
+        // argv[1] is a flag (e.g., -la, --verbose), not a subCliName
+        if (!config_.subCliName.empty()) {
+            std::cerr << "Error: subCliName mismatch: argv[1] is a flag" << std::endl;
+            SANDBOX_LOGE("subCliName mismatch: argv[1] is a flag "
+                         "but config.subCliName is not empty");
+            return SANDBOX_ERR_CMD_INVALID;
+        }
+    } else {
+        // argv[1] is a subCliName
+        if (config_.subCliName != secondArg) {
+            std::cerr << "Error: subCliName mismatch: argv[1] is '" <<
+                secondArg << "', but config.subCliName is '" <<
+                config_.subCliName << "'" << std::endl;
+            SANDBOX_LOGE("subCliName mismatch: argv[1] is '%{public}s' "
+                         "but config.subCliName is '%{public}s'",
+                secondArg.c_str(), config_.subCliName.c_str());
+            return SANDBOX_ERR_CMD_INVALID;
+        }
     }
     return SANDBOX_SUCCESS;
 }
@@ -139,12 +183,12 @@ int SandboxExec::Run()
 void SandboxExec::PrintUsage()
 {
     printf("Usage:\n");
-    printf("  claw_sandbox --config <jsonstr> --cmd <cmdline>\n");
+    printf("  claw_sandbox --config <jsonstr> --cmd <argv>...\n");
     printf("  claw_sandbox -d --config <jsonstr>\n");
     printf("\n");
     printf("Options:\n");
     printf("  --config <jsonstr>   JSON configuration string\n");
-    printf("  --cmd <cmdline>      Command to execute in sandbox\n");
+    printf("  --cmd <argv>...      Command argv array (all remaining arguments)\n");
     printf("  -d                   Delete sandbox directory named in config.name\n");
     printf("  --help, -h           Show this help message\n");
     printf("\n");
@@ -154,7 +198,7 @@ void SandboxExec::PrintUsage()
            "\"appid\":\"com.example\",\"nsFlags\":[\"net\",\"mnt\"],"
            "\"challenge\":\"challenge_value\",\"bundleName\":\"com.example.bundle\","
            "\"cliName\":\"ohos-timer\",\"subCliName\":\"\"}' "
-           " --cmd \"ls -la\"\n");
+           " --cmd ls -la /tmp\n");
     printf("  claw_sandbox -d --config '{\"callerTokenId\":1234,"
            "\"uid\":20020026,\"gid\":20020026,\"callerPid\":1234,"
            "\"challenge\":\"c\",\"appid\":\"com.example\",\"bundleName\":\"com.example.app\","

@@ -85,6 +85,7 @@ public:
 private:
     int ParseConfigArg(int argc, char *argv[]);
     int ParseCmdArg(int argc, char *argv[]);
+    int ValidateSubCliName();
 
     SandboxConfig config_;
     CmdInfo cmdInfo_;
