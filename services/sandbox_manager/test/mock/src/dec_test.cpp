@@ -105,20 +105,40 @@ void DecTestClose()
     }
 }
 
-int SetProcessId(int32_t uid, int32_t gid)
-{
-    if (uid != 0) {
-        if (setuid(uid) != 0) {
-            return -1;
+class ProcessCredentialGuard {
+public:
+    ProcessCredentialGuard() : originalUid_(getuid()), originalGid_(getgid()) {}
+    ~ProcessCredentialGuard()
+    {
+        if (active_) {
+            RestoreOriginal();
         }
     }
-    if (gid != 0) {
-        if (setgid(gid) != 0) {
-            return -1;
+
+    bool SwitchTo(int32_t uid, int32_t gid)
+    {
+        if (gid != 0 && setgid(gid) != 0) {
+            return false;
         }
+        if (uid != 0 && setuid(uid) != 0) {
+            RestoreOriginal();
+            return false;
+        }
+        active_ = true;
+        return true;
     }
-    return 0;
-}
+
+private:
+    void RestoreOriginal()
+    {
+        (void)setgid(originalGid_);
+        (void)setuid(originalUid_);
+    }
+
+    uid_t originalUid_;
+    gid_t originalGid_;
+    bool active_ {false};
+};
 
 int SetPath(uint64_t tokenid, const std::string &path, uint32_t mode, bool persistFlag,
     uint64_t timestamp, int32_t userId)
@@ -277,7 +297,8 @@ int CheckBatchPaths(uint64_t tokenid, const std::vector<std::pair<std::string, u
 int TestWrite(uint64_t tokenid, const std::string &fileName, int32_t uid, int32_t gid)
 {
     SetSelfTokenID(tokenid);
-    if (SetProcessId(uid, gid) != 0) {
+    ProcessCredentialGuard processGuard;
+    if (!processGuard.SwitchTo(uid, gid)) {
         return -1;
     }
     FILE *fp = fopen(fileName.c_str(), "w");
@@ -300,7 +321,8 @@ int TestWrite(uint64_t tokenid, const std::string &fileName, int32_t uid, int32_
 int TestRead(uint64_t tokenid, const std::string &fileName, int32_t uid, int32_t gid)
 {
     SetSelfTokenID(tokenid);
-    if (SetProcessId(uid, gid) != 0) {
+    ProcessCredentialGuard processGuard;
+    if (!processGuard.SwitchTo(uid, gid)) {
         return -1;
     }
     FILE *fp = fopen(fileName.c_str(), "r");
@@ -323,7 +345,8 @@ int TestRead(uint64_t tokenid, const std::string &fileName, int32_t uid, int32_t
 int TestCopy(uint64_t tokenid, const std::string &srcPath, const std::string &dstPath, int32_t uid, int32_t gid)
 {
     SetSelfTokenID(tokenid);
-    if (SetProcessId(uid, gid) != 0) {
+    ProcessCredentialGuard processGuard;
+    if (!processGuard.SwitchTo(uid, gid)) {
         return -1;
     }
     std::ifstream in(srcPath, std::ios::binary);
@@ -339,7 +362,8 @@ int TestCopy(uint64_t tokenid, const std::string &srcPath, const std::string &ds
 int Mkdir(uint64_t tokenid, std::string path, int32_t uid, int32_t gid)
 {
     SetSelfTokenID(tokenid);
-    if (SetProcessId(uid, gid) != 0) {
+    ProcessCredentialGuard processGuard;
+    if (!processGuard.SwitchTo(uid, gid)) {
         return -1;
     }
     if (path.empty()) {
@@ -370,7 +394,8 @@ int Mkdir(uint64_t tokenid, std::string path, int32_t uid, int32_t gid)
 int TestRename(uint64_t tokenid, const std::string &fileName, int32_t uid, int32_t gid)
 {
     SetSelfTokenID(tokenid);
-    if (SetProcessId(uid, gid) != 0) {
+    ProcessCredentialGuard processGuard;
+    if (!processGuard.SwitchTo(uid, gid)) {
         return -1;
     }
     std::__fs::filesystem::path filePath = fileName;
@@ -394,7 +419,8 @@ int TestRename(uint64_t tokenid, const std::string &fileName, int32_t uid, int32
 int TestRename2(uint64_t tokenid, const std::string &fileName, const std::string &targetName, int32_t uid, int32_t gid)
 {
     SetSelfTokenID(tokenid);
-    if (SetProcessId(uid, gid) != 0) {
+    ProcessCredentialGuard processGuard;
+    if (!processGuard.SwitchTo(uid, gid)) {
         return -1;
     }
 
@@ -411,7 +437,8 @@ int TestRename2(uint64_t tokenid, const std::string &fileName, const std::string
 int TestRemove(uint64_t tokenid, const std::string &fileName, int32_t uid, int32_t gid)
 {
     SetSelfTokenID(tokenid);
-    if (SetProcessId(uid, gid) != 0) {
+    ProcessCredentialGuard processGuard;
+    if (!processGuard.SwitchTo(uid, gid)) {
         return -1;
     }
     int ret = unlink(fileName.c_str());
@@ -454,7 +481,8 @@ int QueryPath(uint64_t tokenid, const std::string &path, uint32_t mode)
 int TestAccess(uint64_t tokenid, const std::string &fileName, uint32_t mode, int32_t uid, int32_t gid)
 {
     SetSelfTokenID(tokenid);
-    if (SetProcessId(uid, gid) != 0) {
+    ProcessCredentialGuard processGuard;
+    if (!processGuard.SwitchTo(uid, gid)) {
         return -1;
     }
     int ret = access(fileName.c_str(), F_OK);
@@ -496,7 +524,8 @@ int DeletePath(uint64_t tokenid, const std::string &path, uint64_t timestamp)
 int TestReadDir(uint64_t tokenid, const std::string &dirName, int32_t uid, int32_t gid)
 {
     SetSelfTokenID(tokenid);
-    if (SetProcessId(uid, gid) != 0) {
+    ProcessCredentialGuard processGuard;
+    if (!processGuard.SwitchTo(uid, gid)) {
         return -1;
     }
     DIR *dir;
@@ -521,7 +550,8 @@ int TestReadDir(uint64_t tokenid, const std::string &dirName, int32_t uid, int32
 int TestRemoveDir(uint64_t tokenid, const std::string &fileName, int32_t uid, int32_t gid)
 {
     SetSelfTokenID(tokenid);
-    if (SetProcessId(uid, gid) != 0) {
+    ProcessCredentialGuard processGuard;
+    if (!processGuard.SwitchTo(uid, gid)) {
         return -1;
     }
     int ret = rmdir(fileName.c_str());
