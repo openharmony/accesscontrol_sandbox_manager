@@ -256,8 +256,9 @@ int32_t SandboxManagerService::SetPolicyByBundleName(const std::string &bundleNa
     std::vector<uint32_t> result;
     SetInfo setInfo;
     setInfo.bundleName = bundleName;
+    setInfo.userId = userId;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policyRawData, policyFlag, result, userId, setInfo);
+    ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policyRawData, policyFlag, result, setInfo);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -471,16 +472,23 @@ int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const PolicyVecRawDat
         LOGE_WITH_REPORT(LABEL, "Check policyFlag failed, policyFlag = %{public}" PRIu64 ".", policyFlag);
         return INVALID_PARAMTER;
     }
-    int32_t userId = 0;
-    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
-    if (ret != 0) {
-        LOGE_WITH_REPORT(LABEL, "set policy failed, get user id failed error=%{public}d", ret);
-        return INVALID_PARAMTER;
+
+    SetInfo setInfo = setInfoParcel.setInfo;
+    if (setInfo.userId < 0) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "setpolicy input invalid userId=%{public}d", setInfo.userId);
+        int32_t userId = 0;
+        int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+        if (ret != 0) {
+            LOGE_WITH_REPORT(LABEL, "set policy failed, get user id failed error=%{public}d", ret);
+            return INVALID_PARAMTER;
+        }
+        setInfo.userId = userId;
     }
+
     std::vector<uint32_t> result;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policyRawData, policyFlag,
-        result, userId, setInfoParcel.setInfo);
+    int32_t ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policyRawData, policyFlag,
+        result, setInfo);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }

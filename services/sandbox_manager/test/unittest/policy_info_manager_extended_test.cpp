@@ -193,7 +193,9 @@ HWTEST_F(NewPolicyTests, RemovePolicyCaseSensitiveTest, TestSize.Level0)
     };
     std::vector<uint32_t> setResult;
 
-    int32_t ret = PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, setPolicies, 1, setResult, 0);
+    SetInfo setInfo;
+    setInfo.userId = 0;
+    int32_t ret = PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, setPolicies, 1, setResult, setInfo);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
@@ -265,7 +267,9 @@ HWTEST_F(NewPolicyTests, RemovePolicyCaseInsensitiveTest, TestSize.Level0)
     std::vector<PolicyInfo> setPolicies = {setPolicy};
     std::vector<uint32_t> setResult;
 
-    int32_t ret = PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, setPolicies, 1, setResult, 0);
+    SetInfo setInfo;
+    setInfo.userId = 0;
+    int32_t ret = PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, setPolicies, 1, setResult, setInfo);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
@@ -330,7 +334,9 @@ HWTEST_F(NewPolicyTests, AddPolicyCaseInsensitiveTest, TestSize.Level0)
     std::vector<PolicyInfo> setPolicies = {setPolicy};
     std::vector<uint32_t> setResult;
 
-    int32_t ret = PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, setPolicies, 1, setResult, 0);
+    SetInfo setInfo;
+    setInfo.userId = 0;
+    int32_t ret = PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, setPolicies, 1, setResult, setInfo);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
@@ -462,7 +468,9 @@ HWTEST_F(NewPolicyTests, GetPersistPolicyTest, TestSize.Level0)
     std::vector<PolicyInfo> policiesToSet = {policy};
     std::vector<uint32_t> setResults;
 
-    int32_t setRet = PolicyInfoManager::GetInstance().SetPolicy(testTokenId, policiesToSet, 1, setResults, 0);
+    SetInfo setInfo;
+    setInfo.userId = 0;
+    int32_t setRet = PolicyInfoManager::GetInstance().SetPolicy(testTokenId, policiesToSet, 1, setResults, setInfo);
     EXPECT_EQ(SANDBOX_MANAGER_OK, setRet);
     ASSERT_EQ(1, setResults.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResults[0]);

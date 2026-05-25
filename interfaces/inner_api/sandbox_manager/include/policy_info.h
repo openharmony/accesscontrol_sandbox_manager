@@ -40,7 +40,8 @@ struct SetInfo final {
 public:
     std::string bundleName;
     uint64_t timestamp;
-    SetInfo() : bundleName(""), timestamp(0) {}
+    int32_t userId = -1;
+    SetInfo() : bundleName(""), timestamp(0), userId(-1) {}
 };
 
 typedef enum SandboxRetType {

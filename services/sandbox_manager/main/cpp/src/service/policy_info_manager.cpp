@@ -755,8 +755,9 @@ int32_t PolicyInfoManager::SetPolicyInner(std::vector<PolicyInfo> &validPolicies
 }
 
 int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                                     std::vector<uint32_t> &result, int32_t userId, const SetInfo &setInfo)
+                                     std::vector<uint32_t> &result, const SetInfo &setInfo)
 {
+    int32_t userId = setInfo.userId;
     size_t policySize = policy.size();
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
@@ -862,12 +863,12 @@ uint32_t PolicyInfoManager::CalculateBatchSize(uint32_t policyCount, uint32_t ba
 // Batch processing version - processes policies in batches to minimize memory footprint
 // Delegates to the original SetPolicy(vector<PolicyInfo>) for each batch
 int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData, uint64_t policyFlag,
-                                     std::vector<uint32_t> &result, int32_t userId, const SetInfo &setInfo)
+                                     std::vector<uint32_t> &result, const SetInfo &setInfo)
 {
     return ProcessPolicyBatch(policyRawData, result,
-        [this, tokenId, policyFlag, setInfo, userId](const std::vector<PolicyInfo>& policies,
+        [this, tokenId, policyFlag, setInfo](const std::vector<PolicyInfo>& policies,
             std::vector<uint32_t>& batchResult) {
-            return SetPolicy(tokenId, policies, policyFlag, batchResult, userId, setInfo);
+            return SetPolicy(tokenId, policies, policyFlag, batchResult, setInfo);
         }, NON_PERSIST_POLICY_BATCH_SIZE, (uint32_t)INVALID_PATH);
 }
 
@@ -2057,7 +2058,8 @@ int32_t PolicyInfoManager::GrantSharedDirectoryPermission(const uint32_t tokenId
     uint64_t policyFlag = 0;
     SetInfo setInfo;
     setInfo.timestamp = 0;
-    ret = SetPolicy(tokenId, policies, policyFlag, setResult, userId, setInfo);
+    setInfo.userId = userId;
+    ret = SetPolicy(tokenId, policies, policyFlag, setResult, setInfo);
     if (ret != SANDBOX_MANAGER_OK) {
         LOGE_WITH_REPORT(LABEL, "SetPolicy failed, ret=%{public}d", ret);
         return ret;

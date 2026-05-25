@@ -133,7 +133,7 @@ int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
                                      uint64_t policyFlag, std::vector<uint32_t> &result, const SetInfo &setInfo)
 {
     SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u, policySize = %{public}zu, "
-        "flag = %{public}" PRIu64 ".", tokenId, policy.size(), policyFlag);
+        "flag = %{public}" PRIu64 ", userId = %{public}d.", tokenId, policy.size(), policyFlag, setInfo.userId);
     size_t policySize = policy.size();
     if (policySize == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check policy size failed, size = %{public}zu.", policySize);
