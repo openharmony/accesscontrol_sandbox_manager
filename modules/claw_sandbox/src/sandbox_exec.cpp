@@ -30,8 +30,11 @@ constexpr size_t MIN_ARGV_FOR_SUBCLI_NAME = 2;
 
 int SandboxExec::ParseArguments(int argc, char *argv[])
 {
-    // Check for --help/-h first, so it works regardless of other arguments
+    // Check claw_sandbox options only before --cmd/-m; everything after belongs to the command.
     for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--cmd") == 0 || strcmp(argv[i], "-m") == 0) {
+            break;
+        }
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             PrintUsage();
             helpRequested_ = true;
@@ -64,6 +67,9 @@ int SandboxExec::ParseArguments(int argc, char *argv[])
 int SandboxExec::ParseConfigArg(int argc, char *argv[])
 {
     for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--cmd") == 0 || strcmp(argv[i], "-m") == 0) {
+            break;
+        }
         if (strcmp(argv[i], "--config") == 0 || strcmp(argv[i], "-c") == 0) {
             if (i + 1 >= argc) {
                 std::cerr << "Error: --config requires a JSON string argument" << std::endl;
@@ -120,33 +126,34 @@ int SandboxExec::ParseCmdArg(int argc, char *argv[])
 
 int SandboxExec::ValidateSubCliName()
 {
+    if (!configParsed_) {
+        std::cerr << "Error: Missing required argument: --config" << std::endl;
+        SANDBOX_LOGE("Missing required argument: --config before validating subCliName");
+        return SANDBOX_ERR_BAD_PARAMETERS;
+    }
+
+    if (config_.subCliName.empty()) {
+        return SANDBOX_SUCCESS;
+    }
+
     if (cmdInfo_.argv.size() < MIN_ARGV_FOR_SUBCLI_NAME) {
-        return SANDBOX_SUCCESS;
+        std::cerr << "Error: Missing subCliName in command argv" << std::endl;
+        SANDBOX_LOGE("Missing subCliName in command argv "
+                     "but config.subCliName is '%{public}s'",
+            config_.subCliName.c_str());
+        return SANDBOX_ERR_CMD_INVALID;
     }
-    const std::string &secondArg = cmdInfo_.argv[1];
-    if (secondArg.empty()) {
-        return SANDBOX_SUCCESS;
+
+    if (config_.subCliName != cmdInfo_.argv[1]) {
+        std::cerr << "Error: subCliName mismatch: argv[1] is '" <<
+            cmdInfo_.argv[1] << "', but config.subCliName is '" <<
+            config_.subCliName << "'" << std::endl;
+        SANDBOX_LOGE("subCliName mismatch: argv[1] is '%{public}s' "
+                     "but config.subCliName is '%{public}s'",
+            cmdInfo_.argv[1].c_str(), config_.subCliName.c_str());
+        return SANDBOX_ERR_CMD_INVALID;
     }
-    if (secondArg[0] == '-') {
-        // argv[1] is a flag (e.g., -la, --verbose), not a subCliName
-        if (!config_.subCliName.empty()) {
-            std::cerr << "Error: subCliName mismatch: argv[1] is a flag" << std::endl;
-            SANDBOX_LOGE("subCliName mismatch: argv[1] is a flag "
-                         "but config.subCliName is not empty");
-            return SANDBOX_ERR_CMD_INVALID;
-        }
-    } else {
-        // argv[1] is a subCliName
-        if (config_.subCliName != secondArg) {
-            std::cerr << "Error: subCliName mismatch: argv[1] is '" <<
-                secondArg << "', but config.subCliName is '" <<
-                config_.subCliName << "'" << std::endl;
-            SANDBOX_LOGE("subCliName mismatch: argv[1] is '%{public}s' "
-                         "but config.subCliName is '%{public}s'",
-                secondArg.c_str(), config_.subCliName.c_str());
-            return SANDBOX_ERR_CMD_INVALID;
-        }
-    }
+
     return SANDBOX_SUCCESS;
 }
 
@@ -188,7 +195,8 @@ void SandboxExec::PrintUsage()
     printf("\n");
     printf("Options:\n");
     printf("  --config <jsonstr>   JSON configuration string\n");
-    printf("  --cmd <argv>...      Command argv array (all remaining arguments)\n");
+    printf("  --cmd <argv>...      Command argv array; must be the last claw_sandbox option\n");
+    printf("                        All remaining arguments are treated as command argv\n");
     printf("  -d                   Delete sandbox directory named in config.name\n");
     printf("  --help, -h           Show this help message\n");
     printf("\n");
