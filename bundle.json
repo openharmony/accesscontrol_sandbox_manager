@@ -48,8 +48,6 @@
         "samgr",
         "security_guard",
         "init",
-        "jsoncpp",
-        "selinux_adapter",
         "selinux",
         "bounds_checking_function"
       ],

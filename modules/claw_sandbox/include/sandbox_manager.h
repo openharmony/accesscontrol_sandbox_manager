@@ -110,7 +110,9 @@ private:
     int MountProcFs();
     int SetAccessToken();
     int SetAinfo();
+#ifdef MCS_ENABLE
     int SetSelinuxMCS();
+#endif
     int SetUidGid();
     int SetProcessGroup();
     int SetSeccomp();

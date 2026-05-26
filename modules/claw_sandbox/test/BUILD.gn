@@ -53,6 +53,7 @@ ohos_unittest("claw_sandbox_test") {
 
   cflags_cc = [
     "-DHILOG_ENABLE",
+    "-DMCS_ENABLE",
   ]
 
   deps = []
