@@ -1166,7 +1166,6 @@ int32_t SandboxManagerService::GrantSharedDirectoryPermission()
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GrantSharedDirectoryPermission failed, not system app");
         return SANDBOX_MANAGER_NOT_SYS_APP;
     }
-
     AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
     if (!CheckPermission(callingTokenId, ACCESS_SHARED_FILE_NAME)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
@@ -1185,7 +1184,6 @@ int32_t SandboxManagerService::RevokeSharedDirectoryPermission()
         SANDBOXMANAGER_LOG_ERROR(LABEL, "RevokeSharedDirectoryPermission failed, not system app");
         return SANDBOX_MANAGER_NOT_SYS_APP;
     }
-
     AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
     if (!CheckPermission(callingTokenId, ACCESS_SHARED_FILE_NAME)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
