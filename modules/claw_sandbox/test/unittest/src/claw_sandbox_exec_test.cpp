@@ -17,6 +17,7 @@
 #include "sandbox_exec.h"
 #include "sandbox_error.h"
 #include <cstring>
+#include <string>
 
 using namespace testing::ext;
 
@@ -500,6 +501,26 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments023, TestSize.Level0)
     char *argv[] = {arg0, arg1, arg2, arg3, arg4, nullptr};
     int ret = exec.ParseArguments(5, argv);
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
+}
+
+/**
+ * @tc.name: ParseArguments024
+ * @tc.desc: ParseArguments returns CMD_INVALID when --cmd argv entries are all null
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxExecTest, ParseArguments024, TestSize.Level0)
+{
+    SandboxExec exec;
+    char arg0[] = "claw_sandbox";
+    char arg1[] = "--config";
+    char arg2[] = R"({"callerTokenId":1, "callerPid":1, "uid":20020026, "gid":20020026, "challenge":"c",
+        "appid":"a", "bundleName":"b", "cliName":"cli", "subCliName":""})";
+    char arg3[] = "--cmd";
+    char *argv[] = {arg0, arg1, arg2, arg3, nullptr};
+
+    int ret = exec.ParseArguments(5, argv);
+    EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
 }
 
 // ==================== Run tests ====================

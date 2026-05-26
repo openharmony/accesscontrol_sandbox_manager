@@ -33,6 +33,7 @@ group("sandbox_manager_build_fuzz_test") {
   if (is_standard_system) {
     deps += [
       "test/fuzztest/innerkits/sandbox_manager:fuzztest",
+      "test/fuzztest/modules/claw_sandbox:fuzztest",
       "test/fuzztest/services/sandbox_manager:fuzztest",
     ]
   }

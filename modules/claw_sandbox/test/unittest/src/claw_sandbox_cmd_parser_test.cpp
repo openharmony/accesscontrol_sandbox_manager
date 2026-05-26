@@ -44,6 +44,59 @@ static constexpr uint64_t TEST_SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32
 // A callerTokenId that has SYSTEM_APP_MASK set and a non-zero low 32-bit token ID.
 static constexpr uint64_t TEST_HAP_TOKEN_ID = TEST_SYSTEM_APP_MASK | 0x200D000D;
 
+struct ConfigJsonField {
+    const char *key;
+    std::string value;
+};
+
+static const ConfigJsonField BASE_CONFIG_FIELDS[] = {
+    {"callerTokenId", "1"},
+    {"callerPid", "1"},
+    {"uid", "20020026"},
+    {"gid", "20020026"},
+    {"challenge", R"("ch")"},
+    {"appid", R"("app")"},
+    {"bundleName", R"("bundle")"},
+    {"cliName", R"("cli")"},
+    {"subCliName", R"("sub")"},
+};
+
+static std::string BuildConfigJsonWithoutField(const std::string &missingKey)
+{
+    std::string json = "{";
+    bool first = true;
+    for (const auto &field : BASE_CONFIG_FIELDS) {
+        if (missingKey == field.key) {
+            continue;
+        }
+        json += first ? "" : ",";
+        json += "\"";
+        json += field.key;
+        json += "\":";
+        json += field.value;
+        first = false;
+    }
+    json += "}";
+    return json;
+}
+
+static std::string BuildConfigJsonWithValue(const std::string &overrideKey,
+    const std::string &overrideValue)
+{
+    std::string json = "{";
+    bool first = true;
+    for (const auto &field : BASE_CONFIG_FIELDS) {
+        json += first ? "" : ",";
+        json += "\"";
+        json += field.key;
+        json += "\":";
+        json += (overrideKey == field.key) ? overrideValue : field.value;
+        first = false;
+    }
+    json += "}";
+    return json;
+}
+
 void ClawSandboxCmdParserTest::SetUpTestCase() {}
 void ClawSandboxCmdParserTest::TearDownTestCase() {}
 void ClawSandboxCmdParserTest::SetUp() {}
@@ -390,6 +443,318 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig014, TestSize.Level0)
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig015
+ * @tc.desc: ParseConfig rejects optional fields with wrong JSON types
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig015, TestSize.Level0)
+{
+    const std::string invalidNameJson = R"({
+        "callerTokenId": 1,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appid": "app",
+        "bundleName": "bundle",
+        "cliName": "cli",
+        "subCliName": "sub",
+        "name": 123
+    })";
+    SandboxConfig config;
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ParseConfig(invalidNameJson, config));
+
+    const std::string invalidNsFlagsJson = R"({
+        "callerTokenId": 1,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appid": "app",
+        "bundleName": "bundle",
+        "cliName": "cli",
+        "subCliName": "sub",
+        "nsFlags": {"net": true}
+    })";
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ParseConfig(invalidNsFlagsJson, config));
+}
+
+/**
+ * @tc.name: ParseConfig016
+ * @tc.desc: ParseConfig rejects missing required numeric fields after callerTokenId
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig016, TestSize.Level0)
+{
+    const char *missingFields[] = {"callerPid", "uid", "gid"};
+
+    for (const char *field : missingFields) {
+        SCOPED_TRACE(field);
+        SandboxConfig config;
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID,
+            CmdParser::ParseConfig(BuildConfigJsonWithoutField(field), config));
+    }
+}
+
+/**
+ * @tc.name: ParseConfig017
+ * @tc.desc: ParseConfig rejects missing required string fields
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig017, TestSize.Level0)
+{
+    const char *missingFields[] = {"challenge", "appid", "bundleName",
+        "cliName", "subCliName"};
+
+    for (const char *field : missingFields) {
+        SCOPED_TRACE(field);
+        SandboxConfig config;
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID,
+            CmdParser::ParseConfig(BuildConfigJsonWithoutField(field), config));
+    }
+}
+
+/**
+ * @tc.name: ParseConfig018
+ * @tc.desc: ParseConfig rejects required numeric fields with wrong JSON types
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig018, TestSize.Level0)
+{
+    const ConfigJsonField invalidFields[] = {
+        {"callerTokenId", R"("1")"},
+        {"callerPid", R"("1")"},
+        {"uid", "true"},
+        {"gid", "null"},
+    };
+
+    for (const auto &field : invalidFields) {
+        SCOPED_TRACE(field.key);
+        SandboxConfig config;
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID,
+            CmdParser::ParseConfig(BuildConfigJsonWithValue(field.key, field.value), config));
+    }
+}
+
+/**
+ * @tc.name: ParseConfig019
+ * @tc.desc: ParseConfig rejects uint32 values above the supported range
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig019, TestSize.Level0)
+{
+    const ConfigJsonField invalidFields[] = {
+        {"callerPid", "4294967296"},
+        {"uid", "4294967296"},
+        {"gid", "4294967296"},
+    };
+
+    for (const auto &field : invalidFields) {
+        SCOPED_TRACE(field.key);
+        SandboxConfig config;
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID,
+            CmdParser::ParseConfig(BuildConfigJsonWithValue(field.key, field.value), config));
+    }
+}
+
+/**
+ * @tc.name: ParseConfig020
+ * @tc.desc: ParseConfig rejects required string fields with wrong JSON types
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig020, TestSize.Level0)
+{
+    const ConfigJsonField invalidFields[] = {
+        {"challenge", "123"},
+        {"appid", "false"},
+        {"bundleName", "{}"},
+        {"cliName", "[]"},
+        {"subCliName", "null"},
+    };
+
+    for (const auto &field : invalidFields) {
+        SCOPED_TRACE(field.key);
+        SandboxConfig config;
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID,
+            CmdParser::ParseConfig(BuildConfigJsonWithValue(field.key, field.value), config));
+    }
+}
+
+/**
+ * @tc.name: ParseConfig021
+ * @tc.desc: ParseConfig accepts callerTokenId values above the double safe boundary
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig021, TestSize.Level0)
+{
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(
+        BuildConfigJsonWithValue("callerTokenId", "9007199254740994"), config);
+
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(9007199254740994ULL, config.callerTokenId);
+}
+
+/**
+ * @tc.name: ParseConfig022
+ * @tc.desc: ParseConfig rejects each required string field above its max length
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig022, TestSize.Level0)
+{
+    const ConfigJsonField invalidFields[] = {
+        {"challenge", "\"" + std::string(40961, 'c') + "\""},
+        {"appid", "\"" + std::string(10241, 'a') + "\""},
+        {"bundleName", "\"" + std::string(257, 'b') + "\""},
+        {"subCliName", "\"" + std::string(257, 's') + "\""},
+    };
+
+    for (const auto &field : invalidFields) {
+        SCOPED_TRACE(field.key);
+        SandboxConfig config;
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID,
+            CmdParser::ParseConfig(BuildConfigJsonWithValue(field.key, field.value), config));
+    }
+}
+
+/**
+ * @tc.name: ParseConfig023
+ * @tc.desc: ParseConfig accepts empty optional name and empty nsFlags array
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig023, TestSize.Level0)
+{
+    std::string json = "{";
+    for (const auto &field : BASE_CONFIG_FIELDS) {
+        json += "\"";
+        json += field.key;
+        json += "\":";
+        json += field.value;
+        json += ",";
+    }
+    json += R"("name":"","nsFlags":[]})";
+
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_TRUE(config.name.empty());
+    EXPECT_EQ(static_cast<int>(CLONE_NEWNS | CLONE_NEWNET), config.nsFlags);
+}
+
+// ==================== ParseCommandFromArgv tests ====================
+
+/**
+ * @tc.name: ParseCommandFromArgv001
+ * @tc.desc: ParseCommandFromArgv copies a basic argv array
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseCommandFromArgv001, TestSize.Level0)
+{
+    char arg0[] = "echo";
+    char arg1[] = "hello";
+    char arg2[] = "world";
+    char *argv[] = {arg0, arg1, arg2};
+
+    CmdInfo info = CmdParser::ParseCommandFromArgv(3, argv);
+    ASSERT_EQ(3U, info.argv.size());
+    EXPECT_EQ("echo", info.argv[0]);
+    EXPECT_EQ("hello", info.argv[1]);
+    EXPECT_EQ("world", info.argv[2]);
+}
+
+/**
+ * @tc.name: ParseCommandFromArgv002
+ * @tc.desc: ParseCommandFromArgv preserves each argv element as one argument
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseCommandFromArgv002, TestSize.Level0)
+{
+    char arg0[] = "cmd";
+    char arg1[] = "arg with spaces";
+    char arg2[] = "\"quoted value\"";
+    char arg3[] = "";
+    char *argv[] = {arg0, arg1, arg2, arg3};
+
+    CmdInfo info = CmdParser::ParseCommandFromArgv(4, argv);
+    ASSERT_EQ(4U, info.argv.size());
+    EXPECT_EQ("cmd", info.argv[0]);
+    EXPECT_EQ("arg with spaces", info.argv[1]);
+    EXPECT_EQ("\"quoted value\"", info.argv[2]);
+    EXPECT_EQ("", info.argv[3]);
+}
+
+/**
+ * @tc.name: ParseCommandFromArgv003
+ * @tc.desc: ParseCommandFromArgv returns empty argv for invalid inputs
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseCommandFromArgv003, TestSize.Level0)
+{
+    char arg0[] = "ignored";
+    char *argv[] = {arg0};
+
+    CmdInfo zeroArgcInfo = CmdParser::ParseCommandFromArgv(0, argv);
+    EXPECT_TRUE(zeroArgcInfo.argv.empty());
+
+    CmdInfo negativeArgcInfo = CmdParser::ParseCommandFromArgv(-1, argv);
+    EXPECT_TRUE(negativeArgcInfo.argv.empty());
+
+    CmdInfo nullArgvInfo = CmdParser::ParseCommandFromArgv(1, nullptr);
+    EXPECT_TRUE(nullArgvInfo.argv.empty());
+}
+
+/**
+ * @tc.name: ParseCommandFromArgv004
+ * @tc.desc: ParseCommandFromArgv skips null argv elements
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseCommandFromArgv004, TestSize.Level0)
+{
+    char arg0[] = "cmd";
+    char arg2[] = "tail";
+    char *argv[] = {arg0, nullptr, arg2};
+
+    CmdInfo info = CmdParser::ParseCommandFromArgv(3, argv);
+    ASSERT_EQ(2U, info.argv.size());
+    EXPECT_EQ("cmd", info.argv[0]);
+    EXPECT_EQ("tail", info.argv[1]);
+}
+
+/**
+ * @tc.name: ParseCommandFromArgv005
+ * @tc.desc: ParseCommandFromArgv stores string values instead of argv pointers
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseCommandFromArgv005, TestSize.Level0)
+{
+    char arg0[] = "cmd";
+    char arg1[] = "arg";
+    char *argv[] = {arg0, arg1};
+
+    CmdInfo info = CmdParser::ParseCommandFromArgv(2, argv);
+    ASSERT_EQ(2U, info.argv.size());
+    EXPECT_EQ("cmd", info.argv[0]);
+    EXPECT_EQ("arg", info.argv[1]);
+
+    arg1[0] = 'A';
+    EXPECT_EQ("arg", info.argv[1]);
 }
 
 // ==================== ConvertNsFlags tests ====================
