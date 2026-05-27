@@ -1462,6 +1462,43 @@ HWTEST_F(SandboxManagerKitSharefilesTest, UnsetShareFileInfoTest004, TestSize.Le
     int32_t ret = SandboxManagerKit::UnsetShareFileInfo(tokenId, bundleName, userId);
     EXPECT_EQ(PERMISSION_DENIED, ret);
 }
+
+/**
+ * @tc.name: GetSharedDirectoryInfoTest002
+ * @tc.desc: Test GetSharedDirectoryInfo 202
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSharefilesTest, GetSharedDirectoryInfoTest002, TestSize.Level0)
+{
+    std::vector<SharedDirectoryInfo> result;
+    int32_t ret = SandboxManagerKit::GetSharedDirectoryInfo(result);
+    EXPECT_EQ(SANDBOX_MANAGER_NOT_SYS_APP, ret);
+}
+
+/**
+ * @tc.name: GrantSharedDirectoryPermissionTest002
+ * @tc.desc: Test GrantSharedDirectoryPermission 202
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSharefilesTest, GrantSharedDirectoryPermissionTest002, TestSize.Level0)
+{
+    int32_t ret = SandboxManagerKit::GrantSharedDirectoryPermission();
+    EXPECT_EQ(SANDBOX_MANAGER_NOT_SYS_APP, ret);
+}
+
+/**
+ * @tc.name: RevokeSharedDirectoryPermissionTest002
+ * @tc.desc: Test RevokeSharedDirectoryPermission 202
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSharefilesTest, RevokeSharedDirectoryPermissionTest002, TestSize.Level0)
+{
+    int32_t ret = SandboxManagerKit::RevokeSharedDirectoryPermission();
+    EXPECT_EQ(SANDBOX_MANAGER_NOT_SYS_APP, ret);
+}
 #endif
 } // SandboxManager
 } // AccessControl
