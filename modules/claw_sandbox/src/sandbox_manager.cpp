@@ -85,6 +85,7 @@ constexpr int HEX_MAX = 15;
 constexpr int HEX_CNT = 16;
 constexpr int UID_BASE = 200000;
 
+#ifdef MCS_ENABLE
 // User ID base for MCS level calculation (same as UID_BASE in hap_restorecon.cpp)
 constexpr uint32_t MCS_UID_BASE = 200000;
 
@@ -102,6 +103,7 @@ constexpr int CATEGORY_SEG4_OFFSET = 1024;
 constexpr int CATEGORY_MASK = 0xff;
 constexpr int SHIFT_8 = 8;
 constexpr int SHIFT_16 = 16;
+#endif
 
 // Minimum UID allowed by seccomp filter (20000000 = 20 million).
 // Any attempt to setuid/setreuid/setresuid/setfsuid to a UID below this
@@ -292,12 +294,14 @@ int SandboxManager::ExecuteEarlySteps()
         return ret;
     }
 
+#ifdef MCS_ENABLE
     // Step 3: Set SELinux MCS level for the current process (before GenerateTokenId,
     //         because setcon() must happen before token/uid changes)
     ret = SetSelinuxMCS();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
+#endif
 
     ret = GenerateTokenId();
     if (ret != SANDBOX_SUCCESS) {
@@ -347,6 +351,14 @@ int SandboxManager::ExecuteMountSteps()
         return ret;
     }
 
+    // Create a new process group (must be done BEFORE SetSeccomp & Fork,
+    // because seccomp blocks setpgid/setsid to prevent process group escape,
+    // and the child process must inherit the new process group to avoid being adopted by init)
+    ret = SetProcessGroup();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
     ret = ForkAfterUnshare();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
@@ -383,20 +395,13 @@ int SandboxManager::ExecuteLateSteps()
         return ret;
     }
 
-    // Step 15: Create a new process group (must be done BEFORE SetSeccomp,
-    //          because seccomp blocks setpgid/setsid to prevent process group escape)
-    ret = SetProcessGroup();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Step 16: Set Seccomp (always applied to block setpgid/setsid for process group protection)
+    // Step 15: Set Seccomp (always applied to block setpgid/setsid for process group protection)
     ret = SetSeccomp();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 17: Drop Capabilities (must be after seccomp to avoid interfering with
+    // Step 16: Drop Capabilities (must be after seccomp to avoid interfering with
     //          setpgid/setsid; capset() syscall is not blocked by seccomp in
     //          block mode, and in whitelist mode it will be allowed if listed)
     ret = DropCapabilities();
@@ -404,7 +409,7 @@ int SandboxManager::ExecuteLateSteps()
         return ret;
     }
 
-    // Step 18: Execute the command
+    // Step 17: Execute the command
     return ExecuteCommand();
 }
 
@@ -948,15 +953,7 @@ int SandboxManager::GenerateTokenId()
 
 int SandboxManager::SetAccessToken()
 {
-    // supports privacy records for cli process
-    int ret = SetFirstCallerTokenID(config_.callerTokenId);
-    if (ret != 0) {
-        std::cerr << "Error: SetFirstCallerTokenID failed: " << ret << std::endl;
-        SANDBOX_LOGE("SetFirstCallerTokenID failed: %{public}d", ret);
-        return SANDBOX_ERR_SET_TOKENID_FAILED;
-    }
-
-    ret = SetSelfTokenID(config_.tokenIdEx.tokenIDEx);
+    int ret = SetSelfTokenID(config_.tokenIdEx.tokenIDEx);
     if (ret != 0) {
         std::cerr << "Error: SetSelfTokenID failed: " << ret << std::endl;
         SANDBOX_LOGE("SetSelfTokenID failed: %{public}d", ret);
@@ -976,6 +973,7 @@ int SandboxManager::SetAinfo()
     return SANDBOX_SUCCESS;
 }
 
+#ifdef MCS_ENABLE
 /**
  * @brief Build MCS level string from uid and apply it to the given context.
  *        Logic matches UserAndMCSRangeSet in hap_restorecon.cpp.
@@ -1082,6 +1080,7 @@ int SandboxManager::SetSelinuxMCS()
     // validate, and set it as the new process context.
     return SetSelinuxContext(config_.uid);
 }
+#endif
 
 int SandboxManager::SetUidGid()
 {

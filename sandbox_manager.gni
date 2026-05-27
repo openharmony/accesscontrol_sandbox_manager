@@ -21,4 +21,5 @@ declare_args() {
   sandbox_manager_dec_ext = false
   claw_sandbox_need_set_seccomp = true
   sandbox_manager_enable_aids = false
+  claw_sandbox_mcs_enable = true
 }
