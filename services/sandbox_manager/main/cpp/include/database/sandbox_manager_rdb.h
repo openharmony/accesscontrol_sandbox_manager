@@ -37,8 +37,6 @@ public:
 
     static SandboxManagerRdb &GetInstance();
 
-    virtual ~SandboxManagerRdb() = default;
-
     int32_t Add(const DataType type, const std::vector<GenericValues> &values,
         const std::string &duplicateMode = IGNORE);
 
@@ -59,6 +57,7 @@ public:
 
 private:
     SandboxManagerRdb();
+    ~SandboxManagerRdb() = default;
     int32_t OpenDataBase();
     std::shared_ptr<NativeRdb::RdbStore> GetRdb();
     void DbOperateFailure(const std::string& tableName, int32_t res);

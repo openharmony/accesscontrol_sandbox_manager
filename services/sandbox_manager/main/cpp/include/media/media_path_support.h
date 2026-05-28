@@ -27,8 +27,6 @@ namespace SandboxManager {
 class SandboxManagerMedia {
 public:
     static SandboxManagerMedia &GetInstance();
-    SandboxManagerMedia() = default;
-    virtual ~SandboxManagerMedia() = default;
     int32_t InitMedia();
     bool IsMediaPolicy(const std::string &path);
     int32_t OperateModeToPhotoPermissionType(std::vector<uint32_t> &mode, std::vector<Media::PhotoPermissionType> &out);
@@ -79,6 +77,8 @@ public:
 
     int32_t CalculateOperateMode(std::vector<Media::PhotoPermissionType> &photoPermissionList);
 private:
+    SandboxManagerMedia() = default;
+    ~SandboxManagerMedia() = default;
     template <typename T>
     void MediaDfx(std::vector<std::string> &uri, std::vector<T> &mode);
     int32_t EnsureMediaInitialized(const std::string &funcName);

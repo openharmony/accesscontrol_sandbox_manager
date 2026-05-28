@@ -35,7 +35,6 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {LOG_CORE,
 inline static const std::string DATABASE_NAME = "sandbox_manager.db";
 inline static const std::string DATABASE_PATH = "/data/service/el1/public/sandbox_manager/";
 inline static const std::string SANDBOX_MANAGER_SERVICE_NAME = "sandbox_manager_service";
-static std::mutex g_instanceMutex;
 }
 
 const std::string SandboxManagerRdb::IGNORE = "ignore";
@@ -43,14 +42,8 @@ const std::string SandboxManagerRdb::REPLACE = "replace";
 
 SandboxManagerRdb& SandboxManagerRdb::GetInstance()
 {
-    static SandboxManagerRdb* instance = nullptr;
-    if (instance == nullptr) {
-        std::lock_guard<std::mutex> lock(g_instanceMutex);
-        if (instance == nullptr) {
-            instance = new SandboxManagerRdb();
-        }
-    }
-    return *instance;
+    static SandboxManagerRdb instance;
+    return instance;
 }
 
 SandboxManagerRdb::SandboxManagerRdb()

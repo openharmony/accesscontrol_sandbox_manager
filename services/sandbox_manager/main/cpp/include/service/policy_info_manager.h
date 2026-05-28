@@ -49,8 +49,6 @@ public:
 class PolicyInfoManager {
 public:
     static PolicyInfoManager &GetInstance();
-    PolicyInfoManager() = default;
-    virtual ~PolicyInfoManager() = default;
     void Init();
     /**
      * @brief Clear the policys of a given userid
@@ -231,7 +229,10 @@ public:
      * @return SANDBOX_MANAGER_OK on success, error code on failure
      */
     int32_t RevokeSharedDirectoryPermission(const uint32_t tokenId, int32_t userId);
+
 private:
+    PolicyInfoManager() = default;
+    ~PolicyInfoManager() = default;
     /**
      * @brief Clean policy list on MAC
      * @param GenericValues vector
@@ -365,11 +366,11 @@ private:
         std::vector<uint32_t> &result);
     int32_t StopAccessingNormalPolicy(
         const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results);
-    
+
     // Helper functions for MatchNormalPolicy optimization
     void InitTrieWithCaseSensitivity(PolicyTrie &trieTree);
     void SetAllResultsAsNotPersisted(std::vector<uint32_t> &result);
-    
+
     // Helper functions for policy operations (shared between MatchNormalPolicy and RemoveNormalPolicy)
     int32_t BuildTrieForPolicyOperations(const uint32_t tokenId, PolicyTrie &trieTree, bool preserveCase);
     int32_t BuildTrieWithAllRecords(PolicyTrie &trieTree);

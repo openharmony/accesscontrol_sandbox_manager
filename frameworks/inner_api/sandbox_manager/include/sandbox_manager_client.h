@@ -37,8 +37,6 @@ namespace SandboxManager {
 class SandboxManagerClient final {
 public:
     static SandboxManagerClient &GetInstance();
-    virtual ~SandboxManagerClient();
-
     int32_t CleanPersistPolicyByPath(const std::vector<std::string> &filePathList);
     int32_t PersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     int32_t UnPersistPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
@@ -74,8 +72,10 @@ public:
     int32_t GetSharedDirectoryInfo(std::vector<SharedDirectoryInfo> &result);
     int32_t GrantSharedDirectoryPermission();
     int32_t RevokeSharedDirectoryPermission();
+
 private:
-    SandboxManagerClient();
+    SandboxManagerClient() = default;
+    ~SandboxManagerClient() = default;
     DISALLOW_COPY_AND_MOVE(SandboxManagerClient);
 
     std::mutex proxyMutex_;

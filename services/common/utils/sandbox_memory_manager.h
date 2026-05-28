@@ -25,9 +25,6 @@ namespace AccessControl {
 namespace SandboxManager {
 class SandboxMemoryManager {
 public:
-    SandboxMemoryManager() {};
-    virtual ~SandboxMemoryManager() {};
-
     static SandboxMemoryManager& GetInstance();
     void AddFunctionRuningNum();
     void DecreaseFunctionRuningNum();
@@ -36,6 +33,8 @@ public:
     bool IsDelayedToUnload();
 
 private:
+    SandboxMemoryManager() = default;
+    ~SandboxMemoryManager() = default;
     bool isDelayedToUnload_ = false;
     int32_t callFuncRunningNum_ = 0;
     std::mutex callNumberMutex_;
