@@ -4734,6 +4734,59 @@ HWTEST_F(SandboxManagerKitTest, RevokeSharedDirectoryPermissionTest001, TestSize
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
 }
 #endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: SetPolicyWithSpecificUserIdTest001
+ * @tc.desc: Test setting policy with specific userId (200), check permission, clean by userId, and verify cleanup
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, SetPolicyWithSpecificUserIdTest001, TestSize.Level0)
+{
+    // Step 1: Prepare test data with specific userId = 200
+    uint32_t testTokenId = g_mockToken;
+    int32_t testUserId = 200; // Special userId for this test
+    std::vector<PolicyInfo> policies;
+    PolicyInfo info = {
+        .path = "/data/temp/user_specific_kit_dir",
+        .mode = OperateMode::READ_MODE
+    };
+    policies.emplace_back(info);
+
+    // Step 2: Set policy with specific userId using SetInfo.userId
+    SetInfo setInfo;
+    setInfo.userId = testUserId; // Set specific userId = 200
+
+    std::vector<uint32_t> setResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(testTokenId, policies, 1, setResult, setInfo));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, setResult[0]);
+
+    // Step 3: Check that the policy was set successfully using CheckPolicy
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(testTokenId, policies, checkResult));
+    ASSERT_EQ(1, checkResult.size());
+    EXPECT_TRUE(checkResult[0]); // Should have permission
+
+    setuid(g_uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+    // Step 4: Clean policy by specific userId (200)
+    std::vector<std::string> filePaths;
+    filePaths.push_back("/data/temp/user_specific_kit_dir");
+    int32_t ret = SandboxManagerKit::CleanPolicyByUserId(testUserId, filePaths);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    sleep(1);
+    // Step 5: Verify that the policy was successfully removed by checking CheckPolicy again
+    checkResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(testTokenId, policies, checkResult));
+    ASSERT_EQ(1, checkResult.size());
+    EXPECT_FALSE(checkResult[0]); // Should NOT have permission anymore
+}
+#endif
 } // SandboxManager
 } // AccessControl
 } // OHOS

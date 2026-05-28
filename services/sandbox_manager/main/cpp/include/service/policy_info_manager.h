@@ -99,10 +99,10 @@ public:
      * @return SANDBOX_MANAGER_MAC_IOCTL_ERR / SANDBOX_MANAGER_OK
      */
     int32_t SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
-                      std::vector<uint32_t> &result, int32_t userId, const SetInfo &info = SetInfo());
+                      std::vector<uint32_t> &result, const SetInfo &info);
     // Batch processing version - takes PolicyVecRawData directly for memory efficiency
     int32_t SetPolicy(uint32_t tokenId, const PolicyVecRawData &policyRawData, uint64_t policyFlag,
-                      std::vector<uint32_t> &result, int32_t userId, const SetInfo &info = SetInfo());
+                      std::vector<uint32_t> &result, const SetInfo &info);
     /**
      * @brief unset policies of a certain tokenId
      * @param tokenId token id of the object

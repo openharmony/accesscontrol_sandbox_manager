@@ -23,6 +23,7 @@ bool SetInfoParcel::Marshalling(Parcel &out) const
 {
     RETURN_IF_FALSE(out.WriteString(setInfo.bundleName));
     RETURN_IF_FALSE(out.WriteUint64(setInfo.timestamp));
+    RETURN_IF_FALSE(out.WriteInt32(setInfo.userId));
     return true;
 }
 
@@ -35,6 +36,7 @@ SetInfoParcel* SetInfoParcel::Unmarshalling(Parcel &in)
 
     setInfoParcel->setInfo.bundleName = in.ReadString();
     RELEASE_IF_FALSE(in.ReadUint64(setInfoParcel->setInfo.timestamp), setInfoParcel);
+    RELEASE_IF_FALSE(in.ReadInt32(setInfoParcel->setInfo.userId), setInfoParcel);
     return setInfoParcel;
 }
 } // namespace SandboxManager
