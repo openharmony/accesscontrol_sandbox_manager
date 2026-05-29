@@ -1144,7 +1144,7 @@ int32_t SandboxManagerService::GetSharedDirectoryInfo(SharedDirectoryInfoVecRawD
     DelayUnloadService();
     uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
     if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSharedDirectoryInfo failed, not system app");
+        LOGE_WITH_REPORT(LABEL, "GetSharedDirectoryInfo failed, not system app");
         return SANDBOX_MANAGER_NOT_SYS_APP;
     }
     AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
@@ -1171,10 +1171,9 @@ int32_t SandboxManagerService::GrantSharedDirectoryPermission()
     DelayUnloadService();
     uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
     if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "GrantSharedDirectoryPermission failed, not system app");
+        LOGE_WITH_REPORT(LABEL, "GrantSharedDirectoryPermission failed, not system app");
         return SANDBOX_MANAGER_NOT_SYS_APP;
     }
-
     AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
     if (!CheckPermission(callingTokenId, ACCESS_SHARED_FILE_NAME)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
@@ -1190,10 +1189,9 @@ int32_t SandboxManagerService::RevokeSharedDirectoryPermission()
     DelayUnloadService();
     uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
     if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "RevokeSharedDirectoryPermission failed, not system app");
+        LOGE_WITH_REPORT(LABEL, "RevokeSharedDirectoryPermission failed, not system app");
         return SANDBOX_MANAGER_NOT_SYS_APP;
     }
-
     AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
     if (!CheckPermission(callingTokenId, ACCESS_SHARED_FILE_NAME)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
