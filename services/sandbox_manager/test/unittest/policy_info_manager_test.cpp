@@ -3218,6 +3218,7 @@ HWTEST_F(PolicyInfoManagerTest, RevokeSharedDirectoryPermissionTest001, TestSize
  */
 HWTEST_F(PolicyInfoManagerTest, SetPolicyWithSpecificUserIdTest, TestSize.Level0)
 {
+    SetDeny("/data/test");
     // Step 1: Prepare test data with specific userId = 200
     uint32_t testTokenId = 10000; // Use a test token ID
     int32_t testUserId = 200;     // Special userId for this test
