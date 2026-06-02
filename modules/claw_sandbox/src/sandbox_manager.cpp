@@ -18,16 +18,20 @@
 #include "sandbox_error.h"
 #include "sandbox_log.h"
 
+#include <algorithm>
+#include <cctype>
+#include <ctime>
 #include <cstring>
 #include <map>
 #include <fstream>
 #include <sstream>
 #include <iostream>
 #include <random>
-#include <iomanip>
+#include <utility>
 #include <grp.h>
 #include <filesystem>
 #include <sys/mount.h>
+#include <sys/ioctl.h>
 #include <sys/syscall.h>
 #include <sys/prctl.h>
 #include <sys/capability.h>
@@ -48,6 +52,7 @@
 #include <fcntl.h>
 #include <cerrno>
 #include <cstdlib>
+#include <climits>
 
 #include "securec.h"
 #include "token_setproc.h"
@@ -57,6 +62,10 @@
 #include "ipc_skeleton.h"
 
 using namespace OHOS::Security::AccessToken;
+
+extern "C" {
+extern char **environ;
+}
 
 namespace OHOS {
 namespace AccessControl {
@@ -68,21 +77,6 @@ constexpr int CAP_NUM = 2;
 // Sandbox base directory
 constexpr const char *SANDBOX_BASE_DIR = "/mnt/sandbox/claw";
 
-// Read proc group
-constexpr const char *READ_PROC_GROUP = "readproc";
-
-// Maximum retry count for generating sandbox name
-constexpr int MAX_TRY_CNT = 3;
-
-// Sandbox directory mode
-constexpr mode_t DIR_MODE = 0711;
-
-// Base value for signal exit codes (128 + signal_number follows shell convention)
-constexpr int SIGNAL_EXIT_BASE = 128;
-
-// Hex string generation constants
-constexpr int HEX_MAX = 15;
-constexpr int HEX_CNT = 16;
 constexpr int UID_BASE = 200000;
 
 #ifdef MCS_ENABLE
@@ -110,8 +104,128 @@ constexpr int SHIFT_16 = 16;
 // value will be blocked by the seccomp filter, returning EACCES.
 constexpr unsigned int UID_MIN_LIMIT = 20000000;
 
-// Namespace path buffer size
-constexpr size_t NS_PATH_BUF_SIZE = 256;
+// DEC device policy ABI, aligned with startup_appspawn/modules/sandbox/sandbox_dec.h
+constexpr const char *DEC_DEVICE_PATH = "/dev/dec";
+constexpr int HM_DEC_IOCTL_BASE = 's';
+constexpr int HM_SET_POLICY_ID = 1;
+constexpr size_t DEC_MAX_POLICY_NUM = 64;
+constexpr uint32_t DEC_KERNEL_BATCH_SIZE = 8;
+constexpr uint32_t DEC_SANDBOX_MODE_READ = 0x00000001;
+constexpr uint32_t DEC_SANDBOX_MODE_WRITE = (DEC_SANDBOX_MODE_READ << 1);
+constexpr uint32_t DEC_POLICY_HEADER_RESERVED = 64;
+constexpr uint64_t SEC_TO_NSEC = 1000000000ULL;
+
+// Marker added to the final child process environment after sanitization.
+// It is only used to identify that the process was launched by claw_sandbox.
+constexpr const char *CLAW_SANDBOX_ENV_KEY = "CLAW_SANDBOX";
+constexpr const char *CLAW_SANDBOX_ENV_VALUE = "1";
+
+struct DecPathInfo {
+    char *path;
+    uint32_t pathLen;
+    uint32_t mode;
+    bool flag;
+};
+
+struct DecPolicyInfo {
+    uint64_t tokenId;
+    uint64_t timestamp;
+    DecPathInfo path[DEC_KERNEL_BATCH_SIZE];
+    uint32_t pathNum;
+    int32_t userId;
+    uint64_t reserved[DEC_POLICY_HEADER_RESERVED];
+    bool flag;
+};
+
+constexpr unsigned long SET_DEC_POLICY_CMD = _IOWR(HM_DEC_IOCTL_BASE, HM_SET_POLICY_ID, DecPolicyInfo);
+
+static std::string TrimEnvKey(const std::string &rawKey)
+{
+    size_t begin = 0;
+    while (begin < rawKey.size() && std::isspace(static_cast<unsigned char>(rawKey[begin])) != 0) {
+        begin++;
+    }
+    size_t end = rawKey.size();
+    while (end > begin && std::isspace(static_cast<unsigned char>(rawKey[end - 1])) != 0) {
+        end--;
+    }
+    return rawKey.substr(begin, end - begin);
+}
+
+static std::string ToUpperAscii(const std::string &value)
+{
+    std::string upper = value;
+    std::transform(upper.begin(), upper.end(), upper.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
+    return upper;
+}
+
+static bool IsPortableEnvVarKey(const std::string &key)
+{
+    if (key.empty() || !(std::isalpha(static_cast<unsigned char>(key[0])) != 0 || key[0] == '_')) {
+        return false;
+    }
+    for (char ch : key) {
+        if (!(std::isalnum(static_cast<unsigned char>(ch)) != 0 || ch == '_')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool IsWindowsCompatOverrideEnvVarKey(const std::string &key)
+{
+    if (key.empty() || !(std::isalpha(static_cast<unsigned char>(key[0])) != 0 || key[0] == '_')) {
+        return false;
+    }
+    for (char ch : key) {
+        if (!(std::isalnum(static_cast<unsigned char>(ch)) != 0 || ch == '_' || ch == '(' || ch == ')')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool ContainsEnvKey(const std::vector<std::string> &keys, const std::string &upperKey)
+{
+    for (const auto &key : keys) {
+        if (upperKey == key) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool HasEnvPrefix(const std::vector<std::string> &prefixes, const std::string &upperKey)
+{
+    for (const auto &prefix : prefixes) {
+        if (upperKey.compare(0, prefix.size(), prefix) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool NormalizeHostOverrideEnvVarKey(const std::string &rawKey, std::string &normalizedKey)
+{
+    normalizedKey = TrimEnvKey(rawKey);
+    if (normalizedKey.empty()) {
+        return false;
+    }
+    return IsPortableEnvVarKey(normalizedKey) || IsWindowsCompatOverrideEnvVarKey(normalizedKey);
+}
+
+static std::string AppendEnvPathValue(const std::string &baseValue, const std::string &appendValue)
+{
+    if (baseValue.empty()) {
+        return appendValue;
+    }
+    if (appendValue.empty()) {
+        return baseValue;
+    }
+    return baseValue + ":" + appendValue;
+}
 
 // BPF instruction count for architecture check (load arch, jump aarch64, kill other, load nr)
 constexpr size_t ARCH_CHECK_BPF_CNT = 4;
@@ -145,39 +259,6 @@ constexpr uint64_t SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32);
 
 // Low 32-bit mask for extracting AccessTokenID from AccessTokenIDEx
 constexpr uint64_t TOKEN_ID_LOWMASK = 0xFFFFFFFF;
-
-// Mount flag string to numeric value mapping table
-static const std::map<std::string, unsigned long> MOUNT_FLAGS_MAP = {
-    {"rec", MS_REC}, {"MS_REC", MS_REC},
-    {"bind", MS_BIND}, {"MS_BIND", MS_BIND},
-    {"move", MS_MOVE}, {"MS_MOVE", MS_MOVE},
-    {"slave", MS_SLAVE}, {"MS_SLAVE", MS_SLAVE},
-    {"rdonly", MS_RDONLY}, {"MS_RDONLY", MS_RDONLY},
-    {"ro", MS_RDONLY},
-    {"shared", MS_SHARED}, {"MS_SHARED", MS_SHARED},
-    {"unbindable", MS_UNBINDABLE}, {"MS_UNBINDABLE", MS_UNBINDABLE},
-    {"remount", MS_REMOUNT}, {"MS_REMOUNT", MS_REMOUNT},
-    {"nosuid", MS_NOSUID}, {"MS_NOSUID", MS_NOSUID},
-    {"nodev", MS_NODEV}, {"MS_NODEV", MS_NODEV},
-    {"noexec", MS_NOEXEC}, {"MS_NOEXEC", MS_NOEXEC},
-    {"noatime", MS_NOATIME}, {"MS_NOATIME", MS_NOATIME},
-    {"lazytime", MS_LAZYTIME}, {"MS_LAZYTIME", MS_LAZYTIME},
-    {"private", MS_PRIVATE}, {"MS_PRIVATE", MS_PRIVATE},
-};
-
-unsigned long SandboxManager::ConvertMountFlags(const std::vector<std::string> &mountFlags)
-{
-    unsigned long result = 0;
-    for (const auto &flag : mountFlags) {
-        auto it = MOUNT_FLAGS_MAP.find(flag);
-        if (it != MOUNT_FLAGS_MAP.end()) {
-            result |= it->second;
-        } else {
-            SANDBOX_LOGW("Unknown mount flag: %{public}s", flag.c_str());
-        }
-    }
-    return result;
-}
 
 SandboxManager::SandboxManager() {}
 
@@ -273,7 +354,7 @@ int SandboxManager::Execute()
         return ret;
     }
 
-    // Steps 12-18: Set token, selinux context, uid/gid, process group, seccomp, drop caps, exec
+    // Steps 12-20: Set token, ainfo, uid/gid, DEC policies, workdir, env, seccomp, drop caps, exec
     return ExecuteLateSteps();
 }
 
@@ -346,7 +427,17 @@ int SandboxManager::ExecuteMountSteps()
         return ret;
     }
 
+    ret = MountPermissionDirs();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
     ret = PivotRoot();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    ret = ApplyPolicyMounts();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
@@ -372,48 +463,66 @@ int SandboxManager::ExecuteMountSteps()
 }
 
 /**
- * @brief Execute steps 12-18: set access token, uid/gid, process group,
- *        seccomp filter, drop capabilities, and execute the command.
+ * @brief Execute steps 12-20: set access token, ainfo, uid/gid, DEC policies,
+ *        workdir, environment, seccomp filter, drop capabilities, and execute command.
  *        These steps do NOT require cleanup on failure.
  */
 int SandboxManager::ExecuteLateSteps()
 {
+    // Step 12: Set access token.
     int ret = SetAccessToken();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 13: Set SetAinfo
+    // Step 13: Set ainfo.
     ret = SetAinfo();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 14: Set UID/GID (with SECBIT_KEEP_CAPS to preserve capabilities across setuid)
+    // Step 14: Set UID/GID (with SECBIT_KEEP_CAPS to preserve capabilities across setuid).
     ret = SetUidGid();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 15: Set Seccomp (always applied to block setpgid/setsid for process group protection)
+    // Step 15: Apply DEC policies after UID/GID and supplementary groups are set.
+    ret = ApplyDecPolicies();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    // Step 16: Prepare optional workdir before installing seccomp, because seccomp may block chdir.
+    ret = PrepareWorkdir();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    // Step 17: Apply optional environment after UID/GID switch so exec inherits the final environment.
+    ret = ApplyEnvironment();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    // Step 18: Set Seccomp (always applied to block setpgid/setsid for process group protection).
     ret = SetSeccomp();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 16: Drop Capabilities (must be after seccomp to avoid interfering with
-    //          setpgid/setsid; capset() syscall is not blocked by seccomp in
-    //          block mode, and in whitelist mode it will be allowed if listed)
+    // Step 19: Drop capabilities after seccomp; capset() is not blocked in block mode
+    //          and is expected to be allowlisted in whitelist mode.
     ret = DropCapabilities();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 17: Execute the command
+    // Step 20: Execute the command.
     return ExecuteCommand();
 }
 
-int SandboxManager::ValidateConfig()
+int SandboxManager::ValidateBasicParams()
 {
     if (config_.callerPid <= 0) {
         std::cerr << "Error: Invalid callerPid: " << config_.callerPid << std::endl;
@@ -432,8 +541,11 @@ int SandboxManager::ValidateConfig()
             (unsigned long long)config_.callerTokenId);
         return SANDBOX_ERR_BAD_PARAMETERS;
     }
+    return SANDBOX_SUCCESS;
+}
 
-    // Validate callerTokenId: must be TOKEN_HAP and System Hap
+int SandboxManager::ValidateTokenType()
+{
     AccessTokenID accessTokenId = static_cast<AccessTokenID>(
         config_.callerTokenId & TOKEN_ID_LOWMASK);
     ATokenTypeEnum tokenType = AccessTokenKit::GetTokenTypeFlag(accessTokenId);
@@ -452,159 +564,28 @@ int SandboxManager::ValidateConfig()
     return SANDBOX_SUCCESS;
 }
 
+int SandboxManager::ValidateConfig()
+{
+    int ret = ValidateBasicParams();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+    ret = ValidateTokenType();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    return SANDBOX_SUCCESS;
+}
+
 int SandboxManager::LoadTemplate()
 {
+#ifdef CONFIG_PC_PLATFORM
+    const char *templatePath = "/etc/sandbox/claw_sandbox_template_shell.json";
+#else
     const char *templatePath = "/etc/sandbox/claw_sandbox_template.json";
+#endif
     return LoadJsonConfig(templatePath);
-}
-
-/**
- * @brief Open /proc/<pid> directory and verify its uid/gid match the expected
- *        values. This prevents TOCTOU races where the PID is reused by a
- *        different process after the original caller exits.
- *
- * @param pid Process ID to open
- * @param expectedUid Expected UID of the process directory
- * @param expectedGid Expected GID of the process directory
- * @param[out] procFd Output file descriptor for the opened proc directory
- * @return SANDBOX_SUCCESS on success, SANDBOX_ERR_NS_FAILED on failure
- */
-static int OpenCallerProcDir(pid_t pid, uid_t expectedUid, gid_t expectedGid,
-                             int &procFd)
-{
-    char procPath[NS_PATH_BUF_SIZE] = {0};
-    int ret = snprintf_s(procPath, sizeof(procPath), sizeof(procPath) - 1,
-                         "/proc/%d", pid);
-    if (ret < 0) {
-        std::cerr << "Error: snprintf_s failed for proc path" << std::endl;
-        SANDBOX_LOGE("snprintf_s failed for proc path");
-        return SANDBOX_ERR_NS_FAILED;
-    }
-
-    procFd = open(procPath, O_RDONLY | O_DIRECTORY);
-    if (procFd < 0) {
-        std::cerr << "Error: Failed to open " << procPath << ": " <<
-                  strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to open %{public}s: %{public}s",
-            procPath, strerror(errno));
-        return SANDBOX_ERR_NS_FAILED;
-    }
-
-    struct stat procStat;
-    if (fstat(procFd, &procStat) != 0) {
-        std::cerr << "Error: fstat failed for " << procPath << ": " <<
-                  strerror(errno) << std::endl;
-        SANDBOX_LOGE("fstat failed for %{public}s: %{public}s",
-            procPath, strerror(errno));
-        close(procFd);
-        procFd = -1;
-        return SANDBOX_ERR_NS_FAILED;
-    }
-
-    if (procStat.st_uid != expectedUid || procStat.st_gid != expectedGid) {
-        std::cerr << "Error: PID " << pid <<
-                  " uid/gid mismatch: expected " <<
-                  expectedUid << "/" << expectedGid <<
-                  ", got " << procStat.st_uid << "/" << procStat.st_gid <<
-                  " (PID may have been reused)" << std::endl;
-        SANDBOX_LOGE("PID %{public}d uid/gid mismatch: expected "
-            "%{public}u/%{public}u, got %{public}u/%{public}u",
-            pid, expectedUid, expectedGid,
-            procStat.st_uid, procStat.st_gid);
-        close(procFd);
-        procFd = -1;
-        return SANDBOX_ERR_NS_FAILED;
-    }
-
-    return SANDBOX_SUCCESS;
-}
-
-/**
- * @brief Set the supplementary group list to the "readproc" group GID.
- *        This is required to read /proc/<pid> entries for the caller process.
- * @return SANDBOX_SUCCESS on success, SANDBOX_ERR_NS_FAILED on failure
- */
-static int SetReadProcGroup(void)
-{
-    struct group *grp = getgrnam(READ_PROC_GROUP);
-    if (grp == nullptr) {
-        std::cerr << "Error: Cannot find readproc group" << std::endl;
-        SANDBOX_LOGE("Error: Cannot find readproc group");
-        return SANDBOX_ERR_NS_FAILED;
-    }
-
-    std::vector<gid_t> gids = {grp->gr_gid};
-    if (setgroups(gids.size(), gids.data()) == -1) {
-        std::cerr << "Error: setgroups failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("setgroups failed: %{public}s", strerror(errno));
-        return SANDBOX_ERR_NS_FAILED;
-    }
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::EnterCallerSandbox()
-{
-    int ret = SetReadProcGroup();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Step 1: Open /proc/<callerPid> directory and verify uid/gid.
-    // Holding this fd prevents PID reuse from causing us to enter the
-    // namespace of a different process (TOCTOU race condition).
-    int procFd = -1;
-    ret = OpenCallerProcDir(static_cast<pid_t>(config_.callerPid),
-                            static_cast<uid_t>(config_.uid),
-                            static_cast<gid_t>(config_.gid),
-                            procFd);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Step 2: Open the mount namespace file via openat() using the pinned
-    // proc directory fd. This avoids constructing a /proc/<pid>/ns/mnt
-    // path that could be subject to a race condition.
-    int nsFd = openat(procFd, "ns/mnt", O_RDONLY);
-    if (nsFd < 0) {
-        std::cerr << "Error: Failed to open ns/mnt for pid " <<
-                  config_.callerPid << ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to open ns/mnt for pid %{public}d: %{public}s",
-            config_.callerPid, strerror(errno));
-        close(procFd);
-        return SANDBOX_ERR_NS_FAILED;
-    }
-
-    // Step 3: Close the proc directory fd now that we hold the ns fd.
-    // The ns fd keeps the namespace alive independently.
-    close(procFd);
-
-    // Step 4: Enter the caller's mount namespace via setns().
-    if (setns(nsFd, 0) < 0) {
-        std::cerr << "Error: setns failed for pid " << config_.callerPid <<
-                  ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("setns failed for pid %{public}d: %{public}s",
-            config_.callerPid, strerror(errno));
-        close(nsFd);
-        return SANDBOX_ERR_NS_FAILED;
-    }
-    close(nsFd);
-
-    SANDBOX_LOGD("Entered caller sandbox (pid=%{public}d)", config_.callerPid);
-    return SANDBOX_SUCCESS;
-}
-
-static std::string GenerateSandboxName(void)
-{
-    // Use std::random_device for cryptographically secure random bytes.
-    // On most platforms (Linux/macOS), std::random_device is backed by
-    // /dev/urandom, providing non-deterministic random numbers.
-    std::random_device rd;
-    std::ostringstream oss;
-    for (int i = 0; i < HEX_CNT; ++i) {
-        unsigned int val = rd();
-        oss << std::hex << (val % (HEX_MAX + 1));
-    }
-    return oss.str();
 }
 
 static bool IsDirectoryExist(const std::string &path)
@@ -616,313 +597,191 @@ static bool IsDirectoryExist(const std::string &path)
     return S_ISDIR(st.st_mode);
 }
 
-static int CreateDirRecursive(const std::string &path, mode_t mode)
+bool SandboxManager::IsPermissionGranted(const std::string &permissionName) const
 {
-    if (path.empty()) {
-        std::cerr << "Error: CreateDirRecursive called with empty path" << std::endl;
-        SANDBOX_LOGE("CreateDirRecursive called with empty path");
-        return SANDBOX_ERR_PATH_INVALID;
+    AccessTokenID tokenId = static_cast<AccessTokenID>(config_.callerTokenId & TOKEN_ID_LOWMASK);
+    SANDBOX_LOGD("[DEBUG INFO] DEC debug permission check, permission=%{public}s, callerTokenId=%{public}u, "
+        "targetTokenIdEx=%{public}llu",
+        permissionName.c_str(), tokenId, static_cast<unsigned long long>(config_.tokenIdEx.tokenIDEx));
+    if (tokenId == 0) {
+        SANDBOX_LOGW("Skip DEC permission check for %{public}s: empty tokenId", permissionName.c_str());
+        return false;
     }
 
-    // Use std::string to build subpaths safely instead of raw char buffer + memcpy_s
-    std::string::size_type pos = 0;
-    while ((pos = path.find('/', pos + 1)) != std::string::npos) {
-        std::string subPath = path.substr(0, pos);
-        if (subPath.empty()) {
+    int32_t ret = AccessTokenKit::VerifyAccessToken(tokenId, permissionName);
+    if (ret == PermissionState::PERMISSION_GRANTED) {
+        SANDBOX_LOGD("[DEBUG INFO] DEC debug permission granted, permission=%{public}s", permissionName.c_str());
+        return true;
+    }
+    SANDBOX_LOGD("Permission %{public}s is not granted for token %{public}u", permissionName.c_str(), tokenId);
+    return false;
+}
+
+std::vector<int> SandboxManager::CollectGrantedPermissionGids() const
+{
+    std::vector<int> permissionGids;
+    for (const auto &permissionItem : templateConfig_.permissions) {
+        const std::string &permissionName = permissionItem.first;
+        const PermissionConfig &permissionConfig = permissionItem.second;
+        if (!permissionConfig.sandboxSwitch || !IsPermissionGranted(permissionName)) {
             continue;
         }
-        if (mkdir(subPath.c_str(), mode) == -1 && errno != EEXIST) {
-            std::cerr << "Error: mkdir " << subPath << " failed: " << strerror(errno) << std::endl;
-            SANDBOX_LOGE("mkdir %{public}s failed: %{public}s", subPath.c_str(), strerror(errno));
-            return SANDBOX_ERR_PATH_CREATE_FAILED;
+        for (int gid : permissionConfig.gids) {
+            if (gid < 0) {
+                SANDBOX_LOGW("Skip negative permission gid %{public}d for %{public}s",
+                    gid, permissionName.c_str());
+                continue;
+            }
+            if (std::find(permissionGids.begin(), permissionGids.end(), gid) != permissionGids.end()) {
+                continue;
+            }
+            permissionGids.emplace_back(gid);
         }
     }
-    if (mkdir(path.c_str(), mode) == -1 && errno != EEXIST) {
-        std::cerr << "Error: mkdir " << path << " failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("mkdir %{public}s failed: %{public}s", path.c_str(), strerror(errno));
-        return SANDBOX_ERR_PATH_CREATE_FAILED;
-    }
-    return SANDBOX_SUCCESS;
+    SANDBOX_LOGD("Collected granted permission gids, count=%{public}zu", permissionGids.size());
+    return permissionGids;
 }
 
-int SandboxManager::CreateSandboxWithName(const std::string &name)
+int SandboxManager::CollectPermissionDecPaths(const PermissionConfig &config,
+                                              std::vector<std::string> &decPaths) const
 {
-    std::string sandboxPath = std::string(SANDBOX_BASE_DIR) + "/" + name;
-    int ret = CreateDirRecursive(sandboxPath, DIR_MODE);
-    if (ret != SANDBOX_SUCCESS) {
-        std::cerr << "Error: Failed to create sandbox directory: " << sandboxPath <<
-                  " (" << strerror(errno) << ")" << std::endl;
-        SANDBOX_LOGE("Failed to create sandbox directory: %{public}s, errno: %{public}s",
-            sandboxPath.c_str(), strerror(errno));
-        return ret;
+    for (const auto &mountEntry : config.mounts) {
+        for (const auto &decPath : mountEntry.decPaths) {
+            std::string normalizedDecPath = NormalizeDecPath(decPath);
+            if (normalizedDecPath.empty() ||
+                std::find(decPaths.begin(), decPaths.end(), normalizedDecPath) != decPaths.end()) {
+                continue;
+            }
+            if (decPaths.size() >= DEC_MAX_POLICY_NUM) {
+                SANDBOX_LOGW("DEC policy path count exceeds %{public}zu", DEC_MAX_POLICY_NUM);
+                return -1;
+            }
+            decPaths.emplace_back(normalizedDecPath);
+        }
     }
-    config_.name = name;
-    newRootPath_ = sandboxPath;
-    return SANDBOX_SUCCESS;
+    return 0;
 }
 
-int SandboxManager::CreateSandboxAutoName()
+std::vector<std::string> SandboxManager::CollectDecPolicyPaths() const
 {
-    uint32_t tryCnt = 0;
-    while (tryCnt < MAX_TRY_CNT) {
-        std::string sandboxName = GenerateSandboxName();
-        std::string sandboxPath = std::string(SANDBOX_BASE_DIR) + "/" + sandboxName;
-        if (IsDirectoryExist(sandboxPath)) {
-            tryCnt++;
+    std::vector<std::string> decPaths;
+    SANDBOX_LOGD("[DEBUG INFO] DEC debug collect begin, permissionCount=%{public}zu",
+        templateConfig_.permissions.size());
+    for (const auto &permissionItem : templateConfig_.permissions) {
+        const PermissionConfig &permissionConfig = permissionItem.second;
+        if (!permissionConfig.sandboxSwitch || !IsPermissionGranted(permissionItem.first)) {
             continue;
         }
-        int ret = CreateDirRecursive(sandboxPath, DIR_MODE);
-        if (ret != SANDBOX_SUCCESS) {
-            std::cerr << "Error: Failed to create sandbox directory: " << sandboxPath <<
-                      " (" << strerror(errno) << ")" << std::endl;
-            SANDBOX_LOGE("Failed to create sandbox directory: %{public}s, errno: %{public}s",
-                sandboxPath.c_str(), strerror(errno));
-            return ret;
+        if (CollectPermissionDecPaths(permissionConfig, decPaths) != 0) {
+            break;
         }
-        config_.name = sandboxName;
-        newRootPath_ = sandboxPath;
-        return SANDBOX_SUCCESS;
     }
-    std::cerr << "Error: Exhausted all retries for sandbox path creation" << std::endl;
-    SANDBOX_LOGE("Exhausted all retries for sandbox path creation");
-    return SANDBOX_ERR_SANDBOX_PATH_EXHAUSTED;
+    SANDBOX_LOGD("[DEBUG INFO] DEC debug collect end, pathCount=%{public}zu", decPaths.size());
+    return decPaths;
 }
 
-int SandboxManager::CreateNewRoot()
+std::string SandboxManager::NormalizeDecPath(const std::string &decPath) const
 {
-    int ret;
-    if (!config_.name.empty()) {
-        ret = CreateSandboxWithName(config_.name);
+    std::string normalizedPath = decPath;
+    normalizedPath = ReplaceVariable(normalizedPath, "<currentUserId>", "currentUser");
+    normalizedPath = ReplaceVariable(normalizedPath, "<currentUser>", "currentUser");
+    std::string userPrefix = "/storage/Users/" + config_.currentUserId + "/";
+    constexpr const char *CURRENT_USER_PREFIX = "/storage/Users/currentUser/";
+    if (normalizedPath.compare(0, userPrefix.size(), userPrefix) == 0) {
+        normalizedPath.replace(0, userPrefix.size(), CURRENT_USER_PREFIX);
+    }
+    return normalizedPath;
+}
+
+int SandboxManager::SetDecPolicyBatch(int fd, const std::vector<std::string> &paths,
+                                      uint64_t tokenId, uint64_t timestamp, size_t start, size_t count)
+{
+    if (count == 0 || count > DEC_KERNEL_BATCH_SIZE || start + count > paths.size()) {
+        SANDBOX_LOGW("Invalid DEC policy batch, start=%{public}zu, count=%{public}zu, total=%{public}zu",
+            start, count, paths.size());
+        return SANDBOX_ERR_BAD_PARAMETERS;
+    }
+
+    DecPolicyInfo batchInfo = {};
+    batchInfo.tokenId = tokenId;
+    batchInfo.timestamp = timestamp;
+    batchInfo.pathNum = static_cast<uint32_t>(count);
+    batchInfo.userId = 0;
+    batchInfo.flag = false;
+
+    SANDBOX_LOGD("[DEBUG INFO] DEC debug batch prepare, start=%{public}zu, count=%{public}zu, "
+        "callerTokenId=%{public}llu",
+        start, count, static_cast<unsigned long long>(tokenId));
+    for (size_t i = 0; i < count; i++) {
+        const std::string &path = paths[start + i];
+        batchInfo.path[i].path = const_cast<char *>(path.c_str());
+        batchInfo.path[i].pathLen = static_cast<uint32_t>(path.size());
+        batchInfo.path[i].mode = DEC_SANDBOX_MODE_READ | DEC_SANDBOX_MODE_WRITE;
+        batchInfo.path[i].flag = false;
+        SANDBOX_LOGD("[DEBUG INFO] DEC policy path=%{public}s, mode=rw", path.c_str());
+    }
+
+    SANDBOX_LOGD("[DEBUG INFO] DEC debug ioctl begin, start=%{public}zu, count=%{public}zu", start, count);
+    int ret = ioctl(fd, SET_DEC_POLICY_CMD, &batchInfo);
+    if (ret < 0) {
+        SANDBOX_LOGW("SET_DEC_POLICY_CMD failed, start=%{public}zu, count=%{public}zu, errno=%{public}d",
+            start, count, errno);
     } else {
-        ret = CreateSandboxAutoName();
+        SANDBOX_LOGD("[DEBUG INFO] DEC debug ioctl success, start=%{public}zu, count=%{public}zu, ret=%{public}d",
+            start, count, ret);
     }
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    putOldPath_ = newRootPath_ + "/put_old";
-    if (mkdir(putOldPath_.c_str(), S_IRWXU | S_IRGRP | S_IXGRP) < 0) {
-        std::cerr << "Error: mkdir put_old failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("mkdir put_old failed: %{public}s", strerror(errno));
-        return SANDBOX_ERR_PATH_CREATE_FAILED;
-    }
-    SANDBOX_LOGD("Created new root at %{public}s", newRootPath_.c_str());
-    return SANDBOX_SUCCESS;
+    return ret;
 }
 
-int SandboxManager::UnshareNamespaces()
+int SandboxManager::ApplyDecPolicies()
 {
-    if (unshare(config_.nsFlags) < 0) {
-        std::cerr << "Error: unshare(0x" << std::hex << config_.nsFlags << std::dec <<
-                  ") failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("unshare(0x%{public}x) failed: %{public}s",
-            config_.nsFlags, strerror(errno));
-        return SANDBOX_ERR_NS_FAILED;
-    }
-
-    SANDBOX_LOGD("Unshared namespaces successfully");
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::MountNewRoot()
-{
-    // Bind mount the new root directory onto itself (pivot_root requires
-    // the new root to be a mount point)
-    if (mount(newRootPath_.c_str(), newRootPath_.c_str(),
-              nullptr, MS_BIND | MS_REC, nullptr) < 0) {
-        std::cerr << "Error: mount --bind new root failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("mount --bind new root failed: %{public}s", strerror(errno));
-        return SANDBOX_ERR_MOUNT_FAILED;
-    }
-    mountedDirs_.push_back(newRootPath_);
-    return SANDBOX_SUCCESS;
-}
-
-/**
- * @brief If CLONE_NEWPID is set, fork a child process after unsharing namespaces.
- *       This is required to enter the new PID namespace, as the original process
- *       will still be in the old PID namespace until it forks. The child process will
- *       continue executing the sandbox setup, while the parent process will wait for
- *       the child to exit and then exit itself. This also has the benefit of making
- *       the sandboxed process a child of the init process in the new PID namespace,
- *       which can help with reaping zombie processes.
- * @return SANDBOX_SUCCESS on success, SANDBOX_ERR_NS_FAILED on failure
- */
-int SandboxManager::ForkAfterUnshare()
-{
-    if ((config_.nsFlags & CLONE_NEWPID) == 0) {
+    std::vector<std::string> decPaths = CollectDecPolicyPaths();
+    SANDBOX_LOGD("[DEBUG INFO] DEC debug apply begin, collectedPathCount=%{public}zu", decPaths.size());
+    if (decPaths.empty()) {
+        SANDBOX_LOGD("No DEC paths to apply");
         return SANDBOX_SUCCESS;
     }
 
-    pid_t pid = fork();
-    if (pid < 0) {
-        std::cerr << "Error: fork failed after unshare: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("fork failed after unshare: %{public}s", strerror(errno));
-        return SANDBOX_ERR_GENERIC;
-    } else if (pid > 0) {
-        // Parent process: wait for child to exit and then exit
-        int status = 0;
-        waitpid(pid, &status, 0);
-        if (WIFEXITED(status)) {
-            SANDBOX_LOGD("Child process exited with status %{public}d", WEXITSTATUS(status));
-            // use _exit to avoid call deconstructors and lower down the risk of
-            // multiple Cleanup calls if the child process called exit() instead of _exit()
-            _exit(WEXITSTATUS(status));
-        } else if (WIFSIGNALED(status)) {
-            SANDBOX_LOGD("Child process killed by signal %{public}d", WTERMSIG(status));
-            _exit(SIGNAL_EXIT_BASE + WTERMSIG(status));
-        } else {
-            SANDBOX_LOGD("Child process exited with unknown status");
-            _exit(SANDBOX_ERR_GENERIC);
-        }
-    }
-    // Child process continues with sandbox setup in new PID namespace
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::MountProcFs()
-{
-    if ((config_.nsFlags & CLONE_NEWPID) != 0) {
-        if (mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, nullptr) < 0) {
-            std::cerr << "Error: mount procfs failed: " << strerror(errno) << std::endl;
-            SANDBOX_LOGE("mount procfs failed: %{public}s", strerror(errno));
-            return SANDBOX_ERR_MOUNT_FAILED;
-        }
-    }
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::MountSystemEntry(const MountEntry &entry, const std::string &targetPrefix)
-{
-    std::string target = targetPrefix + entry.target;
-
-    // Skip if source does not exist (no error)
-    struct stat st;
-    if (stat(entry.source.c_str(), &st) != 0) {
+    uint64_t tokenId = config_.callerTokenId;
+    if (tokenId == 0) {
+        SANDBOX_LOGW("Skip DEC policy: empty callerTokenId");
         return SANDBOX_SUCCESS;
     }
 
-    int ret = CreateDir(target);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Simple bind mount without remount readonly or propagation changes
-    unsigned long mountFlags = ConvertMountFlags(entry.mountFlags);
-    if (entry.source == "/proc" && (config_.nsFlags & CLONE_NEWPID) != 0) {
-        // Always mount procfs via mount -t proc, never bind-mount the host's /proc.
-        // Bind-mounting /proc would expose the host process list inside the sandbox,
-        // which is a security concern regardless of PID namespace isolation.
+    int fd = open(DEC_DEVICE_PATH, O_RDWR);
+    if (fd < 0) {
+        SANDBOX_LOGW("Open %{public}s failed, errno=%{public}d", DEC_DEVICE_PATH, errno);
         return SANDBOX_SUCCESS;
     }
-    if (mount(entry.source.c_str(), target.c_str(), nullptr, mountFlags, nullptr) < 0) {
-        std::cerr << "Error: Failed to mount " << entry.source << " -> " << target <<
-                  ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to mount %{public}s -> %{public}s: %{public}s",
-            entry.source.c_str(), target.c_str(), strerror(errno));
-        return SANDBOX_ERR_MOUNT_FAILED;
+    SANDBOX_LOGD("[DEBUG INFO] DEC debug device opened, path=%{public}s, fd=%{public}d", DEC_DEVICE_PATH, fd);
+
+    struct timespec ts = {};
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        SANDBOX_LOGW("clock_gettime failed for DEC policy, errno=%{public}d", errno);
+        close(fd);
+        return SANDBOX_SUCCESS;
     }
+    uint64_t timestamp = static_cast<uint64_t>(ts.tv_sec) * SEC_TO_NSEC + static_cast<uint64_t>(ts.tv_nsec);
 
-    mountedDirs_.push_back(target);
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::MountSingleEntry(const MountEntry &entry, const std::string &targetPrefix)
-{
-    constexpr unsigned long PROPAGATION_MASK = MS_SLAVE | MS_SHARED | MS_PRIVATE | MS_UNBINDABLE;
-    std::string target = targetPrefix + entry.target;
-
-    if (entry.checkExists) {
-        struct stat st;
-        if (stat(entry.source.c_str(), &st) != 0) {
-            return SANDBOX_SUCCESS;
+    size_t failedBatches = 0;
+    size_t totalBatches = 0;
+    for (size_t start = 0; start < decPaths.size(); start += DEC_KERNEL_BATCH_SIZE) {
+        size_t count = std::min(decPaths.size() - start, static_cast<size_t>(DEC_KERNEL_BATCH_SIZE));
+        totalBatches++;
+        SANDBOX_LOGD("[DEBUG INFO] DEC debug apply batch, batchIndex=%{public}zu, start=%{public}zu, count=%{public}zu",
+            totalBatches - 1, start, count);
+        if (SetDecPolicyBatch(fd, decPaths, tokenId, timestamp, start, count) != 0) {
+            failedBatches++;
         }
     }
 
-    int ret = CreateDir(target);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
+    close(fd);
+    if (failedBatches > 0) {
+        SANDBOX_LOGW("Applied DEC policies with failures, pathCount=%{public}zu, failedBatches=%{public}zu/%{public}zu",
+            decPaths.size(), failedBatches, totalBatches);
+    } else {
+        SANDBOX_LOGI("Applied DEC policies, pathCount=%{public}zu", decPaths.size());
     }
-
-    unsigned long allFlags = ConvertMountFlags(entry.mountFlags);
-    unsigned long mountFlags = allFlags & ~PROPAGATION_MASK;
-    unsigned long propFlags = allFlags & PROPAGATION_MASK;
-
-    if (mount(entry.source.c_str(), target.c_str(), nullptr, mountFlags, nullptr) < 0) {
-        std::cerr << "Error: Failed to mount " << entry.source << " -> " << target <<
-                  ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to mount %{public}s -> %{public}s: %{public}s",
-            entry.source.c_str(), target.c_str(), strerror(errno));
-        return SANDBOX_ERR_MOUNT_FAILED;
-    }
-
-    if (allFlags & MS_RDONLY) {
-        if (mount(entry.source.c_str(), target.c_str(), nullptr,
-                  MS_BIND | MS_REMOUNT | MS_RDONLY | MS_REC, nullptr) < 0) {
-            SANDBOX_LOGW("Failed to remount readonly %{public}s: %{public}s",
-                target.c_str(), strerror(errno));
-        }
-    }
-
-    if (propFlags != 0) {
-        if (mount(nullptr, target.c_str(), nullptr, propFlags, nullptr) < 0) {
-            SANDBOX_LOGW("Failed to set propagation on %{public}s: %{public}s",
-                target.c_str(), strerror(errno));
-        }
-    }
-
-    mountedDirs_.push_back(target);
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::MountSystemDirs()
-{
-    for (const auto &entry : templateConfig_.systemMounts) {
-        int ret = MountSystemEntry(entry, newRootPath_);
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
-    }
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::MountAppDirs()
-{
-    for (const auto &entry : templateConfig_.appMounts) {
-        int ret = MountSingleEntry(entry, newRootPath_);
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
-    }
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::PivotRoot()
-{
-    if (syscall(SYS_pivot_root, newRootPath_.c_str(), putOldPath_.c_str()) < 0) {
-        std::cerr << "Error: pivot_root failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("pivot_root failed: %{public}s", strerror(errno));
-        return SANDBOX_ERR_NS_FAILED;
-    }
-
-    if (chdir("/") < 0) {
-        std::cerr << "Error: chdir / after pivot_root failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("chdir / after pivot_root failed: %{public}s", strerror(errno));
-        return SANDBOX_ERR_CHDIR_FAILED;
-    }
-
-    // Unmount the old root
-    if (umount2("/put_old", MNT_DETACH) < 0) {
-        SANDBOX_LOGW("umount put_old failed: %{public}s", strerror(errno));
-    }
-
-    // Remove the put_old directory
-    if (rmdir("/put_old") < 0) {
-        SANDBOX_LOGW("rmdir put_old failed: %{public}s", strerror(errno));
-    }
-
-    pivotRootDone_ = true;
-    SANDBOX_LOGD("pivot_root completed");
     return SANDBOX_SUCCESS;
 }
 
@@ -1092,7 +951,7 @@ int SandboxManager::SetUidGid()
     // capability (e.g., running in a user namespace without CAP_SETPCAP),
     // the call will fail with EPERM. In that case, log a warning and
     // continue — setresuid() will clear effective capabilities, but
-    // DropCapabilities() (Step 15) will still zero out permitted and
+    // DropCapabilities() (Step 19) will still zero out permitted and
     // inheritable sets via capset().
 #ifdef __LINUX__
     if (prctl(PR_SET_SECUREBITS,
@@ -1104,7 +963,15 @@ int SandboxManager::SetUidGid()
     }
 #endif
 
-    std::vector<gid_t> gids = {config_.gid};
+    std::vector<gid_t> gids = {static_cast<gid_t>(config_.gid)};
+    for (int permissionGid : CollectGrantedPermissionGids()) {
+        gid_t gid = static_cast<gid_t>(permissionGid);
+        if (std::find(gids.begin(), gids.end(), gid) != gids.end()) {
+            continue;
+        }
+        gids.emplace_back(gid);
+    }
+    SANDBOX_LOGD("Set supplementary groups, count=%{public}zu", gids.size());
     if (setgroups(gids.size(), gids.data()) == -1) {
         std::cerr << "Error: setgroups failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("setgroups failed: %{public}s", strerror(errno));
@@ -1656,7 +1523,7 @@ int SandboxManager::DropCapabilities()
     // This requires CAP_SETPCAP. If unavailable (e.g., after setresuid without
     // SECBIT_KEEP_CAPS), log a warning and continue.
     //
-    // Note: SECBIT_KEEP_CAPS was already attempted in SetUidGid() (Step 11).
+    // Note: SECBIT_KEEP_CAPS was already attempted in SetUidGid() (Step 14).
     // If it succeeded, effective capabilities were preserved across setresuid.
     // If it failed, effective capabilities were cleared, but permitted and
     // inheritable sets remain and will be zeroed by capset() below.
@@ -1713,6 +1580,189 @@ int SandboxManager::SetProcessGroup()
     return SANDBOX_SUCCESS;
 }
 
+int SandboxManager::PrepareWorkdir()
+{
+    if (config_.workdir.empty()) {
+        SANDBOX_LOGD("No workdir configured, skip workdir switch");
+        return SANDBOX_SUCCESS;
+    }
+
+    SANDBOX_LOGD("Preparing workdir: %{public}s", config_.workdir.c_str());
+    if (!IsDirectoryExist(config_.workdir)) {
+        std::cerr << "Error: workdir does not exist or is not directory: " <<
+                  config_.workdir << std::endl;
+        SANDBOX_LOGE("workdir does not exist or is not directory: %{public}s", config_.workdir.c_str());
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+    if (access(config_.workdir.c_str(), R_OK | W_OK) < 0) {
+        std::cerr << "Error: workdir is not readable/writable: " << config_.workdir << std::endl;
+        SANDBOX_LOGE("workdir is not readable/writable: %{public}s", config_.workdir.c_str());
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+    if (chdir(config_.workdir.c_str()) < 0) {
+        std::cerr << "Error: chdir " << config_.workdir << " failed: " <<
+                  strerror(errno) << std::endl;
+        SANDBOX_LOGE("chdir %{public}s failed: %{public}s",
+            config_.workdir.c_str(), strerror(errno));
+        return SANDBOX_ERR_CHDIR_FAILED;
+    }
+
+    SANDBOX_LOGD("Switched workdir to %{public}s", config_.workdir.c_str());
+    return SANDBOX_SUCCESS;
+}
+
+bool SandboxManager::IsAllowedInheritedOverrideOnlyEnvKey(const std::string &upperKey) const
+{
+    return ContainsEnvKey(templateConfig_.envPolicy.allowedInheritedOverrideOnlyKeys, upperKey);
+}
+
+bool SandboxManager::IsDangerousHostEnvVarName(const std::string &key) const
+{
+    std::string upperKey = ToUpperAscii(TrimEnvKey(key));
+    if (upperKey.empty()) {
+        return false;
+    }
+    if (ContainsEnvKey(templateConfig_.envPolicy.blockedEverywhereKeys, upperKey)) {
+        return true;
+    }
+    return HasEnvPrefix(templateConfig_.envPolicy.blockedPrefixes, upperKey);
+}
+
+bool SandboxManager::IsDangerousHostInheritedEnvVarName(const std::string &key) const
+{
+    std::string upperKey = ToUpperAscii(TrimEnvKey(key));
+    if (upperKey.empty()) {
+        return false;
+    }
+    if (IsDangerousHostEnvVarName(upperKey)) {
+        return true;
+    }
+    if (IsAllowedInheritedOverrideOnlyEnvKey(upperKey)) {
+        return false;
+    }
+    return ContainsEnvKey(templateConfig_.envPolicy.blockedOverrideOnlyKeys, upperKey);
+}
+
+bool SandboxManager::IsDangerousHostEnvOverrideVarName(const std::string &key) const
+{
+    std::string upperKey = ToUpperAscii(TrimEnvKey(key));
+    if (upperKey.empty()) {
+        return false;
+    }
+    if (ContainsEnvKey(templateConfig_.envPolicy.blockedOverrideOnlyKeys, upperKey)) {
+        return true;
+    }
+    return HasEnvPrefix(templateConfig_.envPolicy.blockedOverridePrefixes, upperKey);
+}
+
+static int ApplySanitizedEnv(const std::map<std::string, std::string> &sanitizedEnv)
+{
+    if (clearenv() != 0) {
+        std::cerr << "Error: clearenv failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("clearenv failed: %{public}s", strerror(errno));
+        return SANDBOX_ERR_GENERIC;
+    }
+    for (const auto &item : sanitizedEnv) {
+        if (setenv(item.first.c_str(), item.second.c_str(), 1) != 0) {
+            std::cerr << "Error: setenv " << item.first << " failed: " <<
+                      strerror(errno) << std::endl;
+            SANDBOX_LOGE("setenv %{public}s failed: %{public}s",
+                item.first.c_str(), strerror(errno));
+            return SANDBOX_ERR_GENERIC;
+        }
+    }
+    SANDBOX_LOGD("Applied sanitized environment successfully, count=%{public}zu", sanitizedEnv.size());
+    return SANDBOX_SUCCESS;
+}
+
+void SandboxManager::SanitizeInheritedEnv(std::map<std::string, std::string> &sanitizedEnv,
+                                          size_t &inheritedAccepted, size_t &inheritedRejected)
+{
+    for (char **env = environ; env != nullptr && *env != nullptr; env++) {
+        std::string entry = *env;
+        size_t sep = entry.find('=');
+        if (sep == std::string::npos) {
+            continue;
+        }
+        std::string key = TrimEnvKey(entry.substr(0, sep));
+        if (key.empty()) {
+            continue;
+        }
+        if (IsDangerousHostInheritedEnvVarName(key)) {
+            inheritedRejected++;
+            SANDBOX_LOGD("[DEBUG INFO] Env debug inherited rejected, key=%{public}s", key.c_str());
+            continue;
+        }
+        sanitizedEnv[key] = entry.substr(sep + 1);
+        inheritedAccepted++;
+        SANDBOX_LOGD("[DEBUG INFO] Env debug inherited accepted, key=%{public}s, valueLen=%{public}zu",
+            key.c_str(), entry.size() - sep - 1);
+    }
+}
+
+void SandboxManager::SanitizeOverrideEnv(std::map<std::string, std::string> &sanitizedEnv,
+                                         size_t &overrideAccepted, size_t &overrideRejectedBlocked,
+                                         size_t &overrideRejectedInvalid)
+{
+    for (const auto &item : config_.env) {
+        std::string normalizedKey;
+        if (!NormalizeHostOverrideEnvVarKey(item.first, normalizedKey)) {
+            overrideRejectedInvalid++;
+            SANDBOX_LOGD("[DEBUG INFO] Env debug override rejected invalid, rawKey=%{public}s", item.first.c_str());
+            continue;
+        }
+        std::string upperKey = ToUpperAscii(normalizedKey);
+        if (upperKey == "PATH") {
+            auto currentPath = sanitizedEnv.find("PATH");
+            bool hasCurrentPath = currentPath != sanitizedEnv.end();
+            size_t currentPathLen = hasCurrentPath ? currentPath->second.size() : 0;
+            std::string mergedPath = AppendEnvPathValue(hasCurrentPath ? currentPath->second : "", item.second);
+            sanitizedEnv["PATH"] = mergedPath;
+            overrideAccepted++;
+            SANDBOX_LOGD("[DEBUG INFO] Env debug path append accepted, configuredLen=%{public}zu, "
+                "currentExists=%{public}d, currentLen=%{public}zu, finalLen=%{public}zu",
+                item.second.size(), hasCurrentPath ? 1 : 0, currentPathLen, mergedPath.size());
+            continue;
+        }
+        if (IsDangerousHostEnvVarName(upperKey) || IsDangerousHostEnvOverrideVarName(upperKey)) {
+            overrideRejectedBlocked++;
+            SANDBOX_LOGD("[DEBUG INFO] Env debug override rejected blocked, key=%{public}s", normalizedKey.c_str());
+            continue;
+        }
+        sanitizedEnv[normalizedKey] = item.second;
+        overrideAccepted++;
+        SANDBOX_LOGD("[DEBUG INFO] Env debug override accepted, key=%{public}s, valueLen=%{public}zu",
+            normalizedKey.c_str(), item.second.size());
+    }
+}
+
+int SandboxManager::ApplyEnvironment()
+{
+    SANDBOX_LOGD("[DEBUG INFO] Env debug apply begin, count=%{public}zu, uid=%{public}u, gid=%{public}u",
+        config_.env.size(), config_.uid, config_.gid);
+
+    std::map<std::string, std::string> sanitizedEnv;
+    size_t inheritedAccepted = 0;
+    size_t inheritedRejected = 0;
+    SanitizeInheritedEnv(sanitizedEnv, inheritedAccepted, inheritedRejected);
+
+    size_t overrideAccepted = 0;
+    size_t overrideRejectedBlocked = 0;
+    size_t overrideRejectedInvalid = 0;
+    SanitizeOverrideEnv(sanitizedEnv, overrideAccepted, overrideRejectedBlocked, overrideRejectedInvalid);
+
+    sanitizedEnv[CLAW_SANDBOX_ENV_KEY] = CLAW_SANDBOX_ENV_VALUE;
+
+    SANDBOX_LOGD("[DEBUG INFO] Env debug sanitize summary, inheritedAccepted=%{public}zu, "
+        "inheritedRejected=%{public}zu, overrideAccepted=%{public}zu, "
+        "overrideRejectedBlocked=%{public}zu, overrideRejectedInvalid=%{public}zu, "
+        "finalCount=%{public}zu",
+        inheritedAccepted, inheritedRejected, overrideAccepted, overrideRejectedBlocked,
+        overrideRejectedInvalid, sanitizedEnv.size());
+
+    return ApplySanitizedEnv(sanitizedEnv);
+}
+
 int SandboxManager::ExecuteCommand()
 {
     // Build the argv array
@@ -1735,160 +1785,6 @@ int SandboxManager::ExecuteCommand()
     return SANDBOX_ERR_CMD_INVALID;
 }
 
-// ==================== Helper methods ====================
-
-int SandboxManager::MountDir(const std::string &source, const std::string &target,
-                             const std::vector<std::string> &mountFlags)
-{
-    constexpr unsigned long PROPAGATION_MASK = MS_SLAVE | MS_SHARED | MS_PRIVATE | MS_UNBINDABLE;
-
-    int ret = CreateDir(target);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    unsigned long allFlags = ConvertMountFlags(mountFlags);
-    unsigned long bindFlags = allFlags & ~PROPAGATION_MASK;
-    unsigned long propFlags = allFlags & PROPAGATION_MASK;
-
-    if (mount(source.c_str(), target.c_str(), nullptr, bindFlags, nullptr) < 0) {
-        std::cerr << "Error: mount " << source << " -> " << target <<
-                  " failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("mount %{public}s -> %{public}s failed: %{public}s",
-            source.c_str(), target.c_str(), strerror(errno));
-        return SANDBOX_ERR_MOUNT_FAILED;
-    }
-
-    if (propFlags != 0) {
-        if (mount(nullptr, target.c_str(), nullptr, propFlags, nullptr) < 0) {
-            SANDBOX_LOGW("Failed to set propagation on %{public}s: %{public}s",
-                target.c_str(), strerror(errno));
-        }
-    }
-
-    mountedDirs_.push_back(target);
-    return SANDBOX_SUCCESS;
-}
-
-static int MkdirIfNotExist(const std::string &dirPath)
-{
-    struct stat st;
-    if (stat(dirPath.c_str(), &st) == 0) {
-        return SANDBOX_SUCCESS;
-    }
-    if (mkdir(dirPath.c_str(), DIR_MODE) < 0) {
-        if (errno == EEXIST) {
-            return SANDBOX_SUCCESS;
-        }
-        std::cerr << "Error: mkdir " << dirPath << " failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("mkdir %{public}s failed: %{public}s",
-            dirPath.c_str(), strerror(errno));
-        return SANDBOX_ERR_PATH_CREATE_FAILED;
-    }
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::CreateDir(const std::string &path)
-{
-    size_t pos = 0;
-    while ((pos = path.find_first_of('/', pos + 1)) != std::string::npos) {
-        std::string subPath = path.substr(0, pos);
-        if (subPath.empty()) {
-            continue;
-        }
-        int ret = MkdirIfNotExist(subPath);
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
-    }
-    return MkdirIfNotExist(path);
-}
-
-void SandboxManager::Cleanup()
-{
-    if (pivotRootDone_) {
-        SANDBOX_LOGD("Cleanup: pivot_root was performed, skip manual cleanup");
-        SANDBOX_LOGD("Cleanup: namespace will be cleaned up by kernel on process exit");
-        return;
-    }
-
-    // Unmount mounted directories in reverse order
-    for (auto it = mountedDirs_.rbegin(); it != mountedDirs_.rend(); ++it) {
-        if (umount2(it->c_str(), MNT_DETACH) < 0) {
-            SANDBOX_LOGW("umount %{public}s failed: %{public}s",
-                it->c_str(), strerror(errno));
-        }
-    }
-    mountedDirs_.clear();
-
-    // Clean up temporary directories
-    if (!newRootPath_.empty()) {
-        if (!putOldPath_.empty()) {
-            rmdir(putOldPath_.c_str());
-            putOldPath_.clear();
-        }
-        rmdir(newRootPath_.c_str());
-        newRootPath_.clear();
-    }
-}
-
-int SandboxManager::LoadDefaultConfig()
-{
-    // System mount entries (simple bind mount, no remount readonly or propagation)
-    templateConfig_.systemMounts = {
-        {"/proc", "/proc", {"bind", "rec"}, false},
-        {"/sys", "/sys", {"bind", "rec"}, false},
-        {"/dev", "/dev", {"bind", "rec"}, false},
-        {"/tmp", "/tmp", {"bind", "rec"}, false},
-        {"/usr", "/usr", {"bind", "rec"}, false},
-        {"/etc", "/etc", {"bind", "rec"}, false},
-        {"/lib", "/lib", {"bind", "rec"}, false},
-        {"/bin", "/bin", {"bind", "rec"}, false},
-        {"/sbin", "/sbin", {"bind", "rec"}, false},
-        {"/sys_prod", "/sys_prod", {"bind", "rec"}, false},
-        {"/system/fonts", "/system/fonts", {"bind", "rec"}, false},
-        {"/system/lib", "/system/lib", {"bind", "rec"}, false},
-        {"/system/usr", "/system/usr", {"bind", "rec"}, false},
-        {"/system/profile", "/system/profile", {"bind", "rec"}, false},
-        {"/system/bin", "/system/bin", {"bind", "rec"}, false},
-        {"/system/lib64", "/system/lib64", {"bind", "rec"}, false},
-        {"/system/etc", "/system/etc", {"bind", "rec"}, false},
-        {"/system/framework", "/system/framework", {"bind", "rec"}, false},
-        {"/system/resource", "/system/resource", {"bind", "rec"}, false},
-        {"/vendor/lib", "/vendor/lib", {"bind", "rec"}, false},
-        {"/vendor/lib64", "/vendor/lib64", {"bind", "rec"}, false},
-        {"/config", "/config", {"bind", "rec"}, false},
-    };
-    templateConfig_.appMounts = {};
-    return SANDBOX_SUCCESS;
-}
-
-void SandboxManager::ParseMountEntry(cJSON *entry, MountEntry &me)
-{
-    cJSON *src = cJSON_GetObjectItem(entry, "source");
-    if (cJSON_IsString(src)) {
-        me.source = src->valuestring;
-    }
-    cJSON *tgt = cJSON_GetObjectItem(entry, "target");
-    if (cJSON_IsString(tgt)) {
-        me.target = tgt->valuestring;
-    }
-    cJSON *mf = cJSON_GetObjectItem(entry, "mount-flags");
-    if (cJSON_IsArray(mf)) {
-        int mfSize = cJSON_GetArraySize(mf);
-        for (int j = 0; j < mfSize; j++) {
-            cJSON *item = cJSON_GetArrayItem(mf, j);
-            if (cJSON_IsString(item)) {
-                me.mountFlags.push_back(item->valuestring);
-            }
-        }
-    }
-    cJSON *ce = cJSON_GetObjectItem(entry, "check-exists");
-    if (cJSON_IsBool(ce)) {
-        me.checkExists = cJSON_IsTrue(ce);
-    }
-}
-
 std::string SandboxManager::ReplaceVariable(std::string str,
     const std::string &from, const std::string &to)
 {
@@ -1903,238 +1799,6 @@ std::string SandboxManager::ReplaceVariable(std::string str,
     }
     return str;
 }
-
-int SandboxManager::ParseSystemMountsJson(cJSON *root)
-{
-    cJSON *sysMounts = cJSON_GetObjectItem(root, "system-mounts");
-    if (!cJSON_IsArray(sysMounts)) {
-        return SANDBOX_SUCCESS;
-    }
-    int size = cJSON_GetArraySize(sysMounts);
-    for (int i = 0; i < size; i++) {
-        cJSON *entry = cJSON_GetArrayItem(sysMounts, i);
-        if (!cJSON_IsObject(entry)) {
-            continue;
-        }
-        MountEntry me;
-        ParseMountEntry(entry, me);
-        if (!me.source.empty() && !me.target.empty()) {
-            templateConfig_.systemMounts.push_back(me);
-        }
-    }
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::ParseAppMountsJson(cJSON *root)
-{
-    cJSON *appMounts = cJSON_GetObjectItem(root, "app-mounts");
-    if (!cJSON_IsArray(appMounts)) {
-        return SANDBOX_SUCCESS;
-    }
-    int size = cJSON_GetArraySize(appMounts);
-    for (int i = 0; i < size; i++) {
-        cJSON *entry = cJSON_GetArrayItem(appMounts, i);
-        if (!cJSON_IsObject(entry)) {
-            continue;
-        }
-        MountEntry me;
-        ParseMountEntry(entry, me);
-        if (!me.source.empty() && !me.target.empty()) {
-            templateConfig_.appMounts.push_back(me);
-        }
-    }
-    return SANDBOX_SUCCESS;
-}
-
-void SandboxManager::ParsePermissionMountEntry(cJSON *entry, PermissionMountEntry &pme)
-{
-    // Parse base mount fields
-    ParseMountEntry(entry, pme.mount);
-
-    // Parse optional dec-paths array
-    cJSON *decPaths = cJSON_GetObjectItem(entry, "dec-paths");
-    if (cJSON_IsArray(decPaths)) {
-        int dpSize = cJSON_GetArraySize(decPaths);
-        for (int j = 0; j < dpSize; j++) {
-            cJSON *item = cJSON_GetArrayItem(decPaths, j);
-            if (cJSON_IsString(item)) {
-                pme.decPaths.push_back(item->valuestring);
-            }
-        }
-    }
-
-    // Parse optional mount-shared-flag
-    cJSON *msf = cJSON_GetObjectItem(entry, "mount-shared-flag");
-    if (cJSON_IsString(msf)) {
-        pme.mountSharedFlag = msf->valuestring;
-    }
-}
-
-void SandboxManager::ParsePermissionSwitch(cJSON *obj, PermissionConfig &pc)
-{
-    cJSON *sw = cJSON_GetObjectItem(obj, "sandbox-switch");
-    if (cJSON_IsString(sw) && strcmp(sw->valuestring, "ON") == 0) {
-        pc.sandboxSwitch = true;
-    }
-}
-
-void SandboxManager::ParsePermissionGids(cJSON *obj, PermissionConfig &pc)
-{
-    cJSON *gids = cJSON_GetObjectItem(obj, "gids");
-    if (cJSON_IsArray(gids)) {
-        int gidSize = cJSON_GetArraySize(gids);
-        for (int j = 0; j < gidSize; j++) {
-            cJSON *gidItem = cJSON_GetArrayItem(gids, j);
-            if (cJSON_IsNumber(gidItem)) {
-                pc.gids.push_back(gidItem->valueint);
-            }
-        }
-    }
-}
-
-int SandboxManager::ParsePermissionMounts(cJSON *obj, PermissionConfig &pc)
-{
-    cJSON *mounts = cJSON_GetObjectItem(obj, "mounts");
-    if (!cJSON_IsArray(mounts)) {
-        return SANDBOX_SUCCESS;
-    }
-    int mSize = cJSON_GetArraySize(mounts);
-    for (int j = 0; j < mSize; j++) {
-        cJSON *mEntry = cJSON_GetArrayItem(mounts, j);
-        if (!cJSON_IsObject(mEntry)) {
-            continue;
-        }
-        PermissionMountEntry pme;
-        ParsePermissionMountEntry(mEntry, pme);
-        pc.mounts.push_back(pme);
-    }
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::ParsePermissionJson(cJSON *root)
-{
-    cJSON *perm = cJSON_GetObjectItem(root, "permission");
-    if (!cJSON_IsObject(perm)) {
-        return SANDBOX_SUCCESS;
-    }
-
-    // Iterate over each permission name (e.g. "ohos.permission.FILE_ACCESS_MANAGER")
-    cJSON *permItem = nullptr;
-    cJSON_ArrayForEach(permItem, perm) {
-        int ret = ParseSinglePermissionItem(permItem);
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
-    }
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::ParseSinglePermissionItem(cJSON *permItem)
-{
-    if (!cJSON_IsArray(permItem)) {
-        return SANDBOX_SUCCESS;
-    }
-    std::string permName = permItem->string;
-    if (permName.empty()) {
-        return SANDBOX_SUCCESS;
-    }
-
-    // Each permission name maps to an array of config objects
-    int arrSize = cJSON_GetArraySize(permItem);
-    for (int i = 0; i < arrSize; i++) {
-        cJSON *obj = cJSON_GetArrayItem(permItem, i);
-        if (!cJSON_IsObject(obj)) {
-            continue;
-        }
-        int ret = ParseSinglePermissionConfig(obj, permName);
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
-    }
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::ParseSinglePermissionConfig(cJSON *obj, const std::string &permName)
-{
-    PermissionConfig pc;
-    ParsePermissionSwitch(obj, pc);
-    ParsePermissionGids(obj, pc);
-    int ret = ParsePermissionMounts(obj, pc);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-    templateConfig_.permissions[permName] = pc;
-    return SANDBOX_SUCCESS;
-}
-
-void SandboxManager::ParseSeccompJson(cJSON *root)
-{
-    cJSON *seccomp = cJSON_GetObjectItem(root, "seccomp");
-    if (!cJSON_IsObject(seccomp)) {
-        return;
-    }
-    cJSON *allowList = cJSON_GetObjectItem(seccomp, "allow-list");
-    if (!cJSON_IsArray(allowList)) {
-        return;
-    }
-    int size = cJSON_GetArraySize(allowList);
-    for (int i = 0; i < size; i++) {
-        cJSON *item = cJSON_GetArrayItem(allowList, i);
-        if (cJSON_IsString(item)) {
-            templateConfig_.seccompAllowList.push_back(item->valuestring);
-        }
-    }
-}
-
-int SandboxManager::LoadJsonConfig(const std::string &jsonPath)
-{
-    std::ifstream file(jsonPath);
-    if (!file.is_open()) {
-        SANDBOX_LOGW("Template config not found at %{public}s, using defaults",
-            jsonPath.c_str());
-        return LoadDefaultConfig();
-    }
-
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    std::string content = buffer.str();
-
-    // Replace variables at file content level (before JSON parse)
-    content = ReplaceVariable(content, "<PackageName>", config_.bundleName);
-    content = ReplaceVariable(content, "<currentUserId>", config_.currentUserId);
-
-    cJSON *root = cJSON_Parse(content.c_str());
-    if (root == nullptr) {
-        std::cerr << "Error: Failed to parse template JSON: " << jsonPath << std::endl;
-        SANDBOX_LOGE("Failed to parse template JSON: %{public}s", jsonPath.c_str());
-        return SANDBOX_ERR_TEMPLATE_INVALID;
-    }
-
-    int ret = ParseSystemMountsJson(root);
-    if (ret != SANDBOX_SUCCESS) {
-        cJSON_Delete(root);
-        return ret;
-    }
-
-    ret = ParseAppMountsJson(root);
-    if (ret != SANDBOX_SUCCESS) {
-        cJSON_Delete(root);
-        return ret;
-    }
-
-    ret = ParsePermissionJson(root);
-    if (ret != SANDBOX_SUCCESS) {
-        cJSON_Delete(root);
-        return ret;
-    }
-
-    ParseSeccompJson(root);
-
-    cJSON_Delete(root);
-    SANDBOX_LOGD("Template config loaded from %{public}s", jsonPath.c_str());
-    return SANDBOX_SUCCESS;
-}
-
 } // namespace SANDBOX
 } // namespace AccessControl
 } // namespace OHOS

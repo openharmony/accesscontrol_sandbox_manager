@@ -203,13 +203,13 @@ void SandboxExec::PrintUsage()
     printf("Example:\n");
     printf("  claw_sandbox --config '{\"callerTokenId\":1234,"
            "\"uid\":20020026,\"gid\":20020026,\"callerPid\":1234,"
-           "\"appid\":\"com.example\",\"nsFlags\":[\"net\",\"mnt\"],"
+           "\"appIdentifier\":\"com.example\",\"nsFlags\":[\"net\",\"mnt\"],"
            "\"challenge\":\"challenge_value\",\"bundleName\":\"com.example.bundle\","
            "\"cliName\":\"ohos-timer\",\"subCliName\":\"\"}' "
            " --cmd ls -la /tmp\n");
     printf("  claw_sandbox -d --config '{\"callerTokenId\":1234,"
            "\"uid\":20020026,\"gid\":20020026,\"callerPid\":1234,"
-           "\"challenge\":\"c\",\"appid\":\"com.example\",\"bundleName\":\"com.example.app\","
+           "\"challenge\":\"c\",\"appIdentifier\":\"com.example\",\"bundleName\":\"com.example.app\","
            "\"cliName\":\"cli\",\"subCliName\":\"sub\",\"name\":\"abcdef0123456789\"}'\n");
 }
 

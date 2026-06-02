@@ -31,26 +31,26 @@ namespace {
 const uint32_t MAX_JSON_FIELD_LENGTH = 256;
 
 const std::vector<std::string> PREDEFINED_CONFIGS = {
-    R"({"callerTokenId":1,"callerPid":1,"uid":20020026,"gid":20020026,
-        "challenge":"c","appid":"a","bundleName":"b","cliName":"cli","subCliName":"sub"})",
-    R"({"callerTokenId":1,"callerPid":1,"uid":20020026,"gid":20020026,
-        "challenge":"c","appid":"a","bundleName":"b","cliName":"cli","subCliName":"sub",
-        "name":"abcdef0123456789"})",
-    R"({"callerTokenId":1,"callerPid":1,"uid":20020026,"gid":20020026,
-        "challenge":"c","appid":"a","bundleName":"b","cliName":"cli","subCliName":"sub",
-        "nsFlags":["mnt","net","pid","uts","ipc","user"]})",
-    R"({"callerTokenId":-1,"callerPid":1,"uid":20020026,"gid":20020026,
-        "challenge":"c","appid":"a","bundleName":"b","cliName":"cli","subCliName":"sub"})",
-    R"({"callerTokenId":1,"callerPid":4294967296,"uid":20020026,"gid":20020026,
-        "challenge":"c","appid":"a","bundleName":"b","cliName":"cli","subCliName":"sub"})",
-    R"({"callerTokenId":1,"callerPid":1,"uid":20020026,"gid":20020026,
-        "challenge":1,"appid":"a","bundleName":"b","cliName":"cli","subCliName":"sub"})",
-    R"({"callerTokenId":1,"callerPid":1,"uid":20020026,"gid":20020026,
-        "challenge":"c","appid":"a","bundleName":"b","cliName":"cli","subCliName":"sub",
-        "name":"not-hex"})",
-    R"({"callerTokenId":1,"callerPid":1,"uid":20020026,"gid":20020026,
-        "challenge":"c","appid":"a","bundleName":"b","cliName":"cli","subCliName":"sub",
-        "nsFlags":[123]})",
+    R"({"callerTokenId": 1, "callerPid": 1, "uid": 20020026, "gid": 20020026,
+        "challenge": "c", "appIdentifier": "a", "bundleName": "b", "cliName": "cli", "subCliName": "sub"})",
+    R"({"callerTokenId": 1, "callerPid": 1, "uid": 20020026, "gid": 20020026,
+        "challenge": "c", "appIdentifier": "a", "bundleName": "b", "cliName": "cli", "subCliName": "sub",
+        "name": "abcdef0123456789"})",
+    R"({"callerTokenId": 1, "callerPid": 1, "uid": 20020026, "gid": 20020026,
+        "challenge": "c", "appIdentifier": "a", "bundleName": "b", "cliName": "cli", "subCliName": "sub",
+        "nsFlags": ["mnt", "net", "pid", "uts", "ipc", "user"]})",
+    R"({"callerTokenId": -1, "callerPid": 1, "uid": 20020026, "gid": 20020026,
+        "challenge": "c", "appIdentifier": "a", "bundleName": "b", "cliName": "cli", "subCliName": "sub"})",
+    R"({"callerTokenId": 1, "callerPid": 4294967296, "uid": 20020026, "gid": 20020026,
+        "challenge": "c", "appIdentifier": "a", "bundleName": "b", "cliName": "cli", "subCliName": "sub"})",
+    R"({"callerTokenId": 1, "callerPid": 1, "uid": 20020026, "gid": 20020026,
+        "challenge": 1, "appIdentifier": "a", "bundleName": "b", "cliName": "cli", "subCliName": "sub"})",
+    R"({"callerTokenId": 1, "callerPid": 1, "uid": 20020026, "gid": 20020026,
+        "challenge": "c", "appIdentifier": "a", "bundleName": "b", "cliName": "cli", "subCliName": "sub",
+        "name": "not-hex"})",
+    R"({"callerTokenId": 1, "callerPid": 1, "uid": 20020026, "gid": 20020026,
+        "challenge": "c", "appIdentifier": "a", "bundleName": "b", "cliName": "cli", "subCliName": "sub",
+        "nsFlags": [123]})",
 };
 
 const std::vector<std::string> NS_FLAGS = {
@@ -106,7 +106,7 @@ std::string BuildConfigJson(PolicyInfoRandomGenerator &gen)
     json += "\"uid\":" + std::to_string(gen.GetData<uint32_t>()) + ",";
     json += "\"gid\":" + std::to_string(gen.GetData<uint32_t>()) + ",";
     json += "\"challenge\":\"" + GenerateJsonString(gen) + "\",";
-    json += "\"appid\":\"" + GenerateJsonString(gen) + "\",";
+    json += "\"appIdentifier\":\"" + GenerateJsonString(gen) + "\",";
     json += "\"bundleName\":\"" + GenerateJsonString(gen) + "\",";
     json += "\"cliName\":\"" + GenerateJsonString(gen) + "\",";
     json += "\"subCliName\":\"" + GenerateJsonString(gen) + "\"";

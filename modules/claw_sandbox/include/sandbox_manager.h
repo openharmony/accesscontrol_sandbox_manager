@@ -83,10 +83,19 @@ private:
         std::vector<PermissionMountEntry> mounts; // mounts array
     };
 
+    struct EnvPolicy {
+        std::vector<std::string> blockedEverywhereKeys;
+        std::vector<std::string> blockedOverrideOnlyKeys;
+        std::vector<std::string> allowedInheritedOverrideOnlyKeys;
+        std::vector<std::string> blockedPrefixes;
+        std::vector<std::string> blockedOverridePrefixes;
+    };
+
     struct TemplateConfig {
         std::vector<MountEntry> systemMounts;
         std::vector<MountEntry> appMounts;
         std::vector<std::string> seccompAllowList;
+        EnvPolicy envPolicy;
         std::map<std::string, PermissionConfig> permissions;  // permission name -> config
     };
 
@@ -97,6 +106,8 @@ private:
 
     // 15-step workflow (all return int error codes)
     int ValidateConfig();
+    int ValidateBasicParams();
+    int ValidateTokenType();
     int LoadTemplate();
     int GenerateTokenId();
     int EnterCallerSandbox();
@@ -105,7 +116,10 @@ private:
     int MountNewRoot();
     int MountSystemDirs();
     int MountAppDirs();
+    int MountPermissionDirs();
+    int ApplyPolicyMounts();
     int PivotRoot();
+    int ApplyDecPolicies();
     int ForkAfterUnshare();
     int MountProcFs();
     int SetAccessToken();
@@ -117,6 +131,8 @@ private:
     int SetProcessGroup();
     int SetSeccomp();
     int DropCapabilities();
+    int PrepareWorkdir();
+    int ApplyEnvironment();
     int ExecuteCommand();
 
     // Helper methods
@@ -132,13 +148,30 @@ private:
     // Mount a single entry (extracted from MountAppDirs for 50-line limit)
     int MountSingleEntry(const MountEntry &entry, const std::string &targetPrefix);
 
+    int MountPolicyPath(const SandboxConfig::PolicyMount &policyMount);
+public:
+    static bool IsPolicyWriteEscalation(bool policyReadOnly, bool existingReadOnly);
+    std::vector<int> CollectGrantedPermissionGids() const;
+    std::vector<MountEntry> CollectGrantedPermissionMounts() const;
+    std::vector<std::string> CollectDecPolicyPaths() const;
+    int CollectPermissionDecPaths(const PermissionConfig &config, std::vector<std::string> &decPaths) const;
+    std::string NormalizeDecPath(const std::string &decPath) const;
+    bool IsPermissionGranted(const std::string &permissionName) const;
+    int SetDecPolicyBatch(int fd, const std::vector<std::string> &paths,
+                          uint64_t tokenId, uint64_t timestamp, size_t start, size_t count);
+
     // LoadJsonConfig sub-helpers (each under 50 lines)
     int ParseSystemMountsJson(cJSON *root);
     int ParseAppMountsJson(cJSON *root);
+    void ParseEnvPolicyJson(cJSON *root);
     void ParseSeccompJson(cJSON *root);
     int ParsePermissionJson(cJSON *root);
+    int ParsePermissionSectionJson(cJSON *perm);
+    int ParsePermissionObjectJson(cJSON *perm);
+    int ParsePermissionArrayJson(cJSON *perm);
     int ParsePermissionMounts(cJSON *obj, PermissionConfig &pc);
     void ParsePermissionSwitch(cJSON *obj, PermissionConfig &pc);
+    void ParsePermissionSwitch(cJSON *obj, PermissionConfig &pc, bool defaultSwitch);
     void ParsePermissionGids(cJSON *obj, PermissionConfig &pc);
     int LoadDefaultConfig();
     static void ParseMountEntry(cJSON *entry, MountEntry &me);
@@ -148,7 +181,22 @@ private:
 
     // ParsePermissionJson sub-helpers (extracted to reduce nesting depth)
     int ParseSinglePermissionItem(cJSON *permItem);
+    int ParseSinglePermissionArrayItem(cJSON *permItem);
     int ParseSinglePermissionConfig(cJSON *obj, const std::string &permName);
+    int ParseSinglePermissionConfig(cJSON *obj, const std::string &permName, bool defaultSwitch);
+
+    // Environment policy helpers
+    bool IsAllowedInheritedOverrideOnlyEnvKey(const std::string &upperKey) const;
+    bool IsDangerousHostEnvVarName(const std::string &key) const;
+    bool IsDangerousHostInheritedEnvVarName(const std::string &key) const;
+    bool IsDangerousHostEnvOverrideVarName(const std::string &key) const;
+
+    // ApplyEnvironment sub-helpers
+    void SanitizeInheritedEnv(std::map<std::string, std::string> &sanitizedEnv,
+                              size_t &inheritedAccepted, size_t &inheritedRejected);
+    void SanitizeOverrideEnv(std::map<std::string, std::string> &sanitizedEnv,
+                             size_t &overrideAccepted, size_t &overrideRejectedBlocked,
+                             size_t &overrideRejectedInvalid);
 
     // Seccomp sub-helpers
     int BuildSeccompFilter(struct sock_fprog &prog);

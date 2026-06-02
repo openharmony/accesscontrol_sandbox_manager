@@ -124,7 +124,6 @@ int AidsClient::delBlacklist(const std::string& cmd, const std::string& subcmd, 
     }
     aidsArg.appid = appid;
 
-
     struct hkids_ioctl_arg arg = {
         .module_id = 0,
         .cmd_id = BLACKLIST_CMD_REMOVE,

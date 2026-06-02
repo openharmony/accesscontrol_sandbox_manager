@@ -22,4 +22,5 @@ declare_args() {
   claw_sandbox_need_set_seccomp = true
   sandbox_manager_enable_aids = false
   claw_sandbox_mcs_enable = true
+  sandbox_manager_pc_platform = false
 }

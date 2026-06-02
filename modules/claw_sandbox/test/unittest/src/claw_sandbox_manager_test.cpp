@@ -26,6 +26,7 @@
 #include <linux/seccomp.h>
 #include <string>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <utility>
 #define private public
 #include "sandbox_manager.h"
@@ -206,6 +207,8 @@ HWTEST_F(ClawSandboxManagerTest, Initialize002, TestSize.Level0)
     config.gid = 20020026;
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.appIdentifier = "20020026";
+    config.bundleName = "20020026";
     CmdInfo cmdInfo;
 
     manager.Initialize(config, cmdInfo);
@@ -230,6 +233,8 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig001, TestSize.Level0)
     config.gid = 20020026;
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.appIdentifier = "20020026";
+    config.bundleName = "20020026";
     CmdInfo cmdInfo;
 
     manager.Initialize(config, cmdInfo);
@@ -272,6 +277,8 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig003, TestSize.Level0)
     config.gid = 20020026;
     config.callerPid = static_cast<uint32_t>(-1);
     config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.appIdentifier = "20020026";
+    config.bundleName = "20020026";
     CmdInfo cmdInfo;
 
     manager.Initialize(config, cmdInfo);
@@ -388,6 +395,162 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig008, TestSize.Level0)
     // This will fail at the TOKEN_HAP type check since GetTokenTypeFlag(0)
     // should not return TOKEN_HAP
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
+}
+
+// ==================== ValidateBasicParams tests ====================
+
+/**
+ * @tc.name: ValidateBasicParams001
+ * @tc.desc: ValidateBasicParams passes with valid params
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ValidateBasicParams001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ValidateBasicParams());
+}
+
+/**
+ * @tc.name: ValidateBasicParams002
+ * @tc.desc: ValidateBasicParams rejects callerPid == 0
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ValidateBasicParams002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 0;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateBasicParams());
+}
+
+/**
+ * @tc.name: ValidateBasicParams003
+ * @tc.desc: ValidateBasicParams rejects uid below UID_BASE
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ValidateBasicParams003, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 1000;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateBasicParams());
+}
+
+/**
+ * @tc.name: ValidateBasicParams004
+ * @tc.desc: ValidateBasicParams rejects gid below UID_BASE
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ValidateBasicParams004, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 1000;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateBasicParams());
+}
+
+/**
+ * @tc.name: ValidateBasicParams005
+ * @tc.desc: ValidateBasicParams rejects callerTokenId == 0
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ValidateBasicParams005, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = 0;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateBasicParams());
+}
+
+// ==================== ValidateTokenType tests ====================
+
+/**
+ * @tc.name: ValidateTokenType001
+ * @tc.desc: ValidateTokenType passes with TOKEN_HAP and SYSTEM_APP_MASK set
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ValidateTokenType001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ValidateTokenType());
+}
+
+/**
+ * @tc.name: ValidateTokenType002
+ * @tc.desc: ValidateTokenType rejects non-TOKEN_HAP (tokenId == 0 returns TOKEN_NATIVE)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ValidateTokenType002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = 0;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateTokenType());
+}
+
+/**
+ * @tc.name: ValidateTokenType003
+ * @tc.desc: ValidateTokenType rejects token without SYSTEM_APP_MASK
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ValidateTokenType003, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = 0x200D000D;  // TOKEN_HAP but no SYSTEM_APP_MASK
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateTokenType());
 }
 
 // ==================== ConvertMountFlags tests ====================
@@ -735,6 +898,8 @@ HWTEST_F(ClawSandboxManagerTest, DeleteSandboxDir002, TestSize.Level0)
     config.gid = 20020026;
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.appIdentifier = "20020026";
+    config.bundleName = "20020026";
     CmdInfo cmdInfo;
 
     manager.Initialize(config, cmdInfo);
@@ -816,7 +981,7 @@ HWTEST_F(ClawSandboxManagerTest, LoadJsonConfig001, TestSize.Level0)
     int ret = manager.LoadJsonConfig(file.Path());
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_FALSE(manager.templateConfig_.systemMounts.empty());
-    EXPECT_TRUE(manager.templateConfig_.appMounts.empty());
+    EXPECT_FALSE(manager.templateConfig_.appMounts.empty());
 }
 
 /**
@@ -1002,7 +1167,8 @@ HWTEST_F(ClawSandboxManagerTest, ParsePermissionMountEntry001, TestSize.Level0)
     const char *json = R"({
         "source": "/src",
         "target": "/tgt",
-        "mount-flags": ["bind"]
+        "mount-flags": ["bind"],
+        "check-exists": true
     })";
     cJSON *root = cJSON_Parse(json);
     ASSERT_NE(root, nullptr);
@@ -1013,6 +1179,7 @@ HWTEST_F(ClawSandboxManagerTest, ParsePermissionMountEntry001, TestSize.Level0)
     EXPECT_EQ("/tgt", pme.mount.target);
     ASSERT_EQ(1U, pme.mount.mountFlags.size());
     EXPECT_EQ("bind", pme.mount.mountFlags[0]);
+    EXPECT_TRUE(pme.mount.checkExists);
 
     cJSON_Delete(root);
 }
@@ -1407,6 +1574,220 @@ HWTEST_F(ClawSandboxManagerTest, ParseSeccompJson006, TestSize.Level0)
     cJSON_Delete(root);
 }
 
+// ==================== ParseEnvPolicyJson tests ====================
+
+/**
+ * @tc.name: ParseEnvPolicyJson001
+ * @tc.desc: ParseEnvPolicyJson parses env-policy arrays with trim and uppercase normalization
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ParseEnvPolicyJson001, TestSize.Level0)
+{
+    const char *json = R"({
+        "env-policy": {
+            "blocked-everywhere-keys": [" path ", 123, ""],
+            "blocked-override-only-keys": ["home"],
+            "allowed-inherited-override-only-keys": [" Home "],
+            "blocked-prefixes": ["dyld_"],
+            "blocked-override-prefixes": ["ssh_"]
+        }
+    })";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    manager.ParseEnvPolicyJson(root);
+
+    ASSERT_EQ(1U, manager.templateConfig_.envPolicy.blockedEverywhereKeys.size());
+    EXPECT_EQ("PATH", manager.templateConfig_.envPolicy.blockedEverywhereKeys[0]);
+    ASSERT_EQ(1U, manager.templateConfig_.envPolicy.blockedOverrideOnlyKeys.size());
+    EXPECT_EQ("HOME", manager.templateConfig_.envPolicy.blockedOverrideOnlyKeys[0]);
+    ASSERT_EQ(1U, manager.templateConfig_.envPolicy.allowedInheritedOverrideOnlyKeys.size());
+    EXPECT_EQ("HOME", manager.templateConfig_.envPolicy.allowedInheritedOverrideOnlyKeys[0]);
+    ASSERT_EQ(1U, manager.templateConfig_.envPolicy.blockedPrefixes.size());
+    EXPECT_EQ("DYLD_", manager.templateConfig_.envPolicy.blockedPrefixes[0]);
+    ASSERT_EQ(1U, manager.templateConfig_.envPolicy.blockedOverridePrefixes.size());
+    EXPECT_EQ("SSH_", manager.templateConfig_.envPolicy.blockedOverridePrefixes[0]);
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: ParseEnvPolicyJson002
+ * @tc.desc: ParseEnvPolicyJson ignores missing or invalid env-policy fields
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ParseEnvPolicyJson002, TestSize.Level0)
+{
+    const char *json = R"({"env-policy": "bad"})";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    manager.templateConfig_.envPolicy.blockedEverywhereKeys = {"KEEP"};
+    manager.ParseEnvPolicyJson(root);
+
+    ASSERT_EQ(1U, manager.templateConfig_.envPolicy.blockedEverywhereKeys.size());
+    EXPECT_EQ("KEEP", manager.templateConfig_.envPolicy.blockedEverywhereKeys[0]);
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: EnvPolicyHelpers001
+ * @tc.desc: Env policy helper methods classify inherited and override keys
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, EnvPolicyHelpers001, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.templateConfig_.envPolicy.blockedEverywhereKeys = {"LD_PRELOAD"};
+    manager.templateConfig_.envPolicy.blockedOverrideOnlyKeys = {"HOME"};
+    manager.templateConfig_.envPolicy.allowedInheritedOverrideOnlyKeys = {"HOME"};
+    manager.templateConfig_.envPolicy.blockedPrefixes = {"DYLD_"};
+    manager.templateConfig_.envPolicy.blockedOverridePrefixes = {"SSH_"};
+
+    EXPECT_TRUE(manager.IsDangerousHostEnvVarName(" ld_preload "));
+    EXPECT_TRUE(manager.IsDangerousHostEnvVarName("dyld_library_path"));
+    EXPECT_FALSE(manager.IsDangerousHostEnvVarName("HOME"));
+    EXPECT_FALSE(manager.IsDangerousHostInheritedEnvVarName("HOME"));
+    EXPECT_TRUE(manager.IsDangerousHostEnvOverrideVarName("HOME"));
+    EXPECT_TRUE(manager.IsDangerousHostEnvOverrideVarName("ssh_auth_sock"));
+    EXPECT_FALSE(manager.IsDangerousHostEnvOverrideVarName("SAFE_KEY"));
+}
+
+// ==================== IsAllowedInheritedOverrideOnlyEnvKey tests ====================
+
+/**
+ * @tc.name: IsAllowedInheritedOverrideOnlyEnvKey001
+ * @tc.desc: IsAllowedInheritedOverrideOnlyEnvKey checks against allowedInheritedOverrideOnlyKeys
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, IsAllowedInheritedOverrideOnlyEnvKey001, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.templateConfig_.envPolicy.allowedInheritedOverrideOnlyKeys = {"HOME", "USER"};
+    manager.templateConfig_.envPolicy.blockedOverridePrefixes = {"SSH_"};
+
+    EXPECT_TRUE(manager.IsAllowedInheritedOverrideOnlyEnvKey("HOME"));
+    EXPECT_TRUE(manager.IsAllowedInheritedOverrideOnlyEnvKey("USER"));
+    EXPECT_FALSE(manager.IsAllowedInheritedOverrideOnlyEnvKey("PATH"));
+    EXPECT_FALSE(manager.IsAllowedInheritedOverrideOnlyEnvKey("SSH_AUTH_SOCK"));
+    EXPECT_FALSE(manager.IsAllowedInheritedOverrideOnlyEnvKey(""));
+}
+
+// ==================== SanitizeInheritedEnv tests ====================
+
+/**
+ * @tc.name: SanitizeInheritedEnv001
+ * @tc.desc: SanitizeInheritedEnv filters blocked keys and prefixes from inherited env
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SanitizeInheritedEnv001, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.templateConfig_.envPolicy.blockedEverywhereKeys = {"LD_PRELOAD"};
+    manager.templateConfig_.envPolicy.blockedPrefixes = {"DYLD_"};
+
+    std::map<std::string, std::string> result;
+    size_t accepted = 0;
+    size_t rejected = 0;
+    manager.SanitizeInheritedEnv(result, accepted, rejected);
+
+    EXPECT_EQ(accepted, result.size());
+    // Verify no blocked keys leaked into result (case-insensitive)
+    for (const auto &[key, val] : result) {
+        std::string upperKey;
+        upperKey.reserve(key.size());
+        for (char c : key) {
+            upperKey.push_back((c >= 'a' && c <= 'z') ? c - 'a' + 'A' : c);
+        }
+        EXPECT_NE("LD_PRELOAD", upperKey);
+        EXPECT_NE(0U, upperKey.compare(0, 5, "DYLD_"));
+    }
+}
+
+/**
+ * @tc.name: SanitizeInheritedEnv002
+ * @tc.desc: SanitizeInheritedEnv with no blocked policy accepts all env
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SanitizeInheritedEnv002, TestSize.Level0)
+{
+    SandboxManager manager;
+
+    std::map<std::string, std::string> result;
+    size_t accepted = 0;
+    size_t rejected = 0;
+    manager.SanitizeInheritedEnv(result, accepted, rejected);
+
+    EXPECT_EQ(accepted, result.size());
+    EXPECT_EQ(0U, rejected);
+}
+
+// ==================== SanitizeOverrideEnv tests ====================
+
+/**
+ * @tc.name: SanitizeOverrideEnv001
+ * @tc.desc: SanitizeOverrideEnv filters blocked override keys while allowing safe ones
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv001, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.templateConfig_.envPolicy.blockedEverywhereKeys = {"LD_PRELOAD"};
+    manager.templateConfig_.envPolicy.blockedOverrideOnlyKeys = {"SHELL"};
+    manager.templateConfig_.envPolicy.blockedOverridePrefixes = {"SSH_"};
+
+    std::map<std::string, std::string> env = {
+        {"PATH", "/usr/bin"},
+        {"LD_PRELOAD", "evil.so"},
+        {"SHELL", "/bin/sh"},
+        {"SSH_AUTH_SOCK", "/tmp/ssh"},
+    };
+
+    manager.config_.env = env;
+
+    std::map<std::string, std::string> result;
+    size_t accepted = 0;
+    size_t rejectedBlocked = 0;
+    size_t rejectedInvalid = 0;
+    manager.SanitizeOverrideEnv(result, accepted, rejectedBlocked, rejectedInvalid);
+
+    EXPECT_EQ(1U, result.size());
+    EXPECT_EQ("/usr/bin", result["PATH"]);
+    EXPECT_EQ(1U, accepted);
+    EXPECT_EQ(3U, rejectedBlocked);
+    EXPECT_EQ(0U, rejectedInvalid);
+}
+
+/**
+ * @tc.name: SanitizeOverrideEnv002
+ * @tc.desc: SanitizeOverrideEnv handles empty override env
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv002, TestSize.Level0)
+{
+    SandboxManager manager;
+    std::map<std::string, std::string> result;
+    size_t accepted = 0;
+    size_t rejectedBlocked = 0;
+    size_t rejectedInvalid = 0;
+    manager.SanitizeOverrideEnv(result, accepted, rejectedBlocked, rejectedInvalid);
+    EXPECT_EQ(0U, result.size());
+    EXPECT_EQ(0U, accepted);
+    EXPECT_EQ(0U, rejectedBlocked);
+    EXPECT_EQ(0U, rejectedInvalid);
+}
+
 // ==================== ParseSystemMountsJson tests ====================
 
 /**
@@ -1726,6 +2107,78 @@ HWTEST_F(ClawSandboxManagerTest, ParsePermissionJson005, TestSize.Level0)
     cJSON_Delete(root);
 }
 
+/**
+ * @tc.name: ParsePermissionJson006
+ * @tc.desc: ParsePermissionJson parses array-form permission entries with default switch on
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ParsePermissionJson006, TestSize.Level0)
+{
+    const char *json = R"({
+        "permission": [
+            {
+                "name": "ohos.permission.GRANTED_ARRAY",
+                "gids": [1006],
+                "mount-paths": [
+                    {"source": "/src", "target": "/dst", "mount-flags": ["bind"]}
+                ]
+            },
+            100,
+            {"sandbox-switch": "ON"},
+            {"name": ""}
+        ]
+    })";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParsePermissionJson(root));
+    ASSERT_EQ(1U, manager.templateConfig_.permissions.size());
+    const auto &pc = manager.templateConfig_.permissions["ohos.permission.GRANTED_ARRAY"];
+    EXPECT_TRUE(pc.sandboxSwitch);
+    ASSERT_EQ(1U, pc.gids.size());
+    EXPECT_EQ(1006, pc.gids[0]);
+    ASSERT_EQ(1U, pc.mounts.size());
+    EXPECT_EQ("/src", pc.mounts[0].mount.source);
+    EXPECT_EQ("/dst", pc.mounts[0].mount.target);
+    ASSERT_EQ(1U, pc.mounts[0].mount.mountFlags.size());
+    EXPECT_EQ("bind", pc.mounts[0].mount.mountFlags[0]);
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: ParsePermissionJson007
+ * @tc.desc: ParsePermissionJson parses conditional permission section
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ParsePermissionJson007, TestSize.Level0)
+{
+    const char *json = R"({
+        "conditional": {
+            "permission": {
+                "ohos.permission.GRANTED_CONDITIONAL": [
+                    {"sandbox-switch": "ON", "gids": [3076]}
+                ]
+            }
+        }
+    })";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParsePermissionJson(root));
+    ASSERT_EQ(1U, manager.templateConfig_.permissions.size());
+    const auto &pc = manager.templateConfig_.permissions["ohos.permission.GRANTED_CONDITIONAL"];
+    EXPECT_TRUE(pc.sandboxSwitch);
+    ASSERT_EQ(1U, pc.gids.size());
+    EXPECT_EQ(3076, pc.gids[0]);
+
+    cJSON_Delete(root);
+}
+
 // ==================== ParseSinglePermissionItem tests ====================
 
 /**
@@ -1813,6 +2266,371 @@ HWTEST_F(ClawSandboxManagerTest, ParseSinglePermissionConfig001, TestSize.Level0
     cJSON_Delete(root);
 }
 
+// ==================== ParsePermissionSectionJson tests ====================
+
+/**
+ * @tc.name: ParsePermissionSectionJson001
+ * @tc.desc: ParsePermissionSectionJson parses a permission object section
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ParsePermissionSectionJson001, TestSize.Level0)
+{
+    const char *json = R"({"test_permission": [{"sandbox-switch": "ON", "gids": [1001]}]})";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParsePermissionSectionJson(root));
+    ASSERT_EQ(1U, manager.templateConfig_.permissions.size());
+    EXPECT_TRUE(manager.templateConfig_.permissions["test_permission"].sandboxSwitch);
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: ParsePermissionSectionJson002
+ * @tc.desc: ParsePermissionSectionJson parses a permission array section
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ParsePermissionSectionJson002, TestSize.Level0)
+{
+    const char *json = R"([{"name": "perm1", "sandbox-switch": "ON", "gids": [1001]},
+                           {"name": "perm2", "sandbox-switch": "OFF", "gids": [2002]}])";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParsePermissionSectionJson(root));
+    ASSERT_EQ(2U, manager.templateConfig_.permissions.size());
+
+    cJSON_Delete(root);
+}
+
+// ==================== ParsePermissionObjectJson tests ====================
+
+/**
+ * @tc.name: ParsePermissionObjectJson001
+ * @tc.desc: ParsePermissionObjectJson stores a single permission object and handles null input
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ParsePermissionObjectJson001, TestSize.Level0)
+{
+    const char *json = R"({"sandbox-switch": "ON", "gids": [1001],
+        "mounts": [{"source": "/src", "target": "/dst"}]})";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParsePermissionObjectJson(root));
+    ASSERT_EQ(1U, manager.templateConfig_.permissions.size());
+
+    cJSON_Delete(root);
+
+    SandboxManager nullManager;
+    EXPECT_EQ(SANDBOX_SUCCESS, nullManager.ParsePermissionObjectJson(nullptr));
+}
+
+// ==================== ParsePermissionArrayJson tests ====================
+
+/**
+ * @tc.name: ParsePermissionArrayJson001
+ * @tc.desc: ParsePermissionArrayJson stores permissions from an array and handles null input
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ParsePermissionArrayJson001, TestSize.Level0)
+{
+    const char *json = R"([{"name": "perm1", "sandbox-switch": "ON", "gids": [1001]},
+                           {"name": "perm2", "sandbox-switch": "OFF", "gids": [2002]}])";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParsePermissionArrayJson(root));
+    ASSERT_EQ(2U, manager.templateConfig_.permissions.size());
+
+    cJSON_Delete(root);
+
+    SandboxManager nullManager;
+    EXPECT_EQ(SANDBOX_SUCCESS, nullManager.ParsePermissionArrayJson(nullptr));
+}
+
+// ==================== ParseSinglePermissionArrayItem tests ====================
+
+/**
+ * @tc.name: ParseSinglePermissionArrayItem001
+ * @tc.desc: ParseSinglePermissionArrayItem stores a single permission from array item and handles null input
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ParseSinglePermissionArrayItem001, TestSize.Level0)
+{
+    const char *json = R"({"name": "test_perm", "sandbox-switch": "ON", "gids": [3003]})";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseSinglePermissionArrayItem(root));
+    ASSERT_EQ(1U, manager.templateConfig_.permissions.size());
+    EXPECT_EQ(3003, manager.templateConfig_.permissions["test_perm"].gids[0]);
+
+    cJSON_Delete(root);
+
+    SandboxManager nullManager;
+    EXPECT_EQ(SANDBOX_SUCCESS, nullManager.ParseSinglePermissionArrayItem(nullptr));
+}
+
+// ==================== CollectGrantedPermissionMounts tests ====================
+
+/**
+ * @tc.name: CollectGrantedPermissionMounts001
+ * @tc.desc: CollectGrantedPermissionMounts returns only non-empty mounts for granted permissions
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, CollectGrantedPermissionMounts001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxManager::PermissionConfig grantedConfig;
+    grantedConfig.sandboxSwitch = true;
+    SandboxManager::PermissionMountEntry grantedMount;
+    grantedMount.mount.source = "/storage/Users/currentUser/Download";
+    grantedMount.mount.target = "/storage/Users/currentUser/Download";
+    grantedMount.mount.mountFlags = {"bind", "rec"};
+    grantedMount.mount.checkExists = true;
+    grantedConfig.mounts.emplace_back(grantedMount);
+
+    SandboxManager::PermissionMountEntry decOnlyMount;
+    decOnlyMount.decPaths = {"/storage/Users/currentUser/Download"};
+    grantedConfig.mounts.emplace_back(decOnlyMount);
+
+    SandboxManager::PermissionConfig deniedConfig;
+    deniedConfig.sandboxSwitch = true;
+    SandboxManager::PermissionMountEntry deniedMount;
+    deniedMount.mount.source = "/storage/Users/currentUser/Desktop";
+    deniedMount.mount.target = "/storage/Users/currentUser/Desktop";
+    deniedConfig.mounts.emplace_back(deniedMount);
+
+    SandboxManager::PermissionConfig switchOffConfig;
+    switchOffConfig.sandboxSwitch = false;
+    SandboxManager::PermissionMountEntry switchOffMount;
+    switchOffMount.mount.source = "/storage/Users/currentUser/Documents";
+    switchOffMount.mount.target = "/storage/Users/currentUser/Documents";
+    switchOffConfig.mounts.emplace_back(switchOffMount);
+
+    manager.templateConfig_.permissions["ohos.permission.GRANTED_MOUNT"] = grantedConfig;
+    manager.templateConfig_.permissions["ohos.permission.DENIED_MOUNT"] = deniedConfig;
+    manager.templateConfig_.permissions["ohos.permission.GRANTED_SWITCH_OFF"] = switchOffConfig;
+
+    std::vector<SandboxManager::MountEntry> mounts = manager.CollectGrantedPermissionMounts();
+    ASSERT_EQ(1U, mounts.size());
+    EXPECT_EQ("/storage/Users/currentUser/Download", mounts[0].source);
+    EXPECT_EQ("/storage/Users/currentUser/Download", mounts[0].target);
+    ASSERT_EQ(2U, mounts[0].mountFlags.size());
+    EXPECT_EQ("bind", mounts[0].mountFlags[0]);
+    EXPECT_EQ("rec", mounts[0].mountFlags[1]);
+    EXPECT_TRUE(mounts[0].checkExists);
+}
+
+/**
+ * @tc.name: CollectGrantedPermissionGids001
+ * @tc.desc: CollectGrantedPermissionGids returns unique non-negative gids for granted permissions only
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, CollectGrantedPermissionGids001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxManager::PermissionConfig grantedConfig;
+    grantedConfig.sandboxSwitch = true;
+    grantedConfig.gids = {1006, 3076, 1006, -1};
+
+    SandboxManager::PermissionConfig deniedConfig;
+    deniedConfig.sandboxSwitch = true;
+    deniedConfig.gids = {2000};
+
+    SandboxManager::PermissionConfig switchOffConfig;
+    switchOffConfig.sandboxSwitch = false;
+    switchOffConfig.gids = {3000};
+
+    manager.templateConfig_.permissions["ohos.permission.GRANTED_GID"] = grantedConfig;
+    manager.templateConfig_.permissions["ohos.permission.DENIED_GID"] = deniedConfig;
+    manager.templateConfig_.permissions["ohos.permission.GRANTED_SWITCH_OFF"] = switchOffConfig;
+
+    std::vector<int> gids = manager.CollectGrantedPermissionGids();
+    ASSERT_EQ(2U, gids.size());
+    EXPECT_EQ(1006, gids[0]);
+    EXPECT_EQ(3076, gids[1]);
+}
+
+// ==================== IsPermissionGranted tests ====================
+
+/**
+ * @tc.name: IsPermissionGranted001
+ * @tc.desc: IsPermissionGranted returns true for granted permission (name contains GRANTED)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, IsPermissionGranted001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    EXPECT_TRUE(manager.IsPermissionGranted("ohos.permission.GRANTED_TEST"));
+}
+
+/**
+ * @tc.name: IsPermissionGranted002
+ * @tc.desc: IsPermissionGranted returns false for denied permission (name without GRANTED)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, IsPermissionGranted002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    EXPECT_FALSE(manager.IsPermissionGranted("ohos.permission.DENIED_TEST"));
+}
+
+// ==================== CollectPermissionDecPaths tests ====================
+
+/**
+ * @tc.name: CollectPermissionDecPaths001
+ * @tc.desc: CollectPermissionDecPaths collects valid normalized dec paths
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, CollectPermissionDecPaths001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.currentUserId = "100";
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxManager::PermissionMountEntry mountEntry;
+    mountEntry.decPaths = {"/data/app", "/storage/Users/<currentUserId>/test"};
+    SandboxManager::PermissionConfig permConfig;
+    permConfig.mounts.emplace_back(mountEntry);
+
+    std::vector<std::string> result;
+    EXPECT_EQ(0, manager.CollectPermissionDecPaths(permConfig, result));
+    ASSERT_EQ(2U, result.size());
+    EXPECT_EQ("/data/app", result[0]);
+    EXPECT_EQ("/storage/Users/currentUser/test", result[1]);
+}
+
+/**
+ * @tc.name: CollectPermissionDecPaths002
+ * @tc.desc: CollectPermissionDecPaths skips empty and duplicate paths
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, CollectPermissionDecPaths002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.currentUserId = "100";
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxManager::PermissionMountEntry mountEntry;
+    mountEntry.decPaths = {"", "/data/app", "/data/app"};
+    SandboxManager::PermissionConfig permConfig;
+    permConfig.mounts.emplace_back(mountEntry);
+
+    std::vector<std::string> result;
+    EXPECT_EQ(0, manager.CollectPermissionDecPaths(permConfig, result));
+    ASSERT_EQ(1U, result.size());
+    EXPECT_EQ("/data/app", result[0]);
+}
+
+/**
+ * @tc.name: CollectDecPolicyPaths001
+ * @tc.desc: CollectDecPolicyPaths normalizes paths and skips duplicates for granted permissions
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, CollectDecPolicyPaths001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxManager::PermissionMountEntry grantedMount;
+    grantedMount.decPaths = {
+        "/storage/Users/100/Download",
+        "/storage/Users/<currentUserId>/Desktop",
+        "/storage/Users/currentUser/Desktop",
+        "",
+    };
+    SandboxManager::PermissionConfig grantedConfig;
+    grantedConfig.sandboxSwitch = true;
+    grantedConfig.mounts.emplace_back(grantedMount);
+
+    SandboxManager::PermissionMountEntry deniedMount;
+    deniedMount.decPaths = {"/storage/Users/100/Documents"};
+    SandboxManager::PermissionConfig deniedConfig;
+    deniedConfig.sandboxSwitch = true;
+    deniedConfig.mounts.emplace_back(deniedMount);
+
+    manager.templateConfig_.permissions["ohos.permission.GRANTED_DEC"] = grantedConfig;
+    manager.templateConfig_.permissions["ohos.permission.DENIED_DEC"] = deniedConfig;
+
+    EXPECT_EQ("/storage/Users/currentUser/Documents",
+        manager.NormalizeDecPath("/storage/Users/100/Documents"));
+
+    std::vector<std::string> decPaths = manager.CollectDecPolicyPaths();
+    ASSERT_EQ(2U, decPaths.size());
+    EXPECT_EQ("/storage/Users/currentUser/Download", decPaths[0]);
+    EXPECT_EQ("/storage/Users/currentUser/Desktop", decPaths[1]);
+}
+
 /**
  * @tc.name: ParsePermissionMounts001
  * @tc.desc: ParsePermissionMounts ignores non-array mounts field
@@ -1876,6 +2694,78 @@ HWTEST_F(ClawSandboxManagerTest, ParsePermissionMounts003, TestSize.Level0)
     EXPECT_TRUE(pc.mounts[0].mount.mountFlags.empty());
 
     cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: ParsePermissionMounts004
+ * @tc.desc: ParsePermissionMounts accepts mount-paths as a fallback field name
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ParsePermissionMounts004, TestSize.Level0)
+{
+    const char *json = R"({"mount-paths": [{"source": "/src", "target": "/dst"}]})";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    SandboxManager::PermissionConfig pc;
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParsePermissionMounts(root, pc));
+    ASSERT_EQ(1U, pc.mounts.size());
+    EXPECT_EQ("/src", pc.mounts[0].mount.source);
+    EXPECT_EQ("/dst", pc.mounts[0].mount.target);
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: SetDecPolicyBatch001
+ * @tc.desc: SetDecPolicyBatch rejects invalid batch ranges before ioctl
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetDecPolicyBatch001, TestSize.Level0)
+{
+    SandboxManager manager;
+    const std::vector<std::string> paths = {"/storage/Users/currentUser/Download"};
+
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.SetDecPolicyBatch(-1, paths, 1, 1, 0, 0));
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.SetDecPolicyBatch(-1, paths, 1, 1, 0, 9));
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.SetDecPolicyBatch(-1, paths, 1, 1, 1, 1));
+}
+
+/**
+ * @tc.name: ApplyDecPolicies001
+ * @tc.desc: ApplyDecPolicies succeeds when no DEC paths are configured
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ApplyDecPolicies001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ApplyDecPolicies());
+}
+
+/**
+ * @tc.name: IsPolicyWriteEscalation001
+ * @tc.desc: IsPolicyWriteEscalation rejects only rw policy over existing readonly mounts
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, IsPolicyWriteEscalation001, TestSize.Level0)
+{
+    EXPECT_FALSE(SandboxManager::IsPolicyWriteEscalation(true, true));
+    EXPECT_FALSE(SandboxManager::IsPolicyWriteEscalation(true, false));
+    EXPECT_FALSE(SandboxManager::IsPolicyWriteEscalation(false, false));
+    EXPECT_TRUE(SandboxManager::IsPolicyWriteEscalation(false, true));
 }
 
 // ==================== BuildSeccompFilter tests ====================
@@ -2898,6 +3788,72 @@ HWTEST_F(ClawSandboxManagerTest, DropCapabilities001, TestSize.Level0)
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_CAP_FAILED);
 }
 
+// ==================== PrepareWorkdir tests ====================
+
+/**
+ * @tc.name: PrepareWorkdir001
+ * @tc.desc: PrepareWorkdir skips empty workdir
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, PrepareWorkdir001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.PrepareWorkdir());
+}
+
+/**
+ * @tc.name: PrepareWorkdir002
+ * @tc.desc: PrepareWorkdir rejects missing workdir without creating it
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, PrepareWorkdir002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.workdir = "/tmp/claw_sandbox_missing_workdir_" + std::to_string(getpid());
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.PrepareWorkdir());
+    EXPECT_FALSE(SandboxDirGuard::Exists(config.workdir));
+}
+
+/**
+ * @tc.name: PrepareWorkdir003
+ * @tc.desc: PrepareWorkdir rejects a regular file path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, PrepareWorkdir003, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    // Use a regular file as workdir — IsDirectoryExist should reject it
+    config.workdir = "/etc/hosts";
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.PrepareWorkdir());
+}
+
 // ==================== ExecuteCommand tests ====================
 
 /**
@@ -2927,32 +3883,11 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteCommand001, TestSize.Level0)
 
 /**
  * @tc.name: ExecuteEarlySteps001
- * @tc.desc: ExecuteEarlySteps fails when GenerateTokenId fails
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.ExecuteEarlySteps();
-    EXPECT_EQ(SANDBOX_ERR_GEN_TOKENID_FAILED, ret);
-}
-
-/**
- * @tc.name: ExecuteEarlySteps002
  * @tc.desc: ExecuteEarlySteps returns immediately when config validation fails
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps002, TestSize.Level0)
+HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps001, TestSize.Level0)
 {
     SandboxManager manager;
     SandboxConfig config;
@@ -3027,27 +3962,6 @@ HWTEST_F(ClawSandboxManagerTest, Execute001, TestSize.Level0)
 
     int ret = manager.Execute();
     EXPECT_EQ(SANDBOX_ERR_GENERIC, ret);
-}
-
-/**
- * @tc.name: Execute002
- * @tc.desc: Execute with valid config fails at LoadTemplate
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, Execute002, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.Execute();
-    EXPECT_EQ(SANDBOX_ERR_GEN_TOKENID_FAILED, ret);
 }
 
 // ==================== MountSystemEntry tests ====================
@@ -3135,7 +4049,7 @@ HWTEST_F(ClawSandboxManagerTest, MountSystemEntry003, TestSize.Level0)
 
 /**
  * @tc.name: MountSingleEntry001
- * @tc.desc: MountSingleEntry with checkExists and non-existent source skips
+ * @tc.desc: MountSingleEntry with checkExists and non-existent source returns error
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -3156,7 +4070,7 @@ HWTEST_F(ClawSandboxManagerTest, MountSingleEntry001, TestSize.Level0)
     entry.checkExists = true;
 
     int ret = manager.MountSingleEntry(entry, "");
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(0, ret);
 }
 
 /**

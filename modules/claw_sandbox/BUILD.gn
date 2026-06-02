@@ -21,6 +21,8 @@ if(!defined(ohos_lite)) {
       "src/sandbox_cmd_parser.cpp",
       "src/sandbox_manager.cpp",
       "src/sandbox_exec.cpp",
+      "src/sandbox_mount.cpp",
+      "src/sandbox_config_parser.cpp",
     ]
 
     if (sandbox_manager_enable_aids) {
@@ -68,7 +70,12 @@ if(!defined(ohos_lite)) {
       "selinux:libselinux",
     ]
 
-    defines = [ "SANDBOX_STUB_MAINTHREAD" ]
+    defines = [
+      "SANDBOX_STUB_MAINTHREAD",
+    ]
+    if (sandbox_manager_pc_platform) {
+      defines += [ "CONFIG_PC_PLATFORM" ]
+    }
     if (claw_sandbox_mcs_enable) {
       defines += [ "MCS_ENABLE" ]
     }
@@ -85,6 +92,13 @@ if(!defined(ohos_lite)) {
   ohos_prebuilt_etc("claw_sandbox.rc") {
     relative_install_dir = "sandbox"
     source = "etc/claw_sandbox_template.json"
+    part_name = "sandbox_manager"
+    subsystem_name = "accesscontrol"
+  }
+
+  ohos_prebuilt_etc("claw_sandbox_template_shell") {
+    relative_install_dir = "sandbox"
+    source = "etc/claw_sandbox_template_shell.json"
     part_name = "sandbox_manager"
     subsystem_name = "accesscontrol"
   }
