@@ -2108,6 +2108,10 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest004, TestSize.Level0)
                 {
                     "path": "/base/files",
                     "permission": "r+w"
+                },
+                {
+                    "path": "/el2/cloud",
+                    "permission": "r"
                 }
             ]
         }
@@ -2116,10 +2120,14 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest004, TestSize.Level0)
     int32_t userId = 100;
     const std::string bundleName = "com.testshare";
     const std::string path = "/storage/Users/currentUser/appdata/el2/base/com.testshare/files";
+    const std::string path2 = "/storage/Users/currentUser/appdata/el2/cloud/com.testshare";
+    const std::string path3 = "/storage/Users/currentUser/appdata/el2/cloud/com.testshare/test";
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
-    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
-        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path));
+    EXPECT_EQ(OperateMode::READ_MODE,
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path2));
+    EXPECT_EQ(OperateMode::READ_MODE,
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path3));
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
     EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET,
         SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path));
@@ -2504,14 +2512,25 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest016, TestSize.Level0)
     const std::string path = "/storage/Users/currentUser/appdata/el2/base/com.testshare/haps";
     uint32_t mode = 0;
 
+    EXPECT_TRUE(SandboxManagerShare::GetInstance().AddToMap(bundleName, userId, path,
+        OperateMode::READ_MODE | OperateMode::WRITE_MODE));
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path));
+
     const std::string bundleName1 = "";
-    SandboxManagerShare::GetInstance().AddToMap(bundleName1, userId, path, mode);
-    SandboxManagerShare::GetInstance().AddToMap(bundleName, userId, path, 0);
-    SandboxManagerShare::GetInstance().AddToMap(bundleName, userId, path, mode);
-    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_FALSE(SandboxManagerShare::GetInstance().AddToMap(bundleName1, userId, path, mode));
+
+    const std::string emptyPath = "";
+    EXPECT_FALSE(SandboxManagerShare::GetInstance().AddToMap(bundleName, userId, emptyPath, mode));
     EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET,
         SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path));
-    SandboxManagerShare::GetInstance().Refresh(bundleName, userId);
+
+    EXPECT_TRUE(SandboxManagerShare::GetInstance().AddToMap(bundleName, userId, path,
+        OperateMode::READ_MODE | OperateMode::WRITE_MODE));
+    EXPECT_FALSE(SandboxManagerShare::GetInstance().AddToMap(bundleName, userId, path, 0));
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET,
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path));
+
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
 }
 
@@ -2533,33 +2552,33 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest017, TestSize.Level0)
 
 HWTEST_F(PolicyInfoManagerTest, ShareTest018, TestSize.Level0)
 {
-    std::string stringJson1 = R"({"share_files":{"scopes":[{"path":"/base/test","permission":"r+w"}]}})";
-    std::string stringJson2 = R"({"share_files":{"scopes":[{"path":"/test1/test2","permission":"r+w"}]}})";
-    std::string stringJson3 = R"({"share_files":{"scopes":[{"path":"base/haps","permission":"r+w"}]}})";
-    std::string stringJson4 = R"({"share_files":{"scopes":[{"path":"/base/haps/","permission":"r+w"}]}})";
-    std::string stringJson5 = R"({"share_files":{"scopes":[{"path":"//base/haps","permission":"r+w"}]}})";
-    std::string stringJson6 = R"({"share_files":{"scopes":[{"path":"/base/file","permission":"r+w"}]}})";
+    std::string stringJson1 = R"({"share_files":{"scopes":[{"path": "/base/test", "permission": "r+w"}]}})";
+    std::string stringJson2 = R"({"share_files":{"scopes":[{"path": "/test1/test2", "permission": "r+w"}]}})";
+    std::string stringJson3 = R"({"share_files":{"scopes":[{"path": "base/haps", "permission": "r+w"}]}})";
+    std::string stringJson4 = R"({"share_files":{"scopes":[{"path": "/base/haps/", "permission": "r+w"}]}})";
+    std::string stringJson5 = R"({"share_files":{"scopes":[{"path": "//base/haps", "permission": "r+w"}]}})";
+    std::string stringJson6 = R"({"share_files":{"scopes":[{"path": "/base/file", "permission": "r+w"}]}})";
     int32_t userId = 100;
     const std::string bundleName = "com.testshare";
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson3, bundleName, userId));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson4, bundleName, userId));
-    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson5, bundleName, userId));
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson3, bundleName, userId));
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson4, bundleName, userId));
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson5, bundleName, userId));
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson6, bundleName, userId));
 
     const std::string path1 = "/storage/Users/currentUser/appdata/el2/base/com.testshare/test";
     const std::string path2 = "/storage/Users/currentUser/appdata/el2/test1/com.testshare/test2";
     const std::string path3 = "/storage/Users/currentUser/appdata/el2/base/com.testshare/haps";
     const std::string path4 = "/storage/Users/currentUser/appdata/el2/base/com.testshare/file";
-    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET,
+    EXPECT_EQ(ShareStatus::SHARE_PATH_UNSET,
         SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path1));
-    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET,
+    EXPECT_EQ(ShareStatus::SHARE_PATH_UNSET,
         SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path2));
-    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET,
+    EXPECT_EQ(ShareStatus::SHARE_PATH_UNSET,
         SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path3));
-    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET,
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
         SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path4));
 }
 
@@ -2786,7 +2805,7 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest023, TestSize.Level0)
     int32_t userId = 100;
     const std::string bundleName = "com.testshare";
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
 
     std::string stringJson2 = R"({
         "share_files": {
@@ -2823,21 +2842,9 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest023, TestSize.Level0)
  */
 HWTEST_F(PolicyInfoManagerTest, ShareTest024, TestSize.Level0)
 {
-    std::string stringJson1 = R"({
-        "share_files": {
-            "scopes": [
-                {
-                    "path": "/base/haps",
-                    "permission": "w"
-                }
-            ]
-        }
-    })";
     int32_t userId = 100;
     const std::string bundleName = "com.testshare";
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
-
     std::string stringJson2 = R"({
         "share_files": {
             "scopes": [
@@ -2879,7 +2886,7 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest026, TestSize.Level0)
             "scopes": [
                 {
                     "path": "/base/haps",
-                    "permission": "w"
+                    "permission": "r+w"
                 }
             ]
         }
@@ -2897,6 +2904,400 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest026, TestSize.Level0)
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
 }
 
+HWTEST_F(PolicyInfoManagerTest, ShareTest027, TestSize.Level0)
+{
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.el";
+    // Test el1/el3/el5 format
+    std::string stringJson1 = R"({"share_files":{"scopes":[{"path": "/el1/base/files", "permission": "r+w"}]}})";
+    std::string stringJson2 = R"({"share_files":{"scopes":[{"path": "/el3/base/preferences", "permission": "r"}]}})";
+    std::string stringJson3 = R"({"share_files":{"scopes":[{"path": "/el5/base/haps", "permission": "r+w"}]}})";
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+    const std::string path1 = "/storage/Users/currentUser/appdata/el1/base/com.testshare.el/files";
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path1));
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+    const std::string path2 = "/storage/Users/currentUser/appdata/el3/base/com.testshare.el/preferences";
+    EXPECT_EQ(OperateMode::READ_MODE, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path2));
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson3, bundleName, userId));
+    const std::string path3 = "/storage/Users/currentUser/appdata/el5/base/com.testshare.el/haps";
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path3));
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+HWTEST_F(PolicyInfoManagerTest, ShareTest028, TestSize.Level0)
+{
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.dist";
+    std::string stringJson1 = R"({"share_files":{"scopes":[{"path": "/el4/cloud/data", "permission": "r"}]}})";
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+    const std::string path1 = "/storage/Users/currentUser/appdata/el4/cloud/com.testshare.dist/data";
+    EXPECT_EQ(OperateMode::READ_MODE, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path1));
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+HWTEST_F(PolicyInfoManagerTest, ShareTest029, TestSize.Level0)
+{
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.invalid";
+    // Test invalid EL levels (el0/el6/el9/el10)
+    std::string stringJson1 = R"({"share_files":{"scopes":[{"path": "/el0/base/files", "permission": "r+w"}]}})";
+    std::string stringJson2 = R"({"share_files":{"scopes":[{"path": "/el6/base/files", "permission": "r+w"}]}})";
+    std::string stringJson3 = R"({"share_files":{"scopes":[{"path": "/el9/base/files", "permission": "r+w"}]}})";
+    std::string stringJson4 = R"({"share_files":{"scopes":[{"path": "/el10/base/files", "permission": "r+w"}]}})";
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el0/base/com.testshare.invalid/files"));
+
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el6/base/com.testshare.invalid/files"));
+
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson3, bundleName, userId));
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el9/base/com.testshare.invalid/files"));
+
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson4, bundleName, userId));
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el10/base/com.testshare.invalid/files"));
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+HWTEST_F(PolicyInfoManagerTest, ShareTest030, TestSize.Level0)
+{
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.invalid2";
+    // Test invalid second parts
+    std::string stringJson1 = R"({"share_files":{"scopes":[{"path": "/el2/invalidtype/files", "permission": "r+w"}]}})";
+    std::string stringJson2 = R"({"share_files":{"scopes":[{"path": "/el2/files", "permission": "r+w"}]}})";
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/invalidtype/com.testshare.invalid2/files"));
+
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/files/com.testshare.invalid2/files"));
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+HWTEST_F(PolicyInfoManagerTest, ShareTest031, TestSize.Level0)
+{
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.security";
+    // Test path traversal attacks (..)
+    std::string stringJson1 = R"({"share_files":{"scopes":[{"path": "/base/../test", "permission": "r+w"}]}})";
+    std::string stringJson2 = R"({"share_files":{"scopes":[{"path": "/el2/base/../files", "permission": "r+w"}]}})";
+    std::string stringJson3 = R"({"share_files":{"scopes":[{"path": "/base/files/..", "permission": "r+w"}]}})";
+    std::string stringJson4 = R"({"share_files":{"scopes":[{"path": "/base/test/../files", "permission": "r+w"}]}})";
+    std::string stringJson5 = R"({"share_files":{"scopes":[{"path": "/base/test/..a/files", "permission": "r+w"}]}})";
+    std::string stringJson6 = R"({"share_files":{"scopes":[{"path": "/el2/base/a../files", "permission": "r+w"}]}})";
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/test/com.testshare.security/test"));
+
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/base/com.testshare.security/../files"));
+
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson3, bundleName, userId));
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/base/com.testshare.security/files/.."));
+
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson4, bundleName, userId));
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/base/com.testshare.security/test/../files"));
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson5, bundleName, userId));
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/base/com.testshare.security/test/..a/files/tmp"));
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson6, bundleName, userId));
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/base/com.testshare.security/a../files/b.."));
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+HWTEST_F(PolicyInfoManagerTest, ShareTest032, TestSize.Level0)
+{
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.parts";
+    std::string stringJson1 = R"({"share_files":{"scopes":[{"path": "/el2/base", "permission": "r+w"}]}})";
+    std::string stringJson2 = R"({"share_files":{"scopes":[{"path": "/el3/base/test", "permission": "r"}]}})";
+    std::string stringJson3 =
+        R"({"share_files":{"scopes":[{"path": "/el1/distributedfiles/test/subdir", "permission": "r+w"}]}})";
+    std::string stringJson4 =
+        R"({"share_files":{"scopes":[{"path": "/el1/base/3/4/5/6/7/8/9/a", "permission": "r+w"}]}})";
+    std::string stringJson5 =
+        R"({"share_files":{"scopes":[{"path": "/el1/base/3/4/5/6/7/8/9/a/b", "permission": "r+w"}]}})";
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+    const std::string path1 = "/storage/Users/currentUser/appdata/el2/base/com.testshare.parts";
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path1));
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+    const std::string path2 = "/storage/Users/currentUser/appdata/el3/base/com.testshare.parts/test";
+    EXPECT_EQ(OperateMode::READ_MODE, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path2));
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson3, bundleName, userId));
+    const std::string path3 = "/storage/Users/currentUser/appdata/el1/distributedfiles/com.testshare.parts/test/subdir";
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path3));
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson4, bundleName, userId));
+    const std::string path4 = "/storage/Users/currentUser/appdata/el1/base/com.testshare.parts/3/4/5/6/7/8/9/a";
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path3));
+
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson5, bundleName, userId));
+    const std::string path5 = "/storage/Users/currentUser/appdata/el1/base/com.testshare.parts/3/4/5/6/7/8/9/a/b";
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET,
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path3));
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+HWTEST_F(PolicyInfoManagerTest, ShareTest033, TestSize.Level0)
+{
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.legacy";
+    // Test legacy /base format compatibility
+    std::string stringJson1 = R"({"share_files":{"scopes":[{"path": "/base/files", "permission": "r+w"}]}})";
+    std::string stringJson2 = R"({"share_files":{"scopes":[{"path": "/base/preferences", "permission": "r"}]}})";
+    std::string stringJson3 = R"({"share_files":{"scopes":[{"path": "/base/haps", "permission": "r+w"}]}})";
+    std::string stringJson4 = R"({"share_files":{"scopes":[{"path": "/base/custom/dir", "permission": "r+w"}]}})";
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/base/com.testshare.legacy/files"));
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+    EXPECT_EQ(OperateMode::READ_MODE, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/base/com.testshare.legacy/preferences"));
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson3, bundleName, userId));
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/base/com.testshare.legacy/haps"));
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson4, bundleName, userId));
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/base/com.testshare.legacy/custom/dir"));
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+HWTEST_F(PolicyInfoManagerTest, ShareTest034, TestSize.Level0)
+{
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.atomic";
+    std::string stringJson1 =
+        R"({"share_files":{"scopes":[{"path": "/base/files", "permission": "r+w"},
+        {"path": "/el9/base/test", "permission": "r+w"}]}})";
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    int32_t ret = SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId);
+    EXPECT_EQ(INVALID_PARAMTER, ret);
+
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/base/com.testshare.atomic/files"));
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el9/base/com.testshare.atomic/test"));
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+HWTEST_F(PolicyInfoManagerTest, ShareTest035, TestSize.Level0)
+{
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.atomic2";
+    // Test atomic rollback: valid path + path traversal (..)
+    std::string stringJson1 =
+        R"({"share_files":{"scopes":[{"path": "/el2/base/files", "permission": "r+w"},
+        {"path": "/base/../test", "permission": "r+w"}]}})";
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    int32_t ret = SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId);
+    EXPECT_EQ(INVALID_PARAMTER, ret);
+
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/base/com.testshare.atomic2/files"));
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/test/com.testshare.atomic2/test"));
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+HWTEST_F(PolicyInfoManagerTest, ShareTest036, TestSize.Level0)
+{
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.atomic3";
+    // Test all valid paths: should succeed
+    std::string stringJson1 =
+        R"({"share_files":{"scopes":[{"path": "/el2/base/files", "permission": "r+w"},
+        {"path": "/el3/base/preferences", "permission": "r"},
+        {"path": "/el1/distributedfiles/test", "permission": "r+w"}]}})";
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    int32_t ret = SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el2/base/com.testshare.atomic3/files"));
+    EXPECT_EQ(OperateMode::READ_MODE, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el3/base/com.testshare.atomic3/preferences"));
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+        "/storage/Users/currentUser/appdata/el1/distributedfiles/com.testshare.atomic3/test"));
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+HWTEST_F(PolicyInfoManagerTest, ShareTest037, TestSize.Level0)
+{
+    // Configure: /el2/cloud/data
+    // Should authorize: /el2/cloud/data/xxx (subdirectory)
+    std::string stringJson = R"({"share_files":{"scopes":[{"path": "/el2/cloud/data", "permission": "r+w"}]}})";
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.prefix";
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson, bundleName, userId));
+
+    // Exact match should succeed
+    const std::string exactPath = "/storage/Users/currentUser/appdata/el2/cloud/com.testshare.prefix/data";
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, exactPath));
+
+    // Prefix match (subdirectory) should succeed
+    const std::string subPath = "/storage/Users/currentUser/appdata/el2/cloud/com.testshare.prefix/data/subdir/file";
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, subPath));
+
+    // Deeper subpath should succeed
+    const std::string deepPath = "/storage/Users/currentUser/appdata/el2/cloud/com.testshare.prefix/data/a/b/c/d";
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, deepPath));
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+HWTEST_F(PolicyInfoManagerTest, ShareTest038, TestSize.Level0)
+{
+    // Test deep path: /el2/cloud/data/a/b/c
+    std::string stringJson = R"({"share_files":{"scopes":[{"path": "/el2/cloud/data/a/b/c", "permission": "r"}]}})";
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.deep";
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson, bundleName, userId));
+
+    // Complete deep path should be correctly composed and matched
+    const std::string deepPath = "/storage/Users/currentUser/appdata/el2/cloud/com.testshare.deep/data/a/b/c";
+    EXPECT_EQ(OperateMode::READ_MODE,
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, deepPath));
+
+    // Subdirectory should also be authorized
+    const std::string subPath = "/storage/Users/currentUser/appdata/el2/cloud/com.testshare.deep/data/a/b/c/d";
+    EXPECT_EQ(OperateMode::READ_MODE,
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, subPath));
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+HWTEST_F(PolicyInfoManagerTest, ShareTest039, TestSize.Level0)
+{
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.limit";
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+
+    // Build 21 valid path configurations (exceeds limit)
+    std::string stringJson = R"({"share_files":{"scopes":[)";
+    for (int i = 0; i < 21; i++) {
+        if (i > 0) stringJson += ",";
+        stringJson += R"({"path": "/base/test)" + std::to_string(i) + R"(", "permission": "r+w"})";
+    }
+    stringJson += "]}}";
+
+    // Should fail (exceeds 20 limit)
+    EXPECT_EQ(INVALID_PARAMTER,
+        SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson, bundleName, userId));
+
+    // Verify rollback: all configurations should be cleared
+    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET,
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+            "/storage/Users/currentUser/appdata/el2/base/com.testshare.limit/test0"));
+
+    // Test exactly 20 configurations (should succeed)
+    stringJson = R"({"share_files":{"scopes":[)";
+    for (int i = 0; i < 20; i++) {
+        if (i > 0) stringJson += ",";
+        stringJson += R"({"path": "/base/path)" + std::to_string(i) + R"(", "permission": "r+w"})";
+    }
+    stringJson += "]}}";
+
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson, bundleName, userId));
+
+    // Verify configuration succeeded
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+            "/storage/Users/currentUser/appdata/el2/base/com.testshare.limit/path0"));
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+HWTEST_F(PolicyInfoManagerTest, ShareTest040, TestSize.Level0)
+{
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare.boundary";
+
+    // Configure: /el2/cloud/data_backup
+    std::string stringJson = R"({"share_files":{"scopes":[{"path": "/el2/cloud/data_backup", "permission": "r+w"}]}})";
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson, bundleName, userId));
+
+    // Subpath of data_backup should succeed
+    const std::string validPath = "/storage/Users/currentUser/appdata/el2/cloud/com.testshare.boundary/data_backup/1";
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, validPath));
+
+    // data_backup2 (different path) should fail
+    const std::string invalidPath = "/storage/Users/currentUser/appdata/el2/cloud/com.testshare.boundary/data_backup2";
+    EXPECT_EQ(ShareStatus::SHARE_PATH_UNSET,
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, invalidPath));
+
+    // data (prefix but not complete path) should fail
+    const std::string prefixOnlyPath = "/storage/Users/currentUser/appdata/el2/cloud/com.testshare.boundary/data";
+    EXPECT_EQ(ShareStatus::SHARE_PATH_UNSET,
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, prefixOnlyPath));
+
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
 #endif
 
 /**

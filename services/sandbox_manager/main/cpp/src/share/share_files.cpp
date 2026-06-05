@@ -18,6 +18,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <iterator>
 #include <sstream>
 #include <stdexcept>
@@ -89,25 +90,109 @@ static uint32_t PermissionToMode(const std::string &permission)
     }
 }
 
-const std::string FULL_PATH_START = "/storage/Users/currentUser/appdata/el2/";
-const std::vector<std::string> ALLOWED_PATHS = {"/base/files", "/base/preferences", "/base/haps"};
+namespace {
+    // Constants for path composition
+    const std::string FULL_PATH_START = "/storage/Users/currentUser/appdata/";
+    const std::string DEFAULT_EL = "el2";
+
+    // EL format constants
+    const size_t MIN_PARTS_FORMAT = 2;   // Minimum parts for /elx/xxx or /base/xxx
+    const size_t MAX_PARTS_FORMAT = 10;  // max parts for /elx/1/2/3/4/5..
+
+    // Valid EL numbers (el1-el5)
+    const std::vector<std::string> VALID_EL_NUMBERS = {
+        "el1",
+        "el2",
+        "el3",
+        "el4",
+        "el5"
+    };
+
+    // Valid second parts for elx format such as:  /elx/base
+    const std::vector<std::string> VALID_EL_SECOND_PARTS = {
+        "base",
+        "distributedfiles",
+        "cloud"
+    };
+}
+
+static bool IsValidElNumber(const std::string &elStr)
+{
+    return std::find(VALID_EL_NUMBERS.begin(), VALID_EL_NUMBERS.end(), elStr)
+           != VALID_EL_NUMBERS.end();
+}
+
+static bool IsValidElSecondPart(const std::string &part)
+{
+    return std::find(VALID_EL_SECOND_PARTS.begin(), VALID_EL_SECOND_PARTS.end(), part)
+           != VALID_EL_SECOND_PARTS.end();
+}
+
+static bool IsPathSecure(const std::string &path)
+{
+    if (path.empty() || path[0] != '/' || path.back() == '/') {
+        return false;
+    }
+
+    // Reject double leading slash (reject: "//base/a")
+    if (path.find("//") == 0) {
+        return false;
+    }
+
+    // Use std::filesystem to normalize and check for path traversal
+    // lexically_normal() resolves ".." and "." components
+    // If normalized path differs from original, path had traversal components
+    namespace fs = std::filesystem;
+    fs::path fsPath(path);
+    std::string normalized = fsPath.lexically_normal().string();
+
+    // If normalized differs from original, path had /.. or /.
+    return normalized == path;
+}
+
 static std::string PathCompose(const std::string &path, const std::string &name)
 {
-    if (std::find(ALLOWED_PATHS.begin(), ALLOWED_PATHS.end(), path) == ALLOWED_PATHS.end()) {
+    if (path.empty() || name.empty()) {
         return "";
     }
+
+    if (!IsPathSecure(path)) {
+        return "";
+    }
+
+    // Parse path into components
     std::vector<std::string> parts;
     std::stringstream ss(path);
     std::string component;
-    int comNum = 0;
     while (std::getline(ss, component, '/')) {
         if (!component.empty()) {
             parts.push_back(component);
         }
-        comNum++;
     }
 
-    std::string result = FULL_PATH_START + parts[0] + "/" + name + "/" + parts[1];
+    if (parts.empty()) {
+        return "";
+    }
+
+    if ((parts.size() < MIN_PARTS_FORMAT) || (parts.size() > MAX_PARTS_FORMAT)) {
+        return "";
+    }
+
+    std::string result;
+
+    // Handle new format: /elx/y
+    if (IsValidElNumber(parts[0]) && IsValidElSecondPart(parts[1])) {
+        result = FULL_PATH_START + parts[0] + "/" + parts[1] + "/" + name;
+    } else if (parts[0] == "base") {
+        result = FULL_PATH_START + DEFAULT_EL + "/" + parts[0] + "/" + name + "/" + parts[1];
+    } else {
+        return "";
+    }
+
+    for (size_t i = MIN_PARTS_FORMAT; i < parts.size(); ++i) {
+        result += "/" + parts[i];
+    }
+
     return result;
 }
 
@@ -124,6 +209,9 @@ int32_t SandboxManagerShare::TransAndSetToMapInner(cJSON *root, const std::strin
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Error: scopes is not an array.\n");
         return INVALID_PARAMTER;
     }
+
+    constexpr size_t MAX_SHARE_CONFIG_COUNT = 20;
+    size_t configCount = 0;
 
     cJSON *scope;
     cJSON_ArrayForEach(scope, scopes) {
@@ -148,7 +236,20 @@ int32_t SandboxManagerShare::TransAndSetToMapInner(cJSON *root, const std::strin
         uint32_t mode = PermissionToMode(std::string(permission));
 
         std::string full_path = PathCompose(std::string(path), bundleName);
-        AddToMap(bundleName, userId, full_path, mode);
+        // Check if AddToMap succeeded (returns false means invalid path, rollback performed)
+        if (!AddToMap(bundleName, userId, full_path, mode)) {
+            LOGE_WITH_REPORT(LABEL, "TransAndSetToMapInner failed for bundle %{public}s, invalid path: %{public}s",
+                bundleName.c_str(), path);
+            return INVALID_PARAMTER;
+        }
+
+        configCount++;
+        if (configCount > MAX_SHARE_CONFIG_COUNT) {
+            LOGE_WITH_REPORT(LABEL, "TransAndSetToMapInner failed for bundle %{public}s, exceeds limit",
+                bundleName.c_str());
+            DeleteByBundleName(bundleName);
+            return INVALID_PARAMTER;
+        }
     }
     return SANDBOX_MANAGER_OK;
 }
@@ -253,34 +354,51 @@ bool SandboxManagerShare::Exists(const std::string &bundleName, uint32_t userId)
 uint32_t SandboxManagerShare::FindPermission(const std::string &bundleName, uint32_t userId, const std::string &path)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (Exists(bundleName, userId)) {
-        auto &pathPermissions = g_shareMap[bundleName][userId];
-        auto it = pathPermissions.find(path);
-        if (it != pathPermissions.end()) {
-            return it->second;
-        }
-        return SHARE_PATH_UNSET;
+    if (!Exists(bundleName, userId)) {
+        return SHARE_BUNDLE_UNSET;
     }
-    return SHARE_BUNDLE_UNSET;
+
+    auto &pathPermissions = g_shareMap[bundleName][userId];
+    for (const auto &entry : pathPermissions) {
+        const std::string &configPath = entry.first;
+
+        if (path.compare(0, configPath.size(), configPath) != 0) {
+            continue;
+        }
+
+        if (path.size() == configPath.size()) {
+            return entry.second;
+        }
+
+        if ((path.size() > configPath.size()) && path[configPath.size()] == '/') {
+            return entry.second;
+        }
+    }
+
+    return SHARE_PATH_UNSET;
 }
 
-void SandboxManagerShare::AddToMap(const std::string &bundleName, uint32_t userId,
+bool SandboxManagerShare::AddToMap(const std::string &bundleName, uint32_t userId,
     const std::string &path, uint32_t mode)
 {
     if (bundleName.length() == 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "AddToMap error, bundlename is empty");
-        return;
+        return false;
     }
 
     if ((path.length() == 0) || (mode == 0)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "AddToMap error, bundlename %{public}s", bundleName.c_str());
-        return;
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "AddToMap error, invalid path or mode %{public}u for bundle %{public}s",
+            mode, bundleName.c_str());
+        // Rollback: remove all configurations for this bundle to maintain atomicity
+        DeleteByBundleName(bundleName);
+        return false;
     }
     std::string maskPath = SandboxManagerLog::MaskRealPath(path.c_str());
     std::string maskName = SandboxManagerLog::MaskRealPath(bundleName.c_str());
     SANDBOXMANAGER_LOG_INFO(LABEL, "AddToShareMap: %{public}s %{public}s\n", maskName.c_str(), maskPath.c_str());
     std::lock_guard<std::mutex> lock(mutex_);
     g_shareMap[bundleName][userId][path] = mode;
+    return true;
 }
 
 void SandboxManagerShare::DeleteByBundleName(const std::string &bundleName)

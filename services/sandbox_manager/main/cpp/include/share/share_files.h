@@ -69,7 +69,7 @@ public:
 private:
     SandboxManagerShare();
     ~SandboxManagerShare() = default;
-    void AddToMap(const std::string &bundleName, uint32_t userId, const std::string &path, uint32_t mode);
+    bool AddToMap(const std::string &bundleName, uint32_t userId, const std::string &path, uint32_t mode);
     int32_t TransAndSetToMapInner(cJSON *root, const std::string &bundleName, int32_t userId);
     int32_t SetShareFileInfoInner(cJSON *root, const std::string &bundleName, uint32_t userId, uint32_t tokenId);
     int32_t UpdateShareFileInfoInner(cJSON *root, const std::string &bundleName, uint32_t userId, uint32_t tokenId);
