@@ -30,6 +30,7 @@ ohos_source_set("sandbox_manager_proxy") {
   public_configs =
       [ ":sandbox_manager_communication_adapter_cxx_public_config" ]
   deps = [ ":sandbox_manager_interface" ]
+  branch_protector_ret = "pac_ret"
   external_deps = [
     "c_utils:utils",
     "hilog:libhilog",
@@ -51,6 +52,7 @@ ohos_source_set("sandbox_manager_stub") {
   public_configs =
       [ ":sandbox_manager_communication_adapter_cxx_public_config" ]
   deps = [ ":sandbox_manager_interface" ]
+  branch_protector_ret = "pac_ret"
   external_deps = [
     "c_utils:utils",
     "hilog:libhilog",
