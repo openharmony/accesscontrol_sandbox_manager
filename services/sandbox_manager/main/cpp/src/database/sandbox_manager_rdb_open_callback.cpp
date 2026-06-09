@@ -78,6 +78,15 @@ int32_t SandboxManagerRdbOpenCallback::OnUpgrade(
         }
         SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 2");
     }
+    // Upgrade from version 1 | 2 to version 3: Add SHARED_FILE_INFO_TABLE
+    if (currentVersion < 3 && targetVersion >= 3) {
+        int32_t res = CreateSharedFileInfoTable(rdbStore, SHARED_FILE_INFO_TABLE);
+        if (res != NativeRdb::E_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to create table SHARED_FILE_INFO_TABLE during upgrade");
+            return res;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 3");
+    }
 
     return NativeRdb::E_OK;
 }
