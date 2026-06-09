@@ -1660,8 +1660,17 @@ bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::strin
 
     std::string bundleNameTmp = components[MAX_CHECK_COM_NUM];
     std::string bundleRemoveIndex = RemoveClonePrefix(bundleNameTmp);
-    std::string pathTmp = APPDATA_PATH_WITH_SLASH + components[EL_LEVEL_SEGMENT] + "/" +
-        components[BASE_SEGMENT] + "/" + bundleRemoveIndex + "/" + components[SUB_PATH_SEGMENT];
+    std::string pathTmp = APPDATA_PATH_WITH_SLASH;
+    for (size_t i = EL_LEVEL_SEGMENT; i < components.size(); ++i) {
+        if (i > EL_LEVEL_SEGMENT) {
+            pathTmp += "/";
+        }
+        if (i == MAX_CHECK_COM_NUM) {
+            pathTmp += bundleRemoveIndex;
+        } else {
+            pathTmp += components[i];
+        }
+    }
     std::string maskedPath = GenerateMaskedPath(components);
     uint32_t permission = SandboxManagerShare::GetInstance().FindPermission(bundleNameTmp, userID, pathTmp);
     if ((permission == SHARE_BUNDLE_UNSET) || (permission == SHARE_PATH_UNSET)) {
