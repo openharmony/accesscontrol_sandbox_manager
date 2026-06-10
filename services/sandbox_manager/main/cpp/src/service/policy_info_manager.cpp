@@ -1552,6 +1552,13 @@ const std::string APPDATA_PATH_WITH_SLASH = "/storage/Users/currentUser/appdata/
 #define SUB_PATH_SEGMENT 7
 const std::vector<std::string> SUB_PATHS = {"files", "preferences", "haps"};
 
+static void AddRemainingPath(std::stringstream &ss, std::string &component, std::vector<std::string> &components)
+{
+    if (std::getline(ss, component) && !component.empty()) {
+        components.push_back(component);
+    }
+}
+
 std::vector<std::string> PolicyInfoManager::splitPath(const std::string &path)
 {
     std::vector<std::string> components;
@@ -1562,12 +1569,15 @@ std::vector<std::string> PolicyInfoManager::splitPath(const std::string &path)
         if (!component.empty()) {
             components.push_back(component);
         }
+        comNum++;
         // for check bundleName, must splite more than MAX_CHECK_COM_NUM length
         if (comNum > (MAX_CHECK_COM_NUM + 1)) {
+            // Put the remaining path as a whole into the last element
+            AddRemainingPath(ss, component, components);
             break;
         }
-        comNum++;
     }
+
     return components;
 }
 
