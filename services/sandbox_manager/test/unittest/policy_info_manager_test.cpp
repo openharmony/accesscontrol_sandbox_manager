@@ -2204,20 +2204,13 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest006, TestSize.Level0)
 
 HWTEST_F(PolicyInfoManagerTest, ShareTest007, TestSize.Level0)
 {
-    std::string stringJson1 = R"({
-        "share_files": {
-            "scopes": [
-                {
-                    "path": "/base/files",
-                    "permission": "r+w"
-                }
-            ]
-        }
-    })";
+    std::string stringJson1 =
+        R"({"share_files":{"scopes":[{"path": "/base/files", "permission": "r+w"},
+        {"path": "/el3/base/preferences", "permission": "r"},
+        {"path": "/base/a/b/c/d/e", "permission": "r+w"}]}})";
 
     int32_t userId = 100;
     const std::string bundleName = "com.testshare";
-    const std::string path = "/storage/Users/currentUser/appdata/el2/base/com.testshare/files";
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
 
@@ -2234,8 +2227,23 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest007, TestSize.Level0)
     policy[0] = info;
     std::vector<uint32_t> result;
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, result, setInfo));
-    ASSERT_EQ(1, result.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result[0]);
+
+    info.path = "/storage/Users/currentUser/appdata/el3/base/com.testshare/preferences/tmp";
+    info.mode = OperateMode::READ_MODE;
+    policy[0] = info;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, result, setInfo));
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result[0]);
+
+    info.path = "/storage/Users/currentUser/appdata/el2/base/com.testshare/a/b/c/d/e/test";
+    policy[0] = info;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, result, setInfo));
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result[0]);
+
+    info.path = "/storage/Users/currentUser/appdata/el2/base/com.testshare/a/b";
+    policy[0] = info;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, result, setInfo));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, result[0]);
 }
 
 HWTEST_F(PolicyInfoManagerTest, ShareTest008, TestSize.Level0)
