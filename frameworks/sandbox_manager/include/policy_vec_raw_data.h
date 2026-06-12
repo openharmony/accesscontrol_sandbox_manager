@@ -58,9 +58,9 @@ struct PolicyVecRawData {
         uint32_t policyNum = 0;
         ss.read(reinterpret_cast<char *>(&policyNum), sizeof(policyNum));
         if (ss.fail() || ss.eof() || (policyNum > POLICY_VEC_MAX_NUM)) {
-            ret = SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
             std::string error = "Unmarshalling policy too big";
             SandboxManagerDfxHelper::WriteExceptionBranch(error);
+            return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
         }
         for (uint32_t i = 0; i < policyNum; i++) {
             uint32_t pathLen = 0;
