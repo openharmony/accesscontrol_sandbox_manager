@@ -34,6 +34,11 @@ public:
     {
         return std::make_shared<EventRunner>();
     }
+
+    static std::shared_ptr<EventRunner> Create(const std::string &threadName)
+    {
+        return std::make_shared<EventRunner>();
+    }
 };
 
 class EventHandler {
