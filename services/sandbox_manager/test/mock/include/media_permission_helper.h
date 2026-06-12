@@ -52,7 +52,8 @@ public:
     int32_t CheckPhotoUriPermission(uint32_t tokenId,
         const std::vector<std::string> &urisSource, std::vector<bool> &result, const std::vector<uint32_t> &flags);
     int32_t GrantPhotoUriPermission(uint32_t srcTokenId, uint32_t targetTokenId, const std::vector<std::string> &uris,
-        const std::vector<PhotoPermissionType> &photoPermissionTypes, HideSensitiveType hideSensitiveTpye);
+        const std::vector<PhotoPermissionType> &photoPermissionTypes,
+        HideSensitiveType hideSensitiveTpye = HideSensitiveType::ALL_DESENSITIZE);
     int32_t CancelPhotoUriPermission(uint32_t srcTokenId, uint32_t targetTokenId,
         const std::vector<std::string> &uris, const bool persistFlag = false,
         const std::vector<OperationMode> &mode = {OperationMode::READ_WRITE_MODE});

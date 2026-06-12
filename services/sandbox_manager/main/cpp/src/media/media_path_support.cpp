@@ -234,8 +234,7 @@ int32_t SandboxManagerMedia::AddMediaPolicy(uint32_t tokenId, const std::vector<
         SANDBOXMANAGER_LOG_INFO(LABEL, "Grant, callerId:%{public}u, uriSize:%{public}zu, typeSize:%{public}zu",
             callingTokenId, needGrantUris.size(), type.size());
         MediaDfx(needGrantUris, type);
-        ret = media_->GrantPhotoUriPermission(callingTokenId, tokenId, needGrantUris,
-            type, Media::HideSensitiveType::ALL_DESENSITIZE);
+        ret = media_->GrantPhotoUriPermission(callingTokenId, tokenId, needGrantUris, type);
         if (ret != SANDBOX_MANAGER_OK) {
             LOGE_WITH_REPORT(LABEL, "GrantPhotoUriPermission error, err code = %{public}d", ret);
             return SANDBOX_MANAGER_MEDIA_CALL_ERR;
