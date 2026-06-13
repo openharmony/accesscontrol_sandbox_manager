@@ -64,7 +64,7 @@ PolicyInfoManager &PolicyInfoManager::GetInstance()
 
 void PolicyInfoManager::Init()
 {
-    SandboxManagerRdb::GetInstance();
+    SandboxManagerRdb::GetInstance().Init();
     macAdapter_.Init();
     InitUserGrantMap();
     InitCaseSensitivity();

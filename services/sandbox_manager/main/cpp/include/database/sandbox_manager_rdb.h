@@ -18,8 +18,8 @@
 
 #include <cstdint>
 #include <vector>
-#include <map>
 #include <string>
+#include "event_handler.h"
 #include "generic_values.h"
 #include "nocopyable.h"
 #include "policy_field_const.h"
@@ -36,6 +36,8 @@ public:
     static const std::string REPLACE;
 
     static SandboxManagerRdb &GetInstance();
+    
+    int32_t Init();
 
     int32_t Add(const DataType type, const std::vector<GenericValues> &values,
         const std::string &duplicateMode = IGNORE);
@@ -56,19 +58,26 @@ public:
     int32_t GetTokenIdWithMostRecords(const DataType type, uint32_t &tokenId, uint32_t &count);
 
 private:
-    SandboxManagerRdb();
+    SandboxManagerRdb() = default;
     ~SandboxManagerRdb() = default;
-    int32_t OpenDataBase();
+    DISALLOW_COPY_AND_MOVE(SandboxManagerRdb);
+        
     std::shared_ptr<NativeRdb::RdbStore> GetRdb();
-    void DbOperateFailure(const std::string& tableName, int32_t res);
+    int32_t OpenDatabaseInternal();    // caller must hold dbLock_
+    void InitEventHandlerInternal();   // caller must hold dbLock_
+    void CleanupDbInternal();
+    void ScheduleDbCleanup();
+    void DbOperateFailure(const std::shared_ptr<NativeRdb::RdbStore> &db, const std::string& tableName, int32_t res);
     inline static int32_t GetConflictResolution(const std::string &duplicateMode,
         NativeRdb::ConflictResolution &solution);
-    DISALLOW_COPY_AND_MOVE(SandboxManagerRdb);
-
-    OHOS::Utils::RWLock rwLock_;
+    
     std::shared_ptr<NativeRdb::RdbStore> db_ = nullptr;
     std::mutex dbLock_;
+    OHOS::Utils::RWLock rwLock_; // Used to ensure serialization of write operations
     static const int DATABASE_VERSION = 3;
+    
+    std::shared_ptr<AppExecFwk::EventHandler> eventHandler_ = nullptr;
+    int64_t dbCleanupDelay_ = 180000; // 180 seconds in milliseconds
 };
 } // namespace SandboxManager
 } // namespace AccessControl

@@ -13,10 +13,14 @@
  * limitations under the License.
  */
 
+#include <atomic>
+#include <chrono>
 #include <cinttypes>
 #include <cstdint>
+#include <functional>
 #include <gtest/gtest.h>
 #include <string>
+#include <thread>
 #include <vector>
 #include "generic_values.h"
 #include "policy_field_const.h"
@@ -67,6 +71,7 @@ GenericValues g_value1, g_value2, g_value3, g_value4, g_value5;
 
 void SandboxManagerRdbTest::SetUpTestCase(void)
 {
+    SandboxManagerRdb::GetInstance().Init();
     g_value1.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
     g_value1.Put(PolicyFiledConst::FIELD_PATH, "/user_grant/a");
     g_value1.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
@@ -584,6 +589,581 @@ HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest008, TestSize.Level0)
 
     // Clean up
     SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_ManualCleanupAndReopen
+ * @tc.desc: Test CleanupDbInternal directly closes db connection, and auto-reopen on next operation
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ManualCleanupAndReopen, TestSize.Level0)
+{
+    // Add data to ensure db_ is opened
+    std::vector<GenericValues> values = {g_value1, g_value2};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    // Manually trigger internal cleanup
+    SandboxManagerRdb::GetInstance().CleanupDbInternal();
+    EXPECT_EQ(nullptr, SandboxManagerRdb::GetInstance().db_);
+
+    // Next operation should auto-reopen db_ and still succeed
+    GenericValues conditions;
+    GenericValues symbols;
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
+        conditions, symbols, dbResult));
+    uint64_t sizeLimit = 2;
+    EXPECT_EQ(sizeLimit, dbResult.size());
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_ScheduledDbCleanup
+ * @tc.desc: Test dbCleanupDelay_ is configurable, short delay triggers cleanup quickly
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ScheduledDbCleanup, TestSize.Level0)
+{
+    // Save original delay
+    int64_t originalDelay = SandboxManagerRdb::GetInstance().dbCleanupDelay_;
+
+    // Set a very short delay for testing
+    SandboxManagerRdb::GetInstance().dbCleanupDelay_ = 2000; // 2s
+
+    // Add data, which internally calls ScheduleDbCleanup with the short delay
+    std::vector<GenericValues> values = {g_value1};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    // Poll for cleanup instead of a single long sleep:
+    // - Returns as soon as db_ becomes null (fast in the normal case)
+    // - Generous timeout tolerates slow CI scheduling
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while (SandboxManagerRdb::GetInstance().db_ != nullptr &&
+           std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
+
+    // Verify db_ has been cleaned up
+    EXPECT_EQ(nullptr, SandboxManagerRdb::GetInstance().db_);
+
+    // Restore original delay
+    SandboxManagerRdb::GetInstance().dbCleanupDelay_ = originalDelay;
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_CleanupOnNullDb
+ * @tc.desc: Test CleanupDbInternal on already-null db_ does not crash
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_CleanupOnNullDb, TestSize.Level0)
+{
+    // Ensure db_ is null first
+    SandboxManagerRdb::GetInstance().db_ = nullptr;
+
+    // Calling cleanup on already-null db_ should be safe
+    SandboxManagerRdb::GetInstance().CleanupDbInternal();
+    EXPECT_EQ(nullptr, SandboxManagerRdb::GetInstance().db_);
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_ConcurrentAdd
+ * @tc.desc: Test concurrent Add from multiple threads, verify no crash and data consistency
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ConcurrentAdd, TestSize.Level0)
+{
+    const int threadCount = 10;
+    const int itemsPerThread = 5;
+    std::vector<std::thread> threads;
+    std::atomic<int> successCount{0};
+    std::atomic<int> failCount{0};
+
+    std::function<void(int, std::atomic<int>&, std::atomic<int>&)> addWorker =
+        [itemsPerThread](int tid, std::atomic<int>& success, std::atomic<int>& fail) {
+            for (int i = 0; i < itemsPerThread; ++i) {
+                GenericValues value;
+                value.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(tid));
+                value.Put(PolicyFiledConst::FIELD_PATH, "/concurrent/" + std::to_string(tid) + "/" + std::to_string(i));
+                value.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(1));
+                value.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(2));
+                value.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+                int ret = SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, {value});
+                if (ret == SandboxManagerRdb::SUCCESS) {
+                    success.fetch_add(1);
+                }
+                if (ret != SandboxManagerRdb::SUCCESS) {
+                    fail.fetch_add(1);
+                }
+            }
+        };
+
+    for (int t = 0; t < threadCount; ++t) {
+        threads.emplace_back(addWorker, t, std::ref(successCount), std::ref(failCount));
+    }
+
+    for (auto &th : threads) {
+        th.join();
+    }
+
+    // All threads should succeed without crash
+    EXPECT_EQ(threadCount * itemsPerThread, successCount.load());
+    EXPECT_EQ(0, failCount.load());
+
+    // Verify total record count
+    int32_t count = -1;
+    int32_t ret = SandboxManagerRdb::GetInstance().GetRecordCount(SANDBOX_MANAGER_PERSISTED_POLICY, count);
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS, ret);
+    EXPECT_EQ(threadCount * itemsPerThread, count);
+
+    // Clean up: remove all records
+    GenericValues clearConditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, clearConditions);
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_ConcurrentFind
+ * @tc.desc: Test concurrent Find from multiple threads, verify no crash and consistent results
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ConcurrentFind, TestSize.Level0)
+{
+    const int threadCount = 10;
+    const int findCountPerThread = 20;
+
+    // First, insert some data
+    std::vector<GenericValues> values = {g_value1, g_value2, g_value3, g_value4, g_value5};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    std::vector<std::thread> threads;
+    std::atomic<int> successCount{0};
+    std::atomic<int> failCount{0};
+    std::atomic<int> zeroResultCount{0};
+
+    std::function<void(std::atomic<int>&, std::atomic<int>&, std::atomic<int>&)> findWorker =
+        [findCountPerThread](std::atomic<int>& success, std::atomic<int>& fail, std::atomic<int>& zeroResult) {
+            for (int i = 0; i < findCountPerThread; ++i) {
+                GenericValues conditions;
+                GenericValues symbols;
+                std::vector<GenericValues> dbResult;
+
+                int ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
+                    conditions, symbols, dbResult);
+                if (ret == SandboxManagerRdb::SUCCESS) {
+                    success.fetch_add(1);
+                }
+                if (ret == SandboxManagerRdb::SUCCESS && dbResult.empty()) {
+                    zeroResult.fetch_add(1);
+                }
+                if (ret != SandboxManagerRdb::SUCCESS) {
+                    fail.fetch_add(1);
+                }
+            }
+        };
+
+    for (int t = 0; t < threadCount; ++t) {
+        threads.emplace_back(findWorker, std::ref(successCount), std::ref(failCount), std::ref(zeroResultCount));
+    }
+
+    for (auto &th : threads) {
+        th.join();
+    }
+
+    // All concurrent reads should succeed
+    EXPECT_EQ(threadCount * findCountPerThread, successCount.load());
+    EXPECT_EQ(0, failCount.load());
+
+    // Clean up: remove all records
+    GenericValues clearConditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, clearConditions);
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_ConcurrentAddAndFind
+ * @tc.desc: Test concurrent mixed Add and Find operations, verify no crash
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ConcurrentAddAndFind, TestSize.Level0)
+{
+    const int threadCount = 8;
+    const int opsPerThread = 10;
+    std::vector<std::thread> threads;
+    std::atomic<int> addSuccess{0};
+    std::atomic<int> findSuccess{0};
+
+    std::function<void(int, std::atomic<int>&)> addWorker =
+        [opsPerThread](int tid, std::atomic<int>& success) {
+            for (int i = 0; i < opsPerThread; ++i) {
+                GenericValues value;
+                value.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(tid));
+                value.Put(PolicyFiledConst::FIELD_PATH, "/mixed/" + std::to_string(tid) + "/" + std::to_string(i));
+                value.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(1));
+                value.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(2));
+                value.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+                int ret = SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, {value});
+                if (ret == SandboxManagerRdb::SUCCESS) {
+                    success.fetch_add(1);
+                }
+            }
+        };
+
+    std::function<void(std::atomic<int>&)> findWorker =
+        [opsPerThread](std::atomic<int>& success) {
+            for (int i = 0; i < opsPerThread; ++i) {
+                GenericValues conditions;
+                GenericValues symbols;
+                std::vector<GenericValues> dbResult;
+
+                int ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
+                    conditions, symbols, dbResult);
+                if (ret == SandboxManagerRdb::SUCCESS) {
+                    success.fetch_add(1);
+                }
+            }
+        };
+
+    // Half threads do Add, half do Find
+    for (int t = 0; t < threadCount; ++t) {
+        if (t % 2 == 0) {
+            threads.emplace_back(addWorker, t, std::ref(addSuccess));
+        } else {
+            threads.emplace_back(findWorker, std::ref(findSuccess));
+        }
+    }
+
+    for (auto &th : threads) {
+        th.join();
+    }
+
+    // Expected: 4 writer threads and 4 reader threads
+    EXPECT_EQ((threadCount / 2) * opsPerThread, addSuccess.load());
+    EXPECT_EQ((threadCount / 2) * opsPerThread, findSuccess.load());
+
+    // Clean up: remove all records
+    GenericValues clearConditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, clearConditions);
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_ConcurrentAddAndCleanup
+ * @tc.desc: Test concurrent Add and CleanupDbInternal, verify auto-reopen works correctly
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ConcurrentAddAndCleanup, TestSize.Level0)
+{
+    const int addThreadCount = 4;
+    const int opsPerThread = 20;
+    const int cleanupThreadCount = 2;
+
+    std::vector<std::thread> threads;
+    std::atomic<int> addSuccess{0};
+    std::atomic<int> cleanupCount{0};
+    std::atomic<bool> stopCleanup{false};
+
+    std::function<void(int, std::atomic<int>&)> addWorker =
+        [opsPerThread](int tid, std::atomic<int>& success) {
+            for (int i = 0; i < opsPerThread; ++i) {
+                GenericValues value;
+                value.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(100 + tid));
+                value.Put(PolicyFiledConst::FIELD_PATH, "/stress/" + std::to_string(tid) + "/" + std::to_string(i));
+                value.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(1));
+                value.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(2));
+                value.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+                int ret = SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, {value});
+                if (ret == SandboxManagerRdb::SUCCESS) {
+                    success.fetch_add(1);
+                }
+            }
+        };
+
+    std::function<void(std::atomic<int>&, std::atomic<bool>&)> cleanupWorker =
+        [](std::atomic<int>& count, std::atomic<bool>& stop) {
+            while (!stop.load()) {
+                SandboxManagerRdb::GetInstance().CleanupDbInternal();
+                count.fetch_add(1);
+                usleep(10000); // 10ms between cleanups
+            }
+        };
+
+    // Add threads: continuously write data
+    for (int t = 0; t < addThreadCount; ++t) {
+        threads.emplace_back(addWorker, t, std::ref(addSuccess));
+    }
+
+    // Cleanup threads: repeatedly close db_ while writers are working
+    for (int t = 0; t < cleanupThreadCount; ++t) {
+        threads.emplace_back(cleanupWorker, std::ref(cleanupCount), std::ref(stopCleanup));
+    }
+
+    // Wait for add threads to finish
+    for (int t = 0; t < addThreadCount; ++t) {
+        threads[t].join();
+    }
+
+    // Stop cleanup threads
+    stopCleanup.store(true);
+    for (size_t t = addThreadCount; t < threads.size(); ++t) {
+        threads[t].join();
+    }
+
+    // Writers should still succeed despite concurrent cleanup
+    EXPECT_GT(addSuccess.load(), 0);
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Add success: %d, Cleanup count: %d",
+        addSuccess.load(), cleanupCount.load());
+
+    // Clean up: remove all records
+    GenericValues clearConditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, clearConditions);
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_ConcurrentRemoveAndFind
+ * @tc.desc: Test concurrent Remove and Find operations, verify no crash and data consistency
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ConcurrentRemoveAndFind, TestSize.Level0)
+{
+    const int threadCount = 8;
+    const int opsPerThread = 20;
+    std::vector<std::thread> threads;
+    std::atomic<int> removeSuccess{0};
+    std::atomic<int> findSuccess{0};
+
+    std::vector<GenericValues> values = {g_value1, g_value2, g_value3, g_value4, g_value5};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    std::function<void(std::atomic<int>&)> removeWorker = [](std::atomic<int>& success) {
+        for (int i = 0; i < opsPerThread; ++i) {
+            GenericValues condition;
+            condition.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(i));
+            int ret = SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, condition);
+            if (ret == SandboxManagerRdb::SUCCESS) {
+                success.fetch_add(1);
+            }
+        }
+    };
+
+    std::function<void(std::atomic<int>&)> findWorker = [](std::atomic<int>& success) {
+        for (int i = 0; i < opsPerThread; ++i) {
+            GenericValues conditions;
+            GenericValues symbols;
+            std::vector<GenericValues> dbResult;
+            int ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
+                conditions, symbols, dbResult);
+            if (ret == SandboxManagerRdb::SUCCESS) {
+                success.fetch_add(1);
+            }
+        }
+    };
+
+    for (int t = 0; t < threadCount; ++t) {
+        if (t % 2 == 0) {
+            threads.emplace_back(removeWorker, std::ref(removeSuccess));
+        } else {
+            threads.emplace_back(findWorker, std::ref(findSuccess));
+        }
+    }
+
+    for (auto &th : threads) {
+        th.join();
+    }
+
+    EXPECT_EQ((threadCount / 2) * opsPerThread, removeSuccess.load());
+    EXPECT_EQ((threadCount / 2) * opsPerThread, findSuccess.load());
+
+    GenericValues clearConditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, clearConditions);
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_ConcurrentModify
+ * @tc.desc: Test concurrent Modify on the same table, verify no crash
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ConcurrentModify, TestSize.Level0)
+{
+    const int threadCount = 6;
+    const int opsPerThread = 20;
+    std::vector<std::thread> threads;
+    std::atomic<int> modifySuccess{0};
+
+    // Insert a single record that all threads will try to modify
+    GenericValues baseValue;
+    baseValue.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(999));
+    baseValue.Put(PolicyFiledConst::FIELD_PATH, "/modify_target");
+    baseValue.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(1));
+    baseValue.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(2));
+    baseValue.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, {baseValue}));
+
+    std::function<void(int, std::atomic<int>&)> modifyWorker =
+        [opsPerThread](int tid, std::atomic<int>& success) {
+            for (int i = 0; i < opsPerThread; ++i) {
+                GenericValues modifyValue;
+                modifyValue.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(tid));
+
+                GenericValues condition;
+                condition.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(999));
+                condition.Put(PolicyFiledConst::FIELD_PATH, "/modify_target");
+
+                int ret = SandboxManagerRdb::GetInstance().Modify(SANDBOX_MANAGER_PERSISTED_POLICY,
+                    modifyValue, condition);
+                if (ret == SandboxManagerRdb::SUCCESS) {
+                    success.fetch_add(1);
+                }
+            }
+        };
+
+    for (int t = 0; t < threadCount; ++t) {
+        threads.emplace_back(modifyWorker, t, std::ref(modifySuccess));
+    }
+
+    for (auto &th : threads) {
+        th.join();
+    }
+
+    EXPECT_EQ(threadCount * opsPerThread, modifySuccess.load());
+
+    // Verify final state: record should still exist and be consistent
+    GenericValues queryCondition;
+    queryCondition.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(999));
+    queryCondition.Put(PolicyFiledConst::FIELD_PATH, "/modify_target");
+    GenericValues querySymbols;
+    std::vector<GenericValues> results;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Find(
+        SANDBOX_MANAGER_PERSISTED_POLICY, queryCondition, querySymbols, results));
+    ASSERT_EQ(1u, results.size());
+
+    // Other fields should remain intact
+    EXPECT_EQ(999, results[0].GetInt(PolicyFiledConst::FIELD_TOKENID));
+    EXPECT_EQ(1, results[0].GetInt(PolicyFiledConst::FIELD_MODE));
+    EXPECT_EQ(2, results[0].GetInt(PolicyFiledConst::FIELD_DEPTH));
+
+    // Clean up: remove all records
+    GenericValues clearConditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, clearConditions);
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_DbLifecycle_ReopenAndClose
+ * @tc.desc: Test repeated db open, cleanup, and reopen cycles
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_DbLifecycle_ReopenAndClose, TestSize.Level0)
+{
+    const int cycleCount = 5;
+
+    for (int i = 0; i < cycleCount; ++i) {
+        // Ensure db_ is closed
+        SandboxManagerRdb::GetInstance().CleanupDbInternal();
+        EXPECT_EQ(nullptr, SandboxManagerRdb::GetInstance().db_);
+
+        // Operation should auto-reopen db_
+        std::vector<GenericValues> values;
+        GenericValues value;
+        value.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(i));
+        value.Put(PolicyFiledConst::FIELD_PATH, "/lifecycle/" + std::to_string(i));
+        value.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(1));
+        value.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(1));
+        value.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+        values.push_back(value);
+
+        EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+        EXPECT_NE(nullptr, SandboxManagerRdb::GetInstance().db_);
+
+        // Verify the record was inserted
+        int32_t count = -1;
+        int32_t ret = SandboxManagerRdb::GetInstance().GetRecordCount(SANDBOX_MANAGER_PERSISTED_POLICY, count);
+        EXPECT_EQ(SandboxManagerRdb::SUCCESS, ret);
+        EXPECT_EQ(i + 1, count);
+    }
+
+    // Clean up: remove all records
+    GenericValues clearConditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, clearConditions);
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_ConcurrentFindAndCleanup
+ * @tc.desc: Test concurrent Find and CleanupDbInternal, verify readers survive db_ being closed
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ConcurrentFindAndCleanup, TestSize.Level0)
+{
+    const int findThreadCount = 4;
+    const int opsPerThread = 30;
+    const int cleanupThreadCount = 2;
+
+    // Insert baseline data
+    std::vector<GenericValues> values = {g_value1, g_value2, g_value3, g_value4, g_value5};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    std::vector<std::thread> threads;
+    std::atomic<int> findSuccess{0};
+    std::atomic<int> cleanupCount{0};
+    std::atomic<bool> stopCleanup{false};
+
+    std::function<void(std::atomic<int>&)> findWorker = [opsPerThread](std::atomic<int>& success) {
+        for (int i = 0; i < opsPerThread; ++i) {
+            GenericValues conditions;
+            GenericValues symbols;
+            std::vector<GenericValues> dbResult;
+            int ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
+                conditions, symbols, dbResult);
+            if (ret == SandboxManagerRdb::SUCCESS) {
+                success.fetch_add(1);
+            }
+        }
+    };
+
+    std::function<void(std::atomic<int>&, std::atomic<bool>&)> cleanupWorker =
+        [](std::atomic<int>& count, std::atomic<bool>& stop) {
+            while (!stop.load()) {
+                SandboxManagerRdb::GetInstance().CleanupDbInternal();
+                count.fetch_add(1);
+                usleep(10000);
+            }
+        };
+
+    // Find threads: continuously read data
+    for (int t = 0; t < findThreadCount; ++t) {
+        threads.emplace_back(findWorker, std::ref(findSuccess));
+    }
+
+    // Cleanup threads: repeatedly close db_
+    for (int t = 0; t < cleanupThreadCount; ++t) {
+        threads.emplace_back(cleanupWorker, std::ref(cleanupCount), std::ref(stopCleanup));
+    }
+
+    // Wait for find threads to finish
+    for (int t = 0; t < findThreadCount; ++t) {
+        threads[t].join();
+    }
+
+    // Stop cleanup threads
+    stopCleanup.store(true);
+    for (size_t t = findThreadCount; t < threads.size(); ++t) {
+        threads[t].join();
+    }
+
+    // All reads should succeed
+    EXPECT_EQ(findThreadCount * opsPerThread, findSuccess.load());
+
+    // Clean up: remove all records
+    GenericValues clearConditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, clearConditions);
 }
 } // SandboxManager
 } // AccessControl
