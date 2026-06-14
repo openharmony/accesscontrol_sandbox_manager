@@ -53,6 +53,7 @@ struct SandboxConfig {
     std::map<std::string, std::string> env; // Optional environment variables
     Policy policy;                         // Optional path access policy
     int nsFlags = 0;                       // Optional namespace flags (bitmask), e.g. CLONE_NEWNET | CLONE_NEWPID
+    std::string type;                      // CLI type. Valid values: "shell" or "cli" (default: "cli").
     std::string cliName;                   // CLI name (required)
     std::string subCliName;                // Sub-CLI name (required)
     OHOS::Security::AccessToken::AccessTokenIDEx tokenIdEx;             // Temporary tokenId

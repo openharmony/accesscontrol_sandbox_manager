@@ -906,6 +906,132 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig033, TestSize.Level0)
     }
 }
 
+/**
+ * @tc.name: ParseConfig034
+ * @tc.desc: ParseConfig with valid JSON containing all required fields when type is "shell"
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig034, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 123456789,
+        "callerPid": 1000,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "test-challenge",
+        "appIdentifier": "com.example.app",
+        "bundleName": "com.example.bundle",
+        "type": "shell"
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(123456789ULL, config.callerTokenId);
+    EXPECT_EQ(1000U, config.callerPid);
+    EXPECT_EQ(20020026U, config.uid);
+    EXPECT_EQ(20020026U, config.gid);
+    EXPECT_EQ("test-challenge", config.challenge);
+    EXPECT_EQ("com.example.app", config.appIdentifier);
+    EXPECT_EQ("com.example.bundle", config.bundleName);
+    // cliName and subCliName to default to empty strings when type is "shell"
+    EXPECT_EQ("", config.cliName);
+    EXPECT_EQ("", config.subCliName);
+    EXPECT_TRUE(config.name.empty());
+    // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS | CLONE_NEWNET
+    EXPECT_EQ(static_cast<int>(CLONE_NEWNS | CLONE_NEWNET), config.nsFlags);
+}
+ 
+/**
+ * @tc.name: ParseConfig035
+ * @tc.desc: Verify ParseConfig ignores cliName and subCliName when type is "shell".
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig035, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 9007199254740990,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appIdentifier": "app",
+        "bundleName": "bundle",
+        "type": "shell",
+        "cliName": "cli",
+        "subCliName": "sub"
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(9007199254740990ULL, config.callerTokenId);
+    // Even if provided in JSON, they should be parsed as empty strings when type is "shell"
+    EXPECT_EQ("", config.cliName);
+    EXPECT_EQ("", config.subCliName);
+}
+ 
+/**
+ * @tc.name: ParseConfig036
+ * @tc.desc: ParseConfig with valid JSON containing all required fields when type explicitly is "cli"
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig036, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 123456789,
+        "callerPid": 1000,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "test-challenge",
+        "appIdentifier": "com.example.app",
+        "bundleName": "com.example.bundle",
+        "type": "cli",
+        "cliName": "testCli",
+        "subCliName": "testSubCli"
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(123456789ULL, config.callerTokenId);
+    EXPECT_EQ(1000U, config.callerPid);
+    EXPECT_EQ(20020026U, config.uid);
+    EXPECT_EQ(20020026U, config.gid);
+    EXPECT_EQ("test-challenge", config.challenge);
+    EXPECT_EQ("com.example.app", config.appIdentifier);
+    EXPECT_EQ("com.example.bundle", config.bundleName);
+    EXPECT_EQ("testCli", config.cliName);
+    EXPECT_EQ("testSubCli", config.subCliName);
+    EXPECT_TRUE(config.name.empty());
+    // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS | CLONE_NEWNET
+    EXPECT_EQ(static_cast<int>(CLONE_NEWNS | CLONE_NEWNET), config.nsFlags);
+}
+ 
+/**
+ * @tc.name: ParseConfig037
+ * @tc.desc: Verify ParseConfig returns SANDBOX_ERR_CONFIG_INVALID
+ * when an unsupported type (e.g., "others") is provided.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig037, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 9007199254740990,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appIdentifier": "app",
+        "bundleName": "bundle",
+        "type": "others"
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
 // ==================== ParseCommandFromArgv tests ====================
 
 /**
