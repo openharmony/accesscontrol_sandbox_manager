@@ -56,12 +56,13 @@ namespace {
 const uint32_t MAX_CMD_SEGMENT_LENGTH = 512;
 const uint32_t MAX_ARG_COUNT = 8;
 
-const std::string VALID_CONFIG = R"({"callerTokenId":1,"callerPid":1,"uid":20020026,"gid":20020026,
-    "challenge":"c","appid":"a","bundleName":"b","cliName":"cli","subCliName":"sub"})";
-const std::string EMPTY_SUBCLI_CONFIG = R"({"callerTokenId":1,"callerPid":1,"uid":20020026,"gid":20020026,
-    "challenge":"c","appid":"a","bundleName":"b","cliName":"cli","subCliName":""})";
-const std::string DELETE_CONFIG = R"({"callerTokenId":1,"callerPid":1,"uid":20020026,"gid":20020026,
-    "challenge":"c","appid":"a","bundleName":"b","cliName":"cli","subCliName":"sub","name":"abcdef0123456789"})";
+const std::string VALID_CONFIG = R"({"callerTokenId": 1, "callerPid": 1, "uid": 20020026, "gid": 20020026,
+    "challenge": "c", "appIdentifier": "a", "bundleName": "b", "cliName": "cli", "subCliName": "sub"})";
+const std::string EMPTY_SUBCLI_CONFIG = R"({"callerTokenId": 1, "callerPid": 1, "uid": 20020026, "gid": 20020026,
+    "challenge": "c", "appIdentifier": "a", "bundleName": "b", "cliName": "cli", "subCliName": ""})";
+const std::string DELETE_CONFIG = R"({"callerTokenId": 1, "callerPid": 1, "uid": 20020026, "gid": 20020026,
+    "challenge": "c", "appIdentifier": "a", "bundleName": "b","
+	    R"("cliName": "cli", "subCliName": "sub", "name": "abcdef0123456789"})";
 
 const std::vector<std::vector<std::string>> PREDEFINED_ARGV = {
     {},

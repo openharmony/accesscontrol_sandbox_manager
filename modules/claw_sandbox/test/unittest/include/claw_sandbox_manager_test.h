@@ -17,6 +17,8 @@
 #define CLAW_SANDBOX_MANAGER_TEST_H
 
 #include <gtest/gtest.h>
+#include <cstdint>
+#include <string>
 
 namespace OHOS {
 namespace AccessControl {
@@ -32,4 +34,5 @@ public:
 } // SANDBOX
 } // AccessControl
 } // OHOS
+
 #endif // CLAW_SANDBOX_MANAGER_TEST_H

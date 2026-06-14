@@ -11,4 +11,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{"callerTokenId":1,"callerPid":1,"uid":20020026,"gid":20020026,"challenge":"c","appid":"a","bundleName":"b","cliName":"cli","subCliName":"sub"}
+{"callerTokenId":1,"callerPid":1,"uid":20020026,"gid":20020026,"challenge":"c","appIdentifier":"a","bundleName":"b","cliName":"cli","subCliName":"sub"}

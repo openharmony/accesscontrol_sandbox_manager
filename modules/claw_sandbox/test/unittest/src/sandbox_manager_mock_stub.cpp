@@ -14,6 +14,7 @@
  */
 
 #include "accesstoken_kit.h"
+#include <string>
 
 namespace OHOS {
 namespace Security {
@@ -29,6 +30,14 @@ namespace AccessToken {
             return TOKEN_NATIVE;
         }
         return TOKEN_HAP;
+    }
+
+    int32_t AccessTokenKit::VerifyAccessToken(AccessTokenID tokenId, const std::string &permissionName)
+    {
+        if (tokenId != 0 && permissionName.find("GRANTED") != std::string::npos) {
+            return PermissionState::PERMISSION_GRANTED;
+        }
+        return -1;
     }
 }  // namespace AccessToken
 }  // namespace Security

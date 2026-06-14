@@ -16,7 +16,9 @@
 #include "sandbox_cmd_parser.h"
 #include "sandbox_error.h"
 #include "sandbox_log.h"
+#include <cstdlib>
 #include <iostream>
+#include <cstring>
 #include "cJSON.h"
 #include <sched.h>
 
@@ -37,8 +39,11 @@ constexpr size_t MAX_NAME_LENGTH = 64;
 constexpr size_t MAX_CLI_NAME_LENGTH = 256;
 constexpr size_t MAX_SUB_CLI_NAME_LENGTH = 256;
 constexpr size_t MAX_CHALLENGE_LENGTH = 40960;
-constexpr size_t MAX_APPID_LENGTH = 10240;
+constexpr size_t MAX_APP_IDENTIFIER_LENGTH = 64;
 constexpr size_t MAX_BUNDLE_NAME_LENGTH = 256;
+constexpr size_t MAX_WORKDIR_LENGTH = 1024;
+constexpr size_t MAX_ENV_LENGTH = 10240;
+constexpr size_t MAX_POLICY_LENGTH = 102400;
 
 // Maximum constraints for nsFlags array
 constexpr size_t MAX_NS_FLAGS_COUNT = 10;
@@ -54,6 +59,52 @@ static inline int CleanupAndReturn(cJSON *root, int ret)
 {
     cJSON_Delete(root);
     return ret;
+}
+
+static inline int CleanupParsedObjectAndReturn(cJSON *parsedObject, int ret)
+{
+    if (parsedObject != nullptr) {
+        cJSON_Delete(parsedObject);
+    }
+    return ret;
+}
+
+static int GetOptionalObjectField(cJSON *root, const char *key, cJSON *&object, cJSON *&parsedObject, size_t maxLen)
+{
+    object = cJSON_GetObjectItem(root, key);
+    parsedObject = nullptr;
+    if (object == nullptr) {
+        return SANDBOX_SUCCESS;
+    }
+    if (cJSON_IsObject(object)) {
+        return SANDBOX_SUCCESS;
+    }
+    if (cJSON_IsString(object) && object->valuestring != nullptr) {
+        if (object->valuestring[0] == '\0') {
+            object = nullptr;
+            return SANDBOX_SUCCESS;
+        }
+        std::string objectStr = object->valuestring;
+        if (objectStr.length() > maxLen) {
+            std::cerr << "Error: Config field '" << key << "' exceeds max length (" <<
+                maxLen << ")" << std::endl;
+            SANDBOX_LOGE("Config field '%{public}s' exceeds max length (%{public}zu)", key, maxLen);
+            return SANDBOX_ERR_CONFIG_INVALID;
+        }
+        parsedObject = cJSON_Parse(objectStr.c_str());
+        if (!cJSON_IsObject(parsedObject)) {
+            std::cerr << "Error: Config field '" << key <<
+                "' type mismatch: expected object or JSON object string" << std::endl;
+            SANDBOX_LOGE("Config field '%{public}s' type mismatch: expected object or JSON object string", key);
+            return CleanupParsedObjectAndReturn(parsedObject, SANDBOX_ERR_CONFIG_INVALID);
+        }
+        object = parsedObject;
+        return SANDBOX_SUCCESS;
+    }
+    std::cerr << "Error: Config field '" << key <<
+        "' type mismatch: expected object or JSON object string" << std::endl;
+    SANDBOX_LOGE("Config field '%{public}s' type mismatch: expected object or JSON object string", key);
+    return SANDBOX_ERR_CONFIG_INVALID;
 }
 
 // Helper: parse a required uint64 field
@@ -121,6 +172,31 @@ static int ParseStringFieldWithMaxLen(cJSON *root, const char *key,
     return SANDBOX_SUCCESS;
 }
 
+// Helper: parse an optional string field with maximum length check
+static int ParseOptionalStringFieldWithMaxLen(cJSON *root, const char *key,
+    std::string &out, size_t maxLen)
+{
+    cJSON *item = cJSON_GetObjectItem(root, key);
+    if (item == nullptr) {
+        return SANDBOX_SUCCESS;
+    }
+    if (!cJSON_IsString(item) || item->valuestring == nullptr) {
+        std::cerr << "Error: Config field '" << key << "' must be a string" << std::endl;
+        SANDBOX_LOGE("Config field '%{public}s' must be a string", key);
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    std::string val = item->valuestring;
+    if (val.length() > maxLen) {
+        std::cerr << "Error: Config field '" << key << "' exceeds max length (" <<
+                  maxLen << ")" << std::endl;
+        SANDBOX_LOGE("Config field '%{public}s' exceeds max length (%{public}zu)",
+            key, maxLen);
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    out = val;
+    return SANDBOX_SUCCESS;
+}
+
 // Helper: parse optional hex name field (max 64 chars)
 static int ParseNameField(cJSON *root, std::string &out)
 {
@@ -148,6 +224,132 @@ static int ParseNameField(cJSON *root, std::string &out)
     }
     out = nameVal;
     return SANDBOX_SUCCESS;
+}
+
+// Helper: parse optional env object
+static int ParseEnvField(cJSON *root, std::map<std::string, std::string> &out)
+{
+    cJSON *item = nullptr;
+    cJSON *parsedEnv = nullptr;
+    int ret = GetOptionalObjectField(root, "env", item, parsedEnv, MAX_ENV_LENGTH);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+    if (item == nullptr) {
+        return SANDBOX_SUCCESS;
+    }
+    cJSON *envItem = nullptr;
+    cJSON_ArrayForEach(envItem, item) {
+        if (envItem == nullptr || envItem->string == nullptr ||
+            !cJSON_IsString(envItem) || envItem->valuestring == nullptr) {
+            std::cerr << "Error: Config field 'env' should contain string key-value pairs" << std::endl;
+            SANDBOX_LOGE("Config field 'env' should contain string key-value pairs");
+            return CleanupParsedObjectAndReturn(parsedEnv, SANDBOX_ERR_CONFIG_INVALID);
+        }
+        if (envItem->string[0] == '\0' || strchr(envItem->string, '=') != nullptr) {
+            std::cerr << "Error: Config field 'env' key must not be empty or contain '='" << std::endl;
+            SANDBOX_LOGE("Config field 'env' key must not be empty or contain '='");
+            return CleanupParsedObjectAndReturn(parsedEnv, SANDBOX_ERR_CONFIG_INVALID);
+        }
+        out[envItem->string] = envItem->valuestring;
+    }
+    return CleanupParsedObjectAndReturn(parsedEnv, SANDBOX_SUCCESS);
+}
+
+static int ParsePolicyMountSource(cJSON *mountItem, SandboxConfig::PolicyMount &mount)
+{
+    cJSON *source = cJSON_GetObjectItem(mountItem, "source");
+    if (!cJSON_IsString(source) || source->valuestring == nullptr) {
+        std::cerr << "Error: Config field 'policy.mounts[].source' missing or not a string" << std::endl;
+        SANDBOX_LOGE("Config field 'policy.mounts[].source' missing or not a string");
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    std::string path = source->valuestring;
+    if (path.empty() || path[0] != '/') {
+        std::cerr << "Error: Config field 'policy.mounts[].source' contains invalid path" << std::endl;
+        SANDBOX_LOGE("Config field 'policy.mounts[].source' contains invalid path");
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    mount.source = path;
+    return SANDBOX_SUCCESS;
+}
+
+static int ParsePolicyMountMode(cJSON *mountItem, SandboxConfig::PolicyMount &mount)
+{
+    cJSON *mode = cJSON_GetObjectItem(mountItem, "mode");
+    if (!cJSON_IsString(mode) || mode->valuestring == nullptr) {
+        std::cerr << "Error: Config field 'policy.mounts[].mode' missing or not a string" << std::endl;
+        SANDBOX_LOGE("Config field 'policy.mounts[].mode' missing or not a string");
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    if (strcmp(mode->valuestring, "ro") == 0) {
+        mount.readOnly = true;
+        return SANDBOX_SUCCESS;
+    }
+    if (strcmp(mode->valuestring, "rw") == 0) {
+        mount.readOnly = false;
+        return SANDBOX_SUCCESS;
+    }
+    std::cerr << "Error: Config field 'policy.mounts[].mode' must be 'ro' or 'rw'" << std::endl;
+    SANDBOX_LOGE("Config field 'policy.mounts[].mode' must be 'ro' or 'rw'");
+    return SANDBOX_ERR_CONFIG_INVALID;
+}
+
+static int ParsePolicyMountItem(cJSON *mountItem, SandboxConfig::Policy &out)
+{
+    if (!cJSON_IsObject(mountItem)) {
+        std::cerr << "Error: Config field 'policy.mounts' should contain objects" << std::endl;
+        SANDBOX_LOGE("Config field 'policy.mounts' should contain objects");
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+
+    SandboxConfig::PolicyMount mount;
+    int ret = ParsePolicyMountSource(mountItem, mount);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+    ret = ParsePolicyMountMode(mountItem, mount);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+    out.mounts.push_back(mount);
+    return SANDBOX_SUCCESS;
+}
+
+static int ParsePolicyMounts(cJSON *policy, SandboxConfig::Policy &out)
+{
+    cJSON *mounts = cJSON_GetObjectItem(policy, "mounts");
+    if (mounts == nullptr) {
+        return SANDBOX_SUCCESS;
+    }
+    if (!cJSON_IsArray(mounts)) {
+        std::cerr << "Error: Config field 'policy.mounts' type mismatch: expected array" << std::endl;
+        SANDBOX_LOGE("Config field 'policy.mounts' type mismatch: expected array");
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    int size = cJSON_GetArraySize(mounts);
+    for (int i = 0; i < size; i++) {
+        int ret = ParsePolicyMountItem(cJSON_GetArrayItem(mounts, i), out);
+        if (ret != SANDBOX_SUCCESS) {
+            return ret;
+        }
+    }
+    return SANDBOX_SUCCESS;
+}
+
+static int ParsePolicyField(cJSON *root, SandboxConfig::Policy &out)
+{
+    cJSON *item = nullptr;
+    cJSON *parsedPolicy = nullptr;
+    int ret = GetOptionalObjectField(root, "policy", item, parsedPolicy, MAX_POLICY_LENGTH);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+    if (item == nullptr) {
+        return SANDBOX_SUCCESS;
+    }
+    ret = ParsePolicyMounts(item, out);
+    return CleanupParsedObjectAndReturn(parsedPolicy, ret);
 }
 
 // Helper: parse optional nsFlags string array and convert directly to bitmask
@@ -223,11 +425,11 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
     if (ret != SANDBOX_SUCCESS) {
         return CleanupAndReturn(root, ret);
     }
-    ret = ParseStringFieldWithMaxLen(root, "challenge", config.challenge, MAX_CHALLENGE_LENGTH);
+    ret = ParseOptionalStringFieldWithMaxLen(root, "challenge", config.challenge, MAX_CHALLENGE_LENGTH);
     if (ret != SANDBOX_SUCCESS) {
         return CleanupAndReturn(root, ret);
     }
-    ret = ParseStringFieldWithMaxLen(root, "appid", config.appid, MAX_APPID_LENGTH);
+    ret = ParseStringFieldWithMaxLen(root, "appIdentifier", config.appIdentifier, MAX_APP_IDENTIFIER_LENGTH);
     if (ret != SANDBOX_SUCCESS) {
         return CleanupAndReturn(root, ret);
     }
@@ -244,6 +446,18 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
         return CleanupAndReturn(root, ret);
     }
     ret = ParseNameField(root, config.name);
+    if (ret != SANDBOX_SUCCESS) {
+        return CleanupAndReturn(root, ret);
+    }
+    ret = ParseOptionalStringFieldWithMaxLen(root, "workdir", config.workdir, MAX_WORKDIR_LENGTH);
+    if (ret != SANDBOX_SUCCESS) {
+        return CleanupAndReturn(root, ret);
+    }
+    ret = ParseEnvField(root, config.env);
+    if (ret != SANDBOX_SUCCESS) {
+        return CleanupAndReturn(root, ret);
+    }
+    ret = ParsePolicyField(root, config.policy);
     if (ret != SANDBOX_SUCCESS) {
         return CleanupAndReturn(root, ret);
     }

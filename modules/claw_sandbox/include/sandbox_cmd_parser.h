@@ -16,9 +16,10 @@
 #ifndef CLAW_SANDBOX_SANDBOX_CMD_PARSER_H
 #define CLAW_SANDBOX_SANDBOX_CMD_PARSER_H
 
+#include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
-#include <cstdint>
 
 #include "accesstoken_kit.h"
 
@@ -30,15 +31,27 @@ namespace SANDBOX {
  * @brief Sandbox configuration parsed from --config JSON
  */
 struct SandboxConfig {
+    struct PolicyMount {
+        std::string source;
+        bool readOnly = true;
+    };
+
+    struct Policy {
+        std::vector<PolicyMount> mounts;
+    };
+
     uint64_t callerTokenId = 0;
     uint32_t callerPid = 0;
     uint32_t uid = 0;
     uint32_t gid = 0;
     std::string challenge;
-    std::string appid;
+    std::string appIdentifier;
     std::string bundleName;                // Bundle name for <PackageName> substitution
     std::string currentUserId;             // Current user ID for <currentUserId> substitution
     std::string name;                      // Optional hex sandbox name (max 64 chars)
+    std::string workdir;                   // Optional working directory (max 1024 chars)
+    std::map<std::string, std::string> env; // Optional environment variables
+    Policy policy;                         // Optional path access policy
     int nsFlags = 0;                       // Optional namespace flags (bitmask), e.g. CLONE_NEWNET | CLONE_NEWPID
     std::string cliName;                   // CLI name (required)
     std::string subCliName;                // Sub-CLI name (required)

@@ -55,7 +55,7 @@ static const ConfigJsonField BASE_CONFIG_FIELDS[] = {
     {"uid", "20020026"},
     {"gid", "20020026"},
     {"challenge", R"("ch")"},
-    {"appid", R"("app")"},
+    {"appIdentifier", R"("app")"},
     {"bundleName", R"("bundle")"},
     {"cliName", R"("cli")"},
     {"subCliName", R"("sub")"},
@@ -97,6 +97,40 @@ static std::string BuildConfigJsonWithValue(const std::string &overrideKey,
     return json;
 }
 
+static std::string AddConfigJsonField(std::string json, const std::string &key, const std::string &value)
+{
+    if (!json.empty() && json.back() == '}') {
+        json.pop_back();
+    }
+    json += ",\"";
+    json += key;
+    json += "\":";
+    json += value;
+    json += "}";
+    return json;
+}
+
+static std::string ToJsonString(const std::string &value)
+{
+    std::string json = "\"";
+    for (char c : value) {
+        if (c == '"' || c == '\\') {
+            json += '\\';
+            json += c;
+        } else if (c == '\n') {
+            json += "\\n";
+        } else if (c == '\r') {
+            json += "\\r";
+        } else if (c == '\t') {
+            json += "\\t";
+        } else {
+            json += c;
+        }
+    }
+    json += "\"";
+    return json;
+}
+
 void ClawSandboxCmdParserTest::SetUpTestCase() {}
 void ClawSandboxCmdParserTest::TearDownTestCase() {}
 void ClawSandboxCmdParserTest::SetUp() {}
@@ -118,7 +152,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig001, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "test-challenge",
-        "appid": "com.example.app",
+        "appIdentifier": "com.example.app",
         "bundleName": "com.example.bundle",
         "cliName": "testCli",
         "subCliName": "testSubCli"
@@ -131,7 +165,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig001, TestSize.Level0)
     EXPECT_EQ(20020026U, config.uid);
     EXPECT_EQ(20020026U, config.gid);
     EXPECT_EQ("test-challenge", config.challenge);
-    EXPECT_EQ("com.example.app", config.appid);
+    EXPECT_EQ("com.example.app", config.appIdentifier);
     EXPECT_EQ("com.example.bundle", config.bundleName);
     EXPECT_EQ("testCli", config.cliName);
     EXPECT_EQ("testSubCli", config.subCliName);
@@ -167,7 +201,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig003, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appid": "app",
+        "appIdentifier": "app",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub"
@@ -191,7 +225,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig004, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appid": "app",
+        "appIdentifier": "app",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -217,7 +251,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig005, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appid": "app",
+        "appIdentifier": "app",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -243,7 +277,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig006, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appid": "app",
+        "appIdentifier": "app",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -268,7 +302,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig007, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appid": "app",
+        "appIdentifier": "app",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -295,7 +329,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig008, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appid": "app",
+        "appIdentifier": "app",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -320,7 +354,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig009, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appid": "app",
+        "appIdentifier": "app",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -345,7 +379,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig010, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appid": "app",
+        "appIdentifier": "app",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub"
@@ -369,7 +403,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig011, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appid": "app",
+        "appIdentifier": "app",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub"
@@ -409,7 +443,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig013, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appid": "app",
+        "appIdentifier": "app",
         "bundleName": "bundle",
         "cliName": ")" + longStr + R"(",
         "subCliName": "sub"
@@ -434,7 +468,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig014, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appid": "app",
+        "appIdentifier": "app",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -459,7 +493,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig015, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appid": "app",
+        "appIdentifier": "app",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -474,7 +508,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig015, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appid": "app",
+        "appIdentifier": "app",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -509,8 +543,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig016, TestSize.Level0)
  */
 HWTEST_F(ClawSandboxCmdParserTest, ParseConfig017, TestSize.Level0)
 {
-    const char *missingFields[] = {"challenge", "appid", "bundleName",
-        "cliName", "subCliName"};
+    const char *missingFields[] = {"appIdentifier", "bundleName", "cliName", "subCliName"};
 
     for (const char *field : missingFields) {
         SCOPED_TRACE(field);
@@ -567,7 +600,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig019, TestSize.Level0)
 
 /**
  * @tc.name: ParseConfig020
- * @tc.desc: ParseConfig rejects required string fields with wrong JSON types
+ * @tc.desc: ParseConfig rejects string fields with wrong JSON types
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -575,7 +608,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig020, TestSize.Level0)
 {
     const ConfigJsonField invalidFields[] = {
         {"challenge", "123"},
-        {"appid", "false"},
+        {"appIdentifier", "false"},
         {"bundleName", "{}"},
         {"cliName", "[]"},
         {"subCliName", "null"},
@@ -607,7 +640,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig021, TestSize.Level0)
 
 /**
  * @tc.name: ParseConfig022
- * @tc.desc: ParseConfig rejects each required string field above its max length
+ * @tc.desc: ParseConfig rejects each string field above its max length
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -615,7 +648,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig022, TestSize.Level0)
 {
     const ConfigJsonField invalidFields[] = {
         {"challenge", "\"" + std::string(40961, 'c') + "\""},
-        {"appid", "\"" + std::string(10241, 'a') + "\""},
+        {"appIdentifier", "\"" + std::string(10241, 'a') + "\""},
         {"bundleName", "\"" + std::string(257, 'b') + "\""},
         {"subCliName", "\"" + std::string(257, 's') + "\""},
     };
@@ -651,6 +684,226 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig023, TestSize.Level0)
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_TRUE(config.name.empty());
     EXPECT_EQ(static_cast<int>(CLONE_NEWNS | CLONE_NEWNET), config.nsFlags);
+}
+
+/**
+ * @tc.name: ParseConfig024
+ * @tc.desc: ParseConfig accepts missing optional challenge
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig024, TestSize.Level0)
+{
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(BuildConfigJsonWithoutField("challenge"), config);
+
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_TRUE(config.challenge.empty());
+}
+
+/**
+ * @tc.name: ParseConfig025
+ * @tc.desc: ParseConfig accepts env and policy as JSON object strings
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig025, TestSize.Level0)
+{
+    std::string json = BuildConfigJsonWithValue("", "");
+    json = AddConfigJsonField(json, "env", ToJsonString(R"({"PATH":"/bin","HOME":"/tmp"})"));
+    json = AddConfigJsonField(json, "policy",
+        ToJsonString(R"({"mounts":[{"source":"/data/test","mode":"rw"}]})"));
+
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ("/bin", config.env["PATH"]);
+    ASSERT_EQ(1U, config.policy.mounts.size());
+    EXPECT_EQ("/data/test", config.policy.mounts[0].source);
+    EXPECT_FALSE(config.policy.mounts[0].readOnly);
+}
+
+/**
+ * @tc.name: ParseConfig026
+ * @tc.desc: ParseConfig skips empty env and policy strings
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig026, TestSize.Level0)
+{
+    std::string json = BuildConfigJsonWithValue("", "");
+    json = AddConfigJsonField(json, "env", R"("")");
+    json = AddConfigJsonField(json, "policy", R"("")");
+
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_TRUE(config.env.empty());
+    EXPECT_TRUE(config.policy.mounts.empty());
+}
+
+/**
+ * @tc.name: ParseConfig027
+ * @tc.desc: ParseConfig rejects env and policy strings above whole-field length limits
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig027, TestSize.Level0)
+{
+    const ConfigJsonField invalidFields[] = {
+        {"env", ToJsonString(std::string(10241, 'e'))},
+        {"policy", ToJsonString(std::string(102401, 'p'))},
+    };
+
+    for (const auto &field : invalidFields) {
+        SCOPED_TRACE(field.key);
+        SandboxConfig config;
+        std::string json = AddConfigJsonField(BuildConfigJsonWithValue("", ""), field.key, field.value);
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ParseConfig(json, config));
+    }
+}
+
+/**
+ * @tc.name: ParseConfig028
+ * @tc.desc: ParseConfig accepts policy source longer than the old per-source limit
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig028, TestSize.Level0)
+{
+    std::string longSource = "/" + std::string(1500, 'a');
+    std::string policy = R"({"mounts":[{"source":")" + longSource + R"(","mode":"ro"}]})";
+    std::string json = AddConfigJsonField(BuildConfigJsonWithValue("", ""), "policy", ToJsonString(policy));
+
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(1U, config.policy.mounts.size());
+    EXPECT_EQ(longSource, config.policy.mounts[0].source);
+    EXPECT_TRUE(config.policy.mounts[0].readOnly);
+}
+
+/**
+ * @tc.name: ParseConfig029
+ * @tc.desc: ParseConfig rejects env and policy strings that do not parse to objects
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig029, TestSize.Level0)
+{
+    const ConfigJsonField invalidFields[] = {
+        {"env", ToJsonString("[]")},
+        {"policy", ToJsonString("[]")},
+    };
+
+    for (const auto &field : invalidFields) {
+        SCOPED_TRACE(field.key);
+        SandboxConfig config;
+        std::string json = AddConfigJsonField(BuildConfigJsonWithValue("", ""), field.key, field.value);
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ParseConfig(json, config));
+    }
+}
+
+/**
+ * @tc.name: ParseConfig030
+ * @tc.desc: ParseConfig accepts env and policy as direct JSON objects
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig030, TestSize.Level0)
+{
+    std::string json = BuildConfigJsonWithValue("", "");
+    json = AddConfigJsonField(json, "workdir", R"("/tmp/claw_sandbox_ut")");
+    json = AddConfigJsonField(json, "env", R"({"PATH":"/usr/bin","TERM":"xterm"})");
+    json = AddConfigJsonField(json, "policy",
+        R"({"mounts":[{"source":"/data/ro","mode":"ro"},{"source":"/data/rw","mode":"rw"}]})");
+
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ("/tmp/claw_sandbox_ut", config.workdir);
+    EXPECT_EQ("/usr/bin", config.env["PATH"]);
+    ASSERT_EQ(2U, config.policy.mounts.size());
+    EXPECT_EQ("/data/ro", config.policy.mounts[0].source);
+    EXPECT_TRUE(config.policy.mounts[0].readOnly);
+    EXPECT_EQ("/data/rw", config.policy.mounts[1].source);
+    EXPECT_FALSE(config.policy.mounts[1].readOnly);
+}
+
+/**
+ * @tc.name: ParseConfig031
+ * @tc.desc: ParseConfig rejects invalid env object contents
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig031, TestSize.Level0)
+{
+    const ConfigJsonField invalidEnvFields[] = {
+        {"env", R"({"KEY":123})"},
+        {"env", R"({"":"value"})"},
+        {"env", R"({"BAD=KEY":"value"})"},
+    };
+
+    for (const auto &field : invalidEnvFields) {
+        SCOPED_TRACE(field.value);
+        SandboxConfig config;
+        std::string json = AddConfigJsonField(BuildConfigJsonWithValue("", ""), field.key, field.value);
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ParseConfig(json, config));
+    }
+}
+
+/**
+ * @tc.name: ParseConfig032
+ * @tc.desc: ParseConfig rejects invalid policy mount contents
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig032, TestSize.Level0)
+{
+    const ConfigJsonField invalidPolicyFields[] = {
+        {"policy", R"({"mounts":"bad"})"},
+        {"policy", R"({"mounts":[100]})"},
+        {"policy", R"({"mounts":[{"mode":"ro"}]})"},
+        {"policy", R"({"mounts":[{"source":123,"mode":"ro"}]})"},
+        {"policy", R"({"mounts":[{"source":"","mode":"ro"}]})"},
+        {"policy", R"({"mounts":[{"source":"relative","mode":"ro"}]})"},
+        {"policy", R"({"mounts":[{"source":"/data/test"}]})"},
+        {"policy", R"({"mounts":[{"source":"/data/test","mode":"bad"}]})"},
+    };
+
+    for (const auto &field : invalidPolicyFields) {
+        SCOPED_TRACE(field.value);
+        SandboxConfig config;
+        std::string json = AddConfigJsonField(BuildConfigJsonWithValue("", ""), field.key, field.value);
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ParseConfig(json, config));
+    }
+}
+
+/**
+ * @tc.name: ParseConfig033
+ * @tc.desc: ParseConfig rejects wrong direct types for env policy and workdir
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig033, TestSize.Level0)
+{
+    const ConfigJsonField invalidFields[] = {
+        {"env", "123"},
+        {"policy", "false"},
+        {"workdir", "123"},
+        {"workdir", "\"" + std::string(1025, 'w') + "\""},
+    };
+
+    for (const auto &field : invalidFields) {
+        SCOPED_TRACE(field.key);
+        SandboxConfig config;
+        std::string json = AddConfigJsonField(BuildConfigJsonWithValue("", ""), field.key, field.value);
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ParseConfig(json, config));
+    }
 }
 
 // ==================== ParseCommandFromArgv tests ====================
