@@ -21,6 +21,7 @@
 #include <cstring>
 #include "cJSON.h"
 #include <sched.h>
+#include <functional>
 
 namespace OHOS {
 namespace AccessControl {
@@ -44,6 +45,7 @@ constexpr size_t MAX_BUNDLE_NAME_LENGTH = 256;
 constexpr size_t MAX_WORKDIR_LENGTH = 1024;
 constexpr size_t MAX_ENV_LENGTH = 10240;
 constexpr size_t MAX_POLICY_LENGTH = 102400;
+constexpr size_t MAX_TYPE_LENGTH = 10;
 
 // Maximum constraints for nsFlags array
 constexpr size_t MAX_NS_FLAGS_COUNT = 10;
@@ -195,6 +197,17 @@ static int ParseOptionalStringFieldWithMaxLen(cJSON *root, const char *key,
     }
     out = val;
     return SANDBOX_SUCCESS;
+}
+
+// Helper: parse type field (max length MAX_TYPE_LENGTH)
+static int ParseTypeField(cJSON *root, std::string &out)
+{
+    cJSON *item = cJSON_GetObjectItem(root, "type");
+    if (item == nullptr) {
+        out = "cli"; // default type is cli
+        return SANDBOX_SUCCESS;
+    }
+    return ParseStringFieldWithMaxLen(root, "type", out, MAX_TYPE_LENGTH);
 }
 
 // Helper: parse optional hex name field (max 64 chars)
@@ -409,61 +422,55 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
         return SANDBOX_ERR_CONFIG_INVALID;
     }
 
-    int ret = ParseUint64Field(root, "callerTokenId", config.callerTokenId);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
-    }
-    ret = ParseUint32Field(root, "callerPid", config.callerPid);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
-    }
-    ret = ParseUint32Field(root, "uid", config.uid);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
-    }
-    ret = ParseUint32Field(root, "gid", config.gid);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
-    }
-    ret = ParseOptionalStringFieldWithMaxLen(root, "challenge", config.challenge, MAX_CHALLENGE_LENGTH);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
-    }
-    ret = ParseStringFieldWithMaxLen(root, "appIdentifier", config.appIdentifier, MAX_APP_IDENTIFIER_LENGTH);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
-    }
-    ret = ParseStringFieldWithMaxLen(root, "bundleName", config.bundleName, MAX_BUNDLE_NAME_LENGTH);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
-    }
-    ret = ParseStringFieldWithMaxLen(root, "cliName", config.cliName, MAX_CLI_NAME_LENGTH);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
-    }
-    ret = ParseStringFieldWithMaxLen(root, "subCliName", config.subCliName, MAX_SUB_CLI_NAME_LENGTH);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
-    }
-    ret = ParseNameField(root, config.name);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
-    }
-    ret = ParseOptionalStringFieldWithMaxLen(root, "workdir", config.workdir, MAX_WORKDIR_LENGTH);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
-    }
-    ret = ParseEnvField(root, config.env);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
-    }
-    ret = ParsePolicyField(root, config.policy);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
-    }
-    ret = ParseNsFlagsField(root, config.nsFlags);
-    if (ret != SANDBOX_SUCCESS) {
-        return CleanupAndReturn(root, ret);
+    std::function<int()> parseSteps[] = {
+        [&]() -> int { return ParseUint64Field(root, "callerTokenId", config.callerTokenId); },
+        [&]() -> int { return ParseUint32Field(root, "callerPid", config.callerPid); },
+        [&]() -> int { return ParseUint32Field(root, "uid", config.uid); },
+        [&]() -> int { return ParseUint32Field(root, "gid", config.gid); },
+        [&]() -> int {
+            return ParseOptionalStringFieldWithMaxLen(root, "challenge", config.challenge, MAX_CHALLENGE_LENGTH);
+        },
+        [&]() -> int {
+            return ParseStringFieldWithMaxLen(root, "appIdentifier", config.appIdentifier, MAX_APP_IDENTIFIER_LENGTH);
+        },
+        [&]() -> int {
+            return ParseStringFieldWithMaxLen(root, "bundleName", config.bundleName, MAX_BUNDLE_NAME_LENGTH);
+        },
+        [&]() -> int {
+            int ret = ParseTypeField(root, config.type);
+            if (ret != SANDBOX_SUCCESS) {
+                return ret;
+            }
+            if (config.type == "cli") {
+                ret = ParseStringFieldWithMaxLen(root, "cliName", config.cliName, MAX_CLI_NAME_LENGTH);
+                if (ret != SANDBOX_SUCCESS) {
+                    return ret;
+                }
+                return ParseStringFieldWithMaxLen(root, "subCliName", config.subCliName, MAX_SUB_CLI_NAME_LENGTH);
+            } else if (config.type == "shell") {
+                config.cliName = "";
+                config.subCliName = "";
+                return SANDBOX_SUCCESS;
+            } else {
+                std::cerr << "Error: Config field 'type' must be 'cli' or 'shell'" << std::endl;
+                SANDBOX_LOGE("Config field 'type' must be 'cli' or 'shell'");
+                return SANDBOX_ERR_CONFIG_INVALID;
+            }
+        },
+        [&]() -> int { return ParseNameField(root, config.name); },
+        [&]() -> int {
+            return ParseOptionalStringFieldWithMaxLen(root, "workdir", config.workdir, MAX_WORKDIR_LENGTH);
+        },
+        [&]() -> int { return ParseEnvField(root, config.env); },
+        [&]() -> int { return ParsePolicyField(root, config.policy); },
+        [&]() -> int { return ParseNsFlagsField(root, config.nsFlags); }
+    };
+
+    for (const auto& step : parseSteps) {
+        int ret = step();
+        if (ret != SANDBOX_SUCCESS) {
+            return CleanupAndReturn(root, ret);
+        }
     }
 
     cJSON_Delete(root);

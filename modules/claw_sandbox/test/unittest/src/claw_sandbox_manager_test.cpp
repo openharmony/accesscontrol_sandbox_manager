@@ -494,6 +494,85 @@ HWTEST_F(ClawSandboxManagerTest, ValidateBasicParams005, TestSize.Level0)
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateBasicParams());
 }
 
+// ==================== SetXpmOwnerId Test =========================
+
+/**
+ * @tc.name: SetXpmOwnerId001
+ * @tc.desc: Validate SetXpmOwnerId returns success immediately when type is not "shell".
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.type = "cli"; // Not "shell"
+    config.appIdentifier = "com.test.app";
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetXpmOwnerId());
+}
+
+/**
+ * @tc.name: SetXpmOwnerId002
+ * @tc.desc: Validate SetXpmOwnerId returns BAD_PARAMETERS when type is "shell" but appIdentifier is empty.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.type = "shell";
+    config.appIdentifier = ""; // Empty identifier
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.SetXpmOwnerId());
+}
+
+/**
+ * @tc.name: SetXpmOwnerId003
+ * @tc.desc: Validate SetXpmOwnerId logic with valid shell type and normal appIdentifier.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId003, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.type = "shell";
+    config.appIdentifier = "com.example.hnp";
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    // In a typical UT environment, /dev/xpm might not exist, so open() fails,
+    // which correctly logs a warning and returns SANDBOX_SUCCESS.
+    // If mocked or run on a real device, ioctl executes and also returns SANDBOX_SUCCESS.
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetXpmOwnerId());
+}
+
+/**
+ * @tc.name: SetXpmOwnerId004
+ * @tc.desc: Validate SetXpmOwnerId safely handles appIdentifier lengths exceeding MAX_OWNERID_LEN.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId004, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.type = "shell";
+    // Create a string longer than MAX_OWNERID_LEN (64)
+    config.appIdentifier = std::string(100, 'A');
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    // The truncation logic (std::min) should prevent memcpy_s from failing.
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetXpmOwnerId());
+}
+
 // ==================== ValidateTokenType tests ====================
 
 /**
@@ -3696,6 +3775,28 @@ HWTEST_F(ClawSandboxManagerTest, SetAccessToken001, TestSize.Level0)
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_TOKENID_FAILED);
 }
 
+/**
+ * @tc.name: SetAccessToken002
+ * @tc.desc: SetAccessToken attempts to set token IDs
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetAccessToken002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.type = "shell";
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    int ret = manager.SetAccessToken();
+    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_TOKENID_FAILED);
+}
+
 // ==================== SetAinfo tests ====================
 
 /**
@@ -3878,6 +3979,32 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteCommand001, TestSize.Level0)
     // which fails in test environment, returning SANDBOX_ERR_CMD_INVALID
     EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
 }
+
+/**
+ * @tc.name: ExecuteCommand002
+ * @tc.desc: ExecuteCommand with empty cmd returns error
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ExecuteCommand002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.type = "shell";
+    config.appIdentifier = "";
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    int ret = manager.ExecuteCommand();
+    // When cmdInfo_.argv is empty, ExecuteCommand falls back to execl("/system/bin/sh")
+    // which fails in test environment, returning SANDBOX_ERR_CMD_INVALID
+    EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
+}
+
 
 // ==================== ExecuteEarlySteps tests ====================
 
@@ -4085,6 +4212,7 @@ HWTEST_F(ClawSandboxManagerTest, MountSingleEntry002, TestSize.Level0)
     SandboxConfig config;
     config.uid = 20020026;
     config.gid = 20020026;
+    config.type = "cli";
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;

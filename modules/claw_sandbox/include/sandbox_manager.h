@@ -124,6 +124,7 @@ private:
     int MountProcFs();
     int SetAccessToken();
     int SetAinfo();
+    int SetXpmOwnerId();
 #ifdef MCS_ENABLE
     int SetSelinuxMCS();
 #endif

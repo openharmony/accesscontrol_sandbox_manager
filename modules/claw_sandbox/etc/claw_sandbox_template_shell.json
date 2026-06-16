@@ -151,6 +151,12 @@
       "target": "/data/storage/el1/bundle",
       "mount-flags": ["bind", "rec"],
       "check-exists": true
+    },
+    {
+      "source": "/data/service/hnp",
+      "target": "/data/service/hnp",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
     }
   ],
   "env-policy": {

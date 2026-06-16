@@ -119,6 +119,12 @@ constexpr uint64_t SEC_TO_NSEC = 1000000000ULL;
 // It is only used to identify that the process was launched by claw_sandbox.
 constexpr const char *CLAW_SANDBOX_ENV_KEY = "CLAW_SANDBOX";
 constexpr const char *CLAW_SANDBOX_ENV_VALUE = "1";
+// Environment variables preset for the child process.
+const std::map<std::string, std::string> PRESET_ENV_VARS = {
+#ifdef CONFIG_PC_PLATFORM
+    {"PATH", "/data/service/hnp/bin"}
+#endif
+};
 
 struct DecPathInfo {
     char *path;
@@ -259,6 +265,26 @@ constexpr uint64_t SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32);
 
 // Low 32-bit mask for extracting AccessTokenID from AccessTokenIDEx
 constexpr uint64_t TOKEN_ID_LOWMASK = 0xFFFFFFFF;
+
+// xpm setting
+constexpr uint32_t MAX_OWNERID_LEN = 64;
+constexpr const char *DEV_XPM_PATH = "/dev/xpm";
+
+struct XpmRegionInfo {
+    unsigned long addrBase;
+    unsigned long length;
+
+    uint32_t idType;
+    char ownerid[MAX_OWNERID_LEN];
+    uint32_t apiVersion;
+};
+
+constexpr int HM_XPM_REGION_IOCTL_BASE = 'x';
+constexpr int HM_SET_XPM_OWNERID_ID = 2;
+constexpr uint32_t XPM_ID_TYPE_APPID = 3;
+constexpr unsigned long SET_XPM_OWNERID_CMD = _IOW(HM_XPM_REGION_IOCTL_BASE,
+    HM_SET_XPM_OWNERID_ID, struct XpmRegionInfo);
+
 
 SandboxManager::SandboxManager() {}
 
@@ -463,7 +489,7 @@ int SandboxManager::ExecuteMountSteps()
 }
 
 /**
- * @brief Execute steps 12-20: set access token, ainfo, uid/gid, DEC policies,
+ * @brief Execute steps 12-21: set access token, ainfo, uid/gid, DEC policies,
  *        workdir, environment, seccomp filter, drop capabilities, and execute command.
  *        These steps do NOT require cleanup on failure.
  */
@@ -475,51 +501,97 @@ int SandboxManager::ExecuteLateSteps()
         return ret;
     }
 
-    // Step 13: Set ainfo.
+    // Step 13: Set xpm owner id.
+    ret = SetXpmOwnerId();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    // Step 14: Set ainfo.
     ret = SetAinfo();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 14: Set UID/GID (with SECBIT_KEEP_CAPS to preserve capabilities across setuid).
+    // Step 15: Set UID/GID (with SECBIT_KEEP_CAPS to preserve capabilities across setuid).
     ret = SetUidGid();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 15: Apply DEC policies after UID/GID and supplementary groups are set.
+    // Step 16: Apply DEC policies after UID/GID and supplementary groups are set.
     ret = ApplyDecPolicies();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 16: Prepare optional workdir before installing seccomp, because seccomp may block chdir.
+    // Step 17: Prepare optional workdir before installing seccomp, because seccomp may block chdir.
     ret = PrepareWorkdir();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 17: Apply optional environment after UID/GID switch so exec inherits the final environment.
+    // Step 18: Apply optional environment after UID/GID switch so exec inherits the final environment.
     ret = ApplyEnvironment();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 18: Set Seccomp (always applied to block setpgid/setsid for process group protection).
+    // Step 19: Set Seccomp (always applied to block setpgid/setsid for process group protection).
     ret = SetSeccomp();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 19: Drop capabilities after seccomp; capset() is not blocked in block mode
+    // Step 20: Drop capabilities after seccomp; capset() is not blocked in block mode
     //          and is expected to be allowlisted in whitelist mode.
     ret = DropCapabilities();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 20: Execute the command.
+    // Step 21: Execute the command.
     return ExecuteCommand();
+}
+
+int SandboxManager::SetXpmOwnerId()
+{
+    if (config_.type != "shell") {
+        // only shell need to set xpm ownner id
+        return SANDBOX_SUCCESS;
+    }
+
+    std::string ownerId = config_.appIdentifier;
+    if (ownerId.empty()) {
+        std::cerr << "Error: appIdentifier is empty" << std::endl;
+        SANDBOX_LOGE("Error: appIdentifier is empty");
+        return SANDBOX_ERR_BAD_PARAMETERS;
+    }
+
+    int fd = open(DEV_XPM_PATH, O_RDWR);
+    if (fd < 0) {
+        SANDBOX_LOGW("Open %{public}s failed, err: %{public}s", DEV_XPM_PATH, strerror(errno));
+        return SANDBOX_SUCCESS;
+    }
+
+    struct XpmRegionInfo info = { 0 };
+    info.idType = XPM_ID_TYPE_APPID;
+    size_t copyLen = std::min(ownerId.size(), static_cast<size_t>(MAX_OWNERID_LEN - 1));
+    int ret = memcpy_s(info.ownerid, MAX_OWNERID_LEN, ownerId.c_str(), copyLen);
+    if (ret != SANDBOX_SUCCESS) {
+        std::cerr << "Error: failed to copy ownerid to XpmRegionInfo" << std::endl;
+        SANDBOX_LOGE("Error: failed to copy ownerid to XpmRegionInfo");
+        close(fd);
+        return SANDBOX_ERR_BAD_PARAMETERS;
+    }
+    ret = ioctl(fd, SET_XPM_OWNERID_CMD, &info);
+    if (ret < 0) {
+        SANDBOX_LOGW("Set xpm ownner id failed, err: %{public}s", strerror(errno));
+    } else {
+        SANDBOX_LOGD("Set xpm Ownner id success");
+    }
+    close(fd);
+    return SANDBOX_SUCCESS;
 }
 
 int SandboxManager::ValidateBasicParams()
@@ -787,6 +859,9 @@ int SandboxManager::ApplyDecPolicies()
 
 int SandboxManager::GenerateTokenId()
 {
+    if (config_.type == "shell") {
+        return SANDBOX_SUCCESS;
+    }
     CliInitInfo initInfo = {
         .hostTokenId = config_.callerTokenId,
         .challenge = config_.challenge,
@@ -812,7 +887,14 @@ int SandboxManager::GenerateTokenId()
 
 int SandboxManager::SetAccessToken()
 {
-    int ret = SetSelfTokenID(config_.tokenIdEx.tokenIDEx);
+    uint64_t callerId = 0;
+    if (config_.type == "shell") {
+        callerId = config_.callerTokenId;
+    } else {
+        callerId = config_.tokenIdEx.tokenIDEx;
+    }
+
+    int ret = SetSelfTokenID(callerId);
     if (ret != 0) {
         std::cerr << "Error: SetSelfTokenID failed: " << ret << std::endl;
         SANDBOX_LOGE("SetSelfTokenID failed: %{public}d", ret);
@@ -1704,6 +1786,17 @@ void SandboxManager::SanitizeOverrideEnv(std::map<std::string, std::string> &san
                                          size_t &overrideAccepted, size_t &overrideRejectedBlocked,
                                          size_t &overrideRejectedInvalid)
 {
+    for (const auto &preset : PRESET_ENV_VARS) {
+        std::string upperPresetKey = ToUpperAscii(preset.first);
+        if (upperPresetKey == "PATH") {
+            auto currentPath = sanitizedEnv.find("PATH");
+            std::string base = (currentPath != sanitizedEnv.end()) ? currentPath->second : "";
+            sanitizedEnv["PATH"] = AppendEnvPathValue(base, preset.second);
+        } else {
+            sanitizedEnv[preset.first] = preset.second;
+        }
+    }
+
     for (const auto &item : config_.env) {
         std::string normalizedKey;
         if (!NormalizeHostOverrideEnvVarKey(item.first, normalizedKey)) {
