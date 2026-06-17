@@ -363,7 +363,7 @@ static int ParseAgentLockAddPolicyArg(cJSON *root, struct AgentLockAddPolicyArg*
         return SANDBOX_SUCCESS;
     }
     uint32_t policyNum = 0;
-    int ret = ParseAgentLockPolicyNum(policyArgObj, policyNum);
+    ret = ParseAgentLockPolicyNum(policyArgObj, policyNum);
     if (ret != SANDBOX_SUCCESS) {
         std::cerr << "Error: Failed to parse agentlock policy number" << std::endl;
         SANDBOX_LOGE("Failed to parse agentlock policy number");
