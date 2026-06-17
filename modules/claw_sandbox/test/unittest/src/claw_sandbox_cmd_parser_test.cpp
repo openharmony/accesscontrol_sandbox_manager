@@ -1050,14 +1050,14 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig038, TestSize.Level0)
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
-        "policy": {
-            "AddOperationControlRuleGroups": [
+        "policy": "{
+            \"AddOperationControlRuleGroups\": [
                 {
-                    "Scope": { "Type": "current_task" },
-                    "Network": { "DefaultAction": "deny" }
+                    \"Scope\": { \"Type\": \"current_task\" },
+                    \"Network\": { \"DefaultAction\": \"deny\" }
                 }
             ]
-        }
+        }"
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
@@ -1086,14 +1086,14 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig039, TestSize.Level0)
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
-        "policy": {
-            "AddOperationControlRuleGroups": [
+        "policy": "{
+            \"AddOperationControlRuleGroups\": [
                 {
-                    "Scope": { "Type": "current_task" },
-                    "Network": {}
+                    \"Scope\": { \"Type\": \"current_task\" },
+                    \"Network\": {}
                 }
             ]
-        }
+        }"
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
@@ -1122,13 +1122,13 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig040, TestSize.Level0)
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
-        "policy": {
-            "AddOperationControlRuleGroups": [
+        "policy": "{
+            \"AddOperationControlRuleGroups\": [
                 {
-                    "Scope": { "Type": "current_task" }
+                    \"Scope\": { \"Type\": \"current_task\" }
                 }
             ]
-        }
+        }"
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
@@ -1157,13 +1157,13 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig041, TestSize.Level0)
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
-        "policy": {"
-            AddOperationControlRuleGroups": [
+        "policy": "{"
+            \"AddOperationControlRuleGroups\": [
                 {
-                    "Network":{"DefaultAction": "deny"}
+                    \"Network\":{\"DefaultAction\": \"deny\"}
                 }
             ]
-        }
+        }"
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
@@ -1192,14 +1192,14 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig042, TestSize.Level0)
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
-        "policy": {
-            "AddOperationControlRuleGroups": [
+        "policy": "{
+            \"AddOperationControlRuleGroups\": [
                 {
-                    "Scope": { "Type": "global" },
-                    "Network": { "DefaultAction": "deny" }
+                    \"Scope\": { \"Type\": \"global\" },
+                    \"Network\": { \"DefaultAction\": \"deny\" }
                 }
             ]
-        }
+        }"
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);

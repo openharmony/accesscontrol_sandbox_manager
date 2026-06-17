@@ -353,14 +353,14 @@ static int ParseAgentLockField(cJSON *root, struct AgentLockPolicy policy[])
 // Helper: parse the 'policy' field for agentlock and fill in the AgentLockAddPolicyArg structure
 static int ParseAgentLockAddPolicyArg(cJSON *root, struct AgentLockAddPolicyArg* &policyArg)
 {
-    cJSON *policyArgObj = cJSON_GetObjectItem(root, "policy");
+    cJSON *policyArgObj = nullptr;
+    cJSON *policyArgStr = nullptr;
+    int ret = GetOptionalObjectField(root, "policy", policyArgObj, policyArgStr, MAX_POLICY_LENGTH);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
     if (policyArgObj == nullptr) {
         return SANDBOX_SUCCESS;
-    }
-    if (!cJSON_IsObject(policyArgObj)) {
-        std::cerr << "Error: Config field 'policy' missing or not an object" << std::endl;
-        SANDBOX_LOGE("Config field 'policy' missing or not an object");
-        return SANDBOX_ERR_CONFIG_INVALID;
     }
     uint32_t policyNum = 0;
     int ret = ParseAgentLockPolicyNum(policyArgObj, policyNum);
