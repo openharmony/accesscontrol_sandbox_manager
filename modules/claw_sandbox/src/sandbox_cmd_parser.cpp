@@ -367,26 +367,26 @@ static int ParseAgentLockAddPolicyArg(cJSON *root, struct AgentLockAddPolicyArg*
     if (ret != SANDBOX_SUCCESS) {
         std::cerr << "Error: Failed to parse agentlock policy number" << std::endl;
         SANDBOX_LOGE("Failed to parse agentlock policy number");
-        return ret;
+        return CleanupParsedObjectAndReturn(policyArgStr, ret);
     }
     size_t totalSize = sizeof(struct AgentLockAddPolicyArg) + policyNum * sizeof(struct AgentLockPolicy);
     if (totalSize < sizeof(struct AgentLockAddPolicyArg) || totalSize > MAX_MALLOC_SIZE) {
         std::cerr << "Error: Policy size overflow or exceeds limit" << std::endl;
         SANDBOX_LOGE("Policy size overflow or exceeds limit");
-        return SANDBOX_ERR_CONFIG_INVALID;
+        return CleanupParsedObjectAndReturn(policyArgStr, SANDBOX_ERR_CONFIG_INVALID);
     }
     policyArg = (struct AgentLockAddPolicyArg *)std::malloc(totalSize);
     if (policyArg == nullptr) {
         std::cerr << "Error: Failed to allocate memory for AgentLockAddPolicyArg" << std::endl;
         SANDBOX_LOGE("Failed to allocate memory for AgentLockAddPolicyArg");
-        return SANDBOX_ERR_CONFIG_INVALID;
+        return CleanupParsedObjectAndReturn(policyArgStr, SANDBOX_ERR_CONFIG_INVALID);
     }
     if (memset_s(policyArg, totalSize, 0, totalSize) != 0) {
         std::cerr << "Error: Failed to initialize memory for AgentLockAddPolicyArg" << std::endl;
         SANDBOX_LOGE("Failed to initialize memory for AgentLockAddPolicyArg");
         std::free(policyArg);
         policyArg = nullptr;
-        return SANDBOX_ERR_CONFIG_INVALID;
+        return CleanupParsedObjectAndReturn(policyArgStr, SANDBOX_ERR_CONFIG_INVALID);
     }
     policyArg->policyCnt = policyNum;
     ret = ParseAgentLockField(policyArgObj, policyArg->policy);
@@ -395,7 +395,7 @@ static int ParseAgentLockAddPolicyArg(cJSON *root, struct AgentLockAddPolicyArg*
         SANDBOX_LOGE("Failed to parse agentlock policy rules");
         std::free(policyArg);
         policyArg = nullptr;
-        return ret;
+        return CleanupParsedObjectAndReturn(policyArgStr, ret);
     }
     return SANDBOX_SUCCESS;
 }

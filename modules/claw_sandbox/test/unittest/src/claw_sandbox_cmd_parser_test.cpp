@@ -1157,7 +1157,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig041, TestSize.Level0)
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
-        "policy": "{"
+        "policy": "{
             \"AddOperationControlRuleGroups\": [
                 {
                     \"Network\":{\"DefaultAction\": \"deny\"}
