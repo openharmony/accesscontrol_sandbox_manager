@@ -228,6 +228,9 @@ public:
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
     static int32_t UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp);
+
+    static int32_t SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
+        const std::vector<PolicyInfo> &policy, uint64_t policyFlag, std::vector<uint32_t> &result);
     /**
      * @brief Clear the policys of a given userid
      * @param userId a given userid
@@ -235,10 +238,6 @@ public:
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
     static int32_t CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList);
-
-    static int32_t SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
-        const std::vector<PolicyInfo> &policy, uint64_t policyFlag, std::vector<uint32_t> &result);
-
     /**
      * @brief Set share file info with a given tokenId
      * @param cfginfo json string of share file config

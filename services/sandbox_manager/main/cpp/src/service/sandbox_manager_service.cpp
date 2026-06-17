@@ -223,7 +223,6 @@ int32_t SandboxManagerService::CleanPolicyByUserId(uint32_t userId, const std::v
     return PolicyInfoManager::GetInstance().CleanPolicyByUserId(userId, filePathList);
 }
 
-
 int32_t SandboxManagerService::SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
     const PolicyVecRawData &policyRawData, uint64_t policyFlag, Uint32VecRawData &resultRawData)
 {
@@ -265,6 +264,7 @@ int32_t SandboxManagerService::SetPolicyByBundleName(const std::string &bundleNa
     resultRawData.Marshalling(result);
     return SANDBOX_MANAGER_OK;
 }
+
 int32_t SandboxManagerService::PersistPolicy(const PolicyVecRawData &policyRawData, Uint32VecRawData &resultRawData)
 {
     DelayUnloadService();
@@ -586,13 +586,13 @@ int32_t SandboxManagerService::CheckPolicy(uint32_t tokenId, const PolicyVecRawD
 {
     DelayUnloadService();
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
-    if ((tokenId != callingTokenId) &&
-        !CheckPermission(callingTokenId, CHECK_POLICY_PERMISSION_NAME)) {
-        return PERMISSION_DENIED;
-    }
     if (tokenId == 0) {
         LOGE_WITH_REPORT(LABEL, "Check tokenId failed.");
         return INVALID_PARAMTER;
+    }
+    if ((tokenId != callingTokenId) &&
+        !CheckPermission(callingTokenId, CHECK_POLICY_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
     }
 
     std::vector<bool> result;
@@ -662,13 +662,13 @@ int32_t SandboxManagerService::CheckPersistPolicy(
 {
     DelayUnloadService();
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
-    if ((tokenId != callingTokenId) &&
-        !CheckPermission(callingTokenId, CHECK_POLICY_PERMISSION_NAME)) {
-        return PERMISSION_DENIED;
-    }
     if (tokenId == 0) {
         LOGE_WITH_REPORT(LABEL, "Invalid tokenid = %{public}u.", tokenId);
         return INVALID_PARAMTER;
+    }
+    if ((tokenId != callingTokenId) &&
+        !CheckPermission(callingTokenId, CHECK_POLICY_PERMISSION_NAME)) {
+        return PERMISSION_DENIED;
     }
 
     std::vector<uint32_t> matchResult;

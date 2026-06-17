@@ -169,7 +169,7 @@ void SandboxStatsReporter::WriteAuthorizationStatEvent(const SandboxStatsData &s
 
     int reportRet = HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::SANDBOX_MANAGER, "AUTHORIZATION_STAT",
         HiviewDFX::HiSysEvent::EventType::STATISTIC, "TEMPORARY_RULE_NUM", pathTreeNodeNumObjs,
-        "PERSIST_RULE_NUM", recordCount, "KERNEL_MEMORY_USAGE", statsData.totalMemoryBytes,
+        "PERSISTENT_RULE_NUM", recordCount, "KERNEL_MEMORY_USAGE", statsData.totalMemoryBytes,
         "TOP_TEMP_APP", bundleName.c_str(), "TOP_TEMP_NUM", topTempRuleNum,
         "TOP_PERSIST_APP", persistBundleName.c_str(), "TOP_PERSIST_NUM", topPersistRuleNum);
     if (reportRet != 0) {

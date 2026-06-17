@@ -193,8 +193,7 @@ void SandboxManagerServiceTest::TearDownTestCase(void)
 
 void SandboxManagerServiceTest::SetUp(void)
 {
-    int mockRet = MockTokenId("foundation");
-    EXPECT_NE(0, mockRet);
+    EXPECT_TRUE(MockTokenId("foundation"));
     sandboxManagerService_ = DelayedSingleton<SandboxManagerService>::GetInstance();
     ASSERT_NE(nullptr, sandboxManagerService_);
 
@@ -1412,7 +1411,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceNew001, TestSize.Level0
 
     SetSelfTokenID(sysGrantToken_);
     PolicyVecRawData policyRawData1;
-    EXPECT_EQ(INVALID_PARAMETER,
+    EXPECT_EQ(INVALID_PARAMTER,
         sandboxManagerService_->SetPolicyByBundleName(bundleName, index, policyRawData1, policyFlag, resultRawData));
 
     policy.resize(1);
