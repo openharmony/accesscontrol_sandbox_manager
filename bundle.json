@@ -60,7 +60,7 @@
           "//base/accesscontrol/sandbox_manager/services/sandbox_manager:sandbox_manager_service",
           "//base/accesscontrol/sandbox_manager/services/sandbox_manager/main/sa_profile:sandbox_manager_sa_profile_standard",
           "//base/accesscontrol/sandbox_manager/modules/claw_sandbox:claw_sandbox",
-          "//base/accesscontrol/sandbox_manager/modules/claw_sandbox:claw_sandbox.rc",
+          "//base/accesscontrol/sandbox_manager/modules/claw_sandbox:claw_sandbox_template_cli",
           "//base/accesscontrol/sandbox_manager/modules/claw_sandbox:claw_sandbox_template_shell"
         ]
       },

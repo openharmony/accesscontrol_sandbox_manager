@@ -89,9 +89,9 @@ if(!defined(ohos_lite)) {
     subsystem_name = "accesscontrol"
   }
 
-  ohos_prebuilt_etc("claw_sandbox.rc") {
+  ohos_prebuilt_etc("claw_sandbox_template_cli") {
     relative_install_dir = "sandbox"
-    source = "etc/claw_sandbox_template.json"
+    source = "etc/claw_sandbox_template_cli.json"
     part_name = "sandbox_manager"
     subsystem_name = "accesscontrol"
   }
