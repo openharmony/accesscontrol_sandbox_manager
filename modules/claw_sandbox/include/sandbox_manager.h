@@ -134,6 +134,7 @@ private:
     int DropCapabilities();
     int PrepareWorkdir();
     int ApplyEnvironment();
+    int DeliverNetPolicy();
     int ExecuteCommand();
 
     // Helper methods

@@ -1032,6 +1032,184 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig037, TestSize.Level0)
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
 
+/**
+ * @tc.name: ParseConfig038
+ * @tc.desc: ParseConfig accepts valid policy with AddOperationControlRuleGroups and current_task scope
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig038, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 1,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appIdentifier": "app",
+        "bundleName": "bundle",
+        "cliName": "cli",
+        "subCliName": "sub",
+        "policy": {
+            "AddOperationControlRuleGroups": [
+                {
+                    "Scope": { "Type": "current_task" },
+                    "Network": { "DefaultAction": "deny" }
+                }
+            ]
+        }
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    }
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+}
+
+/**
+ * @tc.name: ParseConfig039
+ * @tc.desc: ParseConfig accepts invalid policy without DefaultAction in Network
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig039, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 1,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appIdentifier": "app",
+        "bundleName": "bundle",
+        "cliName": "cli",
+        "subCliName": "sub",
+        "policy": {
+            "AddOperationControlRuleGroups": [
+                {
+                    "Scope": { "Type": "current_task" },
+                    "Network": {}
+                }
+            ]
+        }
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    }
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig040
+ * @tc.desc: ParseConfig accepts valid policy without Network field
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig040, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 1,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appIdentifier": "app",
+        "bundleName": "bundle",
+        "cliName": "cli",
+        "subCliName": "sub",
+        "policy": {
+            "AddOperationControlRuleGroups": [
+                {
+                    "Scope": { "Type": "current_task" }
+                }
+            ]
+        }
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    }
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+}
+
+/**
+ * @tc.name: ParseConfig041
+ * @tc.desc: ParseConfig accepts invalid policy without Scope field
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig041, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 1,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appIdentifier": "app",
+        "bundleName": "bundle",
+        "cliName": "cli",
+        "subCliName": "sub",
+        "policy": {"
+            AddOperationControlRuleGroups": [
+                {
+                    "Network":{"DefaultAction": "deny"}
+                }
+            ]
+        }
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    }
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig042
+ * @tc.desc: ParseConfig accepts invalid policy with unsupported Scope type
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig042, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 1,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appIdentifier": "app",
+        "bundleName": "bundle",
+        "cliName": "cli",
+        "subCliName": "sub",
+        "policy": {
+            "AddOperationControlRuleGroups": [
+                {
+                    "Scope": { "Type": "global" },
+                    "Network": { "DefaultAction": "deny" }
+                }
+            ]
+        }
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    }
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
 // ==================== ParseCommandFromArgv tests ====================
 
 /**
