@@ -37,22 +37,18 @@ ohos_unittest("claw_sandbox_test") {
     "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_mount.cpp",
     "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_config_parser.cpp",
     "unittest/src/claw_sandbox_cmd_parser_test.cpp",
+    "unittest/src/claw_sandbox_config_parser_test.cpp",
     "unittest/src/claw_sandbox_manager_test.cpp",
+    "unittest/src/claw_sandbox_mount_test.cpp",
     "unittest/src/claw_sandbox_exec_test.cpp",
     "unittest/src/claw_sandbox_aids_test.cpp",
     "unittest/src/sandbox_manager_mock_stub.cpp",
     "unittest/src/execvp_mock_stub.cpp",
   ]
 
-  if (sandbox_manager_enable_aids) {
-    sources += [
-      "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_aids.cpp",
-    ]
-  } else {
-    sources += [
-      "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_aids_default.cpp",
-    ]
-  }
+  sources += [
+    "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_aids.cpp",
+  ]
 
   cflags_cc = [
     "-DHILOG_ENABLE",
