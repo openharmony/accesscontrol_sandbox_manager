@@ -187,7 +187,8 @@ static int32_t ParseJsonField(cJSON *cjsonItem, const char *key, bool forced, in
     return SANDBOX_MANAGER_OK;
 }
 
-static uint32_t FillInfo(cJSON *root, struct SandboxPolicyInfo &info, int32_t start, int32_t curBatchSize)
+static uint32_t FillInfo(cJSON *root, struct SandboxPolicyInfo &info, int32_t start, int32_t curBatchSize,
+    std::vector<std::string> &blockedInheritPaths)
 {
     uint32_t mode = 0;
     int32_t value = 0;
@@ -215,6 +216,11 @@ static uint32_t FillInfo(cJSON *root, struct SandboxPolicyInfo &info, int32_t st
             }
         }
 
+        if (mode & DEC_DENY_INHERIT) {
+            blockedInheritPaths.emplace_back(pathNameJson->valuestring);
+            SANDBOXMANAGER_LOG_INFO(LABEL, "inherit path=%{public}s", pathNameJson->valuestring);
+        }
+
         info.pathInfos[i].path = pathNameJson->valuestring;
         info.pathInfos[i].pathLen = std::strlen(pathNameJson->valuestring);
         info.pathInfos[i].mode = mode;
@@ -237,10 +243,11 @@ int32_t MacAdapter::SetDenyCfg(std::string &rawData)
     }
     int32_t succSet = 0;
     int32_t ret;
+    blockedInheritPaths_.clear();
     for (int32_t i = 0; i < arraySize; i += MAX_POLICY_NUM) {
         struct SandboxPolicyInfo info;
         size_t curBatchSize = std::min(static_cast<int>(MAX_POLICY_NUM), arraySize - i);
-        ret = FillInfo(root, info, i, curBatchSize);
+        ret = FillInfo(root, info, i, curBatchSize, blockedInheritPaths_);
         if (ret != SANDBOX_MANAGER_OK) {
             break;
         }
@@ -307,6 +314,11 @@ void MacAdapter::Init(bool initDeny)
 bool MacAdapter::IsMacSupport()
 {
     return isMacSupport_;
+}
+
+const std::vector<std::string> &MacAdapter::GetBlockedInheritPaths() const
+{
+    return blockedInheritPaths_;
 }
 
 void MacAdapter::CheckResult(std::vector<uint32_t> &result)

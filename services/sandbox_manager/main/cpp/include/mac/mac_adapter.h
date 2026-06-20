@@ -17,6 +17,7 @@
 #define SANDBOX_MANAGER_MAC_ADAPTER_H
 
 #include <string>
+#include <vector>
 #include "policy_info.h"
 
 namespace OHOS {
@@ -52,6 +53,7 @@ public:
     int32_t ReadDenyFile(const char *jsonPath, std::string& rawData);
     int32_t SetDenyCfg(std::string& json);
     void DenyInit();
+    const std::vector<std::string> &GetBlockedInheritPaths() const;
 private:
     void SetQueryResult(struct SandboxPolicyInfo &info, size_t offset, size_t i, std::vector<uint32_t> &result);
     int32_t SetPolicyToMac(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
@@ -59,6 +61,7 @@ private:
     int32_t UnSetPolicyToMac(uint32_t tokenId, const PolicyInfo &policy, int32_t cmd);
     int32_t fd_ = -1;
     bool isMacSupport_ = false;
+    std::vector<std::string> blockedInheritPaths_;
 };
 } // namespace SandboxManager
 } // namespace AccessControl
