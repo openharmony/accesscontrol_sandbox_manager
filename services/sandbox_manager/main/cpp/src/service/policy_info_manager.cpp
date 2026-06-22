@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 #include "accesstoken_kit.h"
+#include "cJSON.h"
 #include "generic_values.h"
 #include "mac_adapter.h"
 #include "policy_field_const.h"
@@ -397,10 +398,11 @@ int32_t PolicyInfoManager::AddToDatabaseIfNotDuplicate(const uint32_t tokenId, c
  */
 void PolicyInfoManager::InitTrieWithCaseSensitivity(PolicyTrie &trieTree)
 {
+    const auto &blockedInheritPaths = macAdapter_.GetBlockedInheritPaths();
     SANDBOXMANAGER_LOG_INFO(LABEL,
         "InitTrieWithCaseSensitivity, case insensitive paths count=%{public}zu, "
-        "case sensitive paths count=%{public}zu",
-        caseInsensitivePaths_.size(), caseSensitivePaths_.size());
+        "case sensitive paths count=%{public}zu, blocked inherit paths count=%{public}zu",
+        caseInsensitivePaths_.size(), caseSensitivePaths_.size(), blockedInheritPaths.size());
 
     for (const auto &path : caseInsensitivePaths_) {
         trieTree.SetInsensitive(path);
@@ -410,6 +412,9 @@ void PolicyInfoManager::InitTrieWithCaseSensitivity(PolicyTrie &trieTree)
         trieTree.SetSensitive(path);
         SANDBOXMANAGER_LOG_INFO(LABEL, "Set case sensitive for path: %{public}s", path.c_str());
     }
+
+    // Both phone and PC have deny configurations in CCM
+    trieTree.AddDeniedPaths(blockedInheritPaths);
 }
 
 /**
@@ -1544,7 +1549,6 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
 #define MAX_CHECK_COM_NUM 6
 #define SECOND_PATH_SEGMENT 2
 const std::string ROOT_PATH = "/storage";
-const std::string APPDATA_PATH = "/storage/Users/currentUser/appdata";
 const std::string ROOT_PATH_WITH_SLASH = "/storage/";
 const std::string APPDATA_PATH_WITH_SLASH = "/storage/Users/currentUser/appdata/";
 #define EL_LEVEL_SEGMENT 4
@@ -1655,9 +1659,7 @@ static std::string GenerateMaskedPath(const std::vector<std::string> &components
 bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::string &path,
     const PolicyInfo &policy, std::vector<std::string> &components, size_t index)
 {
-    size_t APPDATA_PATH_SIZE = APPDATA_PATH_WITH_SLASH.length();
-    // only check paths which are starting with '/storage/Users/currentUser/appdata/'
-    if (path.substr(0, APPDATA_PATH_SIZE) != APPDATA_PATH_WITH_SLASH) {
+    if (!IsAppDataPathPrefix(components)) {
         return true;
     }
 
@@ -1698,10 +1700,31 @@ bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::strin
     return CheckShareMode(permission, policy.mode, maskedPath, bundleNameTmp);
 }
 
+// Check if path components start with /storage/Users/currentUser/appdata prefix
+// Note: "appdata" is case-insensitive, while "storage", "Users", "currentUser" are case-sensitive
+bool PolicyInfoManager::IsAppDataPathPrefix(const std::vector<std::string> &components)
+{
+    // Path format: /storage/Users/currentUser/appdata/...
+    constexpr size_t STORAGE_INDEX = 0;
+    constexpr size_t USERS_INDEX = 1;
+    constexpr size_t CURRENT_USER_INDEX = 2;
+    constexpr size_t APPDATA_INDEX = 3;
+    // at least 4 components: storage/Users/currentUser/appdata
+    constexpr size_t MIN_APPDATA_COMPONENTS = APPDATA_INDEX + 1;
+    if (components.size() < MIN_APPDATA_COMPONENTS) {
+        return false;
+    }
+    // case-insensitive: appdata may appear as AppData, APPDATA, etc.
+    return components[STORAGE_INDEX] == "storage" &&
+           components[USERS_INDEX] == "Users" &&
+           components[CURRENT_USER_INDEX] == "currentUser" &&
+           strcasecmp(components[APPDATA_INDEX].c_str(), "appdata") == 0;
+}
+
 bool PolicyInfoManager::CheckPathWithinRule(int32_t userID, const std::string &path,
     const PolicyInfo &policy, const std::string &bundleName, size_t index)
 {
-    if ((path == ROOT_PATH) || (path == APPDATA_PATH)) {
+    if ((path == ROOT_PATH)) {
         return false;
     }
 
@@ -1722,6 +1745,11 @@ bool PolicyInfoManager::CheckPathWithinRule(int32_t userID, const std::string &p
         if (components[SECOND_PATH_SEGMENT] != "currentUser") {
             return false; // such as "/storage/Users/a"
         }
+        // Block /storage/Users/currentUser/appdata and its subdirectories up to 6 levels (case-insensitive)
+        // Paths with more than 6 components will go through share map check
+        if (components.size() <= MAX_CHECK_COM_NUM && IsAppDataPathPrefix(components)) {
+            return false;
+        }
     }
 
     if (policy.type == PolicyType::SELF_PATH) {
@@ -1733,18 +1761,11 @@ bool PolicyInfoManager::CheckPathWithinRule(int32_t userID, const std::string &p
     // check whether path is longer than "/storage/Users/currentUser/appdata/*/*"
     if (components.size() > MAX_CHECK_COM_NUM) {
 #ifdef NOT_RESIDENT
-        // Second set skip check
         if (policy.type != PolicyType::AUTHORIZATION_PATH) {
             return CheckPathWithinShareMap(userID, path, policy, components, index);
         }
 #endif
         return true;
-    }
-
-    // Check if the path is /storage/Users/currentUser/appdata and ensure it has more than 2 levels
-    size_t APPDATA_PATH_SIZE = APPDATA_PATH_WITH_SLASH.length();
-    if ((path.size() >= APPDATA_PATH_SIZE) && (path.substr(0, APPDATA_PATH_SIZE) == APPDATA_PATH_WITH_SLASH)) {
-        return false;
     }
 
     return true;
