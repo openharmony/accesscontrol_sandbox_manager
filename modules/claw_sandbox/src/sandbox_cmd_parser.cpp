@@ -53,7 +53,7 @@ constexpr size_t MAX_NS_FLAGS_COUNT = 10;
 constexpr size_t MAX_NS_FLAG_STRING_LENGTH = 24;
 
 // Maximum constraints for agentlock policy
-constexpr size_t MAX_POLICY_COUNT = 1024;
+constexpr size_t MAX_POLICY_COUNT = 8;
 constexpr size_t MAX_ACTION_STR_LENGTH = 6;
 constexpr size_t MAX_SCOPE_NAME_LENGTH = 16;
 

@@ -36,10 +36,10 @@ namespace SANDBOX {
  * @brief Max value limits for agentlock parameters
  */
 constexpr size_t ACTION_TYPE_CNT               = 4;
-constexpr size_t AGENT_LOCK_MAX_RULES_LIST_CNT = 32;
-constexpr size_t AGENT_LOCK_MAX_ITEM_CNT       = 32;
-constexpr size_t MAX_VAL_LEN                   = 1024;
-constexpr size_t MAX_MALLOC_SIZE               = 8 * 1024 * 1024;
+constexpr size_t AGENT_LOCK_MAX_RULES_LIST_CNT = 16;
+constexpr size_t AGENT_LOCK_MAX_ITEM_CNT       = 8;
+constexpr size_t MAX_VAL_LEN                   = 512;
+constexpr size_t MAX_MALLOC_SIZE               = 4 * 1024 * 1024;
 
 /*
  * @brief Operation types for agentlock
