@@ -280,18 +280,12 @@ static int ParseScopeField(cJSON *root, struct AgentLockPolicy &scope)
 // Helper: parse the 'Network' policy field of an agentlock policy with default action policy
 static int ParseNetworkField(cJSON *root, AgentLockPolicy &policy)
 {
-    cJSON *netRuleObj = cJSON_GetObjectItem(root, "Network");
-    if (!cJSON_IsObject(netRuleObj)) {
-        std::cerr << "Error: Config field 'Network' missing or not an object" << std::endl;
-        SANDBOX_LOGE("Config field 'Network' missing or not an object");
-        return SANDBOX_ERR_CONFIG_INVALID;
-    }
     policy.operationType = OP_TYPE_NETWORK;
     policy.defaultAction = AGENT_LOCK_DEFAULT_NETWORK_ACTION;
     policy.rulesListCnt = 0;
 
     std::string actionStr;
-    int ret = ParseStringFieldWithMaxLen(netRuleObj, "DefaultAction", actionStr, MAX_ACTION_STR_LENGTH);
+    int ret = ParseStringFieldWithMaxLen(root, "DefaultAction", actionStr, MAX_ACTION_STR_LENGTH);
     if (ret != SANDBOX_SUCCESS) {
         std::cerr << "Error: Failed to parse Network.DefaultAction field" << std::endl;
         SANDBOX_LOGE("Failed to parse Network.DefaultAction field");
@@ -305,6 +299,41 @@ static int ParseNetworkField(cJSON *root, AgentLockPolicy &policy)
     }
     policy.defaultAction = actionItem->second;
     return SANDBOX_SUCCESS;
+}
+
+// Helper: parse specific policy fields based on the field name
+static int ParseSpecificFields(cJSON *root, AgentLockPolicy &policy, uint32_t &policyIndex, const std::string &field)
+{
+    cJSON *specificObj = cJSON_GetObjectItem(root, field);
+    if (!cJSON_IsObject(specificObj)) {
+        std::cerr << "Error: Config field '" << field << "' not an object" << std::endl;
+        SANDBOX_LOGE("Config field '%{public}s' not an object", field.c_str());
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    int ret = SANDBOX_SUCCESS;
+    bool hasPolicy = false;
+    if (field == "Network") {
+        ret = ParseNetworkField(specificObj, policy);
+        if (ret != SANDBOX_SUCCESS) {
+            std::cerr << "Error: Failed to parse Network policy at index " << policyIndex << std::endl;
+            SANDBOX_LOGE("Failed to parse Network policy at index %{public}u", policyIndex);
+            return ret;
+        }
+        hasPolicy = true;
+    }
+
+    if (hasPolicy) {
+        ret = ParseScopeField(root, policy);
+        if (ret != SANDBOX_SUCCESS) {
+            std::cerr << "Error: Failed to parse Scope field for " << field << " policy at index " <<
+                        policyIndex << std::endl;
+            SANDBOX_LOGE("Failed to parse Scope field for %{public}s policy at index %{public}u", 
+                        field.c_str(), policyIndex);
+            return ret;
+        }
+        policyIndex++;
+    }
+    return ret;
 }
 
 // Helper: parse the 'AddOperationControlRuleGroups' policy array and fill in the AgentLockPolicy structures
@@ -329,22 +358,15 @@ static int ParseAgentLockField(cJSON *root, struct AgentLockPolicy policy[])
             SANDBOX_LOGE("Config field 'AddOperationControlRuleGroups' should contain objects");
             return SANDBOX_ERR_CONFIG_INVALID;
         }
-        if (cJSON_HasObjectItem(ruleGroupItem, "Network")) {
-            ret = ParseScopeField(ruleGroupItem, policy[policyIndex]);
-            if (ret != SANDBOX_SUCCESS) {
-                std::cerr << "Error: Failed to parse Scope field for Network policy at index " <<
-                          policyIndex << std::endl;
-                SANDBOX_LOGE("Failed to parse Scope field for Network policy at index %{public}u", policyIndex);
-                return ret;
+        for (const std::string &typeItem : typeSet) {
+            if (cJSON_HasObjectItem(ruleGroupItem, typeItem.c_str())) {
+                ret = ParseSpecificFields(ruleGroupItem, policy[policyIndex], policyIndex, typeItem);
+                if (ret != SANDBOX_SUCCESS) {
+                    std::cerr << "Error: Failed to parse " << typeItem << " policy at index " << policyIndex << std::endl;
+                    SANDBOX_LOGE("Failed to parse %{public}s policy at index %{public}u", typeItem.c_str(), policyIndex);
+                    return ret;
+                }
             }
-            ret = ParseNetworkField(ruleGroupItem, policy[policyIndex]);
-            if (ret != SANDBOX_SUCCESS) {
-                std::cerr << "Error: Failed to parse Network field for Network policy at index " <<
-                          policyIndex << std::endl;
-                SANDBOX_LOGE("Failed to parse Network field for Network policy at index %{public}u", policyIndex);
-                return ret;
-            }
-            policyIndex++;
         }
     }
     return ret;

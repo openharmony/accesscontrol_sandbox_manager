@@ -26,7 +26,6 @@
 
 #include "accesstoken_kit.h"
 
-#define AGENT_LOCK_DEFAULT_NETWORK_ACTION AL_POLICY_ACTION_ALLOW
 
 namespace OHOS {
 namespace AccessControl {
@@ -64,6 +63,7 @@ static const std::unordered_map<std::string, AGENT_LOCK_POLICY_ACTION> actionMap
     {"allow", AL_POLICY_ACTION_ALLOW},
     {"deny", AL_POLICY_ACTION_DENY}
 };
+constexpr int AGENT_LOCK_DEFAULT_NETWORK_ACTION = AL_POLICY_ACTION_ALLOW;
 
 /**
  * @brief AgentLock filter tags
