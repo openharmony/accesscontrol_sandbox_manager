@@ -57,6 +57,7 @@
 
 #include "securec.h"
 #include "token_setproc.h"
+#include "spm_setproc.h"
 #include "accesstoken_kit.h"
 #include "permission_list_state.h"
 #include "access_token.h"
@@ -130,6 +131,24 @@ const std::map<std::string, std::string> PRESET_ENV_VARS = {
     {"PATH", "/data/service/hnp/bin"}
 #endif
 };
+
+// Buffer sizes used to query caller SPM entry from kernel.
+constexpr uint32_t CLAW_SPM_PERM_BUF_SIZE = 64 * sizeof(uint32_t);
+constexpr uint32_t CLAW_SPM_EXTEND_PERM_BUF_SIZE = 4096;
+constexpr uint32_t CLAW_SPM_NAME_BUF_SIZE = 256;
+
+static std::string BlobToString(const SpmBlob &blob)
+{
+    if (blob.buf == nullptr || blob.bufSize == 0) {
+        return "";
+    }
+
+    size_t len = 0;
+    while (len < blob.bufSize && blob.buf[len] != '\0') {
+        len++;
+    }
+    return std::string(blob.buf, len);
+}
 
 struct DecPathInfo {
     char *path;
@@ -424,6 +443,11 @@ int SandboxManager::ExecuteEarlySteps()
         return ret;
     }
 
+    ret = ValidateWithSpmEntry();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
     ret = EnterCallerSandbox();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
@@ -651,6 +675,57 @@ int SandboxManager::ValidateTokenType()
     return SANDBOX_SUCCESS;
 }
 
+int SandboxManager::ValidateWithSpmEntry()
+{
+    AccessTokenID accessTokenId = static_cast<AccessTokenID>(
+        config_.callerTokenId & TOKEN_ID_LOWMASK);
+    using SpmDataPtr = std::unique_ptr<SpmData, decltype(&SpmDataFree)>;
+    SpmDataPtr entry(SpmDataNew(CLAW_SPM_PERM_BUF_SIZE, CLAW_SPM_EXTEND_PERM_BUF_SIZE, CLAW_SPM_NAME_BUF_SIZE),
+        SpmDataFree);
+    if (entry == nullptr) {
+        std::cerr << "Error: SpmDataNew failed for config validation" << std::endl;
+        SANDBOX_LOGE("SpmDataNew failed for config validation");
+        return SANDBOX_ERR_SPM_FAILED;
+    }
+
+    int ret = SpmGetEntry(static_cast<uint32_t>(accessTokenId), entry.get());
+    if (ret != 0) {
+        std::cerr << "Error: SpmGetEntry failed, accessTokenId=" << accessTokenId
+                  << ", ret=" << ret << std::endl;
+        SANDBOX_LOGE("SpmGetEntry failed for config validation, accessTokenId=%{public}u, ret=%{public}d",
+            accessTokenId, ret);
+        return SANDBOX_ERR_SPM_FAILED;
+    }
+
+    // Validate uid and gid against SPM entry uid
+    if (config_.uid != entry->uid || config_.gid != entry->uid) {
+        std::cerr << "Error: uid/gid mismatch with SPM entry: config uid=" << config_.uid
+                  << ", gid=" << config_.gid << ", entry uid=" << entry->uid << std::endl;
+        SANDBOX_LOGE("uid/gid mismatch with SPM entry: config uid=%{public}u, gid=%{public}u, entry uid=%{public}u",
+            config_.uid, config_.gid, entry->uid);
+        return SANDBOX_ERR_SPM_FAILED;
+    }
+
+    // Validate appIdentifier against SPM entry ownerid
+    std::string owneridStr = std::to_string(static_cast<unsigned long long>(entry->ownerid));
+    if (config_.appIdentifier != owneridStr) {
+        std::cerr << "Error: appIdentifier mismatch with SPM entry ownerid: config="
+                  << config_.appIdentifier << ", entry ownerid=" << owneridStr << std::endl;
+        SANDBOX_LOGE("appIdentifier mismatch with SPM entry ownerid");
+        return SANDBOX_ERR_SPM_FAILED;
+    }
+    // Validate bundleName against SPM entry name
+    std::string entryName = BlobToString(entry->name);
+    if (config_.bundleName != entryName) {
+        std::cerr << "Error: bundleName mismatch with SPM entry name: config="
+                  << config_.bundleName << ", entry name=" << entryName << std::endl;
+        SANDBOX_LOGE("bundleName mismatch with SPM entry name");
+        return SANDBOX_ERR_SPM_FAILED;
+    }
+
+    return SANDBOX_SUCCESS;
+}
+
 int SandboxManager::ValidateConfig()
 {
     int ret = ValidateBasicParams();
@@ -667,11 +742,12 @@ int SandboxManager::ValidateConfig()
 
 int SandboxManager::LoadTemplate()
 {
-#ifdef CONFIG_PC_PLATFORM
-    const char *templatePath = "/etc/sandbox/claw_sandbox_template_shell.json";
-#else
-    const char *templatePath = "/etc/sandbox/claw_sandbox_template.json";
-#endif
+    const char *templatePath = "/etc/sandbox/claw_sandbox_template_cli.json";
+
+    if (config_.type == "shell") {
+        templatePath = "/etc/sandbox/claw_sandbox_template_shell.json";
+    }
+
     return LoadJsonConfig(templatePath);
 }
 

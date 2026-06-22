@@ -14,7 +14,9 @@
  */
 
 #include "claw_sandbox_exec_test.h"
+#define private public
 #include "sandbox_exec.h"
+#undef private
 #include "sandbox_error.h"
 #include <cstring>
 #include <string>
@@ -605,6 +607,20 @@ HWTEST_F(ClawSandboxExecTest, Run001, TestSize.Level0)
     SandboxExec exec;
     int ret = exec.Run();
     EXPECT_EQ(SANDBOX_ERR_GENERIC, ret);
+}
+
+
+// ==================== PrintUsage tests ====================
+
+/**
+ * @tc.name: PrintUsage001
+ * @tc.desc: PrintUsage prints help message without crashing
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxExecTest, PrintUsage001, TestSize.Level0)
+{
+    SandboxExec::PrintUsage();
 }
 
 } // namespace SANDBOX

@@ -108,6 +108,7 @@ private:
     int ValidateConfig();
     int ValidateBasicParams();
     int ValidateTokenType();
+    int ValidateWithSpmEntry();
     int LoadTemplate();
     int GenerateTokenId();
     int EnterCallerSandbox();

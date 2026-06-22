@@ -14,7 +14,12 @@
  */
 
 #include "accesstoken_kit.h"
+#include "spm_setproc.h"
+#include "securec.h"
+#include "sandbox_mock_state.h"
 #include <string>
+#include <cstring>
+#include <cstdlib>
 
 namespace OHOS {
 namespace Security {
@@ -42,3 +47,82 @@ namespace AccessToken {
 }  // namespace AccessToken
 }  // namespace Security
 }  // namespace OHOS
+
+// ================== SPM mock stubs ==================
+// These stubs override the real SpmGetEntry/SpmDataNew/SpmDataFree from
+// libtokensetproc_shared to avoid kernel ioctl dependency in test environment.
+// Tests control the mock behavior via g_spmMockState.
+
+namespace OHOS {
+namespace AccessControl {
+namespace SANDBOX {
+SpmMockState g_spmMockState;
+}  // namespace SANDBOX
+}  // namespace AccessControl
+}  // namespace OHOS
+
+using namespace OHOS::AccessControl::SANDBOX;
+
+extern "C" {
+    SpmData *SpmDataNew(uint32_t permBufSize, uint32_t extendPermBufSize, uint32_t nameBufSize)
+    {
+        if (g_spmMockState.failDataNew) {
+            return nullptr;
+        }
+        SpmData *data = (SpmData *)calloc(1, sizeof(SpmData));
+        if (data == nullptr) {
+            return nullptr;
+        }
+        if (permBufSize > 0) {
+            data->perms.buf = (char *)calloc(1, permBufSize);
+            if (data->perms.buf != nullptr) {
+                data->perms.bufSize = permBufSize;
+            }
+        }
+        if (extendPermBufSize > 0) {
+            data->extendPerms.buf = (char *)calloc(1, extendPermBufSize);
+            if (data->extendPerms.buf != nullptr) {
+                data->extendPerms.bufSize = extendPermBufSize;
+            }
+        }
+        if (nameBufSize > 0) {
+            data->name.buf = (char *)calloc(1, nameBufSize);
+            if (data->name.buf != nullptr) {
+                data->name.bufSize = nameBufSize;
+            }
+        }
+        return data;
+    }
+
+    void SpmDataFree(SpmData *data)
+    {
+        if (data == nullptr) {
+            return;
+        }
+        free(data->name.buf);
+        free(data->perms.buf);
+        free(data->extendPerms.buf);
+        free(data);
+    }
+
+    int SpmGetEntry(uint32_t tokenid, SpmData *entry)
+    {
+        (void)tokenid;
+        if (g_spmMockState.failGetEntry || entry == nullptr) {
+            return -1;
+        }
+        entry->uid = g_spmMockState.uid;
+        entry->ownerid = g_spmMockState.ownerid;
+        if (entry->name.buf != nullptr && entry->name.bufSize > 0) {
+            size_t copyLen = g_spmMockState.name.size();
+            if (copyLen >= static_cast<size_t>(entry->name.bufSize)) {
+                copyLen = static_cast<size_t>(entry->name.bufSize) - 1;
+            }
+            if (copyLen > 0) {
+                memcpy_s(entry->name.buf, entry->name.bufSize, g_spmMockState.name.c_str(), copyLen);
+            }
+            entry->name.buf[copyLen] = '\0';
+        }
+        return 0;
+    }
+}

@@ -14,8 +14,12 @@
  */
 
 #include "claw_sandbox_aids_test.h"
+#define private public
 #include "sandbox_aids.h"
+#undef private
 #include "sandbox_error.h"
+#include <fcntl.h>
+#include <unistd.h>
 
 using namespace testing::ext;
 
@@ -188,6 +192,158 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel012, TestSize.Level0) {
     std::string subcmd = std::string(64, 'a');
     int ret = aids.addBlacklist("date", subcmd, 0);
     EXPECT_EQ(-1, ret);
+}
+
+// ==================== AidsClient isOpen + ioctl path coverage ====================
+// The tests below use a mock fd (from open("/dev/null")) to bypass the isOpen() check,
+// so that strncpy_s overflow paths and ioctl paths are exercised regardless of
+// whether the real /dev/hkids device exists in the test environment.
+// The mock fd does not support hkids ioctls, so all ioctl() calls return -1.
+// The AidsClient destructor closes the mock fd, covering the fd_ >= 0 branch.
+
+/**
+ * @tc.name: AidsSetLabel013
+ * @tc.desc: When isOpen() passes, setLabel reaches the ioctl call and returns its
+ *          failure result (non-zero).
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxAidsTest, AidsSetLabel013, TestSize.Level0) {
+    int mockFd = open("/dev/null", O_RDWR);
+    ASSERT_GE(mockFd, 0);
+    AidsClient aids("/dev/hkids_err");
+    aids.fd_ = mockFd;
+    int ret = aids.setLabel();
+    EXPECT_EQ(-1, ret);
+}
+
+/**
+ * @tc.name: AidsSetLabel014
+ * @tc.desc: When isOpen() passes with normal-length strings, addBlacklist reaches
+ *          the ioctl call and returns its failure result (non-zero).
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxAidsTest, AidsSetLabel014, TestSize.Level0) {
+    int mockFd = open("/dev/null", O_RDWR);
+    ASSERT_GE(mockFd, 0);
+    AidsClient aids("/dev/hkids_err");
+    aids.fd_ = mockFd;
+    int ret = aids.addBlacklist("date", "", 0);
+    EXPECT_EQ(-1, ret);
+}
+
+/**
+ * @tc.name: AidsSetLabel015
+ * @tc.desc: When isOpen() passes with normal-length strings, delBlacklist reaches
+ *          the ioctl call and returns its failure result (non-zero).
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxAidsTest, AidsSetLabel015, TestSize.Level0) {
+    int mockFd = open("/dev/null", O_RDWR);
+    ASSERT_GE(mockFd, 0);
+    AidsClient aids("/dev/hkids_err");
+    aids.fd_ = mockFd;
+    int ret = aids.delBlacklist("date", "", 0);
+    EXPECT_EQ(-1, ret);
+}
+
+/**
+ * @tc.name: AidsSetLabel016
+ * @tc.desc: When isOpen() passes, clrBlacklist reaches the ioctl call and returns
+ *          its failure result (non-zero).
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxAidsTest, AidsSetLabel016, TestSize.Level0) {
+    int mockFd = open("/dev/null", O_RDWR);
+    ASSERT_GE(mockFd, 0);
+    AidsClient aids("/dev/hkids_err");
+    aids.fd_ = mockFd;
+    int ret = aids.clrBlacklist();
+    EXPECT_EQ(-1, ret);
+}
+
+/**
+ * @tc.name: AidsSetLabel017
+ * @tc.desc: addBlacklist with isOpen()=true and cmd >= HKIDS_CMD_MAX_SIZE triggers
+ *          strncpy_s truncation error and returns -1 BEFORE reaching ioctl.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxAidsTest, AidsSetLabel017, TestSize.Level0) {
+    int mockFd = open("/dev/null", O_RDWR);
+    ASSERT_GE(mockFd, 0);
+    AidsClient aids("/dev/hkids_err");
+    aids.fd_ = mockFd;
+    std::string overflowCmd(HKIDS_CMD_MAX_SIZE, 'a');
+    int ret = aids.addBlacklist(overflowCmd, "", 0);
+    EXPECT_EQ(-1, ret);
+}
+
+/**
+ * @tc.name: AidsSetLabel018
+ * @tc.desc: addBlacklist with isOpen()=true and subcmd >= HKIDS_CMD_MAX_SIZE triggers
+ *          strncpy_s truncation error and returns -1 BEFORE reaching ioctl.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxAidsTest, AidsSetLabel018, TestSize.Level0) {
+    int mockFd = open("/dev/null", O_RDWR);
+    ASSERT_GE(mockFd, 0);
+    AidsClient aids("/dev/hkids_err");
+    aids.fd_ = mockFd;
+    std::string overflowSubcmd(HKIDS_CMD_MAX_SIZE, 'a');
+    int ret = aids.addBlacklist("date", overflowSubcmd, 0);
+    EXPECT_EQ(-1, ret);
+}
+
+/**
+ * @tc.name: AidsSetLabel019
+ * @tc.desc: delBlacklist with isOpen()=true and cmd >= HKIDS_CMD_MAX_SIZE triggers
+ *          strncpy_s truncation error and returns -1 BEFORE reaching ioctl.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxAidsTest, AidsSetLabel019, TestSize.Level0) {
+    int mockFd = open("/dev/null", O_RDWR);
+    ASSERT_GE(mockFd, 0);
+    AidsClient aids("/dev/hkids_err");
+    aids.fd_ = mockFd;
+    std::string overflowCmd(HKIDS_CMD_MAX_SIZE, 'a');
+    int ret = aids.delBlacklist(overflowCmd, "", 0);
+    EXPECT_EQ(-1, ret);
+}
+
+/**
+ * @tc.name: AidsSetLabel020
+ * @tc.desc: delBlacklist with isOpen()=true and subcmd >= HKIDS_CMD_MAX_SIZE triggers
+ *          strncpy_s truncation error and returns -1 BEFORE reaching ioctl.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxAidsTest, AidsSetLabel020, TestSize.Level0) {
+    int mockFd = open("/dev/null", O_RDWR);
+    ASSERT_GE(mockFd, 0);
+    AidsClient aids("/dev/hkids_err");
+    aids.fd_ = mockFd;
+    std::string overflowSubcmd(HKIDS_CMD_MAX_SIZE, 'a');
+    int ret = aids.delBlacklist("date", overflowSubcmd, 0);
+    EXPECT_EQ(-1, ret);
+}
+
+/**
+ * @tc.name: AidsIsOpenFalse001
+ * @tc.desc: After constructing AidsClient without a valid device, isOpen() and fd_
+ *          both confirm the device is not open.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxAidsTest, AidsIsOpenFalse001, TestSize.Level0) {
+    AidsClient aids("/dev/hkids_err");
+    EXPECT_FALSE(aids.isOpen());
+    EXPECT_LT(aids.fd_, 0);
 }
 
 } // namespace SANDBOX
