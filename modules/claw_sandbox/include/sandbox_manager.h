@@ -69,18 +69,22 @@ private:
         bool checkExists = false;
     };
 
-    // Permission-level mount entry with additional fields
-    struct PermissionMountEntry {
-        MountEntry mount;
-        std::vector<std::string> decPaths;       // decryption paths (dec-paths)
-        std::string mountSharedFlag;             // mount shared flag (mount-shared-flag)
-    };
-
     // Per-permission configuration
     struct PermissionConfig {
         bool sandboxSwitch = false;              // sandbox-switch: "ON"/"OFF"
         std::vector<int> gids;                   // gids array
-        std::vector<PermissionMountEntry> mounts; // mounts array
+        std::vector<std::string> decPaths;       // decryption paths (dec-paths)
+    };
+
+    // Conditional mount rule: defines a permission-gated mount entry.
+    // The mount is performed (or validated) only if at least one permission
+    // in the permissions list is granted (OR logic).
+    struct ConditionalRule {
+        std::string source;                      // host source path
+        std::string target;                      // sandbox target path
+        std::vector<std::string> mountFlags;     // e.g. ["bind", "rec"]
+        bool checkExists = true;                 // check source existence before mount
+        std::vector<std::string> permissions;    // required permissions (OR)
     };
 
     struct EnvPolicy {
@@ -97,6 +101,7 @@ private:
         std::vector<std::string> seccompAllowList;
         EnvPolicy envPolicy;
         std::map<std::string, PermissionConfig> permissions;  // permission name -> config
+        std::vector<ConditionalRule> conditionalRules;        // conditional mount rules
     };
 
     // Expose individual steps for testing (not intended for public use)
@@ -117,7 +122,6 @@ private:
     int MountNewRoot();
     int MountSystemDirs();
     int MountAppDirs();
-    int MountPermissionDirs();
     int ApplyPolicyMounts();
     int PivotRoot();
     int ApplyDecPolicies();
@@ -130,6 +134,7 @@ private:
     int SetSelinuxMCS();
 #endif
     int SetUidGid();
+    int SetGroups();
     int SetProcessGroup();
     int SetSeccomp();
     int DropCapabilities();
@@ -150,14 +155,25 @@ private:
     // Mount a single entry (extracted from MountAppDirs for 50-line limit)
     int MountSingleEntry(const MountEntry &entry, const std::string &targetPrefix);
 
+    enum ConditionalMatchResult {
+        CONDITIONAL_MATCHED,
+        CONDITIONAL_BLOCKED,
+        CONDITIONAL_NOMATCH
+    };
+
     int MountPolicyPath(const SandboxConfig::PolicyMount &policyMount);
+    int RemountPolicyMount(const SandboxConfig::PolicyMount &policyMount,
+                           const std::string &target);
+    int BindMountConditionalPath(const SandboxConfig::PolicyMount &policyMount,
+                                  const std::string &mountTarget,
+                                  const std::string &physicalSource);
+    ConditionalMatchResult MatchConditionalSource(const std::string &target,
+                                                   std::string &physicalSource) const;
 public:
     static bool IsPolicyWriteEscalation(bool policyReadOnly, bool existingReadOnly);
     std::vector<int> CollectGrantedPermissionGids() const;
-    std::vector<MountEntry> CollectGrantedPermissionMounts() const;
     std::vector<std::string> CollectDecPolicyPaths() const;
     int CollectPermissionDecPaths(const PermissionConfig &config, std::vector<std::string> &decPaths) const;
-    std::string NormalizeDecPath(const std::string &decPath) const;
     bool IsPermissionGranted(const std::string &permissionName) const;
     int SetDecPolicyBatch(int fd, const std::vector<std::string> &paths,
                           uint64_t tokenId, uint64_t timestamp, size_t start, size_t count);
@@ -171,13 +187,14 @@ public:
     int ParsePermissionSectionJson(cJSON *perm);
     int ParsePermissionObjectJson(cJSON *perm);
     int ParsePermissionArrayJson(cJSON *perm);
-    int ParsePermissionMounts(cJSON *obj, PermissionConfig &pc);
     void ParsePermissionSwitch(cJSON *obj, PermissionConfig &pc);
     void ParsePermissionSwitch(cJSON *obj, PermissionConfig &pc, bool defaultSwitch);
     void ParsePermissionGids(cJSON *obj, PermissionConfig &pc);
+    void ParsePermissionDecPaths(cJSON *obj, PermissionConfig &pc);
+    void ParseConditionalJson(cJSON *root);
+    void ParseConditionalRule(cJSON *item, ConditionalRule &rule);
     int LoadDefaultConfig();
     static void ParseMountEntry(cJSON *entry, MountEntry &me);
-    static void ParsePermissionMountEntry(cJSON *entry, PermissionMountEntry &pme);
     static std::string ReplaceVariable(std::string str,
         const std::string &from, const std::string &to);
 
@@ -214,6 +231,8 @@ public:
      * @return Combined mount flags bitmask
      */
     static unsigned long ConvertMountFlags(const std::vector<std::string> &mountFlags);
+
+    std::string NormalizeDecPath(const std::string &decPath) const;
 
     SandboxConfig config_;
     CmdInfo cmdInfo_;

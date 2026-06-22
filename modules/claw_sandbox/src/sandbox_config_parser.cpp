@@ -204,31 +204,21 @@ int SandboxManager::ParseAppMountsJson(cJSON *root)
     return SANDBOX_SUCCESS;
 }
 
-void SandboxManager::ParsePermissionMountEntry(cJSON *entry, PermissionMountEntry &pme)
+void SandboxManager::ParsePermissionDecPaths(cJSON *obj, PermissionConfig &pc)
 {
-    if (!cJSON_IsObject(entry)) {
+    if (!cJSON_IsObject(obj)) {
         return;
     }
 
-    // Parse base mount fields
-    ParseMountEntry(entry, pme.mount);
-
-    // Parse optional dec-paths array
-    cJSON *decPaths = cJSON_GetObjectItem(entry, "dec-paths");
+    cJSON *decPaths = cJSON_GetObjectItem(obj, "dec-paths");
     if (cJSON_IsArray(decPaths)) {
         int dpSize = cJSON_GetArraySize(decPaths);
         for (int j = 0; j < dpSize; j++) {
             cJSON *item = cJSON_GetArrayItem(decPaths, j);
             if (cJSON_IsString(item) && item->valuestring != nullptr) {
-                pme.decPaths.push_back(item->valuestring);
+                pc.decPaths.push_back(item->valuestring);
             }
         }
-    }
-
-    // Parse optional mount-shared-flag
-    cJSON *msf = cJSON_GetObjectItem(entry, "mount-shared-flag");
-    if (cJSON_IsString(msf) && msf->valuestring != nullptr) {
-        pme.mountSharedFlag = msf->valuestring;
     }
 }
 
@@ -274,32 +264,68 @@ void SandboxManager::ParsePermissionGids(cJSON *obj, PermissionConfig &pc)
     }
 }
 
-int SandboxManager::ParsePermissionMounts(cJSON *obj, PermissionConfig &pc)
+void SandboxManager::ParseConditionalJson(cJSON *root)
 {
-    if (!cJSON_IsObject(obj)) {
-        return SANDBOX_SUCCESS;
+    if (!cJSON_IsObject(root)) {
+        return;
     }
 
-    cJSON *mounts = cJSON_GetObjectItem(obj, "mounts");
-    if (mounts == nullptr) {
-        mounts = cJSON_GetObjectItem(obj, "mount-paths");
+    cJSON *cond = cJSON_GetObjectItem(root, "conditional");
+    if (!cJSON_IsArray(cond)) {
+        return;
     }
-    if (!cJSON_IsArray(mounts)) {
-        SANDBOX_LOGD("[DEBUG INFO] DEC debug parse permission mounts skip, no mounts or mount-paths array");
-        return SANDBOX_SUCCESS;
-    }
-    int mSize = cJSON_GetArraySize(mounts);
-    SANDBOX_LOGD("[DEBUG INFO] DEC debug parse permission mounts, count=%{public}d", mSize);
-    for (int j = 0; j < mSize; j++) {
-        cJSON *mEntry = cJSON_GetArrayItem(mounts, j);
-        if (!cJSON_IsObject(mEntry)) {
+
+    int arrSize = cJSON_GetArraySize(cond);
+    for (int i = 0; i < arrSize; i++) {
+        cJSON *item = cJSON_GetArrayItem(cond, i);
+        if (!cJSON_IsObject(item)) {
             continue;
         }
-        PermissionMountEntry pme;
-        ParsePermissionMountEntry(mEntry, pme);
-        pc.mounts.push_back(pme);
+
+        ConditionalRule rule;
+        ParseConditionalRule(item, rule);
+        templateConfig_.conditionalRules.push_back(rule);
     }
-    return SANDBOX_SUCCESS;
+}
+
+void SandboxManager::ParseConditionalRule(cJSON *item, ConditionalRule &rule)
+{
+    cJSON *target = cJSON_GetObjectItem(item, "target");
+    if (cJSON_IsString(target) && target->valuestring != nullptr) {
+        rule.target = target->valuestring;
+    }
+
+    cJSON *src = cJSON_GetObjectItem(item, "source");
+    if (cJSON_IsString(src) && src->valuestring != nullptr) {
+        rule.source = src->valuestring;
+    }
+
+    cJSON *mf = cJSON_GetObjectItem(item, "mount-flags");
+    if (cJSON_IsArray(mf)) {
+        int mfSize = cJSON_GetArraySize(mf);
+        for (int j = 0; j < mfSize; j++) {
+            cJSON *flag = cJSON_GetArrayItem(mf, j);
+            if (cJSON_IsString(flag) && flag->valuestring != nullptr) {
+                rule.mountFlags.push_back(flag->valuestring);
+            }
+        }
+    }
+
+    cJSON *ce = cJSON_GetObjectItem(item, "check-exists");
+    if (cJSON_IsBool(ce)) {
+        rule.checkExists = cJSON_IsTrue(ce);
+    }
+
+    cJSON *perms = cJSON_GetObjectItem(item, "permissions");
+    if (cJSON_IsArray(perms)) {
+        int permCount = cJSON_GetArraySize(perms);
+        for (int j = 0; j < permCount; j++) {
+            cJSON *perm = cJSON_GetArrayItem(perms, j);
+            if (cJSON_IsString(perm) && perm->valuestring != nullptr) {
+                rule.permissions.push_back(perm->valuestring);
+            }
+        }
+    }
 }
 
 int SandboxManager::ParsePermissionJson(cJSON *root)
@@ -425,10 +451,7 @@ int SandboxManager::ParseSinglePermissionConfig(cJSON *obj, const std::string &p
     PermissionConfig pc;
     ParsePermissionSwitch(obj, pc, defaultSwitch);
     ParsePermissionGids(obj, pc);
-    int ret = ParsePermissionMounts(obj, pc);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
+    ParsePermissionDecPaths(obj, pc);
     templateConfig_.permissions[permName] = pc;
     return SANDBOX_SUCCESS;
 }
@@ -508,8 +531,6 @@ int SandboxManager::LoadJsonConfig(const std::string &jsonPath)
     // Replace variables at file content level (before JSON parse)
     content = ReplaceVariable(content, "<PackageName>", config_.bundleName);
     content = ReplaceVariable(content, "<currentUserId>", config_.currentUserId);
-    content = ReplaceVariable(content, "<permissionUserId>", config_.currentUserId);
-    content = ReplaceVariable(content, "<currentUser>", "currentUser");
 
     cJSON *root = cJSON_Parse(content.c_str());
     if (root == nullptr) {
@@ -538,6 +559,7 @@ int SandboxManager::LoadJsonConfig(const std::string &jsonPath)
 
     ParseSeccompJson(root);
     ParseEnvPolicyJson(root);
+    ParseConditionalJson(root);
 
     cJSON_Delete(root);
     SANDBOX_LOGD("Template config loaded from %{public}s", jsonPath.c_str());

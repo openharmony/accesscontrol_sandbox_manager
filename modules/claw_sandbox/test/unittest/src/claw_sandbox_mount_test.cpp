@@ -125,184 +125,43 @@ void ClawSandboxMountTest::TearDown() {}
 
 /**
  * @tc.name: ConvertMountFlags001
- * @tc.desc: ConvertMountFlags with empty vector returns 0
+ * @tc.desc: ConvertMountFlags maps flag names to mount flags
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxMountTest, ConvertMountFlags001, TestSize.Level0)
 {
-    std::vector<std::string> flags;
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(0UL, result);
-}
-
-/**
- * @tc.name: ConvertMountFlags002
- * @tc.desc: ConvertMountFlags with "bind" returns MS_BIND
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ConvertMountFlags002, TestSize.Level0)
-{
-    std::vector<std::string> flags = {"bind"};
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(static_cast<unsigned long>(MS_BIND), result);
-}
-
-/**
- * @tc.name: ConvertMountFlags003
- * @tc.desc: ConvertMountFlags with "rec" returns MS_REC
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ConvertMountFlags003, TestSize.Level0)
-{
-    std::vector<std::string> flags = {"rec"};
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(static_cast<unsigned long>(MS_REC), result);
-}
-
-/**
- * @tc.name: ConvertMountFlags004
- * @tc.desc: ConvertMountFlags with "rdonly" returns MS_RDONLY
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ConvertMountFlags004, TestSize.Level0)
-{
-    std::vector<std::string> flags = {"rdonly"};
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(static_cast<unsigned long>(MS_RDONLY), result);
-}
-
-/**
- * @tc.name: ConvertMountFlags005
- * @tc.desc: ConvertMountFlags with "ro" returns MS_RDONLY (alias)
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ConvertMountFlags005, TestSize.Level0)
-{
-    std::vector<std::string> flags = {"ro"};
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(static_cast<unsigned long>(MS_RDONLY), result);
-}
-
-/**
- * @tc.name: ConvertMountFlags006
- * @tc.desc: ConvertMountFlags with multiple flags combines them
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ConvertMountFlags006, TestSize.Level0)
-{
-    std::vector<std::string> flags = {"bind", "rec", "rdonly"};
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(static_cast<unsigned long>(MS_BIND | MS_REC | MS_RDONLY), result);
-}
-
-/**
- * @tc.name: ConvertMountFlags007
- * @tc.desc: ConvertMountFlags with "slave" returns MS_SLAVE
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ConvertMountFlags007, TestSize.Level0)
-{
-    std::vector<std::string> flags = {"slave"};
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(static_cast<unsigned long>(MS_SLAVE), result);
-}
-
-/**
- * @tc.name: ConvertMountFlags008
- * @tc.desc: ConvertMountFlags with "shared" returns MS_SHARED
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ConvertMountFlags008, TestSize.Level0)
-{
-    std::vector<std::string> flags = {"shared"};
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(static_cast<unsigned long>(MS_SHARED), result);
-}
-
-/**
- * @tc.name: ConvertMountFlags009
- * @tc.desc: ConvertMountFlags with "private" returns MS_PRIVATE
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ConvertMountFlags009, TestSize.Level0)
-{
-    std::vector<std::string> flags = {"private"};
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(static_cast<unsigned long>(MS_PRIVATE), result);
-}
-
-/**
- * @tc.name: ConvertMountFlags010
- * @tc.desc: ConvertMountFlags with "nosuid" returns MS_NOSUID
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ConvertMountFlags010, TestSize.Level0)
-{
-    std::vector<std::string> flags = {"nosuid"};
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(static_cast<unsigned long>(MS_NOSUID), result);
-}
-
-/**
- * @tc.name: ConvertMountFlags011
- * @tc.desc: ConvertMountFlags with "nodev" returns MS_NODEV
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ConvertMountFlags011, TestSize.Level0)
-{
-    std::vector<std::string> flags = {"nodev"};
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(static_cast<unsigned long>(MS_NODEV), result);
-}
-
-/**
- * @tc.name: ConvertMountFlags012
- * @tc.desc: ConvertMountFlags with "noexec" returns MS_NOEXEC
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ConvertMountFlags012, TestSize.Level0)
-{
-    std::vector<std::string> flags = {"noexec"};
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(static_cast<unsigned long>(MS_NOEXEC), result);
-}
-
-/**
- * @tc.name: ConvertMountFlags013
- * @tc.desc: ConvertMountFlags with unknown flag returns 0 (ignored)
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ConvertMountFlags013, TestSize.Level0)
-{
-    std::vector<std::string> flags = {"unknown_flag"};
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(0UL, result);
-}
-
-/**
- * @tc.name: ConvertMountFlags014
- * @tc.desc: ConvertMountFlags with MS_BIND style flag name
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ConvertMountFlags014, TestSize.Level0)
-{
-    std::vector<std::string> flags = {"MS_BIND", "MS_REC"};
-    unsigned long result = SandboxManager::ConvertMountFlags(flags);
-    EXPECT_EQ(static_cast<unsigned long>(MS_BIND | MS_REC), result);
+    // Empty flags
+    EXPECT_EQ(0UL, SandboxManager::ConvertMountFlags({}));
+    // Single lowercase flags
+    EXPECT_EQ(static_cast<unsigned long>(MS_BIND),
+        SandboxManager::ConvertMountFlags({"bind"}));
+    EXPECT_EQ(static_cast<unsigned long>(MS_REC),
+        SandboxManager::ConvertMountFlags({"rec"}));
+    EXPECT_EQ(static_cast<unsigned long>(MS_RDONLY),
+        SandboxManager::ConvertMountFlags({"rdonly"}));
+    EXPECT_EQ(static_cast<unsigned long>(MS_RDONLY),
+        SandboxManager::ConvertMountFlags({"ro"}));
+    EXPECT_EQ(static_cast<unsigned long>(MS_SLAVE),
+        SandboxManager::ConvertMountFlags({"slave"}));
+    EXPECT_EQ(static_cast<unsigned long>(MS_SHARED),
+        SandboxManager::ConvertMountFlags({"shared"}));
+    EXPECT_EQ(static_cast<unsigned long>(MS_PRIVATE),
+        SandboxManager::ConvertMountFlags({"private"}));
+    EXPECT_EQ(static_cast<unsigned long>(MS_NOSUID),
+        SandboxManager::ConvertMountFlags({"nosuid"}));
+    EXPECT_EQ(static_cast<unsigned long>(MS_NODEV),
+        SandboxManager::ConvertMountFlags({"nodev"}));
+    EXPECT_EQ(static_cast<unsigned long>(MS_NOEXEC),
+        SandboxManager::ConvertMountFlags({"noexec"}));
+    // Unknown flag name
+    EXPECT_EQ(0UL, SandboxManager::ConvertMountFlags({"unknown_flag"}));
+    // Combined flags
+    EXPECT_EQ(static_cast<unsigned long>(MS_BIND | MS_REC | MS_RDONLY),
+        SandboxManager::ConvertMountFlags({"bind", "rec", "rdonly"}));
+    // MS_* style aliases
+    EXPECT_EQ(static_cast<unsigned long>(MS_BIND | MS_REC),
+        SandboxManager::ConvertMountFlags({"MS_BIND", "MS_REC"}));
 }
 
 /**
@@ -371,19 +230,9 @@ HWTEST_F(ClawSandboxMountTest, CreateDir001, TestSize.Level0)
     int ret = manager.CreateDir(guard.RootPath() + "/nested");
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_TRUE(SandboxDirGuard::Exists(guard.RootPath() + "/nested"));
-}
 
-/**
- * @tc.name: CreateDir002
- * @tc.desc: CreateDir returns path create failure for empty path
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, CreateDir002, TestSize.Level0)
-{
-    SandboxManager manager;
-
-    int ret = manager.CreateDir("");
+    // Empty path returns PATH_CREATE_FAILED
+    ret = manager.CreateDir("");
     EXPECT_EQ(SANDBOX_ERR_PATH_CREATE_FAILED, ret);
 }
 
@@ -637,148 +486,6 @@ HWTEST_F(ClawSandboxMountTest, MountProcFs002, TestSize.Level0)
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_MOUNT_FAILED);
 }
 
-/**
- * @tc.name: CollectGrantedPermissionMounts001
- * @tc.desc: CollectGrantedPermissionMounts returns only non-empty mounts for granted permissions
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, CollectGrantedPermissionMounts001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    SandboxManager::PermissionConfig grantedConfig;
-    grantedConfig.sandboxSwitch = true;
-    SandboxManager::PermissionMountEntry grantedMount;
-    grantedMount.mount.source = "/storage/Users/currentUser/Download";
-    grantedMount.mount.target = "/storage/Users/currentUser/Download";
-    grantedMount.mount.mountFlags = {"bind", "rec"};
-    grantedMount.mount.checkExists = true;
-    grantedConfig.mounts.emplace_back(grantedMount);
-
-    SandboxManager::PermissionMountEntry decOnlyMount;
-    decOnlyMount.decPaths = {"/storage/Users/currentUser/Download"};
-    grantedConfig.mounts.emplace_back(decOnlyMount);
-
-    SandboxManager::PermissionConfig deniedConfig;
-    deniedConfig.sandboxSwitch = true;
-    SandboxManager::PermissionMountEntry deniedMount;
-    deniedMount.mount.source = "/storage/Users/currentUser/Desktop";
-    deniedMount.mount.target = "/storage/Users/currentUser/Desktop";
-    deniedConfig.mounts.emplace_back(deniedMount);
-
-    SandboxManager::PermissionConfig switchOffConfig;
-    switchOffConfig.sandboxSwitch = false;
-    SandboxManager::PermissionMountEntry switchOffMount;
-    switchOffMount.mount.source = "/storage/Users/currentUser/Documents";
-    switchOffMount.mount.target = "/storage/Users/currentUser/Documents";
-    switchOffConfig.mounts.emplace_back(switchOffMount);
-
-    manager.templateConfig_.permissions["ohos.permission.GRANTED_MOUNT"] = grantedConfig;
-    manager.templateConfig_.permissions["ohos.permission.DENIED_MOUNT"] = deniedConfig;
-    manager.templateConfig_.permissions["ohos.permission.GRANTED_SWITCH_OFF"] = switchOffConfig;
-
-    std::vector<SandboxManager::MountEntry> mounts = manager.CollectGrantedPermissionMounts();
-    ASSERT_EQ(1U, mounts.size());
-    EXPECT_EQ("/storage/Users/currentUser/Download", mounts[0].source);
-    EXPECT_EQ("/storage/Users/currentUser/Download", mounts[0].target);
-    ASSERT_EQ(2U, mounts[0].mountFlags.size());
-    EXPECT_EQ("bind", mounts[0].mountFlags[0]);
-    EXPECT_EQ("rec", mounts[0].mountFlags[1]);
-    EXPECT_TRUE(mounts[0].checkExists);
-}
-
-/**
- * @tc.name: CollectGrantedPermissionMounts002
- * @tc.desc: CollectGrantedPermissionMounts with empty permission config returns empty
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, CollectGrantedPermissionMounts002, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    std::vector<SandboxManager::MountEntry> mounts = manager.CollectGrantedPermissionMounts();
-    EXPECT_TRUE(mounts.empty());
-}
-
-/**
- * @tc.name: CollectGrantedPermissionMounts003
- * @tc.desc: CollectGrantedPermissionMounts skips permission with sandboxSwitch OFF
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, CollectGrantedPermissionMounts003, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    SandboxManager::PermissionConfig switchOffConfig;
-    switchOffConfig.sandboxSwitch = false;
-    SandboxManager::PermissionMountEntry mountEntry;
-    mountEntry.mount.source = "/data/test";
-    mountEntry.mount.target = "/data/test";
-    switchOffConfig.mounts.emplace_back(mountEntry);
-    manager.templateConfig_.permissions["ohos.permission.GRANTED_TEST"] = switchOffConfig;
-
-    std::vector<SandboxManager::MountEntry> mounts = manager.CollectGrantedPermissionMounts();
-    EXPECT_TRUE(mounts.empty());
-}
-
-/**
- * @tc.name: CollectGrantedPermissionMounts004
- * @tc.desc: CollectGrantedPermissionMounts skips mount with empty source
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, CollectGrantedPermissionMounts004, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    SandboxManager::PermissionConfig grantedConfig;
-    grantedConfig.sandboxSwitch = true;
-    SandboxManager::PermissionMountEntry emptySourceMount;
-    emptySourceMount.mount.source = "";
-    emptySourceMount.mount.target = "/data/test";
-    grantedConfig.mounts.emplace_back(emptySourceMount);
-
-    SandboxManager::PermissionMountEntry emptyTargetMount;
-    emptyTargetMount.mount.source = "/data/test";
-    emptyTargetMount.mount.target = "";
-    grantedConfig.mounts.emplace_back(emptyTargetMount);
-
-    manager.templateConfig_.permissions["ohos.permission.GRANTED_TEST"] = grantedConfig;
-
-    std::vector<SandboxManager::MountEntry> mounts = manager.CollectGrantedPermissionMounts();
-    EXPECT_TRUE(mounts.empty());
-}
 
 /**
  * @tc.name: IsPolicyWriteEscalation001
@@ -788,10 +495,16 @@ HWTEST_F(ClawSandboxMountTest, CollectGrantedPermissionMounts004, TestSize.Level
  */
 HWTEST_F(ClawSandboxMountTest, IsPolicyWriteEscalation001, TestSize.Level0)
 {
+    // Policy RO + Existing RO = not escalation
     EXPECT_FALSE(SandboxManager::IsPolicyWriteEscalation(true, true));
+    // Policy RO + Existing RW = not escalation
     EXPECT_FALSE(SandboxManager::IsPolicyWriteEscalation(true, false));
+    // Policy RW + Existing RW = not escalation
     EXPECT_FALSE(SandboxManager::IsPolicyWriteEscalation(false, false));
+    // Policy RW + Existing RO = escalation (rw policy over readonly mount)
     EXPECT_TRUE(SandboxManager::IsPolicyWriteEscalation(false, true));
+    // Summary: escalation only when policy requests write and existing mount is readonly
+    EXPECT_FALSE(SandboxManager::IsPolicyWriteEscalation(true, true)); // verify idempotent
 }
 
 /**
@@ -945,28 +658,6 @@ HWTEST_F(ClawSandboxMountTest, MountSystemDirs001, TestSize.Level0)
 
     manager.newRootPath_ = "/mnt/sandbox/claw/test";
     int ret = manager.MountSystemDirs();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: MountPermissionDirs001
- * @tc.desc: MountPermissionDirs with empty permission mounts returns success
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, MountPermissionDirs001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    manager.newRootPath_ = "/mnt/sandbox/claw/test";
-    int ret = manager.MountPermissionDirs();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
@@ -1131,6 +822,470 @@ HWTEST_F(ClawSandboxMountTest, EnterCallerSandbox003, TestSize.Level0)
     // failure path as the other tests.
     EXPECT_EQ(SANDBOX_ERR_NS_FAILED, ret);
 }
+
+// ==================== MatchConditionalSource tests ====================
+
+/**
+ * @tc.name: MatchConditionalSource001
+ * @tc.desc: Empty conditional rules returns CONDITIONAL_NOMATCH
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MatchConditionalSource001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    std::string physicalSource;
+    EXPECT_EQ(manager.MatchConditionalSource("/any/path", physicalSource),
+              SandboxManager::CONDITIONAL_NOMATCH);
+    EXPECT_EQ(manager.MatchConditionalSource("", physicalSource),
+              SandboxManager::CONDITIONAL_NOMATCH);
+}
+
+/**
+ * @tc.name: MatchConditionalSource002
+ * @tc.desc: Prefix match with granted permission returns CONDITIONAL_MATCHED with derived physicalSource
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MatchConditionalSource002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxManager::ConditionalRule rule;
+    rule.source = "/mnt/user/123/nosharefs/docs";
+    rule.target = "/storage/Users";
+    rule.permissions = {"ohos.permission.GRANTED_TEST"};
+    manager.templateConfig_.conditionalRules.push_back(rule);
+
+    std::string physicalSource;
+    EXPECT_EQ(manager.MatchConditionalSource("/storage/Users/Desktop", physicalSource),
+              SandboxManager::CONDITIONAL_MATCHED);
+    EXPECT_EQ(physicalSource, "/mnt/user/123/nosharefs/docs/Desktop");
+    EXPECT_EQ(manager.MatchConditionalSource("/storage/Users", physicalSource),
+              SandboxManager::CONDITIONAL_MATCHED);
+    EXPECT_EQ(physicalSource, "/mnt/user/123/nosharefs/docs");
+}
+
+/**
+ * @tc.name: MatchConditionalSource003
+ * @tc.desc: Prefix match without granted permission returns CONDITIONAL_BLOCKED
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MatchConditionalSource003, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxManager::ConditionalRule rule;
+    rule.source = "/mnt/user/123/nosharefs";
+    rule.target = "/storage/Users";
+    rule.permissions = {"ohos.permission.DENIED_CONDITIONAL"};
+    manager.templateConfig_.conditionalRules.push_back(rule);
+
+    std::string physicalSource;
+    EXPECT_EQ(manager.MatchConditionalSource("/storage/Users/Desktop", physicalSource),
+              SandboxManager::CONDITIONAL_BLOCKED);
+}
+
+/**
+ * @tc.name: MatchConditionalSource004
+ * @tc.desc: No prefix match returns CONDITIONAL_NOMATCH when rules exist
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MatchConditionalSource004, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxManager::ConditionalRule rule;
+    rule.source = "/mnt/user/123/nosharefs/docs";
+    rule.target = "/storage/Users";
+    rule.permissions = {"ohos.permission.GRANTED_TEST"};
+    manager.templateConfig_.conditionalRules.push_back(rule);
+
+    std::string physicalSource;
+    EXPECT_EQ(manager.MatchConditionalSource("/other/path", physicalSource),
+              SandboxManager::CONDITIONAL_NOMATCH);
+}
+
+/**
+ * @tc.name: MatchConditionalSource005
+ * @tc.desc: Prefix match with empty permissions returns CONDITIONAL_MATCHED
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MatchConditionalSource005, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxManager::ConditionalRule rule;
+    rule.source = "/host/public";
+    rule.target = "/public";
+    rule.permissions = {};  // empty = unconditionally permitted
+    manager.templateConfig_.conditionalRules.push_back(rule);
+
+    std::string physicalSource;
+    EXPECT_EQ(manager.MatchConditionalSource("/public/dir", physicalSource),
+              SandboxManager::CONDITIONAL_MATCHED);
+    EXPECT_EQ(physicalSource, "/host/public/dir");
+}
+
+/**
+ * @tc.name: MatchConditionalSource006
+ * @tc.desc: Multiple rules, second one matching with granted permission returns CONDITIONAL_MATCHED
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MatchConditionalSource006, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxManager::ConditionalRule rule1;
+    rule1.source = "/host/blocked";
+    rule1.target = "/blocked";
+    rule1.permissions = {"ohos.permission.DENIED"};
+    manager.templateConfig_.conditionalRules.push_back(rule1);
+
+    SandboxManager::ConditionalRule rule2;
+    rule2.source = "/host/allowed";
+    rule2.target = "/allowed";
+    rule2.permissions = {"ohos.permission.GRANTED_TEST"};
+    manager.templateConfig_.conditionalRules.push_back(rule2);
+
+    std::string physicalSource;
+    EXPECT_EQ(manager.MatchConditionalSource("/allowed/subdir", physicalSource),
+              SandboxManager::CONDITIONAL_MATCHED);
+    EXPECT_EQ(physicalSource, "/host/allowed/subdir");
+    EXPECT_EQ(manager.MatchConditionalSource("/blocked/subdir", physicalSource),
+              SandboxManager::CONDITIONAL_BLOCKED);
+}
+
+// ==================== BindMountConditionalPath tests ====================
+
+/**
+ * @tc.name: BindMountConditionalPath001
+ * @tc.desc: BindMountConditionalPath returns error when physical source does not exist
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, BindMountConditionalPath001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    manager.newRootPath_ = "/tmp/claw_sandbox_ut_nonexistent";
+
+    SandboxConfig::PolicyMount policyMount;
+    policyMount.readOnly = true;
+
+    int ret = manager.BindMountConditionalPath(policyMount,
+        "/tmp/claw_sandbox_ut_nonexistent/target",
+        "/nonexistent/source/path");
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, ret);
+}
+
+/**
+ * @tc.name: BindMountConditionalPath002
+ * @tc.desc: BindMountConditionalPath fails at mount when not running as root
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, BindMountConditionalPath002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    // Create a temporary physical source directory
+    std::string tmpDir = "/tmp/claw_sandbox_ut_bindmount_" + std::to_string(getpid());
+    std::error_code ec;
+    std::filesystem::create_directories(tmpDir, ec);
+
+    manager.newRootPath_ = "/tmp/claw_sandbox_ut_bindmount_root_" + std::to_string(getpid());
+
+    SandboxConfig::PolicyMount policyMount;
+    policyMount.readOnly = true;
+
+    // Without root privileges, mount() will fail with EPERM.
+    // In privileged environments, it may succeed.
+    int ret = manager.BindMountConditionalPath(policyMount,
+        manager.newRootPath_ + "/mounted",
+        tmpDir);
+    EXPECT_TRUE(ret == SANDBOX_ERR_MOUNT_FAILED || ret == SANDBOX_SUCCESS ||
+                ret == SANDBOX_ERR_PATH_INVALID);
+
+    // Cleanup
+    std::filesystem::remove_all(tmpDir, ec);
+    std::filesystem::remove_all(manager.newRootPath_, ec);
+}
+
+// ==================== RemountPolicyMount tests ====================
+
+/**
+ * @tc.name: RemountPolicyMount001
+ * @tc.desc: RemountPolicyMount with readonly policy skips writability check and fails at mount in non-root environment
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, RemountPolicyMount001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxConfig::PolicyMount policyMount;
+    policyMount.readOnly = true;
+
+    // readonly policy skips writability check; mount() fails in non-root env
+    int ret = manager.RemountPolicyMount(policyMount, "/nonexistent/path");
+    EXPECT_EQ(SANDBOX_ERR_MOUNT_FAILED, ret);
+}
+
+/**
+ * @tc.name: RemountPolicyMount002
+ * @tc.desc: RemountPolicyMount with rw policy reads existing mount readonly status, then mount fails
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, RemountPolicyMount002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxConfig::PolicyMount policyMount;
+    policyMount.readOnly = false;
+
+    // rw policy → GetMountReadOnly on "/proc" → found, not usually readonly
+    // → no write escalation → mount() with MS_REMOUNT fails in non-root env
+    int ret = manager.RemountPolicyMount(policyMount, "/proc");
+    EXPECT_EQ(SANDBOX_ERR_MOUNT_FAILED, ret);
+}
+
+/**
+ * @tc.name: RemountPolicyMount003
+ * @tc.desc: RemountPolicyMount with rw policy fails when mount point is not found
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, RemountPolicyMount003, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxConfig::PolicyMount policyMount;
+    policyMount.readOnly = false;
+
+    // rw policy + non-existent path → GetMountReadOnly fails → PATH_INVALID
+    int ret = manager.RemountPolicyMount(policyMount, "/nonexistent/path/that/does/not/exist");
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, ret);
+}
+
+// ==================== MountPolicyPath tests ====================
+
+/**
+ * @tc.name: MountPolicyPath001
+ * @tc.desc: MountPolicyPath returns error when target is not a mount point and no conditional rule matches
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MountPolicyPath001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    manager.newRootPath_ = "/tmp/claw_test_nomatch";
+    SandboxConfig::PolicyMount policyMount;
+    policyMount.source = "/nonexistent/mount/path";
+    policyMount.readOnly = true;
+
+    // No conditional rules → CONDITIONAL_NOMATCH → error
+    int ret = manager.MountPolicyPath(policyMount);
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, ret);
+}
+
+/**
+ * @tc.name: MountPolicyPath002
+ * @tc.desc: MountPolicyPath returns CONDITIONAL_BLOCKED when target matches rule but permission is denied
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MountPolicyPath002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    manager.newRootPath_ = "/tmp/claw_test_blocked";
+    SandboxManager::ConditionalRule rule;
+    rule.source = "/host/path";
+    rule.target = "/policy/target";
+    rule.permissions = {"ohos.permission.DENIED_CONDITIONAL"};
+    manager.templateConfig_.conditionalRules.push_back(rule);
+
+    SandboxConfig::PolicyMount policyMount;
+    policyMount.source = "/policy/target/subdir";
+    policyMount.readOnly = true;
+
+    // Permission denied for the matching rule → CONDITIONAL_BLOCKED
+    int ret = manager.MountPolicyPath(policyMount);
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, ret);
+}
+
+/**
+ * @tc.name: MountPolicyPath003
+ * @tc.desc: MountPolicyPath reaches BindMountConditionalPath when conditional match succeeds
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MountPolicyPath003, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    // Create a physical source directory
+    std::string tmpSource = "/tmp/claw_test_mpp_source_" + std::to_string(getpid());
+    std::error_code ec;
+    std::filesystem::create_directories(tmpSource, ec);
+
+    manager.newRootPath_ = "/tmp/claw_test_mpp_root_" + std::to_string(getpid());
+
+    SandboxManager::ConditionalRule rule;
+    rule.source = tmpSource;
+    rule.target = "/policy/target";
+    rule.permissions = {"ohos.permission.GRANTED_TEST"};
+    manager.templateConfig_.conditionalRules.push_back(rule);
+
+    SandboxConfig::PolicyMount policyMount;
+    policyMount.source = "/policy/target/subdir";
+    policyMount.readOnly = true;
+
+    // MatchConditionalSource succeeds → BindMountConditionalPath may fail at mount()
+    // In privileged environments, mount may succeed.
+    int ret = manager.MountPolicyPath(policyMount);
+    EXPECT_TRUE(ret == SANDBOX_ERR_MOUNT_FAILED || ret == SANDBOX_ERR_PATH_INVALID ||
+                ret == SANDBOX_SUCCESS);
+
+    // Cleanup
+    std::filesystem::remove_all(tmpSource, ec);
+    std::filesystem::remove_all(manager.newRootPath_, ec);
+}
+
+/**
+ * @tc.name: MountPolicyPath004
+ * @tc.desc: MountPolicyPath remounts when target is an existing mount point, fails at mount in non-root env
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MountPolicyPath004, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    manager.newRootPath_ = "";
+    SandboxConfig::PolicyMount policyMount;
+    policyMount.source = "/proc";
+    policyMount.readOnly = true;
+
+    // "/proc" is an existing mount point → MountPolicyPath calls RemountPolicyMount
+    // readonly → skips writability check → mount() fails in non-root env
+    int ret = manager.MountPolicyPath(policyMount);
+    EXPECT_EQ(SANDBOX_ERR_MOUNT_FAILED, ret);
+}
+
 } // namespace SANDBOX
 } // namespace AccessControl
 } // namespace OHOS
