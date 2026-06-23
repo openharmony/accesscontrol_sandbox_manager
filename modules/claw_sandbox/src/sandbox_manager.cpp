@@ -1739,6 +1739,11 @@ int SandboxManager::DropCapabilities()
 
 int SandboxManager::DeliverNetPolicy()
 {
+    if (!initialized_) {
+        std::cerr << "Error: SandboxManager not initialized" << std::endl;
+        SANDBOX_LOGE("SandboxManager not initialized");
+        return SANDBOX_ERR_GENERIC;
+    }
     if (config_.policyArg == nullptr) {
         return SANDBOX_SUCCESS;
     }

@@ -269,7 +269,7 @@ static int ParseNetworkField(cJSON *networkObj, AgentLockPolicy &policy)
 }
 
 // Helper: parse the 'AddOperationControlRuleGroups' policy array and collect AgentLockPolicy entries.
-static int ParseAgentLockField(cJSON *root, std::vector<AgentLockPolicy> &policies)
+static int ParseAgentLockField(cJSON *root, std::vector<struct AgentLockPolicy> &policies)
 {
     cJSON *ruleGroupObj = cJSON_GetObjectItem(root, "AddOperationControlRuleGroups");
     if (ruleGroupObj == nullptr) {
