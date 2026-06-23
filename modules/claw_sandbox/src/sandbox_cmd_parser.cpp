@@ -252,7 +252,7 @@ static int ParseAgentLockPolicyNum(cJSON *root, uint32_t &number)
 }
 
 // Helper: parse the 'Scope' field of an agentlock policy
-static int ParseScopeField(cJSON *root, struct AgentLockPolicy &scope)
+static int ParseScopeField(cJSON *root, struct AgentLockPolicy &policy)
 {
     cJSON *scopeObj = cJSON_GetObjectItem(root, "Scope");
     if (!cJSON_IsObject(scopeObj)) {
@@ -273,7 +273,7 @@ static int ParseScopeField(cJSON *root, struct AgentLockPolicy &scope)
         SANDBOX_LOGE("Config field 'Scope.Type' has invalid value: %{public}s", typeStr.c_str());
         return SANDBOX_ERR_CONFIG_INVALID;
     }
-    scope.scope.type = scopyTypeItem->second;
+    policy.scope.type = scopyTypeItem->second;
     return SANDBOX_SUCCESS;
 }
 
@@ -304,7 +304,7 @@ static int ParseNetworkField(cJSON *root, AgentLockPolicy &policy)
 // Helper: parse specific policy fields based on the field name
 static int ParseSpecificFields(cJSON *root, AgentLockPolicy &policy, uint32_t &policyIndex, const std::string &field)
 {
-    cJSON *specificObj = cJSON_GetObjectItem(root, field);
+    cJSON *specificObj = cJSON_GetObjectItem(root, field.c_str());
     if (!cJSON_IsObject(specificObj)) {
         std::cerr << "Error: Config field '" << field << "' not an object" << std::endl;
         SANDBOX_LOGE("Config field '%{public}s' not an object", field.c_str());
