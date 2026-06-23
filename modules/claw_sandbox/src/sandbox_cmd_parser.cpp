@@ -305,6 +305,9 @@ static int ParseNetworkField(cJSON *root, AgentLockPolicy &policy)
 static int ParseSpecificFields(cJSON *root, AgentLockPolicy &policy, uint32_t &policyIndex, const std::string &field)
 {
     cJSON *specificObj = cJSON_GetObjectItem(root, field.c_str());
+    if (specificObj == nullptr) {
+        return SANDBOX_SUCCESS;
+    }
     if (!cJSON_IsObject(specificObj)) {
         std::cerr << "Error: Config field '" << field << "' not an object" << std::endl;
         SANDBOX_LOGE("Config field '%{public}s' not an object", field.c_str());
@@ -327,8 +330,8 @@ static int ParseSpecificFields(cJSON *root, AgentLockPolicy &policy, uint32_t &p
         if (ret != SANDBOX_SUCCESS) {
             std::cerr << "Error: Failed to parse Scope field for " << field << " policy at index " <<
                         policyIndex << std::endl;
-            SANDBOX_LOGE("Failed to parse Scope field for %{public}s policy at index %{public}u", 
-                        field.c_str(), policyIndex);
+            SANDBOX_LOGE("Failed to parse Scope field for %{public}s policy at index %{public}u",
+                field.c_str(), policyIndex);
             return ret;
         }
         policyIndex++;
@@ -359,13 +362,13 @@ static int ParseAgentLockField(cJSON *root, struct AgentLockPolicy policy[])
             return SANDBOX_ERR_CONFIG_INVALID;
         }
         for (const std::string &typeItem : typeSet) {
-            if (cJSON_HasObjectItem(ruleGroupItem, typeItem.c_str())) {
-                ret = ParseSpecificFields(ruleGroupItem, policy[policyIndex], policyIndex, typeItem);
-                if (ret != SANDBOX_SUCCESS) {
-                    std::cerr << "Error: Failed to parse " << typeItem << " policy at index " << policyIndex << std::endl;
-                    SANDBOX_LOGE("Failed to parse %{public}s policy at index %{public}u", typeItem.c_str(), policyIndex);
-                    return ret;
-                }
+            ret = ParseSpecificFields(ruleGroupItem, policy[policyIndex], policyIndex, typeItem);
+            if (ret != SANDBOX_SUCCESS) {
+                std::cerr << "Error: Failed to parse " << typeItem << " policy at index " <<
+                            policyIndex << std::endl;
+                SANDBOX_LOGE("Failed to parse %{public}s policy at index %{public}u",
+                    typeItem.c_str(), policyIndex);
+                return ret;
             }
         }
     }
