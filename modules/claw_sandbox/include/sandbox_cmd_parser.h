@@ -21,7 +21,6 @@
 #include <map>
 #include <string>
 #include <vector>
-#include <unordered_set>
 #include <unordered_map>
 
 #include "accesstoken_kit.h"
@@ -38,7 +37,6 @@ constexpr size_t ACTION_TYPE_CNT               = 4;
 constexpr size_t AGENT_LOCK_MAX_RULES_LIST_CNT = 16;
 constexpr size_t AGENT_LOCK_MAX_ITEM_CNT       = 8;
 constexpr size_t MAX_VAL_LEN                   = 512;
-constexpr size_t MAX_MALLOC_SIZE               = 4 * 1024 * 1024;
 
 /*
  * @brief Operation types for agentlock
@@ -48,7 +46,7 @@ enum OP_TYPE : int {
     OP_TYPE_FILE,
     OP_TYPE_EXEC
 };
-static const std::unordered_set<std::string> typeSet = {"Network", "File", "Exec"};
+static const std::vector<std::string> fieldTypes = {"Network", "File", "Exec"};
 
 /**
  * @brief AgentLock policy actions

@@ -216,41 +216,6 @@ static int ParseTypeField(cJSON *root, std::string &out)
     return ParseStringFieldWithMaxLen(root, "type", out, MAX_TYPE_LENGTH);
 }
 
-// Helper: parse the 'AddOperationControlRuleGroups' policy array and count the number of policy rules present
-static int ParseAgentLockPolicyNum(cJSON *root, uint32_t &number)
-{
-    cJSON *ruleGroupObj = cJSON_GetObjectItem(root, "AddOperationControlRuleGroups");
-    if (ruleGroupObj == nullptr) {
-        return SANDBOX_SUCCESS;
-    }
-    if (!cJSON_IsArray(ruleGroupObj)) {
-        std::cerr << "Error: Config field 'AddOperationControlRuleGroups' type mismatch: expected array" << std::endl;
-        SANDBOX_LOGE("Config field 'AddOperationControlRuleGroups' type mismatch: expected array");
-        return SANDBOX_ERR_CONFIG_INVALID;
-    }
-    int size = cJSON_GetArraySize(ruleGroupObj);
-    for (int i = 0; i < size; i++) {
-        cJSON *ruleGroupItem = cJSON_GetArrayItem(ruleGroupObj, i);
-        if (!cJSON_IsObject(ruleGroupItem)) {
-            std::cerr << "Error: Config field 'AddOperationControlRuleGroups' should contain objects" << std::endl;
-            SANDBOX_LOGE("Config field 'AddOperationControlRuleGroups' should contain objects");
-            return SANDBOX_ERR_CONFIG_INVALID;
-        }
-        for (const std::string &typeItem : typeSet) {
-            if (cJSON_HasObjectItem(ruleGroupItem, typeItem.c_str())) {
-                number++;
-            }
-        }
-    }
-    if (static_cast<size_t>(number) > MAX_POLICY_COUNT) {
-        std::cerr << "Error: Total number of agentlock policies exceeds max (" <<
-                  MAX_POLICY_COUNT << ")" << std::endl;
-        SANDBOX_LOGE("Total number of agentlock policies exceeds max (%{public}zu)", MAX_POLICY_COUNT);
-        return SANDBOX_ERR_CONFIG_INVALID;
-    }
-    return SANDBOX_SUCCESS;
-}
-
 // Helper: parse the 'Scope' field of an agentlock policy
 static int ParseScopeField(cJSON *root, struct AgentLockPolicy &policy)
 {
@@ -263,32 +228,34 @@ static int ParseScopeField(cJSON *root, struct AgentLockPolicy &policy)
     std::string typeStr;
     int ret = ParseStringFieldWithMaxLen(scopeObj, "Type", typeStr, MAX_SCOPE_NAME_LENGTH);
     if (ret != SANDBOX_SUCCESS) {
-        std::cerr << "Error: Failed to parse Scope.Type field" << std::endl;
-        SANDBOX_LOGE("Failed to parse Scope.Type field");
         return ret;
     }
-    auto scopyTypeItem = validScopeTypeMap.find(typeStr);
-    if (scopyTypeItem == validScopeTypeMap.end()) {
+    auto scopeTypeItem = validScopeTypeMap.find(typeStr);
+    if (scopeTypeItem == validScopeTypeMap.end()) {
         std::cerr << "Error: Config field 'Scope.Type' has invalid value: " << typeStr << std::endl;
         SANDBOX_LOGE("Config field 'Scope.Type' has invalid value: %{public}s", typeStr.c_str());
         return SANDBOX_ERR_CONFIG_INVALID;
     }
-    policy.scope.type = scopyTypeItem->second;
+    policy.scope.type = scopeTypeItem->second;
     return SANDBOX_SUCCESS;
 }
 
 // Helper: parse the 'Network' policy field of an agentlock policy with default action policy
-static int ParseNetworkField(cJSON *root, AgentLockPolicy &policy)
+static int ParseNetworkField(cJSON *networkObj, AgentLockPolicy &policy)
 {
+    if (!cJSON_IsObject(networkObj)) {
+        std::cerr << "Error: Config field 'Network' not an object" << std::endl;
+        SANDBOX_LOGE("Config field 'Network' not an object");
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+
     policy.operationType = OP_TYPE_NETWORK;
     policy.defaultAction = AGENT_LOCK_DEFAULT_NETWORK_ACTION;
     policy.rulesListCnt = 0;
 
     std::string actionStr;
-    int ret = ParseStringFieldWithMaxLen(root, "DefaultAction", actionStr, MAX_ACTION_STR_LENGTH);
+    int ret = ParseStringFieldWithMaxLen(networkObj, "DefaultAction", actionStr, MAX_ACTION_STR_LENGTH);
     if (ret != SANDBOX_SUCCESS) {
-        std::cerr << "Error: Failed to parse Network.DefaultAction field" << std::endl;
-        SANDBOX_LOGE("Failed to parse Network.DefaultAction field");
         return ret;
     }
     auto actionItem = actionMap.find(actionStr);
@@ -301,46 +268,8 @@ static int ParseNetworkField(cJSON *root, AgentLockPolicy &policy)
     return SANDBOX_SUCCESS;
 }
 
-// Helper: parse specific policy fields based on the field name
-static int ParseSpecificFields(cJSON *root, AgentLockPolicy &policy, uint32_t &policyIndex, const std::string &field)
-{
-    cJSON *specificObj = cJSON_GetObjectItem(root, field.c_str());
-    if (specificObj == nullptr) {
-        return SANDBOX_SUCCESS;
-    }
-    if (!cJSON_IsObject(specificObj)) {
-        std::cerr << "Error: Config field '" << field << "' not an object" << std::endl;
-        SANDBOX_LOGE("Config field '%{public}s' not an object", field.c_str());
-        return SANDBOX_ERR_CONFIG_INVALID;
-    }
-    int ret = SANDBOX_SUCCESS;
-    bool hasPolicy = false;
-    if (field == "Network") {
-        ret = ParseNetworkField(specificObj, policy);
-        if (ret != SANDBOX_SUCCESS) {
-            std::cerr << "Error: Failed to parse Network policy at index " << policyIndex << std::endl;
-            SANDBOX_LOGE("Failed to parse Network policy at index %{public}u", policyIndex);
-            return ret;
-        }
-        hasPolicy = true;
-    }
-
-    if (hasPolicy) {
-        ret = ParseScopeField(root, policy);
-        if (ret != SANDBOX_SUCCESS) {
-            std::cerr << "Error: Failed to parse Scope field for " << field << " policy at index " <<
-                        policyIndex << std::endl;
-            SANDBOX_LOGE("Failed to parse Scope field for %{public}s policy at index %{public}u",
-                field.c_str(), policyIndex);
-            return ret;
-        }
-        policyIndex++;
-    }
-    return ret;
-}
-
-// Helper: parse the 'AddOperationControlRuleGroups' policy array and fill in the AgentLockPolicy structures
-static int ParseAgentLockField(cJSON *root, struct AgentLockPolicy policy[])
+// Helper: parse the 'AddOperationControlRuleGroups' policy array and collect AgentLockPolicy entries.
+static int ParseAgentLockField(cJSON *root, std::vector<AgentLockPolicy> &policies)
 {
     cJSON *ruleGroupObj = cJSON_GetObjectItem(root, "AddOperationControlRuleGroups");
     if (ruleGroupObj == nullptr) {
@@ -351,8 +280,9 @@ static int ParseAgentLockField(cJSON *root, struct AgentLockPolicy policy[])
         SANDBOX_LOGE("Config field 'AddOperationControlRuleGroups' type mismatch: expected array");
         return SANDBOX_ERR_CONFIG_INVALID;
     }
-    int ret = SANDBOX_SUCCESS;
-    uint32_t policyIndex = 0;
+    const std::unordered_map<std::string, int (*)(cJSON *fieldObj, AgentLockPolicy &policy)> policyFieldHandlers = {
+        {"Network", ParseNetworkField},
+    };
     int size = cJSON_GetArraySize(ruleGroupObj);
     for (int i = 0; i < size; i++) {
         cJSON *ruleGroupItem = cJSON_GetArrayItem(ruleGroupObj, i);
@@ -361,68 +291,75 @@ static int ParseAgentLockField(cJSON *root, struct AgentLockPolicy policy[])
             SANDBOX_LOGE("Config field 'AddOperationControlRuleGroups' should contain objects");
             return SANDBOX_ERR_CONFIG_INVALID;
         }
-        for (const std::string &typeItem : typeSet) {
-            ret = ParseSpecificFields(ruleGroupItem, policy[policyIndex], policyIndex, typeItem);
+        for (const std::string &typeItem : fieldTypes) {
+            auto handlerIt = policyFieldHandlers.find(typeItem);
+            cJSON *fieldObj = cJSON_GetObjectItem(ruleGroupItem, typeItem.c_str());
+            if (handlerIt == policyFieldHandlers.end() || fieldObj == nullptr) {
+                continue;
+            }
+            size_t policyIdx = policies.size();
+            if (policyIdx >= MAX_POLICY_COUNT) {
+                std::cerr << "Error: Agentlock policies exceeds max (" << MAX_POLICY_COUNT << ")" << std::endl;
+                SANDBOX_LOGE("Agentlock policies exceeds max (%{public}zu)", MAX_POLICY_COUNT);
+                return SANDBOX_ERR_CONFIG_INVALID;
+            }
+            policies.emplace_back();
+            AgentLockPolicy &policy = policies.back();
+            int ret = handlerIt->second(fieldObj, policy);
             if (ret != SANDBOX_SUCCESS) {
-                std::cerr << "Error: Failed to parse " << typeItem << " policy at index " <<
-                            policyIndex << std::endl;
-                SANDBOX_LOGE("Failed to parse %{public}s policy at index %{public}u",
-                    typeItem.c_str(), policyIndex);
+                return ret;
+            }
+            ret = ParseScopeField(ruleGroupItem, policy);
+            if (ret != SANDBOX_SUCCESS) {
                 return ret;
             }
         }
     }
-    return ret;
+    return SANDBOX_SUCCESS;
 }
 
 // Helper: parse the 'policy' field for agentlock and fill in the AgentLockAddPolicyArg structure
 static int ParseAgentLockAddPolicyArg(cJSON *root, struct AgentLockAddPolicyArg* &policyArg)
 {
-    cJSON *policyArgObj = nullptr;
-    cJSON *policyArgStr = nullptr;
-    int ret = GetOptionalObjectField(root, "policy", policyArgObj, policyArgStr, MAX_POLICY_LENGTH);
+    cJSON *policySrcObj = nullptr;
+    cJSON *ownedPolicyObj = nullptr;
+    int ret = GetOptionalObjectField(root, "policy", policySrcObj, ownedPolicyObj, MAX_POLICY_LENGTH);
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
-    if (policyArgObj == nullptr) {
+    if (policySrcObj == nullptr) {
         return SANDBOX_SUCCESS;
     }
-    uint32_t policyNum = 0;
-    ret = ParseAgentLockPolicyNum(policyArgObj, policyNum);
-    if (ret != SANDBOX_SUCCESS) {
-        std::cerr << "Error: Failed to parse agentlock policy number" << std::endl;
-        SANDBOX_LOGE("Failed to parse agentlock policy number");
-        return CleanupParsedObjectAndReturn(policyArgStr, ret);
+    std::vector<AgentLockPolicy> policies;
+    ret = ParseAgentLockField(policySrcObj, policies);
+    if (ret != SANDBOX_SUCCESS || policies.empty()) {
+        return CleanupParsedObjectAndReturn(ownedPolicyObj, ret);
     }
-    size_t totalSize = sizeof(struct AgentLockAddPolicyArg) + policyNum * sizeof(struct AgentLockPolicy);
-    if (totalSize < sizeof(struct AgentLockAddPolicyArg) || totalSize > MAX_MALLOC_SIZE) {
-        std::cerr << "Error: Policy size overflow or exceeds limit" << std::endl;
-        SANDBOX_LOGE("Policy size overflow or exceeds limit");
-        return CleanupParsedObjectAndReturn(policyArgStr, SANDBOX_ERR_CONFIG_INVALID);
-    }
+    size_t policyCnt = policies.size();
+    size_t totalSize = sizeof(struct AgentLockAddPolicyArg) + policyCnt * sizeof(struct AgentLockPolicy);
     policyArg = (struct AgentLockAddPolicyArg *)std::malloc(totalSize);
     if (policyArg == nullptr) {
         std::cerr << "Error: Failed to allocate memory for AgentLockAddPolicyArg" << std::endl;
         SANDBOX_LOGE("Failed to allocate memory for AgentLockAddPolicyArg");
-        return CleanupParsedObjectAndReturn(policyArgStr, SANDBOX_ERR_CONFIG_INVALID);
+        return CleanupParsedObjectAndReturn(ownedPolicyObj, SANDBOX_ERR_CONFIG_INVALID);
     }
     if (memset_s(policyArg, totalSize, 0, totalSize) != 0) {
         std::cerr << "Error: Failed to initialize memory for AgentLockAddPolicyArg" << std::endl;
         SANDBOX_LOGE("Failed to initialize memory for AgentLockAddPolicyArg");
         std::free(policyArg);
         policyArg = nullptr;
-        return CleanupParsedObjectAndReturn(policyArgStr, SANDBOX_ERR_CONFIG_INVALID);
+        return CleanupParsedObjectAndReturn(ownedPolicyObj, SANDBOX_ERR_CONFIG_INVALID);
     }
-    policyArg->policyCnt = policyNum;
-    ret = ParseAgentLockField(policyArgObj, policyArg->policy);
-    if (ret != SANDBOX_SUCCESS) {
-        std::cerr << "Error: Failed to parse agentlock policy rules" << std::endl;
-        SANDBOX_LOGE("Failed to parse agentlock policy rules");
+    if (memcpy_s(policyArg->policy, policyCnt * sizeof(struct AgentLockPolicy),
+                 policies.data(), policyCnt * sizeof(struct AgentLockPolicy)) != 0) {
+        std::cerr << "Error: Failed to copy agentlock policies" << std::endl;
+        SANDBOX_LOGE("Failed to copy agentlock policies");
         std::free(policyArg);
         policyArg = nullptr;
-        return CleanupParsedObjectAndReturn(policyArgStr, ret);
+        return CleanupParsedObjectAndReturn(ownedPolicyObj, SANDBOX_ERR_CONFIG_INVALID);
     }
-    return SANDBOX_SUCCESS;
+    policyArg->policyCnt = static_cast<uint32_t>(policyCnt);
+    return CleanupParsedObjectAndReturn(ownedPolicyObj, SANDBOX_SUCCESS);
 }
 
 // Helper: parse optional hex name field (max 64 chars)
