@@ -622,6 +622,10 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
     for (const auto& step : parseSteps) {
         int ret = step();
         if (ret != SANDBOX_SUCCESS) {
+            if (config.policyArg != nullptr) {
+                std::free(config.policyArg);
+                config.policyArg = nullptr;
+            }
             return CleanupAndReturn(root, ret);
         }
     }
