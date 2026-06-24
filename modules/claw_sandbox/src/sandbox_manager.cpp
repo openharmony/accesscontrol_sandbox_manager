@@ -118,7 +118,6 @@ constexpr uint32_t DEC_POLICY_HEADER_RESERVED = 64;
 constexpr uint64_t SEC_TO_NSEC = 1000000000ULL;
 
 // IOCTL command for delivering AgentLock policy to kernel
-constexpr int HM_ALREADY_INIT = -114;
 constexpr int HM_POLICY_ADD_ID = 104;
 constexpr int HM_AGENTLOCK_CURRENT_EXECUTER_INIT_ID = 112;
 
@@ -1738,6 +1737,31 @@ int SandboxManager::DropCapabilities()
     return SANDBOX_SUCCESS;
 }
 
+int SandboxManager::DeliverPolicyInit()
+{
+    if (policyInitialized_) {
+        std::cerr << "Error: SandboxManager policy has been already initialized" << std::endl;
+        SANDBOX_LOGE("SandboxManager policy has been already initialized");
+        return SANDBOX_ERR_GENERIC;
+    }
+    int fd = open(DEC_DEVICE_PATH, O_RDWR);
+    if (fd < 0) {
+        std::cerr << "Error: open " << DEC_DEVICE_PATH << " failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("open %s failed: %{public}s", DEC_DEVICE_PATH, strerror(errno));
+        return SANDBOX_ERR_SET_POLICY_FAILED;
+    }
+    int ret = ioctl(fd, DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT, NULL);
+    if (ret < 0) {
+        std::cerr << "Error: ioctl DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("ioctl DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT failed: %{public}s", strerror(errno));
+        close(fd);
+        return SANDBOX_ERR_SET_POLICY_FAILED;
+    }
+    close(fd);
+    policyInitialized_ = true;
+    return SANDBOX_SUCCESS;
+}
+
 int SandboxManager::DeliverNetPolicy()
 {
     if (!initialized_) {
@@ -1748,17 +1772,17 @@ int SandboxManager::DeliverNetPolicy()
     if (config_.policyArg == nullptr) {
         return SANDBOX_SUCCESS;
     }
+    int ret = SANDBOX_SUCCESS;
+    if (!policyInitialized_) {
+        ret = DeliverPolicyInit();
+        if (ret != SANDBOX_SUCCESS) {
+            return ret;
+        }
+    }
     int fd = open(DEC_DEVICE_PATH, O_RDWR);
     if (fd < 0) {
         std::cerr << "Error: open " << DEC_DEVICE_PATH << " failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("open %s failed: %{public}s", DEC_DEVICE_PATH, strerror(errno));
-        return SANDBOX_ERR_SET_POLICY_FAILED;
-    }
-    int ret = ioctl(fd, DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT, NULL);
-    if (ret < 0 && ret != HM_ALREADY_INIT) {
-        std::cerr << "Error: ioctl DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("ioctl DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT failed: %{public}s", strerror(errno));
-        close(fd);
         return SANDBOX_ERR_SET_POLICY_FAILED;
     }
     ret = ioctl(fd, DEC_CMD_POLICY_ADD, config_.policyArg);
