@@ -16,7 +16,6 @@
 #ifndef CLAW_SANDBOX_SANDBOX_CMD_PARSER_H
 #define CLAW_SANDBOX_SANDBOX_CMD_PARSER_H
 
-#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <string>
