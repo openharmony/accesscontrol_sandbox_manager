@@ -118,6 +118,7 @@ constexpr uint32_t DEC_POLICY_HEADER_RESERVED = 64;
 constexpr uint64_t SEC_TO_NSEC = 1000000000ULL;
 
 // IOCTL command for delivering AgentLock policy to kernel
+constexpr int HM_ALREADY_INIT = -114;
 constexpr int HM_POLICY_ADD_ID = 104;
 constexpr int HM_AGENTLOCK_CURRENT_EXECUTER_INIT_ID = 112;
 
@@ -1754,7 +1755,7 @@ int SandboxManager::DeliverNetPolicy()
         return SANDBOX_ERR_SET_POLICY_FAILED;
     }
     int ret = ioctl(fd, DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT, NULL);
-    if (ret < 0) {
+    if (ret < 0 && ret != HM_ALREADY_INIT) {
         std::cerr << "Error: ioctl DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("ioctl DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT failed: %{public}s", strerror(errno));
         close(fd);
