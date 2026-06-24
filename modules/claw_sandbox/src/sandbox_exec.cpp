@@ -28,6 +28,15 @@ namespace SANDBOX {
 // Minimum argv count for subCliName validation: argv[0] is the command, argv[1] is the potential subCliName
 constexpr size_t MIN_ARGV_FOR_SUBCLI_NAME = 2;
 
+// Clean up any allocated resources, e.g. policyArg
+SandboxExec::~SandboxExec()
+{
+    if (config_.policyArg != nullptr) {
+        std::free(config_.policyArg);
+        config_.policyArg = nullptr;
+    }
+}
+
 int SandboxExec::ParseArguments(int argc, char *argv[])
 {
     // Check claw_sandbox options only before --cmd/-m; everything after belongs to the command.

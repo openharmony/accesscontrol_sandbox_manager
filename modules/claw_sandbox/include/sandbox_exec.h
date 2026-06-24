@@ -43,7 +43,7 @@ namespace SANDBOX {
 class SandboxExec {
 public:
     SandboxExec() = default;
-    ~SandboxExec() = default;
+    ~SandboxExec();
 
     /**
      * @brief Parse command line arguments

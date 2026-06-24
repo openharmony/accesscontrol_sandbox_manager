@@ -37,6 +37,7 @@
 #include <sys/capability.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
 #include <linux/securebits.h>
 #include <linux/capability.h>
 #include <linux/seccomp.h>
@@ -116,6 +117,10 @@ constexpr uint32_t DEC_SANDBOX_MODE_WRITE = (DEC_SANDBOX_MODE_READ << 1);
 constexpr uint32_t DEC_POLICY_HEADER_RESERVED = 64;
 constexpr uint64_t SEC_TO_NSEC = 1000000000ULL;
 
+// IOCTL command for delivering AgentLock policy to kernel
+constexpr int HM_POLICY_ADD_ID = 104;
+constexpr int HM_AGENTLOCK_CURRENT_EXECUTER_INIT_ID = 112;
+
 // Marker added to the final child process environment after sanitization.
 // It is only used to identify that the process was launched by claw_sandbox.
 constexpr const char *CLAW_SANDBOX_ENV_KEY = "CLAW_SANDBOX";
@@ -163,6 +168,10 @@ struct DecPolicyInfo {
 };
 
 constexpr unsigned long SET_DEC_POLICY_CMD = _IOWR(HM_DEC_IOCTL_BASE, HM_SET_POLICY_ID, DecPolicyInfo);
+
+constexpr unsigned long DEC_CMD_POLICY_ADD = _IOWR(HM_DEC_IOCTL_BASE, HM_POLICY_ADD_ID, struct AgentLockAddPolicyArg);
+constexpr unsigned long DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT =
+    _IOWR(HM_DEC_IOCTL_BASE, HM_AGENTLOCK_CURRENT_EXECUTER_INIT_ID, struct DecConfig);
 
 static std::string TrimEnvKey(const std::string &rawKey)
 {
@@ -567,14 +576,20 @@ int SandboxManager::ExecuteLateSteps()
         return ret;
     }
 
-    // Step 20: Drop capabilities after seccomp; capset() is not blocked in block mode
+    // Step 20: Deliver AgentLock policy if specified in config.
+    ret = DeliverNetPolicy();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    // Step 21: Drop capabilities after seccomp; capset() is not blocked in block mode
     //          and is expected to be allowlisted in whitelist mode.
     ret = DropCapabilities();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
-    // Step 21: Execute the command.
+    // Step 22: Execute the command.
     return ExecuteCommand();
 }
 
@@ -1719,6 +1734,65 @@ int SandboxManager::DropCapabilities()
     }
 
     SANDBOX_LOGD("All capabilities dropped via capset");
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::DeliverPolicyInit()
+{
+    if (policyInitialized_) {
+        std::cerr << "Error: SandboxManager policy has been already initialized" << std::endl;
+        SANDBOX_LOGE("SandboxManager policy has been already initialized");
+        return SANDBOX_ERR_GENERIC;
+    }
+    int fd = open(DEC_DEVICE_PATH, O_RDWR);
+    if (fd < 0) {
+        std::cerr << "Error: open " << DEC_DEVICE_PATH << " failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("open %s failed: %{public}s", DEC_DEVICE_PATH, strerror(errno));
+        return SANDBOX_ERR_SET_POLICY_FAILED;
+    }
+    int ret = ioctl(fd, DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT, NULL);
+    if (ret < 0) {
+        std::cerr << "Error: ioctl DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("ioctl DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT failed: %{public}s", strerror(errno));
+        close(fd);
+        return SANDBOX_ERR_SET_POLICY_FAILED;
+    }
+    close(fd);
+    policyInitialized_ = true;
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::DeliverNetPolicy()
+{
+    if (!initialized_) {
+        std::cerr << "Error: SandboxManager not initialized" << std::endl;
+        SANDBOX_LOGE("SandboxManager not initialized");
+        return SANDBOX_ERR_GENERIC;
+    }
+    if (config_.policyArg == nullptr) {
+        return SANDBOX_SUCCESS;
+    }
+    int ret = SANDBOX_SUCCESS;
+    if (!policyInitialized_) {
+        ret = DeliverPolicyInit();
+        if (ret != SANDBOX_SUCCESS) {
+            return ret;
+        }
+    }
+    int fd = open(DEC_DEVICE_PATH, O_RDWR);
+    if (fd < 0) {
+        std::cerr << "Error: open " << DEC_DEVICE_PATH << " failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("open %s failed: %{public}s", DEC_DEVICE_PATH, strerror(errno));
+        return SANDBOX_ERR_SET_POLICY_FAILED;
+    }
+    ret = ioctl(fd, DEC_CMD_POLICY_ADD, config_.policyArg);
+    if (ret < 0) {
+        std::cerr << "Error: ioctl DEC_CMD_POLICY_ADD failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("ioctl DEC_CMD_POLICY_ADD failed: %{public}s", strerror(errno));
+        close(fd);
+        return SANDBOX_ERR_SET_POLICY_FAILED;
+    }
+    close(fd);
     return SANDBOX_SUCCESS;
 }
 
