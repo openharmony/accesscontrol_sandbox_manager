@@ -24,7 +24,6 @@
 
 #include "accesstoken_kit.h"
 
-
 namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
@@ -45,7 +44,6 @@ enum OP_TYPE : int {
     OP_TYPE_FILE,
     OP_TYPE_EXEC
 };
-static const std::vector<std::string> fieldTypes = {"Network", "File", "Exec"};
 
 /**
  * @brief AgentLock policy actions
@@ -56,11 +54,6 @@ enum AGENT_LOCK_POLICY_ACTION : int {
     AL_POLICY_ACTION_ASK,
     AL_POLICY_ACTION_NR
 };
-static const std::unordered_map<std::string, AGENT_LOCK_POLICY_ACTION> actionMap = {
-    {"allow", AL_POLICY_ACTION_ALLOW},
-    {"deny", AL_POLICY_ACTION_DENY}
-};
-constexpr enum AGENT_LOCK_POLICY_ACTION AGENT_LOCK_DEFAULT_NETWORK_ACTION = AL_POLICY_ACTION_ALLOW;
 
 /**
  * @brief AgentLock filter tags
@@ -112,9 +105,7 @@ enum SCOPE_TYPE : int {
     SCOPE_TYPE_SPECIFIC_TASK,
     SCOPE_TYPE_CURRENT_TASK
 };
-static const std::unordered_map<std::string, SCOPE_TYPE> validScopeTypeMap = {
-    {"current_task", SCOPE_TYPE_CURRENT_TASK}
-};
+
 
 /**
  * @brief Filter rule structure for agentlock

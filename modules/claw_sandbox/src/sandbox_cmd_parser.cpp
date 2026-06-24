@@ -57,6 +57,17 @@ constexpr size_t MAX_POLICY_COUNT = 8;
 constexpr size_t MAX_ACTION_STR_LENGTH = 6;
 constexpr size_t MAX_SCOPE_NAME_LENGTH = 16;
 
+// Default action for network policies if not specified
+constexpr enum AGENT_LOCK_POLICY_ACTION AGENT_LOCK_DEFAULT_NETWORK_ACTION = AL_POLICY_ACTION_ALLOW;
+static const std::vector<std::string> g_fieldTypes = {"Network", "File", "Exec"};
+static const std::unordered_map<std::string, AGENT_LOCK_POLICY_ACTION> g_actionMap = {
+    {"allow", AL_POLICY_ACTION_ALLOW},
+    {"deny", AL_POLICY_ACTION_DENY}
+};
+static const std::unordered_map<std::string, SCOPE_TYPE> g_validScopeTypeMap = {
+    {"current_task", SCOPE_TYPE_CURRENT_TASK}
+};
+
 // Default Namespace flags if not specified in config
 // mnt|net namespaces are required for sandbox isolation, so they are included in the default flags.
 // The rest of the namespaces are optional and can be added via the "nsFlags" config field.
@@ -230,8 +241,8 @@ static int ParseScopeField(cJSON *root, struct AgentLockPolicy &policy)
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
-    auto scopeTypeItem = validScopeTypeMap.find(typeStr);
-    if (scopeTypeItem == validScopeTypeMap.end()) {
+    auto scopeTypeItem = g_validScopeTypeMap.find(typeStr);
+    if (scopeTypeItem == g_validScopeTypeMap.end()) {
         std::cerr << "Error: Config field 'Scope.Type' has invalid value: " << typeStr << std::endl;
         SANDBOX_LOGE("Config field 'Scope.Type' has invalid value: %{public}s", typeStr.c_str());
         return SANDBOX_ERR_CONFIG_INVALID;
@@ -258,8 +269,8 @@ static int ParseNetworkField(cJSON *networkObj, AgentLockPolicy &policy)
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
-    auto actionItem = actionMap.find(actionStr);
-    if (actionItem == actionMap.end()) {
+    auto actionItem = g_actionMap.find(actionStr);
+    if (actionItem == g_actionMap.end()) {
         std::cerr << "Error: Config field 'Network.DefaultAction' has invalid value: " << actionStr << std::endl;
         SANDBOX_LOGE("Config field 'Network.DefaultAction' has invalid value: %{public}s", actionStr.c_str());
         return SANDBOX_ERR_CONFIG_INVALID;
@@ -291,7 +302,7 @@ static int ParseAgentLockField(cJSON *root, std::vector<struct AgentLockPolicy> 
             SANDBOX_LOGE("Config field 'AddOperationControlRuleGroups' should contain objects");
             return SANDBOX_ERR_CONFIG_INVALID;
         }
-        for (const std::string &typeItem : fieldTypes) {
+        for (const std::string &typeItem : g_fieldTypes) {
             auto handlerIt = policyFieldHandlers.find(typeItem);
             cJSON *fieldObj = cJSON_GetObjectItem(ruleGroupItem, typeItem.c_str());
             if (handlerIt == policyFieldHandlers.end() || fieldObj == nullptr) {
