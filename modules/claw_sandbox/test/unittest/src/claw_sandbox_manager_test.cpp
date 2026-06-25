@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 #include <utility>
 #include <cstring>
+#include <securec.h>
 #define private public
 #include "sandbox_manager.h"
 #undef private
@@ -2087,6 +2088,9 @@ static struct AgentLockAddPolicyArg *MakeMinimalPolicyArg(uint32_t policyCnt = 1
         return nullptr;
     }
     std::memset(arg, 0, totalSize);
+    if (memset_s(arg, totalSize, 0, totalSize) != 0) {
+        return nullptr;
+    }
     arg->version = 1;
     arg->policyCnt = policyCnt;
     return arg;
@@ -2094,7 +2098,7 @@ static struct AgentLockAddPolicyArg *MakeMinimalPolicyArg(uint32_t policyCnt = 1
 
 /**
  * @tc.name: DeliverPolicy001
- * @tc.desc: DeliverPolicy with null policyArg returns success early
+ * @tc.desc: DeliverPolicy with nullptr policyArg returns success early
  *           (no policy to deliver, skips open/ioctl entirely)
  * @tc.type: FUNC
  * @tc.require:
@@ -2159,8 +2163,10 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy003, TestSize.Level0)
 
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
-
-    std::free(config.policyArg);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    } 
 }
 
 /**
@@ -2193,7 +2199,10 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy004, TestSize.Level0)
     EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
     EXPECT_EQ(1, g_ioctlMockState.ioctlCallCount);
 
-    std::free(config.policyArg);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    } 
 }
 
 /**
@@ -2224,7 +2233,10 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy005, TestSize.Level0)
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
     EXPECT_EQ(2, g_ioctlMockState.ioctlCallCount);
-    std::free(config.policyArg);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    } 
 }
 
 /**
@@ -2254,8 +2266,10 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy006, TestSize.Level0)
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_EQ(2, g_ioctlMockState.ioctlCallCount);
-
-    std::free(config.policyArg);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    } 
 }
 
 /**
@@ -2284,8 +2298,10 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy007, TestSize.Level0)
 
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
-
-    std::free(config.policyArg);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    } 
 }
 
 /**
@@ -2316,8 +2332,10 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy008, TestSize.Level0)
 
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
-
-    std::free(config.policyArg);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    } 
 }
 
 /**
@@ -2347,7 +2365,10 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy009, TestSize.Level0)
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_EQ(2, g_ioctlMockState.ioctlCallCount);
-    std::free(config.policyArg);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    } 
 }
 
 // ==================== ExecuteCommand tests ====================
