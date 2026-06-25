@@ -49,6 +49,7 @@ bool SandboxManagerCommonEventSubscriber::RegisterEvent()
     skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_DATA_CLEARED);
     skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_CHANGED);
     skill->AddEvent(EventFwk::CommonEventSupport::COMMON_EVENT_PACKAGE_ADDED);
+
     EventFwk::CommonEventSubscribeInfo subscribeInfo(*skill);
     auto info = std::make_shared<EventFwk::CommonEventSubscribeInfo>(*skill);
     g_subscriber = std::make_shared<SandboxManagerCommonEventSubscriber>(*info);

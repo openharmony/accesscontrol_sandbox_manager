@@ -58,7 +58,7 @@ const int32_t FOUNDATION_UID = 5523;
         if (!datas.WriteParcelable(&policyInfoParcel)) {
             return false;
         }
-            
+
         uint32_t code = static_cast<uint32_t>(ISandboxManagerIpcCode::COMMAND_UN_SET_POLICY);
 
         MessageParcel reply;

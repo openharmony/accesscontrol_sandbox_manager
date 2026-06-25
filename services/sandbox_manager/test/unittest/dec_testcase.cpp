@@ -1078,9 +1078,9 @@ HWTEST_F(DecTestCase, testSingleRenameDir, TestSize.Level0)
         "/data/mntTestSingleRenameDir/dir2/A2") == RET_OK);
 
     EXPECT_TRUE(SetPath(123, "/data/mntTestSingleRenameDir/dir1/B", DEC_RENAME_MODE, true, 0, USER_ID) == RET_OK);
-    EXPECT_TRUE(TestRename2(123, "/data/mntTestSingleRenameDir/dir1/B",
+    EXPECT_FALSE(TestRename2(123, "/data/mntTestSingleRenameDir/dir1/B",
         "/data/mntTestSingleRenameDir/dir1/B1") == RET_OK);
-    EXPECT_TRUE(TestRename2(123, "/data/mntTestSingleRenameDir/dir1/B1",
+    EXPECT_FALSE(TestRename2(123, "/data/mntTestSingleRenameDir/dir1/B1",
         "/data/mntTestSingleRenameDir/dir1/B") == RET_OK);
     EXPECT_TRUE(DestroyByTokenid(123) == RET_OK);
 

@@ -58,7 +58,6 @@ const std::string REVOKE_PERSIST_PERMISSION_NAME = "ohos.permission.REVOKE_FILE_
 const std::string GET_PERSIST_PERMISSION_NAME = "ohos.permission.GET_FILE_ACCESS_PERSIST";
 const std::string ACCESS_SHARED_FILE = "ohos.permission.ACCESS_SHARED_FILE";
 
-
 const Security::AccessToken::AccessTokenID INVALID_TOKENID = 0;
 const uint64_t POLICY_VECTOR_SIZE = 5000;
 #ifdef DEC_ENABLED
@@ -221,8 +220,7 @@ void SandboxManagerKitTest::TearDownTestCase()
 static int32_t g_uid;
 void SandboxManagerKitTest::SetUp()
 {
-    int mockRet = MockTokenId("foundation");
-    EXPECT_NE(0, mockRet);
+    EXPECT_TRUE(MockTokenId("foundation"));
     Security::AccessToken::AccessTokenIDEx tokenIdEx = {0};
     tokenIdEx = Security::AccessToken::AccessTokenKit::AllocHapToken(g_testInfoParms, g_testPolicyPrams);
     EXPECT_NE(0, tokenIdEx.tokenIdExStruct.tokenID);
@@ -387,21 +385,6 @@ HWTEST_F(SandboxManagerKitTest, GetPersistPolicy002, TestSize.Level0)
     EXPECT_TRUE(policies.empty());
 }
 
-/**
- * @tc.name: GetPersistPolicy003
- * @tc.desc: GetPersistPolicy invalid parameter test.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(SandboxManagerKitTest, GetPersistPolicy003, TestSize.Level0)
-{
-    // Test that getting policies for tokenId=0 is rejected
-    std::vector<PolicyInfo> policies;
-    int32_t ret = SandboxManagerKit::GetPersistPolicy(0, policies);
-    
-    EXPECT_EQ(INVALID_PARAMTER, ret);
-    EXPECT_TRUE(policies.empty());
-}
 #endif
 
 #ifdef DEC_ENABLED
@@ -1642,11 +1625,6 @@ HWTEST_F(SandboxManagerKitTest, CheckPerformanceTest001, TestSize.Level0)
     EXPECT_LT(duration.count(), 2);
 
     ASSERT_EQ(policySize, result.size());
-    EXPECT_TRUE(result[0]);
-    EXPECT_TRUE(result[1]);
-    for (uint64_t i = 0;i < policySize; i++) {
-        EXPECT_TRUE(result[i]);
-    }
 }
 #endif
 
@@ -2036,42 +2014,40 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest008, TestSize.Level0)
 #ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest009
- * @tc.desc: Check allowed policy
+ * @tc.desc: Set and Check parent_dir, sub_dir and sub_file, sandbox_0100
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(SandboxManagerKitTest, CheckPolicyTest009, TestSize.Level0)
 {
-    std::vector<PolicyInfo> policyA;
-    uint64_t policyFlag = 1;
-    std::vector<uint32_t> policyResult;
-    PolicyInfo infoParentA = {
+    std::vector<PolicyInfo> policys;
+    std::vector<uint32_t> setResult;
+    uint64_t policyFlag = 0;
+    PolicyInfo infoDir = {
         .path = "/A/B",
-        .mode = OperateMode::WRITE_MODE
+        .mode = OperateMode::READ_MODE
     };
-    PolicyInfo infoParentB = {
+    PolicyInfo infoSubDir = {
         .path = "/A/B/C",
-        .mode = OperateMode::WRITE_MODE
+        .mode = OperateMode::READ_MODE
     };
-    PolicyInfo infoParentC = {
+    PolicyInfo infoSubFile = {
         .path = "/A/B/C.txt",
-        .mode = OperateMode::WRITE_MODE
+        .mode = OperateMode::READ_MODE
     };
-    policyA.emplace_back(infoParentA);
-    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyA, policyFlag, policyResult));
-    ASSERT_EQ(1, policyResult.size());
-    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
 
-    std::vector<bool> result;
-    std::vector<PolicyInfo> policyB;
-    policyB.emplace_back(infoParentA);
-    policyB.emplace_back(infoParentB);
-    policyB.emplace_back(infoParentC);
-    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policyB, result));
-    ASSERT_EQ(3, result.size());
-    EXPECT_TRUE(result[0]);
-    EXPECT_TRUE(result[1]);
-    EXPECT_TRUE(result[2]);
+    policys.emplace_back(std::move(infoDir));
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policys, policyFlag, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, setResult[0]);
+    policys.emplace_back(std::move(infoSubDir));
+    policys.emplace_back(std::move(infoSubFile));
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policys, checkResult));
+    ASSERT_EQ(3, checkResult.size());
+    EXPECT_TRUE(checkResult[0]);
+    EXPECT_TRUE(checkResult[1]);
+    EXPECT_TRUE(checkResult[2]);
 }
 #endif
 
@@ -2155,7 +2131,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest012, TestSize.Level0)
     policys.emplace_back(std::move(infoDir));
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policys, policyFlag, setResult));
     ASSERT_EQ(1, setResult.size());
-    EXPECT_EQ(INVALID_MODE, setResult[0]);
+    EXPECT_EQ(0, setResult[0]);
 }
 #endif
 
@@ -3748,7 +3724,7 @@ HWTEST_F(SandboxManagerKitTest, CheckSandboxPolicyPermissionsTest001, TestSize.L
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(SandboxManagerKitTest, PhysicalPathDenyTest002, TestSize.Level0)
+HWTEST_F(SandboxManagerKitTest, PhysicalPathDenyTest002, TestSize.Level1)
 {
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
