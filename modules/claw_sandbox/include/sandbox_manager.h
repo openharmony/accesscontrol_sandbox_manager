@@ -135,8 +135,8 @@ private:
     int DropCapabilities();
     int PrepareWorkdir();
     int ApplyEnvironment();
-    int DeliverPolicyInit();
-    int DeliverNetPolicy();
+    int DeliverPolicy();
+    int DeliverNetPolicy(int fd);
     int ExecuteCommand();
 
     // Helper methods
@@ -226,7 +226,6 @@ public:
     std::vector<struct sock_filter> seccompFilter_;  // Persists filter data for PR_SET_SECCOMP
     bool initialized_ = false;
     bool pivotRootDone_ = false;
-    bool policyInitialized_ = false;
 };
 
 } // namespace SANDBOX

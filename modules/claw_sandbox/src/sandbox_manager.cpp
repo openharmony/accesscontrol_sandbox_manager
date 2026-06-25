@@ -577,7 +577,7 @@ int SandboxManager::ExecuteLateSteps()
     }
 
     // Step 20: Deliver AgentLock policy if specified in config.
-    ret = DeliverNetPolicy();
+    ret = DeliverPolicy();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
@@ -1737,32 +1737,29 @@ int SandboxManager::DropCapabilities()
     return SANDBOX_SUCCESS;
 }
 
-int SandboxManager::DeliverPolicyInit()
+static int DeliverPolicyInit(int fd)
 {
-    if (policyInitialized_) {
-        std::cerr << "Error: SandboxManager policy has been already initialized" << std::endl;
-        SANDBOX_LOGE("SandboxManager policy has been already initialized");
-        return SANDBOX_ERR_GENERIC;
-    }
-    int fd = open(DEC_DEVICE_PATH, O_RDWR);
-    if (fd < 0) {
-        std::cerr << "Error: open " << DEC_DEVICE_PATH << " failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("open %s failed: %{public}s", DEC_DEVICE_PATH, strerror(errno));
-        return SANDBOX_ERR_SET_POLICY_FAILED;
-    }
     int ret = ioctl(fd, DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT, NULL);
     if (ret < 0) {
         std::cerr << "Error: ioctl DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("ioctl DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT failed: %{public}s", strerror(errno));
-        close(fd);
         return SANDBOX_ERR_SET_POLICY_FAILED;
     }
-    close(fd);
-    policyInitialized_ = true;
     return SANDBOX_SUCCESS;
 }
 
-int SandboxManager::DeliverNetPolicy()
+int SandboxManager::DeliverNetPolicy(int fd)
+{
+    int ret = ioctl(fd, DEC_CMD_POLICY_ADD, config_.policyArg);
+    if (ret < 0) {
+        std::cerr << "Error: ioctl DEC_CMD_POLICY_ADD failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("ioctl DEC_CMD_POLICY_ADD failed: %{public}s", strerror(errno));
+        return SANDBOX_ERR_SET_POLICY_FAILED;
+    }
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::DeliverPolicy()
 {
     if (!initialized_) {
         std::cerr << "Error: SandboxManager not initialized" << std::endl;
@@ -1772,28 +1769,30 @@ int SandboxManager::DeliverNetPolicy()
     if (config_.policyArg == nullptr) {
         return SANDBOX_SUCCESS;
     }
-    int ret = SANDBOX_SUCCESS;
-    if (!policyInitialized_) {
-        ret = DeliverPolicyInit();
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
-    }
     int fd = open(DEC_DEVICE_PATH, O_RDWR);
     if (fd < 0) {
         std::cerr << "Error: open " << DEC_DEVICE_PATH << " failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("open %s failed: %{public}s", DEC_DEVICE_PATH, strerror(errno));
         return SANDBOX_ERR_SET_POLICY_FAILED;
     }
-    ret = ioctl(fd, DEC_CMD_POLICY_ADD, config_.policyArg);
-    if (ret < 0) {
-        std::cerr << "Error: ioctl DEC_CMD_POLICY_ADD failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("ioctl DEC_CMD_POLICY_ADD failed: %{public}s", strerror(errno));
+    int ret = DeliverPolicyInit(fd);
+    if (ret != SANDBOX_SUCCESS) {
         close(fd);
-        return SANDBOX_ERR_SET_POLICY_FAILED;
+        return ret;
+    }
+    using PolicyDeliverFunc = int (SandboxManager::*)(int);
+    PolicyDeliverFunc policyFuncs[] = {
+        &SandboxManager::DeliverNetPolicy,
+    };
+    for (const auto &func : policyFuncs) {
+        ret = (this->*func)(fd);
+        if (ret != SANDBOX_SUCCESS) {
+            close(fd);
+            return ret;
+        }
     }
     close(fd);
-    return SANDBOX_SUCCESS;
+    return ret;
 }
 
 int SandboxManager::SetProcessGroup()

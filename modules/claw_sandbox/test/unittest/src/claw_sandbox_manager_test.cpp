@@ -2046,14 +2046,14 @@ HWTEST_F(ClawSandboxManagerTest, PrepareWorkdir003, TestSize.Level0)
     EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.PrepareWorkdir());
 }
 
-// =================== DeliverNetPolicy tests ====================
+// =================== DeliverPolicy tests ====================
 /**
- * @tc.name: DeliverNetPolicy001
- * @tc.desc: DeliverNetPolicy with empty netPolicy returns success (no policy to deliver)
+ * @tc.name: DeliverPolicy001
+ * @tc.desc: DeliverPolicy with empty netPolicy returns success (no policy to deliver)
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxManagerTest, DeliverNetPolicy001, TestSize.Level0)
+HWTEST_F(ClawSandboxManagerTest, DeliverPolicy001, TestSize.Level0)
 {
     SandboxManager manager;
     SandboxConfig config;
@@ -2065,7 +2065,7 @@ HWTEST_F(ClawSandboxManagerTest, DeliverNetPolicy001, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(config, cmdInfo);
 
-    int ret = manager.DeliverNetPolicy();
+    int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
