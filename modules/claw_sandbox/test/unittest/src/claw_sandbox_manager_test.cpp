@@ -21,6 +21,7 @@
 #include <sys/syscall.h>
 #include <cerrno>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <linux/filter.h>
@@ -2046,15 +2047,60 @@ HWTEST_F(ClawSandboxManagerTest, PrepareWorkdir003, TestSize.Level0)
     EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.PrepareWorkdir());
 }
 
-// =================== DeliverPolicy tests ====================
+// ==================== DeliverPolicy tests ====================
+
+// RAII guard that resets the global IoctlMockState to defaults on destruction.
+class IoctlMockGuard {
+public:
+    IoctlMockGuard()
+    {
+        // Save current state and reset for a clean test
+        saved_ = g_ioctlMockState;
+        g_ioctlMockState.mockEnabled = false;
+        g_ioctlMockState.openFail = true;
+        g_ioctlMockState.openErrno = ENOENT;
+        g_ioctlMockState.mockFd = 100;
+        g_ioctlMockState.failOnCallIndex = -1;
+        g_ioctlMockState.ioctlErrno = EINVAL;
+        g_ioctlMockState.ioctlCallCount = 0;
+    }
+
+    ~IoctlMockGuard()
+    {
+        g_ioctlMockState = saved_;
+    }
+
+private:
+    IoctlMockState saved_;
+};
+
+// Helper: allocate and initialize a minimal valid policyArg for DeliverPolicy tests.
+// The returned pointer must be freed with std::free() by the caller.
+static struct AgentLockAddPolicyArg *MakeMinimalPolicyArg(uint32_t policyCnt = 1)
+{
+    size_t totalSize = sizeof(struct AgentLockAddPolicyArg) +
+                       policyCnt * sizeof(struct AgentLockPolicy);
+    auto *arg = static_cast<struct AgentLockAddPolicyArg *>(std::malloc(totalSize));
+    if (arg == nullptr) {
+        return nullptr;
+    }
+    std::memset(arg, 0, totalSize);
+    arg->version = 1;
+    arg->policyCnt = policyCnt;
+    return arg;
+}
+
 /**
  * @tc.name: DeliverPolicy001
- * @tc.desc: DeliverPolicy with empty netPolicy returns success (no policy to deliver)
+ * @tc.desc: DeliverPolicy with null policyArg returns success early
+ *           (no policy to deliver, skips open/ioctl entirely)
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxManagerTest, DeliverPolicy001, TestSize.Level0)
 {
+    IoctlMockGuard guard;
+
     SandboxManager manager;
     SandboxConfig config;
     config.uid = 20020026;
@@ -2067,6 +2113,239 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy001, TestSize.Level0)
 
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
+}
+
+/**
+ * @tc.name: DeliverPolicy002
+ * @tc.desc: DeliverPolicy with uninitialized manager returns SANDBOX_ERR_GENERIC
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, DeliverPolicy002, TestSize.Level0)
+{
+    IoctlMockGuard guard;
+
+    SandboxManager manager;
+    // Not calling Initialize() — initialized_ stays false
+
+    int ret = manager.DeliverPolicy();
+    EXPECT_EQ(SANDBOX_ERR_GENERIC, ret);
+}
+
+/**
+ * @tc.name: DeliverPolicy003
+ * @tc.desc: DeliverPolicy returns SET_POLICY_FAILED when open("/dev/dec") fails
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, DeliverPolicy003, TestSize.Level0)
+{
+    IoctlMockGuard guard;
+    g_ioctlMockState.mockEnabled = true;
+    g_ioctlMockState.openFail = true;
+    g_ioctlMockState.openErrno = ENOENT;
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.policyArg = MakeMinimalPolicyArg();
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    int ret = manager.DeliverPolicy();
+    EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
+
+    std::free(config.policyArg);
+}
+
+/**
+ * @tc.name: DeliverPolicy004
+ * @tc.desc: DeliverPolicy returns SET_POLICY_FAILED when ioctl init
+ *           (DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT, call index 0) fails.
+ *           Verifies fd is closed on the error path.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, DeliverPolicy004, TestSize.Level0)
+{
+    IoctlMockGuard guard;
+    g_ioctlMockState.mockEnabled = true;
+    g_ioctlMockState.openFail = false;     // open succeeds → mockFd
+    g_ioctlMockState.failOnCallIndex = 0;  // first ioctl (init) fails
+    g_ioctlMockState.ioctlErrno = EINVAL;
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.policyArg = MakeMinimalPolicyArg();
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    int ret = manager.DeliverPolicy();
+    EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
+    EXPECT_EQ(1, g_ioctlMockState.ioctlCallCount);
+
+    std::free(config.policyArg);
+}
+
+/**
+ * @tc.name: DeliverPolicy005
+ * @tc.desc: DeliverPolicy returns SET_POLICY_FAILED when net policy ioctl
+ *           (DEC_CMD_POLICY_ADD, call index 1) fails after init succeeds.
+ *           Verifies fd is closed on the error path.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, DeliverPolicy005, TestSize.Level0)
+{
+    IoctlMockGuard guard;
+    g_ioctlMockState.mockEnabled = true;
+    g_ioctlMockState.openFail = false;
+    g_ioctlMockState.failOnCallIndex = 1;
+    g_ioctlMockState.ioctlErrno = EINVAL;
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.policyArg = MakeMinimalPolicyArg();
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+    int ret = manager.DeliverPolicy();
+    EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
+    EXPECT_EQ(2, g_ioctlMockState.ioctlCallCount);
+    std::free(config.policyArg);
+}
+
+/**
+ * @tc.name: DeliverPolicy006
+ * @tc.desc: DeliverPolicy full success path: open succeeds, init ioctl succeeds,
+ *           net policy ioctl succeeds. Returns SANDBOX_SUCCESS and closes fd.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, DeliverPolicy006, TestSize.Level0)
+{
+    IoctlMockGuard guard;
+    g_ioctlMockState.mockEnabled = true;
+    g_ioctlMockState.openFail = false;
+    g_ioctlMockState.failOnCallIndex = -1;
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.policyArg = MakeMinimalPolicyArg();
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    int ret = manager.DeliverPolicy();
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(2, g_ioctlMockState.ioctlCallCount);
+
+    std::free(config.policyArg);
+}
+
+/**
+ * @tc.name: DeliverPolicy007
+ * @tc.desc: DeliverPolicy with open returning EACCES verifies the error code
+ *           is propagated as SANDBOX_ERR_SET_POLICY_FAILED
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, DeliverPolicy007, TestSize.Level0)
+{
+    IoctlMockGuard guard;
+    g_ioctlMockState.mockEnabled = true;
+    g_ioctlMockState.openFail = true;
+    g_ioctlMockState.openErrno = EACCES;
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.policyArg = MakeMinimalPolicyArg();
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    int ret = manager.DeliverPolicy();
+    EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
+
+    std::free(config.policyArg);
+}
+
+/**
+ * @tc.name: DeliverPolicy008
+ * @tc.desc: DeliverPolicy with init ioctl failing with ENOTTY verifies that
+ *           different errno values are handled (function returns SET_POLICY_FAILED
+ *           regardless of the specific errno)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, DeliverPolicy008, TestSize.Level0)
+{
+    IoctlMockGuard guard;
+    g_ioctlMockState.mockEnabled = true;
+    g_ioctlMockState.openFail = false;
+    g_ioctlMockState.failOnCallIndex = 0;
+    g_ioctlMockState.ioctlErrno = ENOTTY;
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.policyArg = MakeMinimalPolicyArg();
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    int ret = manager.DeliverPolicy();
+    EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
+
+    std::free(config.policyArg);
+}
+
+/**
+ * @tc.name: DeliverPolicy009
+ * @tc.desc: DeliverPolicy with policyArg containing multiple policies
+ *           verifies the full flow succeeds with the correct ioctl call count
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, DeliverPolicy009, TestSize.Level0)
+{
+    IoctlMockGuard guard;
+    g_ioctlMockState.mockEnabled = true;
+    g_ioctlMockState.openFail = false;
+    g_ioctlMockState.failOnCallIndex = -1;
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.policyArg = MakeMinimalPolicyArg(3);
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    int ret = manager.DeliverPolicy();
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(2, g_ioctlMockState.ioctlCallCount);
+    std::free(config.policyArg);
 }
 
 // ==================== ExecuteCommand tests ====================

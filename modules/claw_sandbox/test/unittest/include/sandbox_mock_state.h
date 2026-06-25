@@ -35,6 +35,27 @@ struct SpmMockState {
 
 extern SpmMockState g_spmMockState;
 
+// Mock state control for open/ioctl stubs in ioctl_mock_stub.cpp.
+// Tests manipulate this global to control stub behavior for DeliverPolicy
+// and other functions that open /dev/dec and issue ioctl commands.
+//
+// By default mockEnabled is false, so all open/ioctl calls are forwarded
+// to the real syscalls. Set mockEnabled to true and configure failOnCallIndex
+// to simulate failures at specific ioctl stages:
+//   call index 0 = DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT (DeliverPolicyInit)
+//   call index 1 = DEC_CMD_POLICY_ADD              (DeliverNetPolicy)
+struct IoctlMockState {
+    bool mockEnabled = false;      // When true, intercept /dev/dec open and ioctl on mockFd
+    bool openFail = true;          // Whether mock open returns failure
+    int openErrno = ENOENT;        // errno value when open fails
+    int mockFd = 100;              // fd value returned by successful mock open
+    int failOnCallIndex = -1;      // ioctl call index that should fail (-1 = all succeed)
+    int ioctlErrno = EINVAL;       // errno value when ioctl fails
+    int ioctlCallCount = 0;        // incremented on each ioctl call to mockFd (reset per test)
+};
+
+extern IoctlMockState g_ioctlMockState;
+
 }  // namespace SANDBOX
 }  // namespace AccessControl
 }  // namespace OHOS
