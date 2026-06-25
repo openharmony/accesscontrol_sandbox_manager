@@ -2165,7 +2165,7 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy003, TestSize.Level0)
     if (config.policyArg != nullptr) {
         std::free(config.policyArg);
         config.policyArg = nullptr;
-    } 
+    }
 }
 
 /**
@@ -2201,7 +2201,7 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy004, TestSize.Level0)
     if (config.policyArg != nullptr) {
         std::free(config.policyArg);
         config.policyArg = nullptr;
-    } 
+    }
 }
 
 /**
@@ -2235,7 +2235,7 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy005, TestSize.Level0)
     if (config.policyArg != nullptr) {
         std::free(config.policyArg);
         config.policyArg = nullptr;
-    } 
+    }
 }
 
 /**
@@ -2268,7 +2268,7 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy006, TestSize.Level0)
     if (config.policyArg != nullptr) {
         std::free(config.policyArg);
         config.policyArg = nullptr;
-    } 
+    }
 }
 
 /**
@@ -2300,7 +2300,7 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy007, TestSize.Level0)
     if (config.policyArg != nullptr) {
         std::free(config.policyArg);
         config.policyArg = nullptr;
-    } 
+    }
 }
 
 /**
@@ -2334,7 +2334,7 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy008, TestSize.Level0)
     if (config.policyArg != nullptr) {
         std::free(config.policyArg);
         config.policyArg = nullptr;
-    } 
+    }
 }
 
 /**
@@ -2367,7 +2367,7 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy009, TestSize.Level0)
     if (config.policyArg != nullptr) {
         std::free(config.policyArg);
         config.policyArg = nullptr;
-    } 
+    }
 }
 
 // ==================== ExecuteCommand tests ====================
