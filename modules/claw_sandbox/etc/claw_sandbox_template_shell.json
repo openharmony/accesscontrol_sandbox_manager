@@ -141,20 +141,14 @@
   ],
   "app-mounts": [
     {
-      "source": "/data/storage/el1/skills",
-      "target": "/data/storage/el1/skills",
-      "mount-flags": ["bind", "rec"],
-      "check-exists": true
-    },
-    {
-      "source": "/data/storage/el1/bundle",
-      "target": "/data/storage/el1/bundle",
-      "mount-flags": ["bind", "rec"],
-      "check-exists": true
-    },
-    {
-      "source": "/data/service/hnp",
+      "source": "/data/app/el1/bundle/<currentUserId>/hnppublic",
       "target": "/data/service/hnp",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/data/app/el1/bundle/public/<PackageName>",
+      "target": "/data/storage/el1/bundle",
       "mount-flags": ["bind", "rec"],
       "check-exists": true
     }
@@ -249,56 +243,62 @@
     "ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY":[{
       "sandbox-switch": "ON",
       "gids": [1006, 3076],
-      "mounts": [
-        {
-          "source": "/storage/Users/<currentUser>/Download",
-          "target": "/storage/Users/<currentUser>/Download",
-          "mount-flags": ["bind", "rec"],
-          "check-exists": true
-        },
-        {
-          "source": "none",
-          "target": "none",
-          "mount-flags": [],
-          "dec-paths": ["/storage/Users/<currentUser>/Download"]
-        }
-      ]
+      "dec-paths": ["/storage/Users/currentUser/Download"]
     }],
     "ohos.permission.READ_WRITE_DESKTOP_DIRECTORY":[{
       "sandbox-switch": "ON",
       "gids": [1006, 3076],
-      "mounts": [
-        {
-          "source": "/storage/Users/<currentUser>/Desktop",
-          "target": "/storage/Users/<currentUser>/Desktop",
-          "mount-flags": ["bind", "rec"],
-          "check-exists": true
-        },
-        {
-          "source": "none",
-          "target": "none",
-          "mount-flags": [],
-          "dec-paths": ["/storage/Users/<currentUser>/Desktop"]
-        }
-      ]
+      "dec-paths": ["/storage/Users/currentUser/Desktop"]
     }],
     "ohos.permission.READ_WRITE_DOCUMENTS_DIRECTORY":[{
       "sandbox-switch": "ON",
       "gids": [1006, 3076],
-      "mounts": [
-        {
-          "source": "/storage/Users/<currentUser>/Documents",
-          "target": "/storage/Users/<currentUser>/Documents",
-          "mount-flags": ["bind", "rec"],
-          "check-exists": true
-        },
-        {
-          "source": "none",
-          "target": "none",
-          "mount-flags": [],
-          "dec-paths": ["/storage/Users/<currentUser>/Documents"]
-        }
-      ]
+      "dec-paths": ["/storage/Users/currentUser/Documents"]
+    }],
+    "ohos.permission.FILE_ACCESS_MANAGER":[{
+      "sandbox-switch": "ON",
+      "gids": [1006, 3076],
+      "dec-paths": ["/storage/Users/currentUser/Documents",
+                    "/storage/Users/currentUser/Desktop",
+                    "/storage/Users/currentUser/Download"
+                  ]
     }]
-  }
+  },
+  "conditional": [
+    {
+      "source": "/data/service/el2/<currentUserId>/hmdfs/account/files/Docs/Desktop",
+      "target": "/storage/Users/currentUser/Desktop",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true,
+      "permissions": ["ohos.permission.READ_WRITE_DESKTOP_DIRECTORY", "ohos.permission.FILE_ACCESS_MANAGER"]
+    },
+    {
+      "source": "/data/service/el2/<currentUserId>/hmdfs/account/files/Docs/Download",
+      "target": "/storage/Users/currentUser/Download",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true,
+      "permissions": ["ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY", "ohos.permission.FILE_ACCESS_MANAGER"]
+    },
+    {
+      "source": "/data/service/el2/<currentUserId>/hmdfs/account/files/Docs/Documents",
+      "target": "/storage/Users/currentUser/Documents",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true,
+      "permissions": ["ohos.permission.READ_WRITE_DOCUMENTS_DIRECTORY", "ohos.permission.FILE_ACCESS_MANAGER"]
+    },
+    {
+      "source": "/data/service/el2/<currentUserId>/hmdfs/account/files/Docs",
+      "target": "/storage/Users/currentUser",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true,
+      "permissions": ["ohos.permission.FILE_ACCESS_MANAGER"]
+    },
+    {
+      "source": "/data/app/el2/<currentUserId>/base/<PackageName>",
+      "target": "/data/storage/el2/base",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true,
+      "permissions": []
+    }
+  ]
 }

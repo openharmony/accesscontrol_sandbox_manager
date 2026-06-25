@@ -600,57 +600,6 @@ int SandboxManager::MountAppDirs()
     return SANDBOX_SUCCESS;
 }
 
-std::vector<SandboxManager::MountEntry> SandboxManager::CollectGrantedPermissionMounts() const
-{
-    std::vector<MountEntry> permissionMounts;
-    SANDBOX_LOGD("Collect permission mounts begin, permissionCount=%{public}zu",
-        templateConfig_.permissions.size());
-    for (const auto &permissionItem : templateConfig_.permissions) {
-        const std::string &permissionName = permissionItem.first;
-        const PermissionConfig &permissionConfig = permissionItem.second;
-        bool granted = permissionConfig.sandboxSwitch && IsPermissionGranted(permissionName);
-        SANDBOX_LOGD("Permission mount item, permission=%{public}s, switch=%{public}d, "
-            "granted=%{public}d, mountCount=%{public}zu",
-            permissionName.c_str(), permissionConfig.sandboxSwitch ? 1 : 0,
-            granted ? 1 : 0, permissionConfig.mounts.size());
-        if (!permissionConfig.sandboxSwitch || !granted) {
-            continue;
-        }
-        for (const auto &mountEntry : permissionConfig.mounts) {
-            if (mountEntry.mount.source.empty() || mountEntry.mount.target.empty()) {
-                SANDBOX_LOGD("Skip permission mount with empty source or target, permission=%{public}s",
-                    permissionName.c_str());
-                continue;
-            }
-            SANDBOX_LOGD("Collect permission mount, permission=%{public}s, source=%{public}s, "
-                "target=%{public}s, checkExists=%{public}d",
-                permissionName.c_str(), mountEntry.mount.source.c_str(), mountEntry.mount.target.c_str(),
-                mountEntry.mount.checkExists ? 1 : 0);
-            permissionMounts.emplace_back(mountEntry.mount);
-        }
-    }
-    SANDBOX_LOGD("Collected granted permission mounts, count=%{public}zu", permissionMounts.size());
-    return permissionMounts;
-}
-
-int SandboxManager::MountPermissionDirs()
-{
-    std::vector<MountEntry> permissionMounts = CollectGrantedPermissionMounts();
-    SANDBOX_LOGD("Mount permission dirs begin, count=%{public}zu", permissionMounts.size());
-    for (const auto &entry : permissionMounts) {
-        SANDBOX_LOGD("Mount permission dir, source=%{public}s, target=%{public}s, checkExists=%{public}d",
-            entry.source.c_str(), entry.target.c_str(), entry.checkExists ? 1 : 0);
-        int ret = MountSingleEntry(entry, newRootPath_);
-        if (ret != SANDBOX_SUCCESS) {
-            SANDBOX_LOGE("Mount permission dir failed, source=%{public}s, target=%{public}s, ret=%{public}d",
-                entry.source.c_str(), entry.target.c_str(), ret);
-            return ret;
-        }
-    }
-    SANDBOX_LOGD("Mount permission dirs end, count=%{public}zu", permissionMounts.size());
-    return SANDBOX_SUCCESS;
-}
-
 static bool IsPathUnderMountPoint(const std::string &path, const std::string &mountPoint)
 {
     if (mountPoint == "/") {
@@ -749,54 +698,108 @@ bool SandboxManager::IsPolicyWriteEscalation(bool policyReadOnly, bool existingR
     return !policyReadOnly && existingReadOnly;
 }
 
-static int ValidatePolicyMountSource(const SandboxConfig::PolicyMount &policyMount)
+SandboxManager::ConditionalMatchResult SandboxManager::MatchConditionalSource(const std::string &target,
+    std::string &physicalSource) const
 {
-    std::string target = policyMount.source;
-    if (!IsDirectoryExist(target)) {
-        std::cerr << "Error: policy mount target is not prepared in sandbox template: " <<
-                  policyMount.source << std::endl;
-        SANDBOX_LOGE("policy mount target is not prepared in sandbox template: %{public}s",
-            policyMount.source.c_str());
-        return SANDBOX_ERR_PATH_INVALID;
+    if (templateConfig_.conditionalRules.empty()) {
+        return CONDITIONAL_NOMATCH;
     }
-    bool targetIsMountPoint = false;
-    int ret = IsExactMountPoint(target, targetIsMountPoint);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-    if (!targetIsMountPoint) {
-        std::cerr << "Error: policy mount target is not an exact mount point: " <<
-                  policyMount.source << std::endl;
-        SANDBOX_LOGE("policy mount target is not an exact mount point: %{public}s",
-            policyMount.source.c_str());
-        return SANDBOX_ERR_PATH_INVALID;
-    }
-    if (!policyMount.readOnly) {
-        bool targetReadOnly = false;
-        ret = GetMountReadOnly(target, targetReadOnly);
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
+
+    bool anyPrefixMatched = false;
+    for (const auto &rule : templateConfig_.conditionalRules) {
+        // Skip rules with empty target (would match everything via rfind)
+        if (rule.target.empty()) {
+            continue;
         }
-        if (SandboxManager::IsPolicyWriteEscalation(policyMount.readOnly, targetReadOnly)) {
-            std::cerr << "Error: policy rw target is readonly in sandbox template: " << target << std::endl;
-            SANDBOX_LOGE("policy rw target is readonly in sandbox template: %{public}s", target.c_str());
-            return SANDBOX_ERR_PATH_INVALID;
+        // Prefix match: target must start with rule.target
+        if (target.rfind(rule.target, 0) != 0) {
+            continue;
         }
+        anyPrefixMatched = true;
+
+        // Empty permissions means unconditionally permitted
+        if (rule.permissions.empty()) {
+            physicalSource = rule.source + target.substr(rule.target.length());
+            SANDBOX_LOGD("Conditional rule matched (no permissions), target=%{public}s, "
+                "physicalSource=%{public}s", target.c_str(), physicalSource.c_str());
+            return CONDITIONAL_MATCHED;
+        }
+        // OR logic: any single granted permission is sufficient
+        for (const auto &perm : rule.permissions) {
+            if (IsPermissionGranted(perm)) {
+                physicalSource = rule.source + target.substr(rule.target.length());
+                SANDBOX_LOGD("Conditional rule matched, target=%{public}s, "
+                    "physicalSource=%{public}s, permission=%{public}s",
+                    target.c_str(), physicalSource.c_str(), perm.c_str());
+                return CONDITIONAL_MATCHED;
+            }
+        }
+        // Prefix matched but no permission granted for this rule — continue
+        // to check if other rules match (OR across rules)
     }
-    return SANDBOX_SUCCESS;
+
+    if (anyPrefixMatched) {
+        SANDBOX_LOGD("Conditional rule prefix matched but no permission granted, "
+            "target=%{public}s", target.c_str());
+        return CONDITIONAL_BLOCKED;
+    }
+    return CONDITIONAL_NOMATCH;
 }
 
 int SandboxManager::MountPolicyPath(const SandboxConfig::PolicyMount &policyMount)
 {
-    int ret = ValidatePolicyMountSource(policyMount);
+    std::string target = policyMount.source;
+    std::string mountTarget = newRootPath_ + target;
+
+    // Step 1: If target is already a mount point, just remount (no need for conditional)
+    bool targetIsMountPoint = false;
+    int ret = IsExactMountPoint(mountTarget, targetIsMountPoint);
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
+    if (targetIsMountPoint) {
+        return RemountPolicyMount(policyMount, mountTarget);
+    }
 
-    std::string target = policyMount.source;
-    SANDBOX_LOGD("Policy mount resolved, source=%{public}s, target=%{public}s, mode=%{public}s",
-        policyMount.source.c_str(), target.c_str(), policyMount.readOnly ? "ro" : "rw");
+    // Step 2: Not an existing mount point — try conditional rule to derive physical source
+    std::string physicalSource;
+    ConditionalMatchResult matchResult = MatchConditionalSource(target, physicalSource);
+    if (matchResult == CONDITIONAL_MATCHED) {
+        return BindMountConditionalPath(policyMount, mountTarget, physicalSource);
+    }
+    if (matchResult == CONDITIONAL_BLOCKED) {
+        std::cerr << "Error: policy mount target is denied by conditional rules: " <<
+                  target << std::endl;
+        SANDBOX_LOGE("policy mount target is denied by conditional rules: %{public}s",
+            target.c_str());
+        return SANDBOX_ERR_PATH_INVALID;
+    }
 
+    // CONDITIONAL_NOMATCH — no rule can resolve this path
+    std::cerr << "Error: policy mount target is not a mount point and no "
+              << "conditional rule matched: " << target << std::endl;
+    SANDBOX_LOGE("policy mount target is not a mount point and no "
+        "conditional rule matched: %{public}s", target.c_str());
+    return SANDBOX_ERR_PATH_INVALID;
+}
+
+int SandboxManager::RemountPolicyMount(const SandboxConfig::PolicyMount &policyMount,
+                                       const std::string &target)
+{
+    if (!policyMount.readOnly) {
+        bool targetReadOnly = false;
+        int ret = GetMountReadOnly(target, targetReadOnly);
+        if (ret != SANDBOX_SUCCESS) {
+            return ret;
+        }
+        if (IsPolicyWriteEscalation(policyMount.readOnly, targetReadOnly)) {
+            std::cerr << "Error: policy rw target is readonly in sandbox template: " <<
+                      target << std::endl;
+            SANDBOX_LOGE("policy rw target is readonly in sandbox template: %{public}s",
+                target.c_str());
+            return SANDBOX_ERR_PATH_INVALID;
+        }
+    }
     unsigned long remountFlags = MS_BIND | MS_REMOUNT | MS_REC;
     if (policyMount.readOnly) {
         remountFlags |= MS_RDONLY;
@@ -810,6 +813,53 @@ int SandboxManager::MountPolicyPath(const SandboxConfig::PolicyMount &policyMoun
     }
     SANDBOX_LOGD("Policy mount remounted, target=%{public}s, mode=%{public}s",
         target.c_str(), policyMount.readOnly ? "ro" : "rw");
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::BindMountConditionalPath(const SandboxConfig::PolicyMount &policyMount,
+                                             const std::string &mountTarget,
+                                             const std::string &physicalSource)
+{
+    // Check physical source exists
+    struct stat st;
+    if (stat(physicalSource.c_str(), &st) != 0) {
+        std::cerr << "Error: Conditional physical source does not exist: " <<
+                  physicalSource << std::endl;
+        SANDBOX_LOGE("Conditional physical source does not exist: %{public}s",
+            physicalSource.c_str());
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+
+    // Create target directory under new root
+    int ret = CreateDir(mountTarget);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    // Bind mount physical source → target
+    unsigned long bindFlags = MS_BIND | MS_REC;
+    if (mount(physicalSource.c_str(), mountTarget.c_str(), nullptr, bindFlags, nullptr) < 0) {
+        std::cerr << "Error: Failed to bind mount conditional path " << physicalSource <<
+                  " -> " << mountTarget << ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to bind mount conditional path %{public}s -> %{public}s: %{public}s",
+            physicalSource.c_str(), mountTarget.c_str(), strerror(errno));
+        return SANDBOX_ERR_MOUNT_FAILED;
+    }
+
+    // Remount readonly if required (tighten, always OK)
+    if (policyMount.readOnly) {
+        unsigned long roFlags = MS_BIND | MS_REMOUNT | MS_REC | MS_RDONLY;
+        if (mount(nullptr, mountTarget.c_str(), nullptr, roFlags, nullptr) < 0) {
+            SANDBOX_LOGW("Failed to remount conditional path %{public}s as readonly: %{public}s",
+                mountTarget.c_str(), strerror(errno));
+        }
+    }
+
+    SANDBOX_LOGD("Policy bind mount via conditional, source=%{public}s, target=%{public}s, "
+        "mode=%{public}s", physicalSource.c_str(), mountTarget.c_str(),
+        policyMount.readOnly ? "ro" : "rw");
+
+    mountedDirs_.push_back(mountTarget);
     return SANDBOX_SUCCESS;
 }
 

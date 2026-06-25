@@ -350,9 +350,11 @@ int SandboxManager::DeleteSandboxDir()
         return SANDBOX_ERR_BAD_PARAMETERS;
     }
 
-    ret = EnterCallerSandbox();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
+    if (config_.type != "shell") {
+        ret = EnterCallerSandbox();
+        if (ret != SANDBOX_SUCCESS) {
+            return ret;
+        }
     }
 
     std::string sandboxPath = std::string(SANDBOX_BASE_DIR) + "/" + config_.name;
@@ -448,9 +450,11 @@ int SandboxManager::ExecuteEarlySteps()
         return ret;
     }
 
-    ret = EnterCallerSandbox();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
+    if (config_.type != "shell") {
+        ret = EnterCallerSandbox();
+        if (ret != SANDBOX_SUCCESS) {
+            return ret;
+        }
     }
     return SANDBOX_SUCCESS;
 }
@@ -486,17 +490,17 @@ int SandboxManager::ExecuteMountSteps()
         return ret;
     }
 
-    ret = MountPermissionDirs();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    ret = PivotRoot();
+    ret = SetGroups();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
 
     ret = ApplyPolicyMounts();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    ret = PivotRoot();
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
@@ -699,9 +703,10 @@ int SandboxManager::ValidateWithSpmEntry()
 
     // Validate uid and gid against SPM entry uid
     if (config_.uid != entry->uid || config_.gid != entry->uid) {
-        std::cerr << "Error: uid/gid mismatch with SPM entry: config uid=" << config_.uid
-                  << ", gid=" << config_.gid << ", entry uid=" << entry->uid << std::endl;
-        SANDBOX_LOGE("uid/gid mismatch with SPM entry: config uid=%{public}u, gid=%{public}u, entry uid=%{public}u",
+        std::cerr << "Error: The input uid/gid mismatch with ATM-expected value: input(uid=" << config_.uid
+                  << ", gid=" << config_.gid << "), ATM-expected(uid=" << entry->uid << ")" << std::endl;
+        SANDBOX_LOGE("The input uid/gid mismatch with ATM-expected value: "
+                     "input(uid=%{public}u, gid=%{public}u), ATM-expected(uid=%{public}u)",
             config_.uid, config_.gid, entry->uid);
         return SANDBOX_ERR_SPM_FAILED;
     }
@@ -709,17 +714,21 @@ int SandboxManager::ValidateWithSpmEntry()
     // Validate appIdentifier against SPM entry ownerid
     std::string owneridStr = std::to_string(static_cast<unsigned long long>(entry->ownerid));
     if (config_.appIdentifier != owneridStr) {
-        std::cerr << "Error: appIdentifier mismatch with SPM entry ownerid: config="
-                  << config_.appIdentifier << ", entry ownerid=" << owneridStr << std::endl;
-        SANDBOX_LOGE("appIdentifier mismatch with SPM entry ownerid");
+        std::cerr << "Error: The input appIdentifier mismatch with ATM-expected value: input="
+                  << config_.appIdentifier << ", ATM-expected=" << owneridStr << std::endl;
+        SANDBOX_LOGE("The input appIdentifier mismatch with ATM-expected value: "
+                     "input=%{public}s, ATM-expected=%{public}s",
+            config_.appIdentifier.c_str(), owneridStr.c_str());
         return SANDBOX_ERR_SPM_FAILED;
     }
     // Validate bundleName against SPM entry name
     std::string entryName = BlobToString(entry->name);
     if (config_.bundleName != entryName) {
-        std::cerr << "Error: bundleName mismatch with SPM entry name: config="
-                  << config_.bundleName << ", entry name=" << entryName << std::endl;
-        SANDBOX_LOGE("bundleName mismatch with SPM entry name");
+        std::cerr << "Error: The input bundleName mismatch with ATM-expected value: input="
+                  << config_.bundleName << ", ATM-expected=" << entryName << std::endl;
+        SANDBOX_LOGE("The input bundleName mismatch with ATM-expected value: "
+                     "input=%{public}s, ATM-expected=%{public}s",
+            config_.bundleName.c_str(), entryName.c_str());
         return SANDBOX_ERR_SPM_FAILED;
     }
 
@@ -808,19 +817,17 @@ std::vector<int> SandboxManager::CollectGrantedPermissionGids() const
 int SandboxManager::CollectPermissionDecPaths(const PermissionConfig &config,
                                               std::vector<std::string> &decPaths) const
 {
-    for (const auto &mountEntry : config.mounts) {
-        for (const auto &decPath : mountEntry.decPaths) {
-            std::string normalizedDecPath = NormalizeDecPath(decPath);
-            if (normalizedDecPath.empty() ||
-                std::find(decPaths.begin(), decPaths.end(), normalizedDecPath) != decPaths.end()) {
-                continue;
-            }
-            if (decPaths.size() >= DEC_MAX_POLICY_NUM) {
-                SANDBOX_LOGW("DEC policy path count exceeds %{public}zu", DEC_MAX_POLICY_NUM);
-                return -1;
-            }
-            decPaths.emplace_back(normalizedDecPath);
+    for (const auto &decPath : config.decPaths) {
+        std::string normalizedDecPath = NormalizeDecPath(decPath);
+        if (normalizedDecPath.empty() ||
+            std::find(decPaths.begin(), decPaths.end(), normalizedDecPath) != decPaths.end()) {
+            continue;
         }
+        if (decPaths.size() >= DEC_MAX_POLICY_NUM) {
+            SANDBOX_LOGW("DEC policy path count exceeds %{public}zu", DEC_MAX_POLICY_NUM);
+            return -1;
+        }
+        decPaths.emplace_back(normalizedDecPath);
     }
     return 0;
 }
@@ -1114,6 +1121,25 @@ int SandboxManager::SetSelinuxMCS()
 }
 #endif
 
+int SandboxManager::SetGroups()
+{
+    std::vector<gid_t> gids = {static_cast<gid_t>(config_.gid)};
+    for (int permissionGid : CollectGrantedPermissionGids()) {
+        gid_t gid = static_cast<gid_t>(permissionGid);
+        if (std::find(gids.begin(), gids.end(), gid) != gids.end()) {
+            continue;
+        }
+        gids.emplace_back(gid);
+    }
+    SANDBOX_LOGD("Set supplementary groups, count=%{public}zu", gids.size());
+    if (setgroups(gids.size(), gids.data()) == -1) {
+        std::cerr << "Error: setgroups failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("setgroups failed: %{public}s", strerror(errno));
+        return SANDBOX_ERR_NS_FAILED;
+    }
+    return SANDBOX_SUCCESS;
+}
+
 int SandboxManager::SetUidGid()
 {
     // Attempt to set SECBIT_KEEP_CAPS before changing UID/GID.
@@ -1135,21 +1161,6 @@ int SandboxManager::SetUidGid()
             strerror(errno));
     }
 #endif
-
-    std::vector<gid_t> gids = {static_cast<gid_t>(config_.gid)};
-    for (int permissionGid : CollectGrantedPermissionGids()) {
-        gid_t gid = static_cast<gid_t>(permissionGid);
-        if (std::find(gids.begin(), gids.end(), gid) != gids.end()) {
-            continue;
-        }
-        gids.emplace_back(gid);
-    }
-    SANDBOX_LOGD("Set supplementary groups, count=%{public}zu", gids.size());
-    if (setgroups(gids.size(), gids.data()) == -1) {
-        std::cerr << "Error: setgroups failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("setgroups failed: %{public}s", strerror(errno));
-        return SANDBOX_ERR_NS_FAILED;
-    }
 
     if (setresgid(config_.gid, config_.gid, config_.gid) != 0) {
         std::cerr << "Error: setresgid failed: " << strerror(errno) << std::endl;
@@ -1959,7 +1970,7 @@ void SandboxManager::SanitizeOverrideEnv(std::map<std::string, std::string> &san
             auto currentPath = sanitizedEnv.find("PATH");
             bool hasCurrentPath = currentPath != sanitizedEnv.end();
             size_t currentPathLen = hasCurrentPath ? currentPath->second.size() : 0;
-            std::string mergedPath = AppendEnvPathValue(hasCurrentPath ? currentPath->second : "", item.second);
+            std::string mergedPath = AppendEnvPathValue(item.second, hasCurrentPath ? currentPath->second : "");
             sanitizedEnv["PATH"] = mergedPath;
             overrideAccepted++;
             SANDBOX_LOGD("[DEBUG INFO] Env debug path append accepted, configuredLen=%{public}zu, "

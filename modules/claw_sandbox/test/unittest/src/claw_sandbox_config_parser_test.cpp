@@ -379,108 +379,69 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseMountEntry009, TestSize.Level0)
     cJSON_Delete(root);
 }
 
-// ==================== ParsePermissionMountEntry tests ====================
+// ==================== ParsePermissionDecPaths tests ====================
 
 /**
- * @tc.name: ParsePermissionMountEntry001
- * @tc.desc: ParsePermissionMountEntry parses base mount fields
+ * @tc.name: ParsePermissionDecPaths001
+ * @tc.desc: ParsePermissionDecPaths parses an array of decryption paths
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionMountEntry001, TestSize.Level0)
+HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionDecPaths001, TestSize.Level0)
 {
-    const char *json = R"({
-        "source": "/src",
-        "target": "/tgt",
-        "mount-flags": ["bind"],
-        "check-exists": true
-    })";
+    const char *json = R"({"dec-paths": ["/path1", "/path2", "/path3"]})";
     cJSON *root = cJSON_Parse(json);
     ASSERT_NE(root, nullptr);
 
-    SandboxManager::PermissionMountEntry pme;
-    SandboxManager::ParsePermissionMountEntry(root, pme);
-    EXPECT_EQ("/src", pme.mount.source);
-    EXPECT_EQ("/tgt", pme.mount.target);
-    ASSERT_EQ(1U, pme.mount.mountFlags.size());
-    EXPECT_EQ("bind", pme.mount.mountFlags[0]);
-    EXPECT_TRUE(pme.mount.checkExists);
+    SandboxManager manager;
+    SandboxManager::PermissionConfig pc;
+    manager.ParsePermissionDecPaths(root, pc);
+    ASSERT_EQ(3U, pc.decPaths.size());
+    EXPECT_EQ("/path1", pc.decPaths[0]);
+    EXPECT_EQ("/path2", pc.decPaths[1]);
+    EXPECT_EQ("/path3", pc.decPaths[2]);
 
     cJSON_Delete(root);
 }
 
 /**
- * @tc.name: ParsePermissionMountEntry002
- * @tc.desc: ParsePermissionMountEntry parses dec-paths array
+ * @tc.name: ParsePermissionDecPaths002
+ * @tc.desc: ParsePermissionDecPaths ignores non-string elements in array
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionMountEntry002, TestSize.Level0)
+HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionDecPaths002, TestSize.Level0)
 {
-    const char *json = R"({
-        "source": "/src",
-        "target": "/tgt",
-        "dec-paths": ["/path1", "/path2", "/path3"]
-    })";
+    const char *json = R"({"dec-paths": ["/path1", 100, {}, "/path2"]})";
     cJSON *root = cJSON_Parse(json);
     ASSERT_NE(root, nullptr);
 
-    SandboxManager::PermissionMountEntry pme;
-    SandboxManager::ParsePermissionMountEntry(root, pme);
-    ASSERT_EQ(3U, pme.decPaths.size());
-    EXPECT_EQ("/path1", pme.decPaths[0]);
-    EXPECT_EQ("/path2", pme.decPaths[1]);
-    EXPECT_EQ("/path3", pme.decPaths[2]);
+    SandboxManager manager;
+    SandboxManager::PermissionConfig pc;
+    manager.ParsePermissionDecPaths(root, pc);
+    ASSERT_EQ(2U, pc.decPaths.size());
+    EXPECT_EQ("/path1", pc.decPaths[0]);
+    EXPECT_EQ("/path2", pc.decPaths[1]);
 
     cJSON_Delete(root);
 }
 
 /**
- * @tc.name: ParsePermissionMountEntry003
- * @tc.desc: ParsePermissionMountEntry parses mount-shared-flag
+ * @tc.name: ParsePermissionDecPaths003
+ * @tc.desc: ParsePermissionDecPaths handles missing dec-paths field gracefully
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionMountEntry003, TestSize.Level0)
+HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionDecPaths003, TestSize.Level0)
 {
-    const char *json = R"({
-        "source": "/src",
-        "target": "/tgt",
-        "mount-shared-flag": "shared"
-    })";
+    const char *json = R"({"sandbox-switch": "ON"})";
     cJSON *root = cJSON_Parse(json);
     ASSERT_NE(root, nullptr);
 
-    SandboxManager::PermissionMountEntry pme;
-    SandboxManager::ParsePermissionMountEntry(root, pme);
-    EXPECT_EQ("shared", pme.mountSharedFlag);
-
-    cJSON_Delete(root);
-}
-
-/**
- * @tc.name: ParsePermissionMountEntry004
- * @tc.desc: ParsePermissionMountEntry ignores invalid optional field elements
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionMountEntry004, TestSize.Level0)
-{
-    const char *json = R"({
-        "source": "/src",
-        "target": "/tgt",
-        "dec-paths": ["/path1", 100, {}, "/path2"],
-        "mount-shared-flag": true
-    })";
-    cJSON *root = cJSON_Parse(json);
-    ASSERT_NE(root, nullptr);
-
-    SandboxManager::PermissionMountEntry pme;
-    SandboxManager::ParsePermissionMountEntry(root, pme);
-    ASSERT_EQ(2U, pme.decPaths.size());
-    EXPECT_EQ("/path1", pme.decPaths[0]);
-    EXPECT_EQ("/path2", pme.decPaths[1]);
-    EXPECT_TRUE(pme.mountSharedFlag.empty());
+    SandboxManager manager;
+    SandboxManager::PermissionConfig pc;
+    manager.ParsePermissionDecPaths(root, pc);
+    EXPECT_TRUE(pc.decPaths.empty());
 
     cJSON_Delete(root);
 }
@@ -1192,9 +1153,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionJson006, TestSize.Level0)
             {
                 "name": "ohos.permission.GRANTED_ARRAY",
                 "gids": [1006],
-                "mount-paths": [
-                    {"source": "/src", "target": "/dst", "mount-flags": ["bind"]}
-                ]
+                "dec-paths": ["/path1", "/path2"]
             },
             100,
             {"sandbox-switch": "ON"},
@@ -1211,11 +1170,9 @@ HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionJson006, TestSize.Level0)
     EXPECT_TRUE(pc.sandboxSwitch);
     ASSERT_EQ(1U, pc.gids.size());
     EXPECT_EQ(1006, pc.gids[0]);
-    ASSERT_EQ(1U, pc.mounts.size());
-    EXPECT_EQ("/src", pc.mounts[0].mount.source);
-    EXPECT_EQ("/dst", pc.mounts[0].mount.target);
-    ASSERT_EQ(1U, pc.mounts[0].mount.mountFlags.size());
-    EXPECT_EQ("bind", pc.mounts[0].mount.mountFlags[0]);
+    ASSERT_EQ(2U, pc.decPaths.size());
+    EXPECT_EQ("/path1", pc.decPaths[0]);
+    EXPECT_EQ("/path2", pc.decPaths[1]);
 
     cJSON_Delete(root);
 }
@@ -1322,7 +1279,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSinglePermissionItem003, TestSize.Lev
 HWTEST_F(ClawSandboxConfigParserTest, ParseSinglePermissionConfig001, TestSize.Level0)
 {
     const char *json = R"({"sandbox-switch": "ON", "gids": [1001],
-        "mounts": [{"source": "/src", "target": "/dst"}]})";
+        "dec-paths": ["/path1", "/path2"]})";
     cJSON *root = cJSON_Parse(json);
     ASSERT_NE(root, nullptr);
 
@@ -1333,7 +1290,9 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSinglePermissionConfig001, TestSize.L
     const auto &pc = manager.templateConfig_.permissions["ohos.permission.TEST"];
     EXPECT_TRUE(pc.sandboxSwitch);
     ASSERT_EQ(1U, pc.gids.size());
-    ASSERT_EQ(1U, pc.mounts.size());
+    ASSERT_EQ(2U, pc.decPaths.size());
+    EXPECT_EQ("/path1", pc.decPaths[0]);
+    EXPECT_EQ("/path2", pc.decPaths[1]);
 
     cJSON_Delete(root);
 }
@@ -1455,95 +1414,272 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSinglePermissionArrayItem001, TestSiz
     EXPECT_EQ(SANDBOX_SUCCESS, nullManager.ParseSinglePermissionArrayItem(nullptr));
 }
 
-// ==================== ParsePermissionMounts tests ====================
+// ==================== ParsePermissionDecPaths integration tests ====================
 
 /**
- * @tc.name: ParsePermissionMounts001
- * @tc.desc: ParsePermissionMounts ignores non-array mounts field
+ * @tc.name: ParsePermissionDecPaths004
+ * @tc.desc: ParsePermissionDecPaths with missing field leaves decPaths empty
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionMounts001, TestSize.Level0)
+HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionDecPaths004, TestSize.Level0)
 {
-    const char *json = R"({"mounts": "not-array"})";
+    const char *json = R"({"sandbox-switch": "ON"})";
     cJSON *root = cJSON_Parse(json);
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
     SandboxManager::PermissionConfig pc;
-    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParsePermissionMounts(root, pc));
-    EXPECT_TRUE(pc.mounts.empty());
+    manager.ParsePermissionDecPaths(root, pc);
+    EXPECT_TRUE(pc.decPaths.empty());
 
     cJSON_Delete(root);
 }
 
 /**
- * @tc.name: ParsePermissionMounts002
- * @tc.desc: ParsePermissionMounts skips non-object mount elements
+ * @tc.name: ParsePermissionDecPaths005
+ * @tc.desc: ParsePermissionDecPaths handles non-array dec-paths field gracefully
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionMounts002, TestSize.Level0)
+HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionDecPaths005, TestSize.Level0)
 {
-    const char *json = R"({"mounts": [100, {"source": "/src", "target": "/tgt"}]})";
+    const char *json = R"({"dec-paths": "not-an-array"})";
     cJSON *root = cJSON_Parse(json);
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
     SandboxManager::PermissionConfig pc;
-    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParsePermissionMounts(root, pc));
-    ASSERT_EQ(1U, pc.mounts.size());
-    EXPECT_EQ("/src", pc.mounts[0].mount.source);
-    EXPECT_EQ("/tgt", pc.mounts[0].mount.target);
+    manager.ParsePermissionDecPaths(root, pc);
+    EXPECT_TRUE(pc.decPaths.empty());
+
+    cJSON_Delete(root);
+}
+
+// ==================== ParseConditionalJson tests ====================
+
+/**
+ * @tc.name: ParseConditionalJson001
+ * @tc.desc: ParseConditionalJson parses source, target, mount-flags, check-exists, permissions
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson001, TestSize.Level0)
+{
+    const char *json = R"({
+        "conditional": [
+            {
+                "source": "/mnt/user/100/docs/Desktop",
+                "target": "/storage/Users/currentUser/Desktop",
+                "mount-flags": ["bind", "rec"],
+                "check-exists": true,
+                "permissions": ["ohos.permission.READ_WRITE_DESKTOP", "ohos.permission.FILE_ACCESS_MANAGER"]
+            },
+            {
+                "source": "/mnt/user/100/docs",
+                "target": "/storage/Users",
+                "mount-flags": ["bind", "rec"],
+                "check-exists": false,
+                "permissions": ["ohos.permission.FILE_ACCESS_MANAGER"]
+            }
+        ]
+    })";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    manager.ParseConditionalJson(root);
+    ASSERT_EQ(2U, manager.templateConfig_.conditionalRules.size());
+
+    // First rule
+    const auto &rule1 = manager.templateConfig_.conditionalRules[0];
+    EXPECT_EQ("/mnt/user/100/docs/Desktop", rule1.source);
+    EXPECT_EQ("/storage/Users/currentUser/Desktop", rule1.target);
+    ASSERT_EQ(2U, rule1.mountFlags.size());
+    EXPECT_EQ("bind", rule1.mountFlags[0]);
+    EXPECT_EQ("rec", rule1.mountFlags[1]);
+    EXPECT_TRUE(rule1.checkExists);
+    ASSERT_EQ(2U, rule1.permissions.size());
+    EXPECT_EQ("ohos.permission.READ_WRITE_DESKTOP", rule1.permissions[0]);
+    EXPECT_EQ("ohos.permission.FILE_ACCESS_MANAGER", rule1.permissions[1]);
+
+    // Second rule
+    const auto &rule2 = manager.templateConfig_.conditionalRules[1];
+    EXPECT_EQ("/mnt/user/100/docs", rule2.source);
+    EXPECT_EQ("/storage/Users", rule2.target);
+    ASSERT_EQ(2U, rule2.mountFlags.size());
+    EXPECT_EQ("bind", rule2.mountFlags[0]);
+    EXPECT_EQ("rec", rule2.mountFlags[1]);
+    EXPECT_FALSE(rule2.checkExists);
+    ASSERT_EQ(1U, rule2.permissions.size());
+    EXPECT_EQ("ohos.permission.FILE_ACCESS_MANAGER", rule2.permissions[0]);
 
     cJSON_Delete(root);
 }
 
 /**
- * @tc.name: ParsePermissionMounts003
- * @tc.desc: ParsePermissionMounts preserves empty mount objects
+ * @tc.name: ParseConditionalJson002
+ * @tc.desc: ParseConditionalJson handles missing conditional section gracefully
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionMounts003, TestSize.Level0)
+HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson002, TestSize.Level0)
 {
-    const char *json = R"({"mounts": [{}]})";
+    const char *json = R"({})";
     cJSON *root = cJSON_Parse(json);
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    SandboxManager::PermissionConfig pc;
-    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParsePermissionMounts(root, pc));
-    ASSERT_EQ(1U, pc.mounts.size());
-    EXPECT_TRUE(pc.mounts[0].mount.source.empty());
-    EXPECT_TRUE(pc.mounts[0].mount.target.empty());
-    EXPECT_TRUE(pc.mounts[0].mount.mountFlags.empty());
+    manager.ParseConditionalJson(root);
+    EXPECT_TRUE(manager.templateConfig_.conditionalRules.empty());
 
     cJSON_Delete(root);
 }
 
 /**
- * @tc.name: ParsePermissionMounts004
- * @tc.desc: ParsePermissionMounts accepts mount-paths as a fallback field name
+ * @tc.name: ParseConditionalJson003
+ * @tc.desc: ParseConditionalJson ignores non-array conditional field
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionMounts004, TestSize.Level0)
+HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson003, TestSize.Level0)
 {
-    const char *json = R"({"mount-paths": [{"source": "/src", "target": "/dst"}]})";
+    const char *json = R"({"conditional": "not-an-array"})";
     cJSON *root = cJSON_Parse(json);
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    SandboxManager::PermissionConfig pc;
-    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParsePermissionMounts(root, pc));
-    ASSERT_EQ(1U, pc.mounts.size());
-    EXPECT_EQ("/src", pc.mounts[0].mount.source);
-    EXPECT_EQ("/dst", pc.mounts[0].mount.target);
+    manager.templateConfig_.conditionalRules.push_back({});
+    ASSERT_EQ(1U, manager.templateConfig_.conditionalRules.size());
+
+    manager.ParseConditionalJson(root);
+    EXPECT_EQ(1U, manager.templateConfig_.conditionalRules.size());
 
     cJSON_Delete(root);
 }
 
+/**
+ * @tc.name: ParseConditionalJson004
+ * @tc.desc: ParseConditionalJson keeps entries even if target is missing, skips non-object items
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson004, TestSize.Level0)
+{
+    const char *json = R"({
+        "conditional": [
+            {"source": "/src", "target": "/tgt", "permissions": []},
+            {"source": "/src2"},
+            "bad-item"
+        ]
+    })";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    manager.ParseConditionalJson(root);
+    ASSERT_EQ(2U, manager.templateConfig_.conditionalRules.size());
+    EXPECT_EQ("/tgt", manager.templateConfig_.conditionalRules[0].target);
+    EXPECT_TRUE(manager.templateConfig_.conditionalRules[1].target.empty());
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: ParseConditionalJson005
+ * @tc.desc: ParseConditionalJson handles empty permissions array
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson005, TestSize.Level0)
+{
+    const char *json = R"({
+        "conditional": [
+            {
+                "source": "/src",
+                "target": "/tgt",
+                "permissions": []
+            }
+        ]
+    })";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    manager.ParseConditionalJson(root);
+    ASSERT_EQ(1U, manager.templateConfig_.conditionalRules.size());
+    EXPECT_TRUE(manager.templateConfig_.conditionalRules[0].permissions.empty());
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: ParseConditionalJson006
+ * @tc.desc: ParseConditionalJson exits early when root is not an object
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson006, TestSize.Level0)
+{
+    // Pass a JSON array (not object) → early return without crash
+    const char *json = R"(["item1", "item2"])";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    manager.ParseConditionalJson(root);
+    EXPECT_TRUE(manager.templateConfig_.conditionalRules.empty());
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: ParseConditionalJson007
+ * @tc.desc: ParseConditionalRule handles non-string source, mount-flags, check-exists, permissions
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson007, TestSize.Level0)
+{
+    // Covers: non-string source, non-string mount-flags item,
+    // non-bool check-exists, non-string permissions item, missing source field
+    const char *json = R"({
+        "conditional": [
+            {
+                "target": "/tgt",
+                "source": 123,
+                "mount-flags": [true, 456],
+                "check-exists": "not-a-bool",
+                "permissions": [789, false]
+            },
+            {
+                "target": "/tgt2"
+            }
+        ]
+    })";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    manager.ParseConditionalJson(root);
+    ASSERT_EQ(2U, manager.templateConfig_.conditionalRules.size());
+
+    // Rule 1: source=123 is not string → source stays empty
+    EXPECT_TRUE(manager.templateConfig_.conditionalRules[0].source.empty());
+    EXPECT_EQ("/tgt", manager.templateConfig_.conditionalRules[0].target);
+    // mount-flags items true/456 are not strings → skipped
+    EXPECT_TRUE(manager.templateConfig_.conditionalRules[0].mountFlags.empty());
+    // check-exists "not-a-bool" → not cJSON_IsBool → skips, keeps default true
+    EXPECT_TRUE(manager.templateConfig_.conditionalRules[0].checkExists);
+    // permissions items 789/false are not strings → skipped
+    EXPECT_TRUE(manager.templateConfig_.conditionalRules[0].permissions.empty());
+
+    // Rule 2: only target, no source/other fields → all remain empty/default
+    EXPECT_EQ("/tgt2", manager.templateConfig_.conditionalRules[1].target);
+    EXPECT_TRUE(manager.templateConfig_.conditionalRules[1].source.empty());
+
+    cJSON_Delete(root);
+}
 } // namespace SANDBOX
 } // namespace AccessControl
 } // namespace OHOS
