@@ -50,6 +50,8 @@ static constexpr uint64_t TEST_SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32
 // In the real device test environment, this requires a properly initialized token system.
 static constexpr uint64_t TEST_HAP_TOKEN_ID = TEST_SYSTEM_APP_MASK | 0x200D000D;
 
+static constexpr int32_t TEST_IOCTL_FD = 100;
+
 class SandboxDirGuard {
 public:
     explicit SandboxDirGuard(const std::string &suffix)
@@ -168,6 +170,31 @@ public:
 
 private:
     std::string path_;
+};
+
+// RAII guard that resets the global IoctlMockState to defaults on destruction.
+class IoctlMockGuard {
+public:
+    IoctlMockGuard()
+    {
+        // Save current state and reset for a clean test
+        saved_ = g_ioctlMockState;
+        g_ioctlMockState.mockEnabled = false;
+        g_ioctlMockState.openFail = true;
+        g_ioctlMockState.openErrno = ENOENT;
+        g_ioctlMockState.mockFd = TEST_IOCTL_FD;
+        g_ioctlMockState.failOnCallIndex = -1;
+        g_ioctlMockState.ioctlErrno = EINVAL;
+        g_ioctlMockState.ioctlCallCount = 0;
+    }
+
+    ~IoctlMockGuard()
+    {
+        g_ioctlMockState = saved_;
+    }
+
+private:
+    IoctlMockState saved_;
 };
 
 void ClawSandboxManagerTest::SetUpTestCase() {}
@@ -2048,31 +2075,6 @@ HWTEST_F(ClawSandboxManagerTest, PrepareWorkdir003, TestSize.Level0)
 }
 
 // ==================== DeliverPolicy tests ====================
-
-// RAII guard that resets the global IoctlMockState to defaults on destruction.
-class IoctlMockGuard {
-public:
-    IoctlMockGuard()
-    {
-        // Save current state and reset for a clean test
-        saved_ = g_ioctlMockState;
-        g_ioctlMockState.mockEnabled = false;
-        g_ioctlMockState.openFail = true;
-        g_ioctlMockState.openErrno = ENOENT;
-        g_ioctlMockState.mockFd = 100;
-        g_ioctlMockState.failOnCallIndex = -1;
-        g_ioctlMockState.ioctlErrno = EINVAL;
-        g_ioctlMockState.ioctlCallCount = 0;
-    }
-
-    ~IoctlMockGuard()
-    {
-        g_ioctlMockState = saved_;
-    }
-
-private:
-    IoctlMockState saved_;
-};
 
 // Helper: allocate and initialize a minimal valid policyArg for DeliverPolicy tests.
 // The returned pointer must be freed with std::free() by the caller.

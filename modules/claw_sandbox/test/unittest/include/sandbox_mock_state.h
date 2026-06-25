@@ -47,11 +47,11 @@ extern SpmMockState g_spmMockState;
 struct IoctlMockState {
     bool mockEnabled = false;      // When true, intercept /dev/dec open and ioctl on mockFd
     bool openFail = true;          // Whether mock open returns failure
-    int openErrno = ENOENT;        // errno value when open fails
-    int mockFd = 100;              // fd value returned by successful mock open
-    int failOnCallIndex = -1;      // ioctl call index that should fail (-1 = all succeed)
-    int ioctlErrno = EINVAL;       // errno value when ioctl fails
-    int ioctlCallCount = 0;        // incremented on each ioctl call to mockFd (reset per test)
+    int32_t openErrno = ENOENT;        // errno value when open fails
+    int32_t mockFd = 100;              // fd value returned by successful mock open
+    int32_t failOnCallIndex = -1;      // ioctl call index that should fail (-1 = all succeed)
+    int32_t ioctlErrno = EINVAL;       // errno value when ioctl fails
+    int32_t ioctlCallCount = 0;        // incremented on each ioctl call to mockFd (reset per test)
 };
 
 extern IoctlMockState g_ioctlMockState;

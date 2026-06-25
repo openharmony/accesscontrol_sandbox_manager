@@ -48,11 +48,8 @@ IoctlMockState g_ioctlMockState;
 }  // namespace SANDBOX
 }  // namespace AccessControl
 }  // namespace OHOS
-
 using namespace OHOS::AccessControl::SANDBOX;
-
 extern "C" {
-
 /*
  * Mock open() — intercepts open("/dev/dec", ...) when mock is enabled.
  * All other paths/flag combinations are forwarded to the real kernel
