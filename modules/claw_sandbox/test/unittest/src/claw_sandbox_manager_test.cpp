@@ -2087,7 +2087,6 @@ static struct AgentLockAddPolicyArg *MakeMinimalPolicyArg(uint32_t policyCnt = 1
     if (arg == nullptr) {
         return nullptr;
     }
-    std::memset(arg, 0, totalSize);
     if (memset_s(arg, totalSize, 0, totalSize) != 0) {
         return nullptr;
     }
