@@ -71,7 +71,7 @@ static const std::unordered_map<std::string, SCOPE_TYPE> g_validScopeTypeMap = {
 // Default Namespace flags if not specified in config
 // mnt|net namespaces are required for sandbox isolation, so they are included in the default flags.
 // The rest of the namespaces are optional and can be added via the "nsFlags" config field.
-constexpr uint32_t DEFAULT_NS_FLAGS = CLONE_NEWNS | CLONE_NEWNET;
+constexpr uint32_t DEFAULT_NS_FLAGS = CLONE_NEWNS;
 
 // Helper: clean up cJSON root and return error code
 static inline int CleanupAndReturn(cJSON *root, int ret)
