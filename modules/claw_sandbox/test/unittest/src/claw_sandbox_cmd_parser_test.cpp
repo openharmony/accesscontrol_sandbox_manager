@@ -1210,6 +1210,78 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig042, TestSize.Level0)
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
 
+/**
+ * @tc.name: ParseConfig043
+ * @tc.desc: ParseConfig accepts invalid policy with unsupported network DefaultAction
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig043, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 1,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appIdentifier": "app",
+        "bundleName": "bundle",
+        "cliName": "cli",
+        "subCliName": "sub",
+        "policy": "{
+            \"AddOperationControlRuleGroups\": [
+                {
+                    \"Scope\": { \"Type\": \"current_task\" },
+                    \"Network\": { \"DefaultAction\": \"ask\" }
+                }
+            ]
+        }"
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    }
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig044
+ * @tc.desc: ParseConfig accepts invalid policy with no Scope type
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig044, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 1,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appIdentifier": "app",
+        "bundleName": "bundle",
+        "cliName": "cli",
+        "subCliName": "sub",
+        "policy": "{
+            \"AddOperationControlRuleGroups\": [
+                {
+                    \"Scope\": { \"Type\": \"\" },
+                    \"Network\": { \"DefaultAction\": \"deny\" }
+                }
+            ]
+        }"
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    }
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
 // ==================== ParseCommandFromArgv tests ====================
 
 /**
