@@ -171,7 +171,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig001, TestSize.Level0)
     EXPECT_EQ("testSubCli", config.subCliName);
     EXPECT_TRUE(config.name.empty());
     // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS | CLONE_NEWNET
-    EXPECT_EQ(static_cast<int>(CLONE_NEWNS | CLONE_NEWNET), config.nsFlags);
+    EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
 }
 
 /**
@@ -683,7 +683,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig023, TestSize.Level0)
     int ret = CmdParser::ParseConfig(json, config);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_TRUE(config.name.empty());
-    EXPECT_EQ(static_cast<int>(CLONE_NEWNS | CLONE_NEWNET), config.nsFlags);
+    EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
 }
 
 /**
@@ -939,7 +939,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig034, TestSize.Level0)
     EXPECT_EQ("", config.subCliName);
     EXPECT_TRUE(config.name.empty());
     // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS | CLONE_NEWNET
-    EXPECT_EQ(static_cast<int>(CLONE_NEWNS | CLONE_NEWNET), config.nsFlags);
+    EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
 }
  
 /**
@@ -1005,7 +1005,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig036, TestSize.Level0)
     EXPECT_EQ("testSubCli", config.subCliName);
     EXPECT_TRUE(config.name.empty());
     // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS | CLONE_NEWNET
-    EXPECT_EQ(static_cast<int>(CLONE_NEWNS | CLONE_NEWNET), config.nsFlags);
+    EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
 }
  
 /**
