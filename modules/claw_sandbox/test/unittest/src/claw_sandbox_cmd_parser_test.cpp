@@ -170,8 +170,8 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig001, TestSize.Level0)
     EXPECT_EQ("testCli", config.cliName);
     EXPECT_EQ("testSubCli", config.subCliName);
     EXPECT_TRUE(config.name.empty());
-    // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS | CLONE_NEWNET
-    EXPECT_EQ(static_cast<int>(CLONE_NEWNS | CLONE_NEWNET), config.nsFlags);
+    // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS
+    EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
 }
 
 /**
@@ -683,7 +683,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig023, TestSize.Level0)
     int ret = CmdParser::ParseConfig(json, config);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_TRUE(config.name.empty());
-    EXPECT_EQ(static_cast<int>(CLONE_NEWNS | CLONE_NEWNET), config.nsFlags);
+    EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
 }
 
 /**
@@ -938,8 +938,8 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig034, TestSize.Level0)
     EXPECT_EQ("", config.cliName);
     EXPECT_EQ("", config.subCliName);
     EXPECT_TRUE(config.name.empty());
-    // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS | CLONE_NEWNET
-    EXPECT_EQ(static_cast<int>(CLONE_NEWNS | CLONE_NEWNET), config.nsFlags);
+    // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS
+    EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
 }
  
 /**
@@ -1004,8 +1004,8 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig036, TestSize.Level0)
     EXPECT_EQ("testCli", config.cliName);
     EXPECT_EQ("testSubCli", config.subCliName);
     EXPECT_TRUE(config.name.empty());
-    // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS | CLONE_NEWNET
-    EXPECT_EQ(static_cast<int>(CLONE_NEWNS | CLONE_NEWNET), config.nsFlags);
+    // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS
+    EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
 }
  
 /**
@@ -1210,6 +1210,78 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig042, TestSize.Level0)
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
 
+/**
+ * @tc.name: ParseConfig043
+ * @tc.desc: ParseConfig accepts invalid policy with unsupported network DefaultAction
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig043, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 1,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appIdentifier": "app",
+        "bundleName": "bundle",
+        "cliName": "cli",
+        "subCliName": "sub",
+        "policy": "{
+            \"AddOperationControlRuleGroups\": [
+                {
+                    \"Scope\": { \"Type\": \"current_task\" },
+                    \"Network\": { \"DefaultAction\": \"ask\" }
+                }
+            ]
+        }"
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    }
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig044
+ * @tc.desc: ParseConfig accepts invalid policy with no Scope type
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig044, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 1,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appIdentifier": "app",
+        "bundleName": "bundle",
+        "cliName": "cli",
+        "subCliName": "sub",
+        "policy": "{
+            \"AddOperationControlRuleGroups\": [
+                {
+                    \"Scope\": { \"Type\": \"\" },
+                    \"Network\": { \"DefaultAction\": \"deny\" }
+                }
+            ]
+        }"
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    if (config.policyArg != nullptr) {
+        std::free(config.policyArg);
+        config.policyArg = nullptr;
+    }
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
 // ==================== ParseCommandFromArgv tests ====================
 
 /**
@@ -1318,7 +1390,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseCommandFromArgv005, TestSize.Level0)
 
 /**
  * @tc.name: ConvertNsFlags001
- * @tc.desc: ConvertNsFlags with empty vector returns CLONE_NEWNS | CLONE_NEWNET
+ * @tc.desc: ConvertNsFlags with empty vector returns CLONE_NEWNS
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -1326,7 +1398,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags001, TestSize.Level0)
 {
     std::vector<std::string> flags;
     int result = CmdParser::ConvertNsFlags(flags);
-    EXPECT_EQ(CLONE_NEWNS | CLONE_NEWNET, result);
+    EXPECT_EQ(CLONE_NEWNS, result);
 }
 
 /**
@@ -1341,7 +1413,6 @@ HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags002, TestSize.Level0)
     int result = CmdParser::ConvertNsFlags(flags);
     EXPECT_TRUE(result & CLONE_NEWPID);
     EXPECT_TRUE(result & CLONE_NEWNS);
-    EXPECT_TRUE(result & CLONE_NEWNET);
 }
 
 /**
@@ -1412,7 +1483,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags007, TestSize.Level0)
     std::vector<std::string> flags = {"unknown", "bogus"};
     int result = CmdParser::ConvertNsFlags(flags);
     // Only base flags should be present
-    EXPECT_EQ(CLONE_NEWNS | CLONE_NEWNET, result);
+    EXPECT_EQ(CLONE_NEWNS, result);
 }
 
 /**
