@@ -2943,12 +2943,14 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest028, TestSize.Level0)
 {
     int32_t userId = 100;
     const std::string bundleName = "com.testshare.dist";
-    std::string stringJson1 = R"({"share_files":{"scopes":[{"path": "/el4/cloud/data", "permission": "r"}]}})";
+    std::string stringJson1 = R"({"share_files":{"scopes":[{"path": "/el4/tmp", "permission": "r"}]}})";
 
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
-    const std::string path1 = "/storage/Users/currentUser/appdata/el4/cloud/com.testshare.dist/data";
+    const std::string path1 = "/storage/Users/currentUser/appdata/el4/tmp/com.testshare.dist";
     EXPECT_EQ(OperateMode::READ_MODE, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path1));
+    const std::string path2 = "/storage/Users/currentUser/appdata/el4/tmp/com.testshare.dist/data";
+    EXPECT_EQ(OperateMode::READ_MODE, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, path2));
 
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
 }
@@ -2992,12 +2994,14 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest030, TestSize.Level0)
     std::string stringJson2 = R"({"share_files":{"scopes":[{"path": "/el2/files", "permission": "r+w"}]}})";
 
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
-    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
-    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson1, bundleName, userId));
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
         "/storage/Users/currentUser/appdata/el2/invalidtype/com.testshare.invalid2/files"));
 
-    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
-    EXPECT_EQ(ShareStatus::SHARE_BUNDLE_UNSET, SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson2, bundleName, userId));
+    EXPECT_EQ((OperateMode::READ_MODE | OperateMode::WRITE_MODE),
+        SandboxManagerShare::GetInstance().FindPermission(bundleName, userId,
         "/storage/Users/currentUser/appdata/el2/files/com.testshare.invalid2/files"));
 
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
@@ -3305,6 +3309,51 @@ HWTEST_F(PolicyInfoManagerTest, ShareTest040, TestSize.Level0)
         SandboxManagerShare::GetInstance().FindPermission(bundleName, userId, prefixOnlyPath));
 
     SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+}
+
+/**
+ * @tc.name: ShareTest041
+ * @tc.desc: set sharemap /el2/path1, then setpolciy /el2/path2 failed
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, ShareTest041, TestSize.Level0)
+{
+    int32_t userId = 100;
+    const std::string bundleName = "com.testshare";
+    SandboxManagerShare::GetInstance().DeleteByBundleName(bundleName);
+
+    PolicyInfo info;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+    info.path = "/storage/Users/currentUser/appdata/el2/test1/com.testshare";
+    info.mode = OperateMode::WRITE_MODE;
+    policy[0] = info;
+    std::vector<uint32_t> setResult;
+    SetInfo setInfo;
+    setInfo.userId = userId;
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult, setInfo));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+
+    std::string stringJson = R"({"share_files":{"scopes":[{"path": "/el2/test2", "permission": "r+w"}]}})";
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerShare::GetInstance().TransAndSetToMap(stringJson, bundleName, userId));
+    info.path = "/storage/Users/currentUser/appdata/el2/test2/com.testshare";
+    info.mode = OperateMode::WRITE_MODE;
+    policy[0] = info;
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult, setInfo));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+
+    info.path = "/storage/Users/currentUser/appdata/el2/test3/com.testshare";
+    info.mode = OperateMode::WRITE_MODE;
+    policy[0] = info;
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().SetPolicy(g_mockToken, policy, 1, setResult, setInfo));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 }
 #endif
 

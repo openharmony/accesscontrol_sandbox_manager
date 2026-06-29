@@ -107,25 +107,12 @@ namespace {
         "el4",
         "el5"
     };
-
-    // Valid second parts for elx format such as:  /elx/base
-    const std::vector<std::string> VALID_EL_SECOND_PARTS = {
-        "base",
-        "distributedfiles",
-        "cloud"
-    };
 }
 
 static bool IsValidElNumber(const std::string &elStr)
 {
     return std::find(VALID_EL_NUMBERS.begin(), VALID_EL_NUMBERS.end(), elStr)
            != VALID_EL_NUMBERS.end();
-}
-
-static bool IsValidElSecondPart(const std::string &part)
-{
-    return std::find(VALID_EL_SECOND_PARTS.begin(), VALID_EL_SECOND_PARTS.end(), part)
-           != VALID_EL_SECOND_PARTS.end();
 }
 
 static bool IsPathSecure(const std::string &path)
@@ -181,7 +168,7 @@ static std::string PathCompose(const std::string &path, const std::string &name)
     std::string result;
 
     // Handle new format: /elx/y
-    if (IsValidElNumber(parts[0]) && IsValidElSecondPart(parts[1])) {
+    if (IsValidElNumber(parts[0])) {
         result = FULL_PATH_START + parts[0] + "/" + parts[1] + "/" + name;
     } else if (parts[0] == "base") {
         result = FULL_PATH_START + DEFAULT_EL + "/" + parts[0] + "/" + name + "/" + parts[1];

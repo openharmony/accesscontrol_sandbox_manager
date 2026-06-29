@@ -1663,13 +1663,6 @@ bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::strin
         return true;
     }
 
-    if (components.size() <= MAX_CHECK_COM_NUM + 1) {
-        std::string reportBundleName = (components.size() == MAX_CHECK_COM_NUM + 1) ?
-            components[MAX_CHECK_COM_NUM] : "unknown_bundle";
-        SandboxManagerDfxHelper::WriteShareConfigAudit(path, policy.mode, "components_lacking", reportBundleName);
-        return true;
-    }
-
     std::string bundleNameTmp = components[MAX_CHECK_COM_NUM];
     std::string bundleRemoveIndex = RemoveClonePrefix(bundleNameTmp);
     std::string pathTmp = APPDATA_PATH_WITH_SLASH;
