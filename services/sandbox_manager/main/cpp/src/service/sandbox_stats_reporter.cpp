@@ -17,9 +17,9 @@
 #include "sandbox_manager_log.h"
 #include "sandbox_manager_rdb.h"
 #include "sandbox_manager_err_code.h"
+#include "sandbox_manager_dfx_helper.h"
 #include "accesstoken_kit.h"
 #include "hap_token_info.h"
-#include "hisysevent.h"
 #include <cinttypes>
 #include <cstdint>
 #include <fstream>
@@ -167,14 +167,17 @@ void SandboxStatsReporter::WriteAuthorizationStatEvent(const SandboxStatsData &s
         persistTokenId, persistBundleName.c_str(),
         recordCount);
 
-    int reportRet = HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::SANDBOX_MANAGER, "AUTHORIZATION_STAT",
-        HiviewDFX::HiSysEvent::EventType::STATISTIC, "TEMPORARY_RULE_NUM", pathTreeNodeNumObjs,
-        "PERSISTENT_RULE_NUM", recordCount, "KERNEL_MEMORY_USAGE", statsData.totalMemoryBytes,
-        "TOP_TEMP_APP", bundleName.c_str(), "TOP_TEMP_NUM", topTempRuleNum,
-        "TOP_PERSIST_APP", persistBundleName.c_str(), "TOP_PERSIST_NUM", topPersistRuleNum);
-    if (reportRet != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Report authorization stat failed, ret=%{public}d", reportRet);
-    }
+    AuthorizationStatData statData;
+    statData.totalMemoryBytes = statsData.totalMemoryBytes;
+    statData.pathTreeNodeNumObjs = pathTreeNodeNumObjs;
+    statData.recordCount = recordCount;
+    statData.tempTokenId = tokenId;
+    statData.tempBundleName = bundleName;
+    statData.topTempRuleNum = topTempRuleNum;
+    statData.persistTokenId = persistTokenId;
+    statData.persistBundleName = persistBundleName;
+    statData.topPersistRuleNum = topPersistRuleNum;
+    SandboxManagerDfxHelper::WriteAuthorizationStatEvent(statData);
 }
 
 void SandboxStatsReporter::Report()

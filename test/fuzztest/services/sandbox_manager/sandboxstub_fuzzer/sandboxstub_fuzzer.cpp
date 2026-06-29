@@ -22,11 +22,11 @@
 #include "fuzz_common.h"
 #include "isandbox_manager.h"
 #include "policy_info_parcel.h"
+#include "policy_vec_raw_data.h"
 #define private public
 #include "sandbox_manager_service.h"
 #undef private
 #include "accesstoken_kit.h"
-#include "policy_info_vector_parcel.h"
 #include "sandbox_manager_kit.h"
 #include "token_setproc.h"
 
@@ -513,9 +513,13 @@ const int32_t FOUNDATION_UID = 5523;
             return false;
         }
 
-        PolicyInfoVectorParcel policyInfoParcel;
-        policyInfoParcel.policyVector = policyVec;
-        if (!datas.WriteParcelable(&policyInfoParcel)) {
+        PolicyVecRawData policyRawData;
+        policyRawData.Marshalling(policyVec);
+        if (!datas.WriteUint32(policyRawData.size)) {
+            return false;
+        }
+
+        if (!datas.WriteRawData(policyRawData.data, policyRawData.size)) {
             return false;
         }
 

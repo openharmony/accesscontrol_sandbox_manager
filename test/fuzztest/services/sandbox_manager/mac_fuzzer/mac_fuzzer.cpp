@@ -20,7 +20,6 @@
 #include <string>
 #include "alloc_token.h"
 #include "fuzz_common.h"
-#include "policy_info_vector_parcel.h"
 #include "isandbox_manager.h"
 #define private public
 #include "policy_info_manager.h"

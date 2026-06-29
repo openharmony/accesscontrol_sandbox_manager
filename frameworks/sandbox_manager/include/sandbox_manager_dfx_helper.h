@@ -87,6 +87,18 @@ public:
     OperateDomainEnum domain;
 };
 
+struct AuthorizationStatData {
+    uint64_t totalMemoryBytes = 0;
+    uint64_t pathTreeNodeNumObjs = 0;
+    int32_t recordCount = 0;
+    uint32_t tempTokenId = 0;
+    std::string tempBundleName;
+    int32_t topTempRuleNum = 0;
+    uint32_t persistTokenId = 0;
+    std::string persistBundleName;
+    uint32_t topPersistRuleNum = 0;
+};
+
 class SandboxManagerDfxHelper {
 public:
     static void WritePersistPolicyOperateSucc(const OperateTypeEnum operateType, const PolicyOperateInfo &info);
@@ -101,6 +113,8 @@ public:
         const std::string &path, const std::string &bundleName, int32_t errorCode = 0);
     static void WriteShareConfigAudit(const std::string &path, uint32_t mode,
         const std::string &info, const std::string &bundleName);
+    static void ReportDataSize(uint64_t partitionRemainSize, uint64_t folderSize);
+    static void WriteAuthorizationStatEvent(const AuthorizationStatData &statData);
 };
 } // SandboxManager
 } // AccessControl

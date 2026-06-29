@@ -26,7 +26,6 @@
 #include "nativetoken_kit.h"
 #include "policy_info.h"
 #include "policy_info_parcel.h"
-#include "policy_info_vector_parcel.h"
 #include "sandbox_manager_const.h"
 #include "sandbox_manager_rdb.h"
 #include "sandbox_manager_err_code.h"

@@ -231,6 +231,26 @@ void SandboxManagerDfxHelper::WriteShareConfigAudit(const std::string &path, uin
         HiviewDFX::HiSysEvent::EventType::STATISTIC, "PATH", path, "MODE", mode,
         "INFO", info, "BUNDLE_NAME", bundleName);
 }
+
+static const std::string SANDBOX_MGR_NAME = "sandbox_manager";
+static const std::string SYS_EL1_SANDBOX_MGR_DIR = "/data/service/el1/public/sandbox_manager";
+static const std::string USER_DATA_DIR = "/data";
+void SandboxManagerDfxHelper::ReportDataSize(uint64_t partitionRemainSize, uint64_t folderSize)
+{
+    HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::FILEMANAGEMENT, "USER_DATA_SIZE",
+        HiviewDFX::HiSysEvent::EventType::STATISTIC, "COMPONENT_NAME", SANDBOX_MGR_NAME, "PARTITION_NAME",
+        USER_DATA_DIR, "REMAIN_PARTITION_SIZE", partitionRemainSize,
+        "FILE_OR_FOLDER_PATH", SYS_EL1_SANDBOX_MGR_DIR, "FILE_OR_FOLDER_SIZE", folderSize);
+}
+
+void SandboxManagerDfxHelper::WriteAuthorizationStatEvent(const AuthorizationStatData &statData)
+{
+    HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::SANDBOX_MANAGER, "AUTHORIZATION_STAT",
+        HiviewDFX::HiSysEvent::EventType::STATISTIC, "TEMPORARY_RULE_NUM", statData.pathTreeNodeNumObjs,
+        "PERSISTENT_RULE_NUM", statData.recordCount, "KERNEL_MEMORY_USAGE", statData.totalMemoryBytes,
+        "TOP_TEMP_APP", statData.tempBundleName.c_str(), "TOP_TEMP_NUM", statData.topTempRuleNum,
+        "TOP_PERSIST_APP", statData.persistBundleName.c_str(), "TOP_PERSIST_NUM", statData.topPersistRuleNum);
+}
 }
 }
 }

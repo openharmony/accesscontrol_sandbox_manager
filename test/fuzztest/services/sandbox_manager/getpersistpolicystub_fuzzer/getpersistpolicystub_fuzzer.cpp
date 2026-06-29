@@ -20,7 +20,6 @@
 #include <string>
 #include "fuzz_common.h"
 #include "isandbox_manager.h"
-#include "policy_info_vector_parcel.h"
 #define private public
 #include "sandbox_manager_service.h"
 #undef private
