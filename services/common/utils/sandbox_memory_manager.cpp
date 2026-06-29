@@ -14,18 +14,9 @@
  */
 #include "sandbox_memory_manager.h"
 
-#include "sandbox_manager_log.h"
-
 namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
-namespace {
-using namespace OHOS::HiviewDFX;
-static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
-    LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerMemmgr"
-};
-constexpr int32_t MAX_RUNNING_NUM = 256;
-}
 
 SandboxMemoryManager& SandboxMemoryManager::GetInstance()
 {
@@ -37,10 +28,6 @@ void SandboxMemoryManager::AddFunctionRuningNum()
 {
     std::lock_guard<std::mutex> lock(callNumberMutex_);
     callFuncRunningNum_++;
-    if (callFuncRunningNum_ > MAX_RUNNING_NUM) {
-        SANDBOXMANAGER_LOG_WARN(LABEL,
-            "The num of working function (%{public}d) over %{public}d.", callFuncRunningNum_, MAX_RUNNING_NUM);
-    }
 }
 
 void SandboxMemoryManager::DecreaseFunctionRuningNum()
@@ -55,8 +42,6 @@ bool SandboxMemoryManager::IsAllowedUnloadService()
     if (callFuncRunningNum_ == 0) {
         return true;
     }
-    SANDBOXMANAGER_LOG_WARN(LABEL,
-        "Not allowed to unload service, callFuncRunningNum_ is %{public}d.", callFuncRunningNum_);
     return false;
 }
 

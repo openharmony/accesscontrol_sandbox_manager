@@ -53,6 +53,7 @@ if (is_standard_system) {
       "main/cpp/include/media",
       "main/cpp/include/share",
       "main/cpp/include/preserve",
+      "main/cpp/include/utils",
     ]
 
     sources = [
@@ -69,6 +70,7 @@ if (is_standard_system) {
       "main/cpp/src/service/sandbox_stats_reporter.cpp",
       "main/cpp/src/share/share_files.cpp",
       "main/cpp/src/preserve/persistent_preserve.cpp",
+      "main/cpp/src/utils/data_size_report_adapter.cpp",
     ]
 
     cflags_cc = [ "-DHILOG_ENABLE" ]

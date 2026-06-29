@@ -14,17 +14,12 @@
  */
 
 #include "persistent_preserve.h"
-#include "bundle_mgr_interface.h"
-#include "bundle_mgr_proxy.h"
-#include "ipc_skeleton.h"
-#include "iservice_registry.h"
 #include "media_path_support.h"
 #include "policy_info.h"
 #include "sandbox_manager_const.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_log.h"
 #include "sandbox_manager_rdb.h"
-#include "system_ability_definition.h"
 #include "generic_values.h"
 #include "policy_field_const.h"
 

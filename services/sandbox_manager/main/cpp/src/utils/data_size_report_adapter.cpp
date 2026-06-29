@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -13,9 +13,6 @@
  * limitations under the License.
  */
 #include "data_size_report_adapter.h"
-#include "hisysevent.h"
-
-#include <sstream>
 #include <thread>
 #include <vector>
 #include <sys/statfs.h>
@@ -30,7 +27,7 @@ using namespace OHOS::HiviewDFX;
 static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerDataSizeReportAdapter"
 };
-static const std::string SANDBOX_MGR_NAME = "sandbox_manager";
+
 static const std::string SYS_EL1_SANDBOX_MGR_DIR = "/data/service/el1/public/sandbox_manager";
 static const std::string USER_DATA_DIR = "/data";
 static constexpr uint64_t INVALID_SIZE = 0;
@@ -53,13 +50,9 @@ double GetPartitionRemainSize(const std::string& path)
 
 void ReportTask()
 {
-    int ret = HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::FILEMANAGEMENT, "USER_DATA_SIZE",
-        HiviewDFX::HiSysEvent::EventType::STATISTIC, "COMPONENT_NAME", SANDBOX_MGR_NAME, "PARTITION_NAME",
-        USER_DATA_DIR, "REMAIN_PARTITION_SIZE", GetPartitionRemainSize(USER_DATA_DIR),
-        "FILE_OR_FOLDER_PATH", SYS_EL1_SANDBOX_MGR_DIR, "FILE_OR_FOLDER_SIZE", GetFolderSize(SYS_EL1_SANDBOX_MGR_DIR));
-    if (ret != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Hisysevent report data size failed!");
-    }
+    uint64_t partitionRemainSize = GetPartitionRemainSize(USER_DATA_DIR);
+    uint64_t folderSize = GetFolderSize(SYS_EL1_SANDBOX_MGR_DIR);
+    SandboxManagerDfxHelper::ReportDataSize(partitionRemainSize, folderSize);
 }
 
 bool GetInterval(time_t lastTime, time_t nowTime)
