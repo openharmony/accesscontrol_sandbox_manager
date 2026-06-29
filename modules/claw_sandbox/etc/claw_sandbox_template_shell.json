@@ -262,6 +262,10 @@
                     "/storage/Users/currentUser/Desktop",
                     "/storage/Users/currentUser/Download"
                   ]
+    }],
+    "ohos.permission.INTERNET":[{
+      "sandbox-switch": "ON",
+      "gids": [1097]
     }]
   },
   "conditional": [
