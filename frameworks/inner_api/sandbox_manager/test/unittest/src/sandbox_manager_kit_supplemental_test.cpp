@@ -1612,6 +1612,38 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyCoverage003, Tes
     EXPECT_FALSE(result[0]);
 }
 #endif
+
+#ifdef DEC_ENABLED
+/**
+ * @tc.name: StartAccessingPolicyNullByte001
+ * @tc.desc: StartAccessingPolicy with path containing embedded null byte (\\0 truncation).
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyNullByte001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policy;
+
+    // Construct a path with an embedded null byte: "/storage/Users/currentUser/appdata\0abc"
+    // std::string::length() will count past \0, but strlen() stops at \0,
+    // so the service should detect the mismatch and return INVALID_PATH.
+    const char rawPath[] = "/storage/Users/currentUser/appdata\0abc";
+    PolicyInfo infoNullByte = {
+        .path = std::string(rawPath, sizeof(rawPath) - 1),
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    // Verify the embedded null byte is present in the std::string
+    ASSERT_EQ(sizeof(rawPath) - 1, infoNullByte.path.length());
+    ASSERT_NE(infoNullByte.path.length(), strlen(infoNullByte.path.c_str()));
+
+    policy.emplace_back(infoNullByte);
+
+    std::vector<uint32_t> startResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(policy, startResult));
+    ASSERT_EQ(1, startResult.size());
+    EXPECT_EQ(INVALID_PATH, startResult[0]);
+}
+#endif
 } // SandboxManager
 } // AccessControl
 } // OHOS

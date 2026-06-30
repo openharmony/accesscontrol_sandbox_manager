@@ -1527,6 +1527,14 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
         LOGE_WITH_REPORT(LABEL, "Policy path check fail, length = %{public}zu", policy.path.length());
         return SandboxRetType::INVALID_PATH;
     }
+    uint32_t cStrLength = strlen(policy.path.c_str());
+    if (length != cStrLength) {
+        LOGE_WITH_REPORT(LABEL, "path have a terminator: %{public}s, pathLen:%{public}u, cstrLen:%{public}u",
+            policy.path.c_str(), length, cStrLength);
+        (void)SandboxManagerDfxHelper::ReportPolicyViolate(0, "path have a terminator",
+            policy.path, "", SG_REPORT_SECURITY_CONTROL);
+        return SandboxRetType::INVALID_PATH;
+    }
 
     // media mode between 0 and 0b11(READ_MODE+WRITE_MODE)
     if (SandboxManagerMedia::GetInstance().IsMediaPolicy(policy.path)) {
