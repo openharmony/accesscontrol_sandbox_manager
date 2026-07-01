@@ -128,6 +128,9 @@ private:
     int ForkAfterUnshare();
     int MountProcFs();
     int SetAccessToken();
+#ifdef CONFIG_PC_PLATFORM
+    int SetParentHapTokenId(uint64_t tokenId);
+#endif
     int SetAinfo();
     int SetXpmOwnerId();
 #ifdef MCS_ENABLE

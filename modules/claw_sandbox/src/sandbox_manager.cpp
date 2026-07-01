@@ -60,6 +60,9 @@
 #include "token_setproc.h"
 #include "spm_setproc.h"
 #include "accesstoken_kit.h"
+#ifdef CONFIG_PC_PLATFORM
+#include "tokenid_kit.h"
+#endif
 #include "permission_list_state.h"
 #include "access_token.h"
 #include "ipc_skeleton.h"
@@ -314,6 +317,14 @@ constexpr uint32_t XPM_ID_TYPE_APPID = 3;
 constexpr unsigned long SET_XPM_OWNERID_CMD = _IOW(HM_XPM_REGION_IOCTL_BASE,
     HM_SET_XPM_OWNERID_ID, struct XpmRegionInfo);
 
+#ifdef CONFIG_PC_PLATFORM
+// access token
+constexpr const char *DEV_ACCESS_TOKEN_PATH = "/dev/access_token_id";
+constexpr int HM_ACCESS_TOKENID_IOCTL_BASE = 'A';
+constexpr int HM_SET_HAP_PTOKENID = 0x1A;
+constexpr unsigned long ACCESS_TOKENID_SET_HAP_PTOKENID = _IOW(HM_ACCESS_TOKENID_IOCTL_BASE,
+    HM_SET_HAP_PTOKENID, uint64_t);
+#endif
 
 SandboxManager::SandboxManager() {}
 
@@ -985,21 +996,44 @@ int SandboxManager::GenerateTokenId()
     return SANDBOX_SUCCESS;
 }
 
-int SandboxManager::SetAccessToken()
+#ifdef CONFIG_PC_PLATFORM
+int SandboxManager::SetParentHapTokenId(uint64_t tokenId)
 {
-    uint64_t callerId = 0;
-    if (config_.type == "shell") {
-        callerId = config_.callerTokenId;
-    } else {
-        callerId = config_.tokenIdEx.tokenIDEx;
+    auto atmTokenId = TokenIdKit::AddCliBinaryInvokerTokenFlag(tokenId);
+    int32_t fd = open(DEV_ACCESS_TOKEN_PATH, O_RDWR);
+    if (fd < 0) {
+        std::cerr << "Error: open " << DEV_ACCESS_TOKEN_PATH << "failed, ret: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("open %{public}s error, ret: %{public}s", DEV_ACCESS_TOKEN_PATH, strerror(errno));
+        return SANDBOX_SUCCESS;
     }
 
+    int32_t ret = ioctl(fd, ACCESS_TOKENID_SET_HAP_PTOKENID, &atmTokenId);
+    if (ret < 0) {
+        std::cerr << "Error: ioctl ACCESS_TOKENID_SET_HAP_PTOKENID failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("ioctl ACCESS_TOKENID_SET_HAP_PTOKENID failed: %{public}s", strerror(errno));
+        close(fd);
+        return SANDBOX_SUCCESS;
+    }
+    close(fd);
+    return SANDBOX_SUCCESS;
+}
+#endif
+
+int SandboxManager::SetAccessToken()
+{
+    uint64_t callerId = config_.type == "shell" ? config_.callerTokenId : config_.tokenIdEx.tokenIDEx;
     int ret = SetSelfTokenID(callerId);
     if (ret != 0) {
         std::cerr << "Error: SetSelfTokenID failed: " << ret << std::endl;
         SANDBOX_LOGE("SetSelfTokenID failed: %{public}d", ret);
         return SANDBOX_ERR_SET_TOKENID_FAILED;
     }
+
+#ifdef CONFIG_PC_PLATFORM
+    if (config_.type == "shell") {
+        return SetParentHapTokenId(callerId);
+    }
+#endif
     return SANDBOX_SUCCESS;
 }
 
