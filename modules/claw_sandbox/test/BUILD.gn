@@ -51,6 +51,11 @@ ohos_unittest("claw_sandbox_test") {
     "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_aids.cpp",
   ]
 
+  defines = []
+  if (sandbox_manager_pc_platform) {
+    defines += [ "CONFIG_PC_PLATFORM" ]
+  }
+
   cflags_cc = [
     "-DHILOG_ENABLE",
     "-DMCS_ENABLE",

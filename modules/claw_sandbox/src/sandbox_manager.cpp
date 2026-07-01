@@ -130,9 +130,33 @@ constexpr int HM_AGENTLOCK_CURRENT_EXECUTER_INIT_ID = 112;
 constexpr const char *CLAW_SANDBOX_ENV_KEY = "CLAW_SANDBOX";
 constexpr const char *CLAW_SANDBOX_ENV_VALUE = "1";
 // Environment variables preset for the child process.
-const std::map<std::string, std::string> PRESET_ENV_VARS = {
+
+struct EnvVar {
+    std::string_view key;
+    std::string_view value;
+};
+
+// Note: All environment variable keys defined here MUST be in UPPERCASE.
+constexpr std::string_view DELETE_ENV_VARS[] = {
+    "PATH",
+    "OHOS_SOCKET_hdcd",
+    "TMP"
+};
+
+// Note: All environment variable keys defined here MUST be in UPPERCASE.
+// This avoids redundant case conversions during subsequent traversals and lookups.
+constexpr EnvVar PRESET_ENV_VARS[] = {
 #ifdef CONFIG_PC_PLATFORM
-    {"PATH", "/data/service/hnp/bin"}
+    {"HOME", "/storage/Users/currentUser"},
+    {"SHELL", "/bin/sh"},
+    {"TMPDIR", "/storage/Users/currentUser"},
+    {"HAP_DEBUGGABLE", "false"},
+    {"HNP_PRIVATE_HOME", "/data/app"},
+    {"HNP_PUBLIC_HOME", "/data/service/hnp"},
+    {"PATH", "/usr/local/bin:/data/app/bin:/data/service/hnp/bin:/system/usr/bin:"
+             "/usr/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin"}
+#else
+    {"PATH", "/usr/local/bin:/bin:/usr/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin"}
 #endif
 };
 
@@ -1982,16 +2006,20 @@ void SandboxManager::SanitizeOverrideEnv(std::map<std::string, std::string> &san
                                          size_t &overrideAccepted, size_t &overrideRejectedBlocked,
                                          size_t &overrideRejectedInvalid)
 {
-    for (const auto &preset : PRESET_ENV_VARS) {
-        std::string upperPresetKey = ToUpperAscii(preset.first);
-        if (upperPresetKey == "PATH") {
+    for (const auto& blockedKey : DELETE_ENV_VARS) {
+        sanitizedEnv.erase(std::string(blockedKey));
+    }
+
+    for (const auto& [key, value] : PRESET_ENV_VARS) {
+        if (key == "PATH") {
             auto currentPath = sanitizedEnv.find("PATH");
             std::string base = (currentPath != sanitizedEnv.end()) ? currentPath->second : "";
-            sanitizedEnv["PATH"] = AppendEnvPathValue(base, preset.second);
+            sanitizedEnv["PATH"] = AppendEnvPathValue(base, std::string(value));
         } else {
-            sanitizedEnv[preset.first] = preset.second;
+            sanitizedEnv[std::string(key)] = std::string(value);
         }
     }
+    sanitizedEnv["USER"] = config_.currentUserId;
 
     for (const auto &item : config_.env) {
         std::string normalizedKey;
