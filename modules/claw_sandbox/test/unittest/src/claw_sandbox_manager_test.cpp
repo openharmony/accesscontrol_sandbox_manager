@@ -1033,6 +1033,96 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv003, TestSize.Level0)
 }
 
 /**
+ * @tc.name: SanitizeOverrideEnv004
+ * @tc.desc: Verify preset environment variables are loaded correctly when config is empty
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv004, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.config_.env.clear();
+
+    std::map<std::string, std::string> sanitizedEnv;
+    size_t accepted = 0;
+    size_t rejectedBlocked = 0;
+    size_t rejectedInvalid = 0;
+
+    manager.SanitizeOverrideEnv(sanitizedEnv, accepted, rejectedBlocked, rejectedInvalid);
+
+    EXPECT_EQ(0U, accepted);
+    EXPECT_EQ(0U, rejectedBlocked);
+    EXPECT_EQ(0U, rejectedInvalid);
+
+#ifdef CONFIG_PC_PLATFORM
+    EXPECT_EQ("/storage/Users/currentUser", sanitizedEnv["HOME"]);
+    EXPECT_EQ("/bin/sh", sanitizedEnv["SHELL"]);
+    EXPECT_EQ("100", sanitizedEnv["USER"]);
+    EXPECT_EQ("/usr/local/bin:/data/app/bin:/data/service/hnp/bin:/usr/bin:"
+        "/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
+#else
+    EXPECT_EQ("/usr/local/bin:/bin:/usr/bin:/system/bin:"
+        "/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
+    EXPECT_TRUE(sanitizedEnv.find("HOME") == sanitizedEnv.end());
+#endif
+}
+
+/**
+ * @tc.name: SanitizeOverrideEnv005
+ * @tc.desc: Verify that preset PATH is appended to existing PATH in sanitizedEnv
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv005, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.config_.env.clear();
+
+    std::map<std::string, std::string> sanitizedEnv = {{"PATH", "/initial/bin"}};
+    size_t accepted = 0, rejectedBlocked = 0, rejectedInvalid = 0;
+
+    manager.SanitizeOverrideEnv(sanitizedEnv, accepted, rejectedBlocked, rejectedInvalid);
+
+#ifdef CONFIG_PC_PLATFORM
+    EXPECT_EQ("/usr/local/bin:/data/app/bin:/data/service/hnp/bin:"
+        "/usr/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
+#else
+    EXPECT_EQ("/usr/local/bin:/bin:/usr/bin:"
+        "/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
+#endif
+}
+
+/**
+ * @tc.name: SanitizeOverrideEnv006
+ * @tc.desc: Verify that config PATH is prepended to the preset PATH
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv006, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.config_.env = {{"PATH", "/config/bin"}};
+
+    std::map<std::string, std::string> sanitizedEnv; // 初始为空
+    size_t accepted = 0, rejectedBlocked = 0, rejectedInvalid = 0;
+
+    manager.SanitizeOverrideEnv(sanitizedEnv, accepted, rejectedBlocked, rejectedInvalid);
+
+    EXPECT_EQ(1U, accepted);
+    EXPECT_EQ(0U, rejectedBlocked);
+    EXPECT_EQ(0U, rejectedInvalid);
+
+#ifdef CONFIG_PC_PLATFORM
+    EXPECT_EQ("/config/bin:/usr/local/bin:/data/app/bin:"
+              "/data/service/hnp/bin:/usr/bin:/system/bin:"
+              "/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
+#else
+    EXPECT_EQ("/config/bin:/usr/local/bin:/bin:/usr/bin:"
+              "/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
+#endif
+}
+
+/**
  * @tc.name: CollectGrantedPermissionGids001
  * @tc.desc: CollectGrantedPermissionGids collects unique non-negative gids for declared permissions
  * @tc.type: FUNC
@@ -2062,6 +2152,33 @@ HWTEST_F(ClawSandboxManagerTest, SetAccessToken002, TestSize.Level0)
     int ret = manager.SetAccessToken();
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_TOKENID_FAILED);
 }
+
+// ==================== SetParentHapTokenId tests ====================
+
+#ifdef CONFIG_PC_PLATFORM
+/**
+ * @tc.name: SetParentHapTokenId001
+ * @tc.desc: SetParentHapTokenId attempts to set parrent hap token IDs
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetParentHapTokenId001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.type = "shell";
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    int ret = manager.SetParentHapTokenId(config.callerTokenId);
+    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_PTOKENID_FAILED);
+}
+
+#endif
 
 // ==================== SetAinfo tests ====================
 
