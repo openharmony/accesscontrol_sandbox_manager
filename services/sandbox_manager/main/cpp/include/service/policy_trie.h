@@ -26,6 +26,12 @@
 
 class PolicyTrie {
 public:
+    enum CheckState {
+        INIT = 0,
+        ALLOWED,
+        NOT_ALLOWED,
+    };
+
     PolicyTrie() {}
     ~PolicyTrie() { DeleteChildren(); }
 
@@ -34,16 +40,19 @@ public:
     void InsertPreservingCase(const std::string &path, uint64_t mode);
     bool CheckPath(const std::string &path);
     bool CheckPath(const std::string &path, uint64_t mode);
+    bool CheckPathNew(const std::string &path, uint64_t mode);
     std::vector<std::string> FindMatchingPaths(const std::string &path, uint64_t mode);
     void SetCasePolicy(const std::string &path, bool caseInsensitive);
     void SetInsensitive(const std::string &path);
     void SetSensitive(const std::string &path);
+    void AddDeniedPaths(const std::vector<std::string> &paths);
     bool IsEmpty() const;
 private:
     inline static const uint64_t MODE_FILTER = 0b11111;
     std::vector<std::string> SplitPath(const std::string &path);
     bool IsPolicyMatch(uint64_t referMode, uint64_t searchMode);
     bool CheckPathInternal(const std::string &path, uint64_t mode, bool checkMode = true);
+    bool CheckPathInternalNew(const std::string &path, uint64_t mode, bool checkMode = true);
     void DeleteChildren();
     struct SearchState {
         PolicyTrie* node;
@@ -57,6 +66,7 @@ private:
     std::unordered_map<std::string, PolicyTrie *> children_;
     bool isEndOfPath_ = false;
     bool caseInsensitive_ = false;
+    bool denyInherit_ = false;  // Mark nodes that require needLevel enforcement
     std::unordered_map<std::string, std::unordered_set<std::string>> indexMap_;
     uint64_t mode_ = 0;
     std::set<uint64_t> modes_;

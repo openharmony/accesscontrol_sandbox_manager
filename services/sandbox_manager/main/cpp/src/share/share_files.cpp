@@ -380,8 +380,8 @@ bool SandboxManagerShare::AddToMap(const std::string &bundleName, uint32_t userI
         DeleteByBundleName(bundleName);
         return false;
     }
-    std::string maskPath = SandboxManagerLog::MaskRealPath(path.c_str());
-    std::string maskName = SandboxManagerLog::MaskRealPath(bundleName.c_str());
+    std::string maskPath = SandboxManagerLog::MaskRealPath(path);
+    std::string maskName = SandboxManagerLog::MaskRealPath(bundleName);
     SANDBOXMANAGER_LOG_INFO(LABEL, "AddToShareMap: %{public}s %{public}s\n", maskName.c_str(), maskPath.c_str());
     std::lock_guard<std::mutex> lock(mutex_);
     g_shareMap[bundleName][userId][path] = mode;
@@ -390,7 +390,7 @@ bool SandboxManagerShare::AddToMap(const std::string &bundleName, uint32_t userI
 
 void SandboxManagerShare::DeleteByBundleName(const std::string &bundleName)
 {
-    std::string maskName = SandboxManagerLog::MaskRealPath(bundleName.c_str());
+    std::string maskName = SandboxManagerLog::MaskRealPath(bundleName);
     SANDBOXMANAGER_LOG_INFO(LABEL, "DeleteByBundleName: %{public}s\n", maskName.c_str());
     std::lock_guard<std::mutex> lock(mutex_);
     g_shareMap.erase(bundleName);
@@ -398,7 +398,7 @@ void SandboxManagerShare::DeleteByBundleName(const std::string &bundleName)
 
 void SandboxManagerShare::Refresh(const std::string &bundleName, int32_t userId)
 {
-    std::string maskName = SandboxManagerLog::MaskRealPath(bundleName.c_str());
+    std::string maskName = SandboxManagerLog::MaskRealPath(bundleName);
     SANDBOXMANAGER_LOG_INFO(LABEL, "Refresh: %{public}s\n", maskName.c_str());
     DeleteByBundleName(bundleName);
     (void)GetShareCfgByBundle(bundleName, userId);

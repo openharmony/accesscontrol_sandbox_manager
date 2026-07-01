@@ -29,7 +29,11 @@
 namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
-
+namespace {
+    static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
+        LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerDfxHelper"
+    };
+}
 static std::string GetOperateString(const OperateTypeEnum operateType)
 {
     auto it = OPERATE_TYPE_MAP.find(operateType);
@@ -128,6 +132,23 @@ void SandboxManagerDfxHelper::WriteExceptionBranch(std::string &error, const uin
     }
     HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::SANDBOX_MANAGER, "EXCEPTION_BRANCH",
         HiviewDFX::HiSysEvent::EventType::FAULT, "TOKENID", inputTokenid, "INFO", error, "ERRNUM", errNum);
+}
+
+
+#define MAGIC_PID 2147483647
+void SandboxManagerDfxHelper::WriteEmergencyReportData(std::string &error, const uint32_t tokenid)
+{
+    uint32_t inputTokenid = tokenid;
+    if (inputTokenid == 0) {
+        inputTokenid = IPCSkeleton::GetCallingTokenID();
+    }
+    std::string bundlename = GetBundleNameByTokenId(inputTokenid);
+    std::string reportString = "Bundlename: " + bundlename + ", Token: " + std::to_string(inputTokenid)
+        + ", Reason: " + error;
+    SANDBOXMANAGER_LOG_ERROR(LABEL, "WriteEmergencyReportData: %{public}s", reportString.c_str());
+
+    HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::CODE_SIGN, "CS_SA_INVALID_CALLER",
+        HiviewDFX::HiSysEvent::EventType::SECURITY, "TOKEN_ID", MAGIC_PID, "INTERFACE", reportString);
 }
 
 constexpr int64_t SG_EVENT_ID = 0x012003300;
@@ -250,6 +271,18 @@ void SandboxManagerDfxHelper::WriteAuthorizationStatEvent(const AuthorizationSta
         "PERSISTENT_RULE_NUM", statData.recordCount, "KERNEL_MEMORY_USAGE", statData.totalMemoryBytes,
         "TOP_TEMP_APP", statData.tempBundleName.c_str(), "TOP_TEMP_NUM", statData.topTempRuleNum,
         "TOP_PERSIST_APP", statData.persistBundleName.c_str(), "TOP_PERSIST_NUM", statData.topPersistRuleNum);
+}
+
+std::string SandboxManagerDfxHelper::GetBundleNameByTokenId(uint32_t tokenId)
+{
+    Security::AccessToken::HapTokenInfo hapTokenInfoRes;
+    int ret = Security::AccessToken::AccessTokenKit::GetHapTokenInfo(tokenId, hapTokenInfoRes);
+    if (ret != 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to get HapTokenInfo, tokenId: %{public}u, ret:%{public}d",
+            tokenId, ret);
+        return "not_get";
+    }
+    return hapTokenInfoRes.bundleName;
 }
 }
 }

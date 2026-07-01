@@ -25,7 +25,10 @@ ohos_unittest("libsandbox_manager_communication_adapter_cxx_test") {
   }
   branch_protector_ret = "pac_ret"
 
-  sources = [ "unittest/sandbox_manager_parcel_test.cpp" ]
+  sources = [
+    "unittest/sandbox_manager_log_test.cpp",
+    "unittest/sandbox_manager_parcel_test.cpp",
+  ]
 
   deps = [ "${sandbox_manager_path}/frameworks/sandbox_manager:sandbox_manager_communication_adapter_cxx" ]
 

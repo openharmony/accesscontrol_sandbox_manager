@@ -29,41 +29,43 @@ const std::string CURRENT_DIR = ".";
 const std::string PARENT_DIR = "..";
 const std::string EMPTY_PATH = "empty path";
 const std::string NULL_PATH = "null path";
+constexpr int MAX_SANITIZE_KEEP = 6;
 
-std::string SandboxManagerLog::MaskRealPath(const char *path)
+void SandboxManagerLog::SanitizeName(std::string &str, int offset, int length)
 {
-    if (path == nullptr) {
-        return NULL_PATH;
-    }
+    int maskLength = (length >= MAX_SANITIZE_KEEP * 2)
+                         ? (length - MAX_SANITIZE_KEEP)
+                         : ((length + 1) / 2);
+    int keepLength = length - maskLength;
+    int maskStart = offset + (keepLength + 1) / 2;
 
-    if (strlen(path) == 0) {
-        return EMPTY_PATH;
-    }
+    std::fill(str.begin() + maskStart,
+              str.begin() + maskStart + maskLength, '*');
+}
 
-    std::istringstream stream(path);
-    std::string part;
-    std::string retStr;
+std::string SandboxManagerLog::MaskRealPath(const std::string &path)
+{
+    std::string result = path;
+    int len = result.size();
+    int nameStart = 0;
 
-    while (std::getline(stream, part, '/')) {
-        if (!part.empty()) {
-            if (part == CURRENT_DIR || part == PARENT_DIR) {
-                retStr.append(part);
-            } else {
-                retStr.push_back(part[0]);
-                retStr.append(MASK_INFO);
-            }
-            retStr.append("/");
-        } else {
-            /* means find "//" */
-            retStr.append("/");
+    for (int pos = 0; pos < len; pos++) {
+        if (result[pos] != '/') {
+            continue;
         }
+
+        if (pos > nameStart) {
+            SanitizeName(result, nameStart, pos - nameStart);
+        }
+
+        nameStart = pos + 1;
     }
 
-    if (path[strlen(path) - 1] != '/') {
-        retStr.pop_back();
+    if (len > nameStart) {
+        SanitizeName(result, nameStart, len - nameStart);
     }
 
-    return retStr;
+    return result;
 }
 
 } // namespace SandboxManager

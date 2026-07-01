@@ -106,6 +106,7 @@ public:
     static void OperateInfoSetByMode(PolicyOperateInfo &info, uint32_t mode);
     static void WriteIncompatibleCall(const uint32_t tokenid, std::string &reason, uint8_t type);
     static void WriteExceptionBranch(std::string &error, const uint32_t tokenid = 0, const uint32_t errNum = 0);
+    static void WriteEmergencyReportData(std::string &error, const uint32_t tokenid);
     static int32_t ReportPolicyViolate(uint32_t tokenId, const std::string &reason, int32_t errorCode = 0);
     static int32_t ReportPolicyViolate(uint32_t tokenId, const std::string &reason,
         const std::string &path, int32_t errorCode = 0);
@@ -115,6 +116,7 @@ public:
         const std::string &info, const std::string &bundleName);
     static void ReportDataSize(uint64_t partitionRemainSize, uint64_t folderSize);
     static void WriteAuthorizationStatEvent(const AuthorizationStatData &statData);
+    static std::string GetBundleNameByTokenId(uint32_t tokenId);
 };
 } // SandboxManager
 } // AccessControl

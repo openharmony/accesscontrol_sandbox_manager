@@ -47,7 +47,7 @@ template <typename T>
 void SandboxManagerMedia::MediaDfx(std::vector<std::string> &uri, std::vector<T> &mode)
 {
     for (size_t i = 0; i < uri.size(); ++i) {
-        std::string maskPath = SandboxManagerLog::MaskRealPath(uri[i].c_str());
+        std::string maskPath = SandboxManagerLog::MaskRealPath(uri[i]);
         SANDBOXMANAGER_LOG_INFO(LABEL, "uris:%{public}s, mode:%{public}d", maskPath.c_str(), mode[i]);
     }
 }
@@ -157,7 +157,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeGrant(uint32_t tokenId, std::vecto
             needGrantUris.emplace_back(uris[i]);
             needGrantMode.emplace_back(mode[i]);
         } else {
-            std::string maskPath = SandboxManagerLog::MaskRealPath(uris[i].c_str());
+            std::string maskPath = SandboxManagerLog::MaskRealPath(uris[i]);
             LOGE_WITH_REPORT(LABEL, "Uris:%{public}s, had no policy%{public}u", maskPath.c_str(), mode[i]);
         }
     }
@@ -280,7 +280,7 @@ int32_t SandboxManagerMedia::CheckPolicyBeforeCancel(uint32_t tokenId, std::vect
             needCancelUris.emplace_back(uris[i]);
             needCancelMode.emplace_back(mode[i]);
         } else {
-            std::string maskPath = SandboxManagerLog::MaskRealPath(uris[i].c_str());
+            std::string maskPath = SandboxManagerLog::MaskRealPath(uris[i]);
             LOGE_WITH_REPORT(LABEL, "Uris:%{public}s, had no policy%{public}u", maskPath.c_str(), mode[i]);
         }
     }

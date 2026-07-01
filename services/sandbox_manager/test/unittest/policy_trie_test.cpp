@@ -46,6 +46,24 @@ void PolicyTrieTest::SetUp(void) {}
 
 void PolicyTrieTest::TearDown(void) {}
 
+static void SetupDeniedPaths(PolicyTrie &trie)
+{
+    static const std::vector<std::string> DENIED_PATHS = {
+        "/storage/Users/currentUser/appdata",
+        "/storage/Users/currentUser/appdata/el2/could/com.example.filemanager/.thumbs",
+        "/storage/Users/currentUser/.thumbs",
+        "/storage/Users/currentUser/.Trash",
+    };
+    trie.AddDeniedPaths(DENIED_PATHS);
+}
+
+static void SetupCurrentUserDeniedPathsConfig(PolicyTrie &trie)
+{
+    trie.SetInsensitive("/storage/Users/currentUser");
+    trie.SetSensitive("/storage/Users/currentUser/appdata");
+    SetupDeniedPaths(trie);
+}
+
 /**
  * @tc.name: PolicyTrieTestInherit
  * @tc.desc: Test add func
@@ -672,6 +690,179 @@ HWTEST_F(PolicyTrieTest, PolicyTrieTestFindMatchingPathsCaseInsensitive, TestSiz
 
     trie.Clear();
 }
+
+/**
+ * @tc.name: PolicyTrieTestDeniedPathsBlockInherit
+ * @tc.desc: Authorize /storage/Users/currentUser/ — appdata and Appdata (case variant) should both be denied
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyTrieTest, PolicyTrieTestDeniedPathsBlockInherit, TestSize.Level0)
+{
+    PolicyTrie trie;
+    SetupCurrentUserDeniedPathsConfig(trie);
+
+    trie.InsertPath("/storage/Users/currentUser/", MODE_RW);
+
+    // appdata should be denied regardless of case
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/appdata", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/Appdata", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/APPDATA", MODE_RW), false);
+
+    // sub-paths under appdata should also be denied
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/appdata/sub", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/Appdata/sub", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/appdata/any/file.txt", MODE_RW), false);
+
+    // other denied paths should also be blocked
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/.Trash", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/.trash", MODE_RW), false);
+
+    // normal sub-paths should still match
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/docs", MODE_RW), true);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/docs/file.txt", MODE_RW), true);
+
+    trie.Clear();
+}
+
+/**
+ * @tc.name: PolicyTrieTestAuthorizeAppdataCaseInsensitive
+ * @tc.desc: Authorize /storage/Users/currentUser/APPDATA — appdata, Appdata and sub-paths should all match
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyTrieTest, PolicyTrieTestAuthorizeAppdataCaseInsensitive, TestSize.Level0)
+{
+    PolicyTrie trie;
+    SetupCurrentUserDeniedPathsConfig(trie);
+
+    trie.InsertPath("/storage/Users/currentUser/APPDATA", MODE_RW);
+
+    // exact inserted case
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/APPDATA", MODE_RW), true);
+
+    // case variants should all match
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/appdata", MODE_RW), true);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/Appdata", MODE_RW), true);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/AppData", MODE_RW), true);
+
+    // sub-paths should also match
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/appdata/sub", MODE_RW), true);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/Appdata/sub", MODE_RW), true);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/APPDATA/sub", MODE_RW), true);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/appdata/any/file.txt", MODE_RW), true);
+
+    // other denied paths should still be blocked
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/.Trash", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/.thumbs", MODE_RW), false);
+
+    trie.Clear();
+}
+
+/**
+ * @tc.name: PolicyTrieTestCurrentUserCaseSensitive
+ * @tc.desc: Authorize /storage/Users/currentUser — CURRENTUSER and its sub-paths should have no permission,
+ *        because "currentUser" segment is case-sensitive (SetSensitive scope does not cover it)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyTrieTest, PolicyTrieTestCurrentUserCaseSensitive, TestSize.Level0)
+{
+    PolicyTrie trie;
+    SetupCurrentUserDeniedPathsConfig(trie);
+
+    trie.InsertPath("/storage/Users/currentUser", MODE_RW);
+
+    // CURRENTUSER should NOT match — "currentUser" segment is case-sensitive
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/CURRENTUSER", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/CURRENTUSER/file.txt", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/CurrentUser", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/CurrentUser/file.txt", MODE_RW), false);
+
+    // correct case matches
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser", MODE_RW), true);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/file.txt", MODE_RW), true);
+
+    // denied paths still blocked even with correct case
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/appdata", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/.Trash", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/.thumbs", MODE_RW), false);
+
+    trie.Clear();
+}
+
+/**
+ * @tc.name: PolicyTrieTestDeniedDeepPath
+ * @tc.desc: Authorize /storage/Users/currentUser/appdata — deep denied .thumbs sub-path
+ *        and its children should still be blocked
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyTrieTest, PolicyTrieTestDeniedDeepPath, TestSize.Level0)
+{
+    PolicyTrie trie;
+    SetupCurrentUserDeniedPathsConfig(trie);
+
+    trie.InsertPath("/storage/Users/currentUser/appdata", MODE_RW);
+
+    // appdata itself and normal sub-paths should have permission
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/appdata", MODE_RW), true);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/appdata/el2", MODE_RW), true);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/appdata/other/file.txt", MODE_RW), true);
+
+    // deep denied .thumbs path and its sub-paths should still be blocked
+    EXPECT_EQ(trie.CheckPathNew(
+        "/storage/Users/currentUser/appdata/el2/could/com.example.filemanager/.thumbs", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew(
+        "/storage/Users/currentUser/appdata/el2/could/com.example.filemanager/.thumbs/sub", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew(
+        "/storage/Users/currentUser/appdata/el2/could/com.example.filemanager/.thumbs/a/b/c", MODE_RW), false);
+
+    // other denied paths still blocked
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/.Trash", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew("/storage/Users/currentUser/.thumbs", MODE_RW), false);
+
+    trie.Clear();
+}
+
+/**
+ * @tc.name: PolicyTrieTestBoundaryAtAppdata
+ * @tc.desc: Authorize the deep .thumbs path — APPDATA matches appdata (case-insensitive under currentUser),
+ *        but FILEMANAGER does not match filemanager (case-sensitive under appdata)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyTrieTest, PolicyTrieTestBoundaryAtAppdata, TestSize.Level0)
+{
+    PolicyTrie trie;
+    SetupCurrentUserDeniedPathsConfig(trie);
+
+    trie.InsertPath(
+        "/storage/Users/currentUser/appdata/el2/could/com.example.filemanager/.thumbs", MODE_RW);
+
+    // exact inserted path and sub-paths have permission
+    EXPECT_EQ(trie.CheckPathNew(
+        "/storage/Users/currentUser/appdata/el2/could/com.example.filemanager/.thumbs", MODE_RW), true);
+    EXPECT_EQ(trie.CheckPathNew(
+        "/storage/Users/currentUser/appdata/el2/could/com.example.filemanager/.thumbs/sub", MODE_RW), true);
+    EXPECT_EQ(trie.CheckPathNew(
+        "/storage/Users/currentUser/appdata/el2/could/com.example.filemanager/.thumbs/a/b/c", MODE_RW), true);
+
+    // APPDATA matches appdata — case-insensitive lookup at currentUser level
+    EXPECT_EQ(trie.CheckPathNew(
+        "/storage/Users/currentUser/APPDATA/el2/could/com.example.filemanager/.thumbs", MODE_RW), true);
+    EXPECT_EQ(trie.CheckPathNew(
+        "/storage/Users/currentUser/APPDATA/el2/could/com.example.filemanager/.thumbs/sub", MODE_RW), true);
+
+    // FILEMANAGER does NOT match filemanager — case-sensitive lookup under appdata
+    EXPECT_EQ(trie.CheckPathNew(
+        "/storage/Users/currentUser/APPDATA/el2/could/com.example.FILEMANAGER/.thumbs", MODE_RW), false);
+    EXPECT_EQ(trie.CheckPathNew(
+        "/storage/Users/currentUser/appdata/el2/could/com.example.FILEMANAGER/.thumbs", MODE_RW), false);
+
+    trie.Clear();
+}
+
 } // SandboxManager
 } // AccessControl
 } // OHOS

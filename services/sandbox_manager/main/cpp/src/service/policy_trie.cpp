@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
+#include <new>
 #include <stack>
 #include <string>
 #include <unordered_map>
@@ -24,6 +25,7 @@
 #include "sandbox_manager_dfx_helper.h"
 
 namespace {
+
 std::string ToLowerCase(const std::string &str)
 {
     std::string result = str;
@@ -41,6 +43,30 @@ static const int DENIED_PATHS_DEEP = 4;
 const std::unordered_map<std::string, int> PolicyTrie::DENIED_PATHS = {
     {"/storage/Users/currentUser/appdata", DENIED_PATHS_DEEP}
 };
+
+void PolicyTrie::AddDeniedPaths(const std::vector<std::string> &paths)
+{
+    for (const auto &deniedPath : paths) {
+        PolicyTrie *curNode = this;
+        std::vector<std::string> segments = SplitPath(deniedPath);
+        for (const std::string &segment : segments) {
+            std::string key = curNode->caseInsensitive_ ? ToLowerCase(segment) : segment;
+            if (curNode->children_.count(key)) {
+                curNode = curNode->children_[key];
+                continue;
+            }
+            auto *newNode = new (std::nothrow) PolicyTrie();
+            if (newNode == nullptr) {
+                return;
+            }
+            newNode->caseInsensitive_ = curNode->caseInsensitive_;
+            curNode->children_[key] = newNode;
+            curNode = curNode->children_[key];
+        }
+
+        curNode->denyInherit_ = true;
+    }
+}
 
 void PolicyTrie::DeleteChildren()
 {
@@ -84,7 +110,11 @@ void PolicyTrie::SetCasePolicy(const std::string &path, bool caseInsensitive)
         }
         std::string key = curNode->caseInsensitive_ ? ToLowerCase(segment) : segment;
         if (!curNode->children_.count(key)) {
-            curNode->children_[key] = new PolicyTrie();
+            auto *newNode = new (std::nothrow) PolicyTrie();
+            if (newNode == nullptr) {
+                return;
+            }
+            curNode->children_[key] = newNode;
         }
         curNode = curNode->children_[key];
     }
@@ -104,7 +134,6 @@ void PolicyTrie::SetSensitive(const std::string &path)
 {
     SetCasePolicy(path, false);
 }
-
 
 std::vector<std::string> PolicyTrie::SplitPath(const std::string &path)
 {
@@ -142,8 +171,12 @@ void PolicyTrie::InsertPath(const std::string &path, uint64_t mode, bool preserv
         }
 
         if (!curNode->children_.count(key)) {
-            curNode->children_[key] = new PolicyTrie();
-            curNode->children_[key]->caseInsensitive_ = curNode->caseInsensitive_;
+            auto *newNode = new (std::nothrow) PolicyTrie();
+            if (newNode == nullptr) {
+                return;
+            }
+            newNode->caseInsensitive_ = curNode->caseInsensitive_;
+            curNode->children_[key] = newNode;
         }
         curNode = curNode->children_[key];
     }
@@ -206,6 +239,55 @@ bool PolicyTrie::CheckPathInternal(const std::string &path, uint64_t mode, bool 
     return false;
 }
 
+bool PolicyTrie::CheckPathInternalNew(const std::string &path, uint64_t mode, bool checkMode)
+{
+    PolicyTrie *curNode = this;
+    std::vector<std::string> pathSegments = SplitPath(path);
+    CheckState pathStatus = CheckState::INIT;
+
+    for (const std::string &segment : pathSegments) {
+        if (curNode == nullptr) {
+            break;
+        }
+
+        std::string key;
+        if (curNode->caseInsensitive_) {
+            key = ToLowerCase(segment);
+        } else {
+            key = segment;
+        }
+
+        auto it = curNode->children_.find(key);
+        if (it == curNode->children_.end()) {
+            break;
+        }
+
+        PolicyTrie *nextNode = it->second;
+
+        // If this node is a deny path, block inheritance from parent policies
+        // but continue traversing to check for deeper explicit policies
+        if (nextNode != nullptr && nextNode->denyInherit_) {
+            pathStatus = CheckState::INIT;
+        }
+
+        // If this node has a policy, it applies (even if it's a deny node)
+        if (nextNode != nullptr && nextNode->isEndOfPath_) {
+            if (!checkMode) {
+                return true;
+            }
+            // First-match-wins: only the shallowest matching policy takes effect.
+            // Deeper policies are ignored unless reset by denyInherit_.
+            if (pathStatus == CheckState::INIT) {
+                pathStatus = IsPolicyMatch(nextNode->mode_, mode) ? CheckState::ALLOWED : CheckState::NOT_ALLOWED;
+            }
+        }
+
+        curNode = nextNode;
+    }
+
+    return (pathStatus == CheckState::ALLOWED);
+}
+
 bool PolicyTrie::CheckPath(const std::string &path)
 {
     return CheckPathInternal(path, 0, false);
@@ -216,6 +298,10 @@ bool PolicyTrie::CheckPath(const std::string &path, uint64_t mode)
     return CheckPathInternal(path, mode, true);
 }
 
+bool PolicyTrie::CheckPathNew(const std::string &path, uint64_t mode)
+{
+    return CheckPathInternalNew(path, mode, true);
+}
 std::vector<std::string> PolicyTrie::FindMatchingPaths(const std::string &path, uint64_t mode)
 {
     std::vector<std::string> results;

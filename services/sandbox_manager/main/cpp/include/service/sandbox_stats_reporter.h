@@ -47,7 +47,6 @@ class SandboxStatsReporter {
 
 public:
     void Report();
-    std::string GetBundleNameByTokenId(uint32_t tokenId);
     int32_t GetAppWithMostTempAuth(std::string &bundleName, uint32_t &tokenId, int32_t &count);
 
 private:
