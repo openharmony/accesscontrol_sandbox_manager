@@ -48,7 +48,6 @@ enum SandboxError : int {
     SANDBOX_ERR_SET_CAP_FAILED     = -17,  // Drop Capability failed
     SANDBOX_ERR_SANDBOX_PATH_EXHAUSTED = -18,  // Sandbox path creation exhausted (all retries failed)
     SANDBOX_ERR_GEN_TOKENID_FAILED = -19,  // Generate tokenid failed
-    SANDBOX_ERR_SPM_FAILED         = -20,  // SPM query or validation failed (SpmDataNew/SpmGetEntry/mismatch)
     SANDBOX_ERR_SET_POLICY_FAILED  = -21,  // Failed to deliver AgentLock policy to kernel
 };
 

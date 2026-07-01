@@ -35,7 +35,6 @@
 #define private public
 #include "sandbox_manager.h"
 #undef private
-#include "spm_setproc.h"
 
 using namespace testing::ext;
 
@@ -2606,13 +2605,6 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps002, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(config, cmdInfo);
 
-    // With type "shell", EnterCallerSandbox is skipped.
-    // Set up SPM mock to pass ValidateWithSpmEntry validation.
-    g_spmMockState.failGetEntry = false;
-    manager.config_.appIdentifier = "0";
-    // g_spmMockState.uid defaults to 20020026 (matches config.uid)
-    // g_spmMockState.ownerid defaults to 0 → appIdentifier "0" matches
-    // g_spmMockState.name defaults to "" → bundleName "" matches
     int ret = manager.ExecuteEarlySteps();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
@@ -2686,167 +2678,6 @@ HWTEST_F(ClawSandboxManagerTest, Execute001, TestSize.Level0)
 
     int ret = manager.Execute();
     EXPECT_EQ(SANDBOX_ERR_GENERIC, ret);
-}
-
-// ==================== ValidateWithSpmEntry tests ====================
-
-/**
- * @tc.name: ValidateWithSpmEntry001
- * @tc.desc: SpmDataNew returns nullptr, returns SANDBOX_ERR_SPM_FAILED
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ValidateWithSpmEntry001, TestSize.Level0)
-{
-    g_spmMockState.failDataNew = true;
-    g_spmMockState.failGetEntry = true;
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.ValidateWithSpmEntry();
-    EXPECT_EQ(SANDBOX_ERR_SPM_FAILED, ret);
-
-    g_spmMockState.failDataNew = false;
-}
-
-/**
- * @tc.name: ValidateWithSpmEntry002
- * @tc.desc: SpmGetEntry fails (default mock state), returns SANDBOX_ERR_SPM_FAILED
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ValidateWithSpmEntry002, TestSize.Level0)
-{
-    g_spmMockState.failGetEntry = true;
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.ValidateWithSpmEntry();
-    EXPECT_EQ(SANDBOX_ERR_SPM_FAILED, ret);
-}
-
-/**
- * @tc.name: ValidateWithSpmEntry003
- * @tc.desc: uid/gid mismatch with SPM entry uid, returns SANDBOX_ERR_SPM_FAILED
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ValidateWithSpmEntry003, TestSize.Level0)
-{
-    g_spmMockState.failGetEntry = false;
-    g_spmMockState.uid = 20020026;
-    g_spmMockState.ownerid = 0;
-    g_spmMockState.name = "testBundle";
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020027; // mismatch
-    config.gid = 20020027;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.ValidateWithSpmEntry();
-    EXPECT_EQ(SANDBOX_ERR_SPM_FAILED, ret);
-}
-
-/**
- * @tc.name: ValidateWithSpmEntry004
- * @tc.desc: appIdentifier mismatch with SPM entry ownerid, returns SANDBOX_ERR_SPM_FAILED
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ValidateWithSpmEntry004, TestSize.Level0)
-{
-    g_spmMockState.failGetEntry = false;
-    g_spmMockState.uid = 20020026;
-    g_spmMockState.ownerid = 99999;
-    g_spmMockState.name = "testBundle";
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.appIdentifier = "88888"; // mismatch
-    config.bundleName = "testBundle";
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.ValidateWithSpmEntry();
-    EXPECT_EQ(SANDBOX_ERR_SPM_FAILED, ret);
-}
-
-/**
- * @tc.name: ValidateWithSpmEntry005
- * @tc.desc: bundleName mismatch with SPM entry name, returns SANDBOX_ERR_SPM_FAILED
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ValidateWithSpmEntry005, TestSize.Level0)
-{
-    g_spmMockState.failGetEntry = false;
-    g_spmMockState.uid = 20020026;
-    g_spmMockState.ownerid = 0;
-    g_spmMockState.name = "expectedBundle";
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.appIdentifier = "0";
-    config.bundleName = "wrongBundle"; // mismatch
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.ValidateWithSpmEntry();
-    EXPECT_EQ(SANDBOX_ERR_SPM_FAILED, ret);
-}
-
-/**
- * @tc.name: ValidateWithSpmEntry006
- * @tc.desc: All fields match, returns SANDBOX_SUCCESS
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ValidateWithSpmEntry006, TestSize.Level0)
-{
-    g_spmMockState.failGetEntry = false;
-    g_spmMockState.uid = 20020026;
-    g_spmMockState.ownerid = 0;
-    g_spmMockState.name = "testBundle";
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.appIdentifier = "0";
-    config.bundleName = "testBundle";
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.ValidateWithSpmEntry();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
 // ==================== GenerateTokenId tests ====================
