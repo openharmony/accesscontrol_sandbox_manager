@@ -26,12 +26,6 @@
 
 class PolicyTrie {
 public:
-    enum CheckState {
-        INIT = 0,
-        ALLOWED,
-        NOT_ALLOWED,
-    };
-
     PolicyTrie() {}
     ~PolicyTrie() { DeleteChildren(); }
 
@@ -44,7 +38,6 @@ public:
     void SetCasePolicy(const std::string &path, bool caseInsensitive);
     void SetInsensitive(const std::string &path);
     void SetSensitive(const std::string &path);
-    void AddDeniedPaths(const std::vector<std::string> &paths);
     bool IsEmpty() const;
 private:
     inline static const uint64_t MODE_FILTER = 0b11111;
@@ -60,10 +53,10 @@ private:
         SearchState(PolicyTrie* n, size_t idx, std::string path)
             : node(n), currentIndex(idx), currentPath(path) {}
     };
+    static const std::unordered_map<std::string, int> DENIED_PATHS;
     std::unordered_map<std::string, PolicyTrie *> children_;
     bool isEndOfPath_ = false;
     bool caseInsensitive_ = false;
-    bool denyInherit_ = false;  // Mark nodes that require needLevel enforcement
     std::unordered_map<std::string, std::unordered_set<std::string>> indexMap_;
     uint64_t mode_ = 0;
     std::set<uint64_t> modes_;

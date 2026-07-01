@@ -384,7 +384,6 @@ private:
         MacParams &macParams, std::vector<uint32_t> &result, PolicyInfoInner &info);
     int32_t CheckSetPolicyInput(const PolicyInfo &policy, const SetInfo &setInfo, SetPolicyType type);
     std::vector<std::string> splitPath(const std::string &path);
-    bool IsAppDataPathPrefix(const std::vector<std::string> &components);
     bool CheckPathWithinBundleName(const std::string &path, const std::string &bundleName,
         std::vector<std::string> &components);
     bool CheckPathWithinRule(int32_t userID, const std::string &path,
