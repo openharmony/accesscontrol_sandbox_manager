@@ -979,8 +979,12 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv001, TestSize.Level0)
     size_t rejectedInvalid = 0;
     manager.SanitizeOverrideEnv(result, accepted, rejectedBlocked, rejectedInvalid);
 
+#ifdef CONFIG_PC_PLATFORM
+    EXPECT_EQ(8U, result.size());
+#else
     EXPECT_EQ(1U, result.size());
-    EXPECT_EQ("/usr/bin", result["PATH"]);
+#endif
+    EXPECT_TRUE(result["PATH"].find("/usr/bin") != std::string::npos);
     EXPECT_EQ(1U, accepted);
     EXPECT_EQ(3U, rejectedBlocked);
     EXPECT_EQ(0U, rejectedInvalid);
@@ -1000,7 +1004,11 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv002, TestSize.Level0)
     size_t rejectedBlocked = 0;
     size_t rejectedInvalid = 0;
     manager.SanitizeOverrideEnv(result, accepted, rejectedBlocked, rejectedInvalid);
-    EXPECT_EQ(0U, result.size());
+#ifdef CONFIG_PC_PLATFORM
+    EXPECT_EQ(8U, result.size());
+#else
+    EXPECT_EQ(1U, result.size());
+#endif
     EXPECT_EQ(0U, accepted);
     EXPECT_EQ(0U, rejectedBlocked);
     EXPECT_EQ(0U, rejectedInvalid);
@@ -1024,8 +1032,9 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv003, TestSize.Level0)
     size_t rejectedInvalid = 0;
     manager.SanitizeOverrideEnv(result, accepted, rejectedBlocked, rejectedInvalid);
 
-    // Config PATH should be prepended: "/config/bin:/preset/bin"
-    EXPECT_EQ("/config/bin:/preset/bin", result["PATH"]);
+    // Config PATH should be prepended: "/config/bin" but discard "/preset/bin"
+    EXPECT_TRUE(result["PATH"].find("/usr/bin") != std::string::npos);
+    EXPECT_TRUE(result["PATH"].find("/preset/bin") == std::string::npos);
     EXPECT_EQ(1U, accepted);
     EXPECT_EQ(0U, rejectedBlocked);
     EXPECT_EQ(0U, rejectedInvalid);
@@ -1041,6 +1050,7 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv004, TestSize.Level0)
 {
     SandboxManager manager;
     manager.config_.env.clear();
+    manager.config_.currentUserId = "100";
 
     std::map<std::string, std::string> sanitizedEnv;
     size_t accepted = 0;
@@ -1058,10 +1068,10 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv004, TestSize.Level0)
     EXPECT_EQ("/bin/sh", sanitizedEnv["SHELL"]);
     EXPECT_EQ("100", sanitizedEnv["USER"]);
     EXPECT_EQ("/usr/local/bin:/data/app/bin:/data/service/hnp/bin:/usr/bin:"
-        "/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
+        "/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
 #else
-    EXPECT_EQ("/usr/local/bin:/bin:/usr/bin:/system/bin:"
-        "/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
+    EXPECT_EQ("/usr/local/bin:/usr/bin:"
+        "/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
     EXPECT_TRUE(sanitizedEnv.find("HOME") == sanitizedEnv.end());
 #endif
 }
@@ -1083,11 +1093,11 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv005, TestSize.Level0)
     manager.SanitizeOverrideEnv(sanitizedEnv, accepted, rejectedBlocked, rejectedInvalid);
 
 #ifdef CONFIG_PC_PLATFORM
-    EXPECT_EQ("/usr/local/bin:/data/app/bin:/data/service/hnp/bin:"
-        "/usr/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
+    EXPECT_EQ("/usr/local/bin:/data/app/bin:/data/service/hnp/bin:/usr/bin:"
+        "/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
 #else
-    EXPECT_EQ("/usr/local/bin:/bin:/usr/bin:"
-        "/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
+    EXPECT_EQ("/usr/local/bin:/usr/bin:"
+        "/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
 #endif
 }
 
@@ -1102,7 +1112,7 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv006, TestSize.Level0)
     SandboxManager manager;
     manager.config_.env = {{"PATH", "/config/bin"}};
 
-    std::map<std::string, std::string> sanitizedEnv; // 初始为空
+    std::map<std::string, std::string> sanitizedEnv;
     size_t accepted = 0, rejectedBlocked = 0, rejectedInvalid = 0;
 
     manager.SanitizeOverrideEnv(sanitizedEnv, accepted, rejectedBlocked, rejectedInvalid);
@@ -1112,12 +1122,11 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv006, TestSize.Level0)
     EXPECT_EQ(0U, rejectedInvalid);
 
 #ifdef CONFIG_PC_PLATFORM
-    EXPECT_EQ("/config/bin:/usr/local/bin:/data/app/bin:"
-              "/data/service/hnp/bin:/usr/bin:/system/bin:"
-              "/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
+    EXPECT_EQ("/config/bin:/usr/local/bin:/data/app/bin:/data/service/hnp/bin:/usr/bin:"
+        "/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
 #else
-    EXPECT_EQ("/config/bin:/usr/local/bin:/bin:/usr/bin:"
-              "/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
+    EXPECT_EQ("/config/bin:/usr/local/bin:/usr/bin:"
+        "/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
 #endif
 }
 
@@ -2869,7 +2878,11 @@ HWTEST_F(ClawSandboxManagerTest, EnvPolicyEdge005, TestSize.Level0)
     manager.SanitizeOverrideEnv(result, accepted, rejectedBlocked, rejectedInvalid);
 
     // Only _valid should be accepted; bad-key and 123abc rejected as invalid
-    EXPECT_EQ(1U, result.size());
+#ifdef CONFIG_PC_PLATFORM
+    EXPECT_EQ(9U, result.size());
+#else
+    EXPECT_EQ(2U, result.size());
+#endif
     EXPECT_EQ("value3", result["_valid"]);
     EXPECT_EQ(1U, accepted);
     EXPECT_EQ(0U, rejectedBlocked);

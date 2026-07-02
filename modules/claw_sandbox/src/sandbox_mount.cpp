@@ -502,11 +502,13 @@ int SandboxManager::MountSystemEntry(const MountEntry &entry, const std::string 
     // Skip if source does not exist (no error)
     struct stat st;
     if (stat(entry.source.c_str(), &st) != 0) {
+        SANDBOX_LOGD("MountSystemEntry: %{public}s does not exist, skipping", entry.source.c_str());
         return SANDBOX_SUCCESS;
     }
 
     int ret = CreateDir(target);
     if (ret != SANDBOX_SUCCESS) {
+        SANDBOX_LOGD("MountSysDirs: %{public}s create dir failed", target.c_str());
         return ret;
     }
 
@@ -530,6 +532,26 @@ int SandboxManager::MountSystemEntry(const MountEntry &entry, const std::string 
     return SANDBOX_SUCCESS;
 }
 
+int SandboxManager::SymlinkSingleEntry(const SymLinkEntry &entry, const std::string &targetPrefix)
+{
+    std::string target = targetPrefix + entry.target;
+
+    if (access(entry.source.c_str(), F_OK) != 0) {
+        SANDBOX_LOGD("SymlinkSingleEntry: %{public}s does not exist, skipping", entry.source.c_str());
+        return SANDBOX_SUCCESS;
+    }
+
+    if (symlink(entry.source.c_str(), target.c_str()) < 0) {
+        std::cerr << "Error: Failed to symlink " << target << " -> " << entry.source <<
+                  ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to symlink %{public}s -> %{public}s: %{public}s",
+            target.c_str(), entry.source.c_str(), strerror(errno));
+        return SANDBOX_ERR_SYMLINK_FAILED;
+    }
+
+    return SANDBOX_SUCCESS;
+}
+
 int SandboxManager::MountSingleEntry(const MountEntry &entry, const std::string &targetPrefix)
 {
     constexpr unsigned long PROPAGATION_MASK = MS_SLAVE | MS_SHARED | MS_PRIVATE | MS_UNBINDABLE;
@@ -538,6 +560,7 @@ int SandboxManager::MountSingleEntry(const MountEntry &entry, const std::string 
     if (entry.checkExists) {
         struct stat st;
         if (stat(entry.source.c_str(), &st) != 0) {
+            SANDBOX_LOGD("MountSingleEntry: %{public}s does not exists, skipping", entry.source.c_str());
             return SANDBOX_SUCCESS;
         }
     }
@@ -582,6 +605,17 @@ int SandboxManager::MountSystemDirs()
 {
     for (const auto &entry : templateConfig_.systemMounts) {
         int ret = MountSystemEntry(entry, newRootPath_);
+        if (ret != SANDBOX_SUCCESS) {
+            return ret;
+        }
+    }
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::MountSymLinks()
+{
+    for (const auto &entry : templateConfig_.symLinks) {
+        int ret = SymlinkSingleEntry(entry, newRootPath_);
         if (ret != SANDBOX_SUCCESS) {
             return ret;
         }

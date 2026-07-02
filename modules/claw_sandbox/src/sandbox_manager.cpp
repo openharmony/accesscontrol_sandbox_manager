@@ -152,10 +152,11 @@ constexpr EnvVar PRESET_ENV_VARS[] = {
     {"HAP_DEBUGGABLE", "false"},
     {"HNP_PRIVATE_HOME", "/data/app"},
     {"HNP_PUBLIC_HOME", "/data/service/hnp"},
-    {"PATH", "/usr/local/bin:/data/app/bin:/data/service/hnp/bin:/system/usr/bin:"
-             "/usr/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin"}
+    {"PATH", "/usr/local/bin:/data/app/bin:/data/service/hnp/bin:/usr/bin:"
+             "/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin"}
 #else
-    {"PATH", "/usr/local/bin:/bin:/usr/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin"}
+    {"PATH", "/usr/local/bin:/usr/bin:"
+             "/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin"}
 #endif
 };
 
@@ -481,63 +482,34 @@ int SandboxManager::ExecuteEarlySteps()
  */
 int SandboxManager::ExecuteMountSteps()
 {
-    int ret = CreateNewRoot();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
+    using MountStep = int (SandboxManager::*)();
+    static const MountStep steps[] = {
+        &SandboxManager::CreateNewRoot,
+        &SandboxManager::UnshareNamespaces,
+        &SandboxManager::MountNewRoot,
+        &SandboxManager::MountSystemDirs,
+        &SandboxManager::MountSymLinks,
+        &SandboxManager::MountAppDirs,
+        &SandboxManager::SetGroups,
+        &SandboxManager::ApplyPolicyMounts,
+        &SandboxManager::PivotRoot,
+        
+        // Create a new process group (must be done BEFORE SetSeccomp & Fork,
+        // because seccomp blocks setpgid/setsid to prevent process group escape,
+        // and the child process must inherit the new process group to avoid being adopted by init)
+        &SandboxManager::SetProcessGroup,
+        
+        &SandboxManager::ForkAfterUnshare,
+        &SandboxManager::MountProcFs
+    };
+
+    for (auto step : steps) {
+        int ret = (this->*step)();
+        if (ret != SANDBOX_SUCCESS) {
+            return ret;
+        }
     }
 
-    ret = UnshareNamespaces();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    ret = MountNewRoot();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    ret = MountSystemDirs();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    ret = MountAppDirs();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    ret = SetGroups();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    ret = ApplyPolicyMounts();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    ret = PivotRoot();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Create a new process group (must be done BEFORE SetSeccomp & Fork,
-    // because seccomp blocks setpgid/setsid to prevent process group escape,
-    // and the child process must inherit the new process group to avoid being adopted by init)
-    ret = SetProcessGroup();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    ret = ForkAfterUnshare();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    ret = MountProcFs();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
     return SANDBOX_SUCCESS;
 }
 
@@ -1942,7 +1914,9 @@ void SandboxManager::SanitizeOverrideEnv(std::map<std::string, std::string> &san
             sanitizedEnv[std::string(key)] = std::string(value);
         }
     }
+#ifdef CONFIG_PC_PLATFORM
     sanitizedEnv["USER"] = config_.currentUserId;
+#endif
 
     for (const auto &item : config_.env) {
         std::string normalizedKey;

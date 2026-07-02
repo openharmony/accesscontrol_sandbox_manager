@@ -173,7 +173,48 @@ int SandboxManager::ParseSystemMountsJson(cJSON *root)
         MountEntry me;
         ParseMountEntry(entry, me);
         if (!me.source.empty() && !me.target.empty()) {
-            templateConfig_.systemMounts.push_back(me);
+            templateConfig_.systemMounts.push_back(std::move(me));
+        }
+    }
+    return SANDBOX_SUCCESS;
+}
+
+void SandboxManager::ParseSymLinkEntry(cJSON *entry, SymLinkEntry &me)
+{
+    if (!cJSON_IsObject(entry)) {
+        return;
+    }
+
+    cJSON *src = cJSON_GetObjectItem(entry, "source");
+    if (cJSON_IsString(src) && src->valuestring != nullptr) {
+        me.source = src->valuestring;
+    }
+    cJSON *tgt = cJSON_GetObjectItem(entry, "target");
+    if (cJSON_IsString(tgt) && tgt->valuestring != nullptr) {
+        me.target = tgt->valuestring;
+    }
+}
+
+int SandboxManager::ParseSymLinkJson(cJSON *root)
+{
+    if (!cJSON_IsObject(root)) {
+        return SANDBOX_SUCCESS;
+    }
+
+    cJSON *symbolLinks = cJSON_GetObjectItem(root, "symbol-links");
+    if (!cJSON_IsArray(symbolLinks)) {
+        return SANDBOX_SUCCESS;
+    }
+    int size = cJSON_GetArraySize(symbolLinks);
+    for (int i = 0; i < size; i++) {
+        cJSON *entry = cJSON_GetArrayItem(symbolLinks, i);
+        if (!cJSON_IsObject(entry)) {
+            continue;
+        }
+        SymLinkEntry me;
+        ParseSymLinkEntry(entry, me);
+        if (!me.source.empty() && !me.target.empty()) {
+            templateConfig_.symLinks.push_back(std::move(me));
         }
     }
     return SANDBOX_SUCCESS;
@@ -198,7 +239,7 @@ int SandboxManager::ParseAppMountsJson(cJSON *root)
         MountEntry me;
         ParseMountEntry(entry, me);
         if (!me.source.empty() && !me.target.empty()) {
-            templateConfig_.appMounts.push_back(me);
+            templateConfig_.appMounts.push_back(std::move(me));
         }
     }
     return SANDBOX_SUCCESS;
@@ -532,36 +573,35 @@ int SandboxManager::LoadJsonConfig(const std::string &jsonPath)
     content = ReplaceVariable(content, "<PackageName>", config_.bundleName);
     content = ReplaceVariable(content, "<currentUserId>", config_.currentUserId);
 
-    cJSON *root = cJSON_Parse(content.c_str());
+    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> root_ptr(cJSON_Parse(content.c_str()), cJSON_Delete);
+    cJSON *root = root_ptr.get();
+
     if (root == nullptr) {
         std::cerr << "Error: Failed to parse template JSON: " << jsonPath << std::endl;
         SANDBOX_LOGE("Failed to parse template JSON: %{public}s", jsonPath.c_str());
         return SANDBOX_ERR_TEMPLATE_INVALID;
     }
 
-    int ret = ParseSystemMountsJson(root);
-    if (ret != SANDBOX_SUCCESS) {
-        cJSON_Delete(root);
-        return ret;
-    }
+    using ParseStep = int (SandboxManager::*)(cJSON*);
+    ParseStep steps[] = {
+        &SandboxManager::ParseSystemMountsJson,
+        &SandboxManager::ParseSymLinkJson,
+        &SandboxManager::ParseAppMountsJson,
+        &SandboxManager::ParsePermissionJson
+    };
 
-    ret = ParseAppMountsJson(root);
-    if (ret != SANDBOX_SUCCESS) {
-        cJSON_Delete(root);
-        return ret;
-    }
-
-    ret = ParsePermissionJson(root);
-    if (ret != SANDBOX_SUCCESS) {
-        cJSON_Delete(root);
-        return ret;
+    int ret;
+    for (auto step : steps) {
+        ret = (this->*step)(root);
+        if (ret != SANDBOX_SUCCESS) {
+            return ret;
+        }
     }
 
     ParseSeccompJson(root);
     ParseEnvPolicyJson(root);
     ParseConditionalJson(root);
 
-    cJSON_Delete(root);
     SANDBOX_LOGD("Template config loaded from %{public}s", jsonPath.c_str());
     return SANDBOX_SUCCESS;
 }

@@ -69,6 +69,11 @@ private:
         bool checkExists = false;
     };
 
+    struct SymLinkEntry {
+        std::string source;
+        std::string target;
+    };
+
     // Per-permission configuration
     struct PermissionConfig {
         bool sandboxSwitch = false;              // sandbox-switch: "ON"/"OFF"
@@ -97,6 +102,7 @@ private:
 
     struct TemplateConfig {
         std::vector<MountEntry> systemMounts;
+        std::vector<SymLinkEntry> symLinks;
         std::vector<MountEntry> appMounts;
         std::vector<std::string> seccompAllowList;
         EnvPolicy envPolicy;
@@ -120,6 +126,7 @@ private:
     int UnshareNamespaces();
     int MountNewRoot();
     int MountSystemDirs();
+    int MountSymLinks();
     int MountAppDirs();
     int ApplyPolicyMounts();
     int PivotRoot();
@@ -156,6 +163,9 @@ private:
     // Mount a single system entry (simple bind mount, no remount readonly or propagation)
     int MountSystemEntry(const MountEntry &entry, const std::string &targetPrefix);
 
+    // symlink a signle entry
+    int SymlinkSingleEntry(const SymLinkEntry &entry, const std::string &targetPrefix);
+
     // Mount a single entry (extracted from MountAppDirs for 50-line limit)
     int MountSingleEntry(const MountEntry &entry, const std::string &targetPrefix);
 
@@ -184,6 +194,7 @@ public:
 
     // LoadJsonConfig sub-helpers (each under 50 lines)
     int ParseSystemMountsJson(cJSON *root);
+    int ParseSymLinkJson(cJSON *root);
     int ParseAppMountsJson(cJSON *root);
     void ParseEnvPolicyJson(cJSON *root);
     void ParseSeccompJson(cJSON *root);
@@ -199,6 +210,7 @@ public:
     void ParseConditionalRule(cJSON *item, ConditionalRule &rule);
     int LoadDefaultConfig();
     static void ParseMountEntry(cJSON *entry, MountEntry &me);
+    static void ParseSymLinkEntry(cJSON *entry, SymLinkEntry &me);
     static std::string ReplaceVariable(std::string str,
         const std::string &from, const std::string &to);
 
