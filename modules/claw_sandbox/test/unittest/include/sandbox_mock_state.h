@@ -23,18 +23,6 @@ namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
-// Mock state control for SpmGetEntry/SpmDataNew stubs in sandbox_manager_mock_stub.cpp.
-// Tests manipulate this global to control stub behavior.
-struct SpmMockState {
-    bool failDataNew = false;    // SpmDataNew returns nullptr
-    bool failGetEntry = true;    // SpmGetEntry returns error (default: fail)
-    uint32_t uid = 20020026;     // uid written into SpmData by SpmGetEntry
-    uint64_t ownerid = 0;        // ownerid written into SpmData
-    std::string name;            // name written into SpmData
-};
-
-extern SpmMockState g_spmMockState;
-
 // Mock state control for open/ioctl stubs in ioctl_mock_stub.cpp.
 // Tests manipulate this global to control stub behavior for DeliverPolicy
 // and other functions that open /dev/dec and issue ioctl commands.

@@ -58,7 +58,6 @@
 
 #include "securec.h"
 #include "token_setproc.h"
-#include "spm_setproc.h"
 #include "accesstoken_kit.h"
 #ifdef CONFIG_PC_PLATFORM
 #include "tokenid_kit.h"
@@ -159,24 +158,6 @@ constexpr EnvVar PRESET_ENV_VARS[] = {
     {"PATH", "/usr/local/bin:/bin:/usr/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin"}
 #endif
 };
-
-// Buffer sizes used to query caller SPM entry from kernel.
-constexpr uint32_t CLAW_SPM_PERM_BUF_SIZE = 64 * sizeof(uint32_t);
-constexpr uint32_t CLAW_SPM_EXTEND_PERM_BUF_SIZE = 4096;
-constexpr uint32_t CLAW_SPM_NAME_BUF_SIZE = 256;
-
-static std::string BlobToString(const SpmBlob &blob)
-{
-    if (blob.buf == nullptr || blob.bufSize == 0) {
-        return "";
-    }
-
-    size_t len = 0;
-    while (len < blob.bufSize && blob.buf[len] != '\0') {
-        len++;
-    }
-    return std::string(blob.buf, len);
-}
 
 struct DecPathInfo {
     char *path;
@@ -482,11 +463,6 @@ int SandboxManager::ExecuteEarlySteps()
         return ret;
     }
 
-    ret = ValidateWithSpmEntry();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
     if (config_.type != "shell") {
         ret = EnterCallerSandbox();
         if (ret != SANDBOX_SUCCESS) {
@@ -713,62 +689,6 @@ int SandboxManager::ValidateTokenType()
         SANDBOX_LOGE("callerTokenId is not System Hap");
         return SANDBOX_ERR_BAD_PARAMETERS;
     }
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::ValidateWithSpmEntry()
-{
-    AccessTokenID accessTokenId = static_cast<AccessTokenID>(
-        config_.callerTokenId & TOKEN_ID_LOWMASK);
-    using SpmDataPtr = std::unique_ptr<SpmData, decltype(&SpmDataFree)>;
-    SpmDataPtr entry(SpmDataNew(CLAW_SPM_PERM_BUF_SIZE, CLAW_SPM_EXTEND_PERM_BUF_SIZE, CLAW_SPM_NAME_BUF_SIZE),
-        SpmDataFree);
-    if (entry == nullptr) {
-        std::cerr << "Error: SpmDataNew failed for config validation" << std::endl;
-        SANDBOX_LOGE("SpmDataNew failed for config validation");
-        return SANDBOX_ERR_SPM_FAILED;
-    }
-
-    int ret = SpmGetEntry(static_cast<uint32_t>(accessTokenId), entry.get());
-    if (ret != 0) {
-        std::cerr << "Error: SpmGetEntry failed, accessTokenId=" << accessTokenId
-                  << ", ret=" << ret << std::endl;
-        SANDBOX_LOGE("SpmGetEntry failed for config validation, accessTokenId=%{public}u, ret=%{public}d",
-            accessTokenId, ret);
-        return SANDBOX_ERR_SPM_FAILED;
-    }
-
-    // Validate uid and gid against SPM entry uid
-    if (config_.uid != entry->uid || config_.gid != entry->uid) {
-        std::cerr << "Error: The input uid/gid mismatch with ATM-expected value: input(uid=" << config_.uid
-                  << ", gid=" << config_.gid << "), ATM-expected(uid=" << entry->uid << ")" << std::endl;
-        SANDBOX_LOGE("The input uid/gid mismatch with ATM-expected value: "
-                     "input(uid=%{public}u, gid=%{public}u), ATM-expected(uid=%{public}u)",
-            config_.uid, config_.gid, entry->uid);
-        return SANDBOX_ERR_SPM_FAILED;
-    }
-
-    // Validate appIdentifier against SPM entry ownerid
-    std::string owneridStr = std::to_string(static_cast<unsigned long long>(entry->ownerid));
-    if (config_.appIdentifier != owneridStr) {
-        std::cerr << "Error: The input appIdentifier mismatch with ATM-expected value: input="
-                  << config_.appIdentifier << ", ATM-expected=" << owneridStr << std::endl;
-        SANDBOX_LOGE("The input appIdentifier mismatch with ATM-expected value: "
-                     "input=%{public}s, ATM-expected=%{public}s",
-            config_.appIdentifier.c_str(), owneridStr.c_str());
-        return SANDBOX_ERR_SPM_FAILED;
-    }
-    // Validate bundleName against SPM entry name
-    std::string entryName = BlobToString(entry->name);
-    if (config_.bundleName != entryName) {
-        std::cerr << "Error: The input bundleName mismatch with ATM-expected value: input="
-                  << config_.bundleName << ", ATM-expected=" << entryName << std::endl;
-        SANDBOX_LOGE("The input bundleName mismatch with ATM-expected value: "
-                     "input=%{public}s, ATM-expected=%{public}s",
-            config_.bundleName.c_str(), entryName.c_str());
-        return SANDBOX_ERR_SPM_FAILED;
-    }
-
     return SANDBOX_SUCCESS;
 }
 
