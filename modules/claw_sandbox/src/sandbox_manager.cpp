@@ -346,6 +346,9 @@ int SandboxManager::Initialize(const SandboxConfig &config, const CmdInfo &cmdIn
     config_.currentUserId = std::to_string(config_.uid / UID_BASE);
     initialized_ = true;
     config_.nsFlags |= config_.type == "cli" ? CLONE_NEWNET : 0;
+#ifndef CONFIG_PC_PLATFORM
+    config_.nsFlags |= CLONE_NEWNET;
+#endif
     return SANDBOX_SUCCESS;
 }
 
