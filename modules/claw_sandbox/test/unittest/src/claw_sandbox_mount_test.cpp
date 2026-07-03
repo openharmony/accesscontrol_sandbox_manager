@@ -587,6 +587,31 @@ HWTEST_F(ClawSandboxMountTest, MountSystemEntry003, TestSize.Level0)
 }
 
 /**
+ * @tc.name: SymlinkSingleEntry001
+ * @tc.desc: SymlinkSingleEntry with non-existent source returns success (skip)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, SymlinkSingleEntry001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    SandboxManager::SymLinkEntry entry;
+    entry.source = "/nonexistent_source_path_xyz";
+    entry.target = "/test_target";
+
+    int ret = manager.SymlinkSingleEntry(entry, "");
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+}
+
+/**
  * @tc.name: MountSingleEntry001
  * @tc.desc: MountSingleEntry with checkExists and non-existent source returns error
  * @tc.type: FUNC
@@ -658,6 +683,28 @@ HWTEST_F(ClawSandboxMountTest, MountSystemDirs001, TestSize.Level0)
 
     manager.newRootPath_ = "/mnt/sandbox/claw/test";
     int ret = manager.MountSystemDirs();
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+}
+
+/**
+ * @tc.name: MountSymLinks001
+ * @tc.desc: MountSymLinks with empty systemMounts returns success
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MountSymLinks001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    manager.newRootPath_ = "/mnt/sandbox/claw/test";
+    int ret = manager.MountSymLinks();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 

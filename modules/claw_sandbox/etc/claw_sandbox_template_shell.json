@@ -25,30 +25,6 @@
       "check-exists": true
     },
     {
-      "source": "/usr",
-      "target": "/usr",
-      "mount-flags": ["bind", "rec"],
-      "check-exists": true
-    },
-    {
-      "source": "/etc",
-      "target": "/etc",
-      "mount-flags": ["bind", "rec"],
-      "check-exists": true
-    },
-    {
-      "source": "/lib",
-      "target": "/lib",
-      "mount-flags": ["bind", "rec"],
-      "check-exists": true
-    },
-    {
-      "source": "/bin",
-      "target": "/bin",
-      "mount-flags": ["bind", "rec"],
-      "check-exists": true
-    },
-    {
       "source": "/sbin",
       "target": "/sbin",
       "mount-flags": ["bind", "rec"],
@@ -137,6 +113,28 @@
       "target": "/config",
       "mount-flags": ["bind", "rec"],
       "check-exists": true
+    }
+  ],
+  "symbol-links": [
+    {
+      "source": "/system/bin",
+      "target": "/bin"
+    },
+    {
+      "source": "/system/lib",
+      "target": "/lib"
+    },
+    {
+      "source": "/system/lib64",
+      "target": "/lib64"
+    },
+    {
+      "source": "/system/etc",
+      "target": "/etc"
+    },
+    {
+      "source": "/system/usr",
+      "target": "/usr"
     }
   ],
   "app-mounts": [

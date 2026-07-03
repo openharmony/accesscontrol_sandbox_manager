@@ -285,6 +285,54 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseMountEntry005, TestSize.Level0)
     cJSON_Delete(root);
 }
 
+// ==================== ParseSymLinkEntry tests ====================
+
+/**
+ * @tc.name: ParseSymLinkEntry001
+ * @tc.desc: ParseSymLinkEntry parses source and target correctly
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseSymLinkEntry001, TestSize.Level0)
+{
+    const char *json = R"({
+        "source": "/src/path",
+        "target": "/tgt/path"
+    })";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager::SymLinkEntry me;
+    SandboxManager::ParseSymLinkEntry(root, me);
+    EXPECT_EQ("/src/path", me.source);
+    EXPECT_EQ("/tgt/path", me.target);
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: ParseSymLinkEntry002
+ * @tc.desc: ParseSymLinkEntry ignores fields with unexpected JSON types
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseSymLinkEntry002, TestSize.Level0)
+{
+    const char *json = R"({
+        "source": 100,
+        "target": false
+    })";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager::SymLinkEntry me;
+    SandboxManager::ParseSymLinkEntry(root, me);
+    EXPECT_TRUE(me.source.empty());
+    EXPECT_TRUE(me.target.empty());
+
+    cJSON_Delete(root);
+}
+
 // ==================== ParseMountEntry fallback tests ====================
 
 /**
@@ -925,6 +973,114 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSystemMountsJson004, TestSize.Level0)
     SandboxManager manager;
     EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseSystemMountsJson(root));
     EXPECT_TRUE(manager.templateConfig_.systemMounts.empty());
+
+    cJSON_Delete(root);
+}
+
+// ==================== ParseSymLinkJson tests ====================
+
+/**
+ * @tc.name: ParseSymLinkJson001
+ * @tc.desc: ParseSymLinkJson parses system-mounts array
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseSymLinkJson001, TestSize.Level0)
+{
+    const char *json = R"({
+        "symbol-links": [
+            {"source": "/system/bin", "target": "/bin"},
+            {"source": "/system/lib", "target": "/lib"}
+        ]
+    })";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = 12345;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    int ret = manager.ParseSymLinkJson(root);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: ParseSymLinkJson002
+ * @tc.desc: ParseSymLinkJson with missing symbol-links returns success
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseSymLinkJson002, TestSize.Level0)
+{
+    const char *json = R"({})";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = 12345;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    int ret = manager.ParseSymLinkJson(root);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: ParseSymLinkJson003
+ * @tc.desc: ParseSymLinkJson skips invalid entries and incomplete mounts
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseSymLinkJson003, TestSize.Level0)
+{
+    const char *json = R"({
+        "symbol-links": [
+            100,
+            {"source": "/src-only"},
+            {"target": "/target-only"},
+            {"source": "/src", "target": "/target"}
+        ]
+    })";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseSymLinkJson(root));
+    ASSERT_EQ(1U, manager.templateConfig_.symLinks.size());
+    EXPECT_EQ("/src", manager.templateConfig_.symLinks[0].source);
+    EXPECT_EQ("/target", manager.templateConfig_.symLinks[0].target);
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: ParseSymLinkJson004
+ * @tc.desc: ParseSymLinkJson ignores non-array symbol-links field
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseSymLinkJson004, TestSize.Level0)
+{
+    const char *json = R"({"symbol-links": {"source": "/src", "target": "/dst"}})";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseSymLinkJson(root));
+    EXPECT_TRUE(manager.templateConfig_.symLinks.empty());
 
     cJSON_Delete(root);
 }

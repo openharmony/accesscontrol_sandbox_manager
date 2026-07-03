@@ -50,6 +50,7 @@ enum SandboxError : int {
     SANDBOX_ERR_GEN_TOKENID_FAILED = -19,  // Generate tokenid failed
     SANDBOX_ERR_SET_POLICY_FAILED  = -21,  // Failed to deliver AgentLock policy to kernel
     SANDBOX_ERR_SET_PTOKENID_FAILED = -22,  // Set Parent Hap TokenID failed
+    SANDBOX_ERR_SYMLINK_FAILED     = -23,  // Symlink failed
 };
 
 } // namespace SANDBOX
