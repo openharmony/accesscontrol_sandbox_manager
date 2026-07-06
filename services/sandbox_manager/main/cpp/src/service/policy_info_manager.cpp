@@ -54,6 +54,13 @@ namespace {
 static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxPolicyInfoManager"
 };
+
+// Returns true if actual matches expected case-insensitively but not exactly.
+// Used to detect case-variant path components (e.g. "AppData" instead of "appdata").
+static bool IsCaseMismatch(const std::string &actual, const std::string &expected)
+{
+    return actual != expected && strcasecmp(actual.c_str(), expected.c_str()) == 0;
+}
 }
 
 PolicyInfoManager &PolicyInfoManager::GetInstance()
@@ -434,10 +441,14 @@ int32_t PolicyInfoManager::MatchNormalPolicy(const uint32_t tokenId, const std::
 
     // Step 1: Build trie tree with database results for policy operations
     PolicyTrie trieTree;
+    PolicyTrie trieTreeNew;
     // Set case-insensitive and case-sensitive paths
     InitTrieWithCaseSensitivity(trieTree);
+    trieTreeNew.SetInsensitive("/storage/Users/currentUser");
+    trieTreeNew.SetSensitive("/storage/Users/currentUser/appdata");
+    trieTreeNew.AddDeniedPaths(macAdapter_.GetBlockedInheritPaths());
 
-    int32_t ret = BuildTrieForPolicyOperations(tokenId, trieTree, false);
+    int32_t ret = BuildTrieForPolicyOperationsNew(tokenId, trieTree, trieTreeNew);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -450,7 +461,7 @@ int32_t PolicyInfoManager::MatchNormalPolicy(const uint32_t tokenId, const std::
     }
 
     // Step 3: Check each input policy against the trie
-    ProcessPolicyMatches(policy, policySize, tokenId, trieTree, result);
+    ProcessPolicyMatches(policy, policySize, tokenId, trieTree, trieTreeNew, result);
 
     SANDBOXMANAGER_LOG_INFO(LABEL, "match policy target:%{public}u end", tokenId);
     return SANDBOX_MANAGER_OK;
@@ -520,6 +531,33 @@ int32_t PolicyInfoManager::BuildTrieForPolicyOperations(const uint32_t tokenId, 
     return SANDBOX_MANAGER_OK;
 }
 
+int32_t PolicyInfoManager::BuildTrieForPolicyOperationsNew(const uint32_t tokenId, PolicyTrie &trieTree,
+    PolicyTrie &trieTreeNew)
+{
+    // Query all policies for this tokenId from database
+    GenericValues conditions;
+    GenericValues symbols;
+    conditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(tokenId));
+    symbols.Put(PolicyFiledConst::FIELD_TOKENID, std::string("="));
+
+    std::vector<GenericValues> dbResults;
+    int32_t ret = RangeFind(conditions, symbols, dbResults);
+    if (ret != SANDBOX_MANAGER_OK) {
+        LOGE_WITH_REPORT(LABEL, "Database operate error when building trie for policy operations");
+        return ret;
+    }
+
+    // Insert paths from database into trie tree
+    for (size_t i = 0; i < dbResults.size(); i++) {
+        std::string currPath = dbResults[i].GetString(PolicyFiledConst::FIELD_PATH);
+        uint32_t currMode = static_cast<uint32_t>(dbResults[i].GetInt(PolicyFiledConst::FIELD_MODE));
+        trieTree.InsertPath(currPath, currMode);
+        trieTreeNew.InsertPath(currPath, currMode);
+    }
+
+    return SANDBOX_MANAGER_OK;
+}
+
 /**
  * @brief Build trie tree with all database records (without filtering by tokenId)
  */
@@ -550,8 +588,8 @@ int32_t PolicyInfoManager::BuildTrieWithAllRecords(PolicyTrie &trieTree)
 /**
  * @brief Process policy matches against trie tree
  */
-void PolicyInfoManager::ProcessPolicyMatches(const std::vector<PolicyInfo> &policy, size_t policySize, uint32_t tokenId,
-    PolicyTrie &trieTree, std::vector<uint32_t> &result)
+void PolicyInfoManager::ProcessPolicyMatches(const std::vector<PolicyInfo> &policy, size_t policySize,
+    uint32_t tokenId, PolicyTrie &trieTree, PolicyTrie &trieTreeNew, std::vector<uint32_t> &result)
 {
     for (size_t i = 0; i < policySize; i++) {
         int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
@@ -560,10 +598,26 @@ void PolicyInfoManager::ProcessPolicyMatches(const std::vector<PolicyInfo> &poli
             continue;
         }
 
-        if (trieTree.CheckPath(policy[i].path, policy[i].mode)) {
+        bool retFlag = trieTree.CheckPath(policy[i].path, policy[i].mode);
+        bool retFlagNew = trieTreeNew.CheckPathNew(policy[i].path, policy[i].mode);
+        if (retFlag != retFlagNew) {
+            std::string maskedPath = SandboxManagerLog::MaskRealPath(policy[i].path);
+            std::string error = "Check blocked path: " + maskedPath + " ret:"
+                + std::to_string(retFlag) + " retNew:" + std::to_string(retFlagNew)
+                + " mode:" + std::to_string(policy[i].mode);
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "CheckPath mismatch path: %{public}s mode: %{public}u "
+                "retFlag: %{public}d retFlagNew: %{public}d",
+                maskedPath.c_str(), static_cast<uint32_t>(policy[i].mode), retFlag, retFlagNew);
+            OHOS::AccessControl::SandboxManager::SandboxManagerDfxHelper::WriteEmergencyReportData(error, tokenId);
+        }
+#ifdef NOT_RESIDENT
+        SANDBOXMANAGER_LOG_DEBUG(LABEL, "Has case verification and has more deny inheritance rules.");
+        retFlag = retFlagNew;
+#endif
+        if (retFlag) {
             result[i] = SandboxRetType::OPERATE_SUCCESSFULLY;
         } else {
-            std::string maskPath = SandboxManagerLog::MaskRealPath(policy[i].path.c_str());
+            std::string maskPath = SandboxManagerLog::MaskRealPath(policy[i].path);
             SANDBOXMANAGER_LOG_INFO(LABEL, "target:%{public}u path:%{public}s no persisted",
                 tokenId, maskPath.c_str());
             result[i] = SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED;
@@ -1599,13 +1653,13 @@ bool PolicyInfoManager::CheckPathWithinBundleName(const std::string &path, const
     }
 
     if (components.size() <= MAX_CHECK_COM_NUM) {
-        std::string maskPath = SandboxManagerLog::MaskRealPath(path.c_str());
+        std::string maskPath = SandboxManagerLog::MaskRealPath(path);
         SANDBOXMANAGER_LOG_ERROR(LABEL, "selfpath %{public}s size error", maskPath.c_str());
         return false;
     }
 
     if (components[MAX_CHECK_COM_NUM] != bundleName) {
-        std::string maskPath = SandboxManagerLog::MaskRealPath(path.c_str());
+        std::string maskPath = SandboxManagerLog::MaskRealPath(path);
         SANDBOXMANAGER_LOG_ERROR(LABEL, "check path %{public}s by bundle failed", maskPath.c_str());
         return false;
     }
@@ -1666,6 +1720,11 @@ bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::strin
     size_t APPDATA_PATH_SIZE = APPDATA_PATH_WITH_SLASH.length();
     // only check paths which are starting with '/storage/Users/currentUser/appdata/'
     if (path.substr(0, APPDATA_PATH_SIZE) != APPDATA_PATH_WITH_SLASH) {
+        if (IsAppDataPathPrefix(components)) {
+            std::string maskPath = OHOS::AccessControl::SandboxManager::SandboxManagerLog::MaskRealPath(path);
+            std::string error = "Share map blocked path: " + maskPath;
+            SandboxManagerDfxHelper::WriteEmergencyReportData(error, 0);
+        }
         return true;
     }
 
@@ -1699,9 +1758,31 @@ bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::strin
     return CheckShareMode(permission, policy.mode, maskedPath, bundleNameTmp);
 }
 
+// Check if path components start with /storage/Users/currentUser/appdata prefix
+// Note: "appdata" is case-insensitive, while "storage", "Users", "currentUser" are case-sensitive
+bool PolicyInfoManager::IsAppDataPathPrefix(const std::vector<std::string> &components)
+{
+    // Path format: /storage/Users/currentUser/appdata/...
+    constexpr size_t STORAGE_INDEX = 0;
+    constexpr size_t USERS_INDEX = 1;
+    constexpr size_t CURRENT_USER_INDEX = 2;
+    constexpr size_t APPDATA_INDEX = 3;
+    // at least 4 components: storage/Users/currentUser/appdata
+    constexpr size_t MIN_APPDATA_COMPONENTS = APPDATA_INDEX + 1;
+    if (components.size() < MIN_APPDATA_COMPONENTS) {
+        return false;
+    }
+    // case-insensitive: appdata may appear as AppData, APPDATA, etc.
+    return components[STORAGE_INDEX] == "storage" &&
+           components[USERS_INDEX] == "Users" &&
+           components[CURRENT_USER_INDEX] == "currentUser" &&
+           strcasecmp(components[APPDATA_INDEX].c_str(), "appdata") == 0;
+}
+
 bool PolicyInfoManager::CheckPathWithinRule(int32_t userID, const std::string &path,
     const PolicyInfo &policy, const std::string &bundleName, size_t index)
 {
+    constexpr size_t APPDATA_INDEX = 3;
     if ((path == ROOT_PATH) || (path == APPDATA_PATH)) {
         return false;
     }
@@ -1722,6 +1803,13 @@ bool PolicyInfoManager::CheckPathWithinRule(int32_t userID, const std::string &p
     if (components[0] == "storage" && components[1] == "Users") {
         if (components[SECOND_PATH_SEGMENT] != "currentUser") {
             return false; // such as "/storage/Users/a"
+        }
+
+        if (components.size() > APPDATA_INDEX &&
+            IsCaseMismatch(components[APPDATA_INDEX], "appdata")) {
+            std::string maskPath = OHOS::AccessControl::SandboxManager::SandboxManagerLog::MaskRealPath(path);
+            std::string error = "CheckPathWithinRule blocked path: " + maskPath;
+            SandboxManagerDfxHelper::WriteEmergencyReportData(error, 0);
         }
     }
 

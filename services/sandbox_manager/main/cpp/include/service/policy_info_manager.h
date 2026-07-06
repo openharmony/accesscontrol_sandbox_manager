@@ -373,6 +373,7 @@ private:
 
     // Helper functions for policy operations (shared between MatchNormalPolicy and RemoveNormalPolicy)
     int32_t BuildTrieForPolicyOperations(const uint32_t tokenId, PolicyTrie &trieTree, bool preserveCase);
+    int32_t BuildTrieForPolicyOperationsNew(const uint32_t tokenId, PolicyTrie &trieTree,  PolicyTrie &trieTreeNew);
     int32_t BuildTrieWithAllRecords(PolicyTrie &trieTree);
 
     int32_t GetMediaPolicyCommonWork(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
@@ -384,6 +385,7 @@ private:
         MacParams &macParams, std::vector<uint32_t> &result, PolicyInfoInner &info);
     int32_t CheckSetPolicyInput(const PolicyInfo &policy, const SetInfo &setInfo, SetPolicyType type);
     std::vector<std::string> splitPath(const std::string &path);
+    bool IsAppDataPathPrefix(const std::vector<std::string> &components);
     bool CheckPathWithinBundleName(const std::string &path, const std::string &bundleName,
         std::vector<std::string> &components);
     bool CheckPathWithinRule(int32_t userID, const std::string &path,
@@ -405,7 +407,7 @@ private:
      * @param result output result vector
      */
     void ProcessPolicyMatches(const std::vector<PolicyInfo> &policy, size_t policySize, uint32_t tokenId,
-        PolicyTrie &trieTree, std::vector<uint32_t> &result);
+        PolicyTrie &trieTree, PolicyTrie &trieTreeNew, std::vector<uint32_t> &result);
 
     /**
      * @brief Retrieve media-related policies for the given token ID

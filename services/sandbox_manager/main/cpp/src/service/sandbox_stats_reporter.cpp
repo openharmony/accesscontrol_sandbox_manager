@@ -41,18 +41,6 @@ SandboxStatsReporter::SandboxStatsReporter()
 
 SandboxStatsReporter::~SandboxStatsReporter() = default;
 
-std::string SandboxStatsReporter::GetBundleNameByTokenId(uint32_t tokenId)
-{
-    Security::AccessToken::HapTokenInfo hapTokenInfoRes;
-    int ret = Security::AccessToken::AccessTokenKit::GetHapTokenInfo(tokenId, hapTokenInfoRes);
-    if (ret != 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to get HapTokenInfo, tokenId: %{public}u, ret:%{public}d",
-            tokenId, ret);
-        return "not_get";
-    }
-    return hapTokenInfoRes.bundleName;
-}
-
 int32_t SandboxStatsReporter::GetAppWithMostTempAuth(std::string &bundleName, uint32_t &tokenId, int32_t &count)
 {
     uint64_t tokenId64 = 0;
@@ -64,7 +52,7 @@ int32_t SandboxStatsReporter::GetAppWithMostTempAuth(std::string &bundleName, ui
 
     tokenId = static_cast<uint32_t>(tokenId64 & TOKENID_MASK);
     if (tokenId != 0) {
-        bundleName = GetBundleNameByTokenId(tokenId);
+        bundleName = SandboxManagerDfxHelper::GetBundleNameByTokenId(tokenId);
     } else {
         bundleName = "global";
     }
@@ -138,7 +126,7 @@ void SandboxStatsReporter::GetTopPersistApp(uint32_t &persistTokenId, uint32_t &
             tokenIdRet);
     }
     if (persistTokenId != 0) {
-        persistBundleName = GetBundleNameByTokenId(persistTokenId);
+        persistBundleName = SandboxManagerDfxHelper::GetBundleNameByTokenId(persistTokenId);
     }
 }
 
