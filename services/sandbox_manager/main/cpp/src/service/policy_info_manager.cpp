@@ -187,12 +187,18 @@ int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vecto
 
     std::vector<GenericValues> dbResults;
     for (const std::string& path : filePathList) {
-        uint32_t length = path.length();
+        std::string trimmedPath = path.c_str();
+        if (trimmedPath.length() != path.length()) {
+            LOGE_WITH_REPORT(LABEL,
+                "Truncate trailing null in path, originalLen=%{public}zu, newLen=%{public}zu",
+                path.length(), trimmedPath.length());
+        }
+        uint32_t length = trimmedPath.length();
         if ((length == 0) || (length > POLICY_PATH_LIMIT)) {
-            LOGE_WITH_REPORT(LABEL, "Policy path check fail, length = %{public}zu.", path.length());
+            LOGE_WITH_REPORT(LABEL, "Policy path check fail, length = %{public}zu.", trimmedPath.length());
             continue;
         }
-        std::string pathTmp = AdjustPath(path);
+        std::string pathTmp = AdjustPath(trimmedPath);
         trieTree.InsertPath(pathTmp, 0);
         int32_t ret = SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(
             SANDBOX_MANAGER_PERSISTED_POLICY, pathTmp, dbResults);
@@ -1576,15 +1582,6 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
         LOGE_WITH_REPORT(LABEL, "Policy path check fail, length = %{public}zu", policy.path.length());
         return SandboxRetType::INVALID_PATH;
     }
-    uint32_t cStrLength = strlen(policy.path.c_str());
-    if (length != cStrLength) {
-        LOGE_WITH_REPORT(LABEL, "path have a terminator: %{public}s, pathLen:%{public}u, cstrLen:%{public}u",
-            policy.path.c_str(), length, cStrLength);
-        (void)SandboxManagerDfxHelper::ReportPolicyViolate(0, "path have a terminator",
-            policy.path, "", SG_REPORT_SECURITY_CONTROL);
-        return SandboxRetType::INVALID_PATH;
-    }
-
     // media mode between 0 and 0b11(READ_MODE+WRITE_MODE)
     if (SandboxManagerMedia::GetInstance().IsMediaPolicy(policy.path)) {
         if (policy.mode < OperateMode::READ_MODE ||

@@ -16,6 +16,7 @@
 #ifndef POLICY_VEC_RAW_DATA_H
 #define POLICY_VEC_RAW_DATA_H
 #include <cstdint>
+#include <cstring>
 #include <sstream>
 #include "securec.h"
 #include "policy_info.h"
@@ -178,7 +179,8 @@ private:
                 return SANDBOX_MANAGER_SERVICE_PARCEL_ERR;
             }
 
-            info.path.assign(dataPtr_, pathLen);
+            size_t actualLen = strnlen(dataPtr_, pathLen);
+            info.path.assign(dataPtr_, actualLen);
             dataPtr_ += pathLen;
             remainingSize_ -= pathLen;
 

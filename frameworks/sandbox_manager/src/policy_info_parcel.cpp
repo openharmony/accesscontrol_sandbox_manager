@@ -33,7 +33,7 @@ PolicyInfoParcel* PolicyInfoParcel::Unmarshalling(Parcel &in)
         return nullptr;
     }
 
-    policyInfoParcel->policyInfo.path = in.ReadString();
+    policyInfoParcel->policyInfo.path = in.ReadString().c_str();
     RELEASE_IF_FALSE(in.ReadUint64(policyInfoParcel->policyInfo.mode), policyInfoParcel);
     return policyInfoParcel;
 }
