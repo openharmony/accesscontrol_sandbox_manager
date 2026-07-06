@@ -1613,7 +1613,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyCoverage003, Tes
 }
 #endif
 
-#ifdef DEC_ENABLED
+#ifdef DEC_EXT
 /**
  * @tc.name: StartAccessingPolicyNullByte001
  * @tc.desc: StartAccessingPolicy with path containing embedded null byte (\\0 truncation).
@@ -1622,8 +1622,6 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyCoverage003, Tes
  */
 HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyNullByte001, TestSize.Level0)
 {
-    std::vector<PolicyInfo> policy;
-
     // Construct a path with an embedded null byte: "/storage/Users/currentUser/appdata\0abc"
     // std::string::length() will count past \0, but strlen() stops at \0,
     // so the service should detect the mismatch and return INVALID_PATH.
@@ -1636,12 +1634,32 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyNullByte001, Tes
     ASSERT_EQ(sizeof(rawPath) - 1, infoNullByte.path.length());
     ASSERT_NE(infoNullByte.path.length(), strlen(infoNullByte.path.c_str()));
 
-    policy.emplace_back(infoNullByte);
+    // SetPolicy with normal path should succeed
+    PolicyInfo infoNormal = {
+        .path = "/storage/Users/currentUser",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    std::vector<PolicyInfo> normalPolicy;
+    normalPolicy.emplace_back(infoNormal);
+    std::vector<uint32_t> setResult;
+    uint64_t policyFlag = 1;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, normalPolicy, policyFlag, setResult));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, setResult[0]);
 
+    // PersistPolicy with normal path should succeed
+    std::vector<uint32_t> persistResult;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(normalPolicy, persistResult));
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    // StartAccessingPolicy with null-byte path should be rejected
+    std::vector<PolicyInfo> nullBytePolicy;
+    nullBytePolicy.emplace_back(infoNullByte);
     std::vector<uint32_t> startResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(policy, startResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(nullBytePolicy, startResult));
     ASSERT_EQ(1, startResult.size());
-    EXPECT_EQ(INVALID_PATH, startResult[0]);
+    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, startResult[0]);
 }
 #endif
 } // SandboxManager

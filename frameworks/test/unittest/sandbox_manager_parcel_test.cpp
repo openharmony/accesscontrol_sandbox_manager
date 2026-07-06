@@ -93,6 +93,33 @@ HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel001, TestSize.Level0)
 }
 
 /**
+ * @tc.name: PolicyInfoParcel002
+ * @tc.desc: Test Unmarshalling truncates path at embedded '\0'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerParcelTest, PolicyInfoParcel002, TestSize.Level0)
+{
+    // Construct a path with embedded '\0': "/data/files\0garbage"
+    std::string rawPath = "/data/files";
+    rawPath.push_back('\0');
+    rawPath.append("garbage");
+
+    Parcel parcel;
+    parcel.WriteString(rawPath);
+    parcel.WriteUint64(0b01);
+
+    parcel.RewindRead(0);
+    std::shared_ptr<PolicyInfoParcel> readedData(PolicyInfoParcel::Unmarshalling(parcel));
+    ASSERT_NE(nullptr, readedData);
+
+    // path should be truncated at '\0', resulting in "/data/files" (11 chars)
+    EXPECT_EQ(std::string("/data/files"), readedData->policyInfo.path);
+    EXPECT_EQ(11u, readedData->policyInfo.path.length());
+    EXPECT_EQ(0b01u, readedData->policyInfo.mode);
+}
+
+/**
  * @tc.name: SharedDirectoryInfoVecRawData_001
  * @tc.desc: Test normal Marshalling/Unmarshalling with single element
  * @tc.type: FUNC

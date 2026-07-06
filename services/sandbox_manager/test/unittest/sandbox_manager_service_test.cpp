@@ -1388,6 +1388,43 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest019, TestSiz
     EXPECT_EQ(policyInfo.type, batchPolicy[0].type);
 }
 
+/**
+ * @tc.name: SandboxManagerServiceRawDataTest020
+ * @tc.desc: Test ReadPolicies truncates path at embedded '\0'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest020, TestSize.Level0)
+{
+    // Construct path with embedded '\0': "/data/abc\0XYZ" (12 bytes, '\0' at index 9)
+    std::string rawPath = "/data/abc";
+    rawPath.push_back('\0');
+    rawPath.append("XYZ");
+
+    PolicyInfo policyInfo;
+    policyInfo.path = rawPath;
+    policyInfo.mode = OperateMode::READ_MODE;
+    policyInfo.type = PolicyType::SELF_PATH;
+
+    std::stringstream ss;
+    AppendRawUint32(ss, 1);
+    AppendRawPolicy(ss, policyInfo);
+
+    PolicyVecRawData rawData = BuildRawDataFromStream(ss);
+    PolicyVecBatchReader reader(rawData);
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(1, reader.GetPolicyCount());
+
+    std::vector<PolicyInfo> batchPolicy;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, reader.ReadNextBatch(1, batchPolicy));
+    ASSERT_EQ(1, batchPolicy.size());
+    // path should be truncated at '\0' -> "/data/abc" (9 chars)
+    EXPECT_EQ(std::string("/data/abc"), batchPolicy[0].path);
+    EXPECT_EQ(9u, batchPolicy[0].path.length());
+    EXPECT_EQ(policyInfo.mode, batchPolicy[0].mode);
+    EXPECT_EQ(policyInfo.type, batchPolicy[0].type);
+}
+
 #ifdef DEC_ENABLED
 /**
  * @tc.name: SandboxManagerServiceNew001

@@ -3493,6 +3493,40 @@ HWTEST_F(PolicyInfoManagerTest, SetPolicyWithSpecificUserIdTest, TestSize.Level0
     ASSERT_EQ(1, checkResult.size());
     EXPECT_FALSE(checkResult[0]); // Should NOT have permission anymore
 }
+
+/**
+ * @tc.name: PolicyInfoManagerTest013
+ * @tc.desc: Test CleanPolicyByUserId truncates path at '\0' before processing
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest013, TestSize.Level0)
+{
+    uint32_t userId = 100;
+
+    // Path with trailing '\0' should be truncated and handled gracefully
+    std::string pathWithNull = "/data/test/clean_dir";
+    pathWithNull.push_back('\0');
+    pathWithNull.append("extra_garbage");
+
+    std::vector<std::string> filePathList;
+    filePathList.push_back(pathWithNull);
+
+    // Should not crash, should return OK even if no matching policies exist
+    int32_t ret = PolicyInfoManager::GetInstance().CleanPolicyByUserId(userId, filePathList);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    // Path that becomes empty after '\0' truncation should be skipped gracefully
+    std::string emptyAfterTrunc;
+    emptyAfterTrunc.push_back('\0');
+    emptyAfterTrunc.append("garbage");
+
+    std::vector<std::string> filePathList2;
+    filePathList2.push_back(emptyAfterTrunc);
+
+    ret = PolicyInfoManager::GetInstance().CleanPolicyByUserId(userId, filePathList2);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
 #endif
 } // SandboxManager
 } // AccessControl
