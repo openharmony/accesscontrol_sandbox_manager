@@ -110,6 +110,8 @@ if (is_standard_system) {
       "relational_store:native_rdb",
       "safwk:system_ability_fwk",
       "samgr:samgr_proxy",
+      "ability_runtime:dataobs_manager",
+      "kv_store:distributeddata_inner",
     ]
   }
 }
