@@ -28,6 +28,59 @@ namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
+// Maximum allowed JSON nesting depth (prevents stack overflow in recursive cJSON parser)
+constexpr uint32_t MAX_JSON_DEPTH = 10;
+
+// Check that a JSON string does not exceed the maximum nesting depth.
+// Scans the raw string character-by-character, tracking bracket depth.
+// Properly skips JSON string contents (including escape sequences) so that
+// brackets embedded inside string values cannot interfere with depth counting.
+static int CheckJsonDepth(const std::string &jsonStr)
+{
+    uint32_t depth = 0;
+    bool inString = false;
+    size_t i = 0;
+    while (i < jsonStr.size()) {
+        char c = jsonStr[i];
+
+        // Inside a JSON string: skip everything including escape sequences
+        if (inString) {
+            if (c == '\\' && i + 1 < jsonStr.size()) {
+                i++; // extra skip for the escaped character
+            } else if (c == '"') {
+                inString = false; // end of string
+            }
+            i++;
+            continue;
+        }
+
+        // Outside a string — check if a string starts here
+        if (c == '"') {
+            inString = true;
+            i++;
+            continue;
+        }
+
+        // Track structural bracket depth (only outside strings)
+        if (c == '{' || c == '[') {
+            depth++;
+            if (depth > MAX_JSON_DEPTH) {
+                std::cerr << "Error: JSON nesting depth (" << depth <<
+                    ") exceeds maximum allowed (" << MAX_JSON_DEPTH << ")" << std::endl;
+                SANDBOX_LOGE("JSON nesting depth (%{public}u) exceeds maximum (%{public}u)",
+                    depth, MAX_JSON_DEPTH);
+                return SANDBOX_ERR_CONFIG_INVALID;
+            }
+        } else if (c == '}' || c == ']') {
+            if (depth > 0) {
+                depth--;
+            }
+        }
+        i++;
+    }
+    return SANDBOX_SUCCESS;
+}
+
 // Maximum safe integer value representable by double's 53-bit mantissa (2^53)
 constexpr double DOUBLE_SAFE_MAX = 9007199254740992.0;
 
@@ -109,6 +162,10 @@ static int GetOptionalObjectField(cJSON *root, const char *key, cJSON *&object, 
                 maxLen << ")" << std::endl;
             SANDBOX_LOGE("Config field '%{public}s' exceeds max length (%{public}zu)", key, maxLen);
             return SANDBOX_ERR_CONFIG_INVALID;
+        }
+        int depthRet = CheckJsonDepth(objectStr);
+        if (depthRet != SANDBOX_SUCCESS) {
+            return depthRet;
         }
         parsedObject = cJSON_Parse(objectStr.c_str());
         if (!cJSON_IsObject(parsedObject)) {
@@ -446,6 +503,16 @@ static int ParsePolicyMountSource(cJSON *mountItem, SandboxConfig::PolicyMount &
         SANDBOX_LOGE("Config field 'policy.mounts[].source' contains invalid path");
         return SANDBOX_ERR_CONFIG_INVALID;
     }
+    // Reject "/../" in the middle or "/.." at the end (path traversal).
+    constexpr const char *TRAVERSAL_DOTDOT = "/..";
+    constexpr size_t TRAVERSAL_DOTDOT_LEN = 3; // strlen("/..")
+    if (path.find("/../") != std::string::npos ||
+        (path.size() >= TRAVERSAL_DOTDOT_LEN &&
+         path.compare(path.size() - TRAVERSAL_DOTDOT_LEN, TRAVERSAL_DOTDOT_LEN, TRAVERSAL_DOTDOT) == 0)) {
+        std::cerr << "Error: Config field 'policy.mounts[].source' contains path traversal" << std::endl;
+        SANDBOX_LOGE("Config field 'policy.mounts[].source' contains path traversal");
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
     mount.source = path;
     return SANDBOX_SUCCESS;
 }
@@ -574,6 +641,11 @@ static int ParseNsFlagsField(cJSON *root, int &out)
 int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
 {
     config = SandboxConfig();
+
+    int depthRet = CheckJsonDepth(jsonStr);
+    if (depthRet != SANDBOX_SUCCESS) {
+        return depthRet;
+    }
 
     cJSON *root = cJSON_Parse(jsonStr.c_str());
     if (root == nullptr) {

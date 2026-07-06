@@ -1282,6 +1282,114 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig044, TestSize.Level0)
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
 
+/**
+ * @tc.name: ParseConfig045
+ * @tc.desc: ParseConfig rejects policy mounts with path traversal in source
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig045, TestSize.Level0)
+{
+    const ConfigJsonField traversalPolicyFields[] = {
+        {"policy", R"({"mounts":[{"source":"/data/../etc","mode":"ro"}]})"},
+        {"policy", R"({"mounts":[{"source":"/data/..","mode":"ro"}]})"},
+        {"policy", R"({"mounts":[{"source":"/data/../../etc/passwd","mode":"ro"}]})"},
+        {"policy", R"({"mounts":[{"source":"/data/foo/../../bar","mode":"ro"}]})"},
+        {"policy", R"({"mounts":[{"source":"/..","mode":"ro"}]})"},
+    };
+    for (const auto &field : traversalPolicyFields) {
+        SandboxConfig config;
+        std::string json = AddConfigJsonField(
+            BuildConfigJsonWithValue("", ""), field.key, field.value);
+        int ret = CmdParser::ParseConfig(json, config);
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+    }
+}
+
+/**
+ * @tc.name: ParseConfig046
+ * @tc.desc: ParseConfig accepts policy mounts with safe source paths containing dots
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig046, TestSize.Level0)
+{
+    SandboxConfig config;
+    std::string json = AddConfigJsonField(
+        BuildConfigJsonWithValue("", ""), "policy",
+        R"({"mounts":[{"source":"/data/.dotdir","mode":"ro"},)"
+        R"({"source":"/data/test.dir/file","mode":"rw"}]})");
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(2U, config.policy.mounts.size());
+    EXPECT_EQ("/data/.dotdir", config.policy.mounts[0].source);
+    EXPECT_EQ("/data/test.dir/file", config.policy.mounts[1].source);
+}
+
+/**
+ * @tc.name: ParseConfig047
+ * @tc.desc: CheckJsonDepth (top-level config) — flat config with env object passes
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig047, TestSize.Level0)
+{
+    std::string json = AddConfigJsonField(
+        BuildConfigJsonWithValue("", ""), "env",
+        R"({"flatKey":"flatValue"})");
+    SandboxConfig config;
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ParseConfig(json, config));
+    EXPECT_EQ("flatValue", config.env["flatKey"]);
+}
+
+/**
+ * @tc.name: ParseConfig048
+ * @tc.desc: CheckJsonDepth (top-level config) — nested array/object config passes
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig048, TestSize.Level0)
+{
+    std::string json = AddConfigJsonField(
+        BuildConfigJsonWithValue("", ""), "policy",
+        R"({"mounts":[{"source":"/data/a","mode":"ro"},{"source":"/data/b","mode":"rw"}]})");
+    SandboxConfig config;
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ParseConfig(json, config));
+    ASSERT_EQ(2U, config.policy.mounts.size());
+    EXPECT_EQ("/data/a", config.policy.mounts[0].source);
+    EXPECT_TRUE(config.policy.mounts[0].readOnly);
+    EXPECT_EQ("/data/b", config.policy.mounts[1].source);
+    EXPECT_FALSE(config.policy.mounts[1].readOnly);
+}
+
+/**
+ * @tc.name: ParseConfig049
+ * @tc.desc: CheckJsonDepth (top-level config) — exceeds max depth (65 > 64), returns error
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig049, TestSize.Level0)
+{
+    std::string deepJson = std::string(65, '[') + "1" + std::string(65, ']');
+    SandboxConfig config;
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ParseConfig(deepJson, config));
+}
+
+/**
+ * @tc.name: ParseConfig050
+ * @tc.desc: CheckJsonDepth (top-level config) — empty object passes
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig050, TestSize.Level0)
+{
+    std::string json = AddConfigJsonField(
+        BuildConfigJsonWithValue("", ""), "env", "{}");
+    SandboxConfig config;
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ParseConfig(json, config));
+    EXPECT_TRUE(config.env.empty());
+}
+
 // ==================== ParseCommandFromArgv tests ====================
 
 /**

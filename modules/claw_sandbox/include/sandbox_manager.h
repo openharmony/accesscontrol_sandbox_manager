@@ -131,6 +131,7 @@ private:
     int ApplyPolicyMounts();
     int PivotRoot();
     int ApplyDecPolicies();
+    int PreDecDenyPaths();
     int ForkAfterUnshare();
     int MountProcFs();
     int SetAccessToken();
@@ -151,6 +152,8 @@ private:
     int ApplyEnvironment();
     int DeliverPolicy();
     int DeliverNetPolicy(int fd);
+    int SetEncapsProcFlag();
+    int SetSandboxPathMark();
     int ExecuteCommand();
 
     // Helper methods

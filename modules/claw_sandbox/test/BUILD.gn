@@ -16,7 +16,7 @@ import("../../../sandbox_manager.gni")
 
 ohos_unittest("claw_sandbox_test") {
   subsystem_name = "accesscontrol"
-  module_out_path = "sandbox_manager/claw_sandbox"
+  module_out_path = "sandbox_manager/sandbox_manager"
 
   sanitize = {
     cfi = true
