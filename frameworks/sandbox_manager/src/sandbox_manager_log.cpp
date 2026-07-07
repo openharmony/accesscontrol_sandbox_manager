@@ -29,15 +29,15 @@ const std::string CURRENT_DIR = ".";
 const std::string PARENT_DIR = "..";
 const std::string EMPTY_PATH = "empty path";
 const std::string NULL_PATH = "null path";
-constexpr int MAX_SANITIZE_KEEP = 6;
+constexpr size_t MAX_SANITIZE_KEEP = 6;
 
-void SandboxManagerLog::SanitizeName(std::string &str, int offset, int length)
+void SandboxManagerLog::SanitizeName(std::string &str, size_t offset, size_t length)
 {
-    int maskLength = (length >= MAX_SANITIZE_KEEP * 2)
-                         ? (length - MAX_SANITIZE_KEEP)
-                         : ((length + 1) / 2);
-    int keepLength = length - maskLength;
-    int maskStart = offset + (keepLength + 1) / 2;
+    size_t maskLength = (length >= MAX_SANITIZE_KEEP * 2)
+                            ? (length - MAX_SANITIZE_KEEP)
+                            : ((length + 1) / 2);
+    size_t keepLength = length - maskLength;
+    size_t maskStart = offset + (keepLength + 1) / 2;
 
     std::fill(str.begin() + maskStart,
               str.begin() + maskStart + maskLength, '*');
@@ -46,10 +46,10 @@ void SandboxManagerLog::SanitizeName(std::string &str, int offset, int length)
 std::string SandboxManagerLog::MaskRealPath(const std::string &path)
 {
     std::string result = path;
-    int len = result.size();
-    int nameStart = 0;
+    size_t len = result.size();
+    size_t nameStart = 0;
 
-    for (int pos = 0; pos < len; pos++) {
+    for (size_t pos = 0; pos < len; pos++) {
         if (result[pos] != '/') {
             continue;
         }

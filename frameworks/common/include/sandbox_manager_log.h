@@ -25,7 +25,7 @@ class SandboxManagerLog {
 public:
     static std::string MaskRealPath(const std::string &path);
 private:
-    static void SanitizeName(std::string &str, int offset, int length);
+    static void SanitizeName(std::string &str, size_t offset, size_t length);
 };
 } // namespace SandboxManager
 } // namespace AccessControl
