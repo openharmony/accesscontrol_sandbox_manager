@@ -55,12 +55,6 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxPolicyInfoManager"
 };
 
-// Returns true if actual matches expected case-insensitively but not exactly.
-// Used to detect case-variant path components (e.g. "AppData" instead of "appdata").
-static bool IsCaseMismatch(const std::string &actual, const std::string &expected)
-{
-    return actual != expected && strcasecmp(actual.c_str(), expected.c_str()) == 0;
-}
 }
 
 PolicyInfoManager &PolicyInfoManager::GetInstance()
@@ -616,11 +610,7 @@ void PolicyInfoManager::ProcessPolicyMatches(const std::vector<PolicyInfo> &poli
                 maskedPath.c_str(), static_cast<uint32_t>(policy[i].mode), retFlag, retFlagNew);
             OHOS::AccessControl::SandboxManager::SandboxManagerDfxHelper::WriteEmergencyReportData(error, tokenId);
         }
-#ifdef NOT_RESIDENT
-        SANDBOXMANAGER_LOG_DEBUG(LABEL, "Has case verification and has more deny inheritance rules.");
-        retFlag = retFlagNew;
-#endif
-        if (retFlag) {
+        if (retFlagNew) {
             result[i] = SandboxRetType::OPERATE_SUCCESSFULLY;
         } else {
             std::string maskPath = SandboxManagerLog::MaskRealPath(policy[i].path);
@@ -1714,14 +1704,7 @@ static std::string GenerateMaskedPath(const std::vector<std::string> &components
 bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::string &path,
     const PolicyInfo &policy, std::vector<std::string> &components, size_t index)
 {
-    size_t APPDATA_PATH_SIZE = APPDATA_PATH_WITH_SLASH.length();
-    // only check paths which are starting with '/storage/Users/currentUser/appdata/'
-    if (path.substr(0, APPDATA_PATH_SIZE) != APPDATA_PATH_WITH_SLASH) {
-        if (IsAppDataPathPrefix(components)) {
-            std::string maskPath = OHOS::AccessControl::SandboxManager::SandboxManagerLog::MaskRealPath(path);
-            std::string error = "Share map blocked path: " + maskPath;
-            SandboxManagerDfxHelper::WriteEmergencyReportData(error, 0);
-        }
+    if (!IsAppDataPathPrefix(components)) {
         return true;
     }
 
@@ -1780,7 +1763,8 @@ bool PolicyInfoManager::CheckPathWithinRule(int32_t userID, const std::string &p
     const PolicyInfo &policy, const std::string &bundleName, size_t index)
 {
     constexpr size_t APPDATA_INDEX = 3;
-    if ((path == ROOT_PATH) || (path == APPDATA_PATH)) {
+    constexpr size_t MIN_APPDATA_COMPONENTS = APPDATA_INDEX + 1;
+    if (path == ROOT_PATH) {
         return false;
     }
 
@@ -1802,11 +1786,11 @@ bool PolicyInfoManager::CheckPathWithinRule(int32_t userID, const std::string &p
             return false; // such as "/storage/Users/a"
         }
 
-        if (components.size() > APPDATA_INDEX &&
-            IsCaseMismatch(components[APPDATA_INDEX], "appdata")) {
-            std::string maskPath = OHOS::AccessControl::SandboxManager::SandboxManagerLog::MaskRealPath(path);
-            std::string error = "CheckPathWithinRule blocked path: " + maskPath;
-            SandboxManagerDfxHelper::WriteEmergencyReportData(error, 0);
+        // Block /storage/Users/currentUser/appdata and its subdirectories up to 6 levels (case-insensitive)
+        // Paths with more than 6 components will go through share map check
+        if (components.size() <= MAX_CHECK_COM_NUM && components.size() >= MIN_APPDATA_COMPONENTS &&
+            strcasecmp(components[APPDATA_INDEX].c_str(), "appdata") == 0) {
+            return false;
         }
     }
 
@@ -1825,12 +1809,6 @@ bool PolicyInfoManager::CheckPathWithinRule(int32_t userID, const std::string &p
         }
 #endif
         return true;
-    }
-
-    // Check if the path is /storage/Users/currentUser/appdata and ensure it has more than 2 levels
-    size_t APPDATA_PATH_SIZE = APPDATA_PATH_WITH_SLASH.length();
-    if ((path.size() >= APPDATA_PATH_SIZE) && (path.substr(0, APPDATA_PATH_SIZE) == APPDATA_PATH_WITH_SLASH)) {
-        return false;
     }
 
     return true;
