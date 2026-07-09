@@ -1108,6 +1108,99 @@ HWTEST_F(SandboxManagerServiceSharefilesTest, UpdateShareFileInfoTest019, TestSi
 }
 
 /**
+ * @tc.name: UpdateShareFileInfoTest020
+ * @tc.desc: UpdateShareFileInfo with /el2 path, scopes mode=r+w, permission=r+w.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, UpdateShareFileInfoTest020, TestSize.Level0)
+{
+    std::string cfginfo = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/base/files",
+                    "permission": "r+w"
+                }
+            ],
+            "sharingOSPath": "/el2/base/files",
+            "sharingOSSubpath": "/test",
+            "sharingOSPermission": "r+w"
+        }
+    })";
+    std::string bundleName = "com.example.test";
+    uint32_t userId = 100;
+    uint32_t tokenId = 12345;
+
+    int32_t ret = SandboxManagerShare::GetInstance().UpdateShareFileInfo(cfginfo, bundleName, userId, tokenId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    ret = SandboxManagerShare::GetInstance().UnsetShareFileInfo(tokenId, bundleName, userId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+
+/**
+ * @tc.name: UpdateShareFileInfoTest021
+ * @tc.desc: UpdateShareFileInfo with /el2 path, scopes mode=r+w, permission=r+w.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, UpdateShareFileInfoTest021, TestSize.Level0)
+{
+    std::string cfginfo = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/el2/base/files",
+                    "permission": "r+w"
+                }
+            ],
+            "sharingOSPath": "/base/files",
+            "sharingOSSubpath": "/test",
+            "sharingOSPermission": "r+w"
+        }
+    })";
+    std::string bundleName = "com.example.test";
+    uint32_t userId = 100;
+    uint32_t tokenId = 12345;
+
+    int32_t ret = SandboxManagerShare::GetInstance().UpdateShareFileInfo(cfginfo, bundleName, userId, tokenId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    ret = SandboxManagerShare::GetInstance().UnsetShareFileInfo(tokenId, bundleName, userId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+
+/**
+ * @tc.name: UpdateShareFileInfoTest022
+ * @tc.desc: UpdateShareFileInfo with /el2 path, scopes mode=r+w, permission=r+w.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, UpdateShareFileInfoTest022, TestSize.Level0)
+{
+    std::string cfginfo = R"({
+        "share_files": {
+            "scopes": [
+                {
+                    "path": "/el2/base/files",
+                    "permission": "r+w"
+                }
+            ],
+            "sharingOSPath": "/el2/base/files",
+            "sharingOSSubpath": "/test",
+            "sharingOSPermission": "r+w"
+        }
+    })";
+    std::string bundleName = "com.example.test";
+    uint32_t userId = 100;
+    uint32_t tokenId = 12345;
+
+    int32_t ret = SandboxManagerShare::GetInstance().UpdateShareFileInfo(cfginfo, bundleName, userId, tokenId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    ret = SandboxManagerShare::GetInstance().UnsetShareFileInfo(tokenId, bundleName, userId);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+
+/**
  * @tc.name: UnsetShareFileInfoTest001
  * @tc.desc: UnsetShareFileInfo with normal input.
  * @tc.type: FUNC
