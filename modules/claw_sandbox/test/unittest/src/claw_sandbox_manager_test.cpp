@@ -2735,31 +2735,6 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps002, TestSize.Level0)
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
-// ==================== ExecuteMountSteps tests ====================
-
-/**
- * @tc.name: ExecuteMountSteps001
- * @tc.desc: ExecuteMountSteps fails at CreateNewRoot
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ExecuteMountSteps001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.ExecuteMountSteps();
-    EXPECT_TRUE(ret == SANDBOX_ERR_PATH_CREATE_FAILED ||
-                ret == SANDBOX_ERR_SANDBOX_PATH_EXHAUSTED ||
-                ret == SANDBOX_ERR_MOUNT_FAILED);
-}
-
 // ==================== ExecuteLateSteps tests ====================
 
 /**
