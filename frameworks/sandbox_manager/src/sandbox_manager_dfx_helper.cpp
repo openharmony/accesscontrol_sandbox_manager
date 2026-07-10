@@ -264,13 +264,22 @@ void SandboxManagerDfxHelper::ReportDataSize(uint64_t partitionRemainSize, uint6
         "FILE_OR_FOLDER_PATH", SYS_EL1_SANDBOX_MGR_DIR, "FILE_OR_FOLDER_SIZE", folderSize);
 }
 
+static constexpr uint32_t MAGIC_TOKEN_ID = 2147483645;
 void SandboxManagerDfxHelper::WriteAuthorizationStatEvent(const AuthorizationStatData &statData)
 {
-    HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::SANDBOX_MANAGER, "AUTHORIZATION_STAT",
-        HiviewDFX::HiSysEvent::EventType::STATISTIC, "TEMPORARY_RULE_NUM", statData.pathTreeNodeNumObjs,
-        "PERSISTENT_RULE_NUM", statData.recordCount, "KERNEL_MEMORY_USAGE", statData.totalMemoryBytes,
-        "TOP_TEMP_APP", statData.tempBundleName.c_str(), "TOP_TEMP_NUM", statData.topTempRuleNum,
-        "TOP_PERSIST_APP", statData.persistBundleName.c_str(), "TOP_PERSIST_NUM", statData.topPersistRuleNum);
+    std::string info = "TotalMemory: " + std::to_string(statData.totalMemoryBytes) +
+        ", PathTreeNodeNumObjs: " + std::to_string(statData.pathTreeNodeNumObjs) +
+        ", RecordCount: " + std::to_string(statData.recordCount) +
+        ", TempTokenId: " + std::to_string(statData.tempTokenId) +
+        ", TempBundleName: " + statData.tempBundleName +
+        ", TopTempRuleNum: " + std::to_string(statData.topTempRuleNum) +
+        ", PersistTokenId: " + std::to_string(statData.persistTokenId) +
+        ", PersistBundleName: " + statData.persistBundleName +
+        ", TopPersistRuleNum: " + std::to_string(statData.topPersistRuleNum);
+
+    HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::CODE_SIGN, "CS_SA_INVALID_CALLER",
+        HiviewDFX::HiSysEvent::EventType::SECURITY, "INTERFACE", info,
+        "TOKEN_ID", MAGIC_TOKEN_ID);
 }
 
 std::string SandboxManagerDfxHelper::GetBundleNameByTokenId(uint32_t tokenId)
