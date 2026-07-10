@@ -1,550 +1,246 @@
-# Sandbox Manager - Services Layer
+# Sandbox Manager — Services Layer Agent Instructions
 
-## Module Overview
-
-**Module Path**: `services/sandbox_manager/`
-**Layer**: Service Layer (Core Service Implementation)
-**Language**: C++
-**Build Target**: `sandbox_manager`
-
-The Services Layer is the core implementation of the Sandbox Manager system. It hosts the main `SystemAbility` service, manages policy lifecycle, handles persistent storage via RDB, interfaces with the MAC security layer, and provides file sharing business logic.
+> **Scope**: `services/sandbox_manager/` — core `SystemAbility` implementation, policy business logic, RDB persistence, MAC adapter, media/share/sensitive event handling.  
+> **Complementary file**: Parent `AGENTS.md` at repository root covers SDK ABI constraints, IPC serialization rules, and cross-layer verification; read it first when changing anything below.  
+> **Before editing**: state which component (§2) you are changing, whether it touches RDB schema, MAC ioctl, or permission logic, and which Do-not rules (§4) apply.
 
 ---
 
-## Directory Structure
+## 1. Module Overview
+
+**Path**: `services/sandbox_manager/`
+**Layer**: Service Layer (core SystemAbility)
+**Language**: C++17
+**Build target**: `sandbox_manager`
+
+This directory hosts the main Sandbox Manager `SystemAbility`. It:
+- Receives IPC requests via `SandboxManagerStub`.
+- Validates permissions via `SandboxManagerService::CheckPermission()`.
+- Dispatches policy operations (persist, set, activate, query) to `PolicyInfoManager`.
+- Persists policies to RDB (`policy_table`, `shared_file_info_table`).
+- Interfaces with the kernel MAC layer via ioctl.
+- Subscribes to install/uninstall HiSysEvents for policy migration.
+
+---
+
+## 2. Where to look (task → path)
+
+| Task category | Open first | Also read |
+| --- | --- | --- |
+| Change SA lifecycle / IPC dispatch / permission check | `include/service/sandbox_manager_service.h` | Root `AGENTS.md` §4 (Do not bypass `CheckPermission`) |
+| Change policy core logic (validate/filter/match/cleanup) | `include/service/policy_info_manager.h` | `include/service/policy_trie.h`, `include/database/sandbox_manager_rdb.h` |
+| Change RDB schema / field constants / open callback | `include/database/policy_field_const.h`, `include/database/sandbox_manager_rdb_open_callback.h` | Root `AGENTS.md` §4 Do not (no DROP TABLE) |
+| Change RDB CRUD or batching behavior | `include/database/sandbox_manager_rdb.h`, `include/database/sandbox_manager_rdb_utils.h` | Root `AGENTS.md` §3.1 (batch limits) |
+| Change MAC adapter (ioctl, params, support detection) | `include/mac/mac_adapter.h` | Root `AGENTS.md` §3.3 (MacParams, IsMacSupport) |
+| Change media path detection / permission conversion | `include/media/media_path_support.h` | `include/share/share_files.h` |
+| Change shared file JSON config | `include/share/share_files.h` | `bundle.json` for dependency review |
+| Change HiSysEvent subscription (install/uninstall events) | `include/sensitive/sandbox_manager_event_subscriber.h` | `include/preserve/persistent_preserve.h` |
+| Change persistent preserve (uninstall save / reinstall restore) | `include/preserve/persistent_preserve.h` | Root `AGENTS.md` §7.4 (Preserve API reference) |
+| Change service constants / limits / permission strings | `include/service/sandbox_manager_const.h` | Root `AGENTS.md` §9 (limits), §4 (do not change limits without ask) |
+| Write or extend unit tests / mocks | `test/unittest/`, `test/mock/` | Root `AGENTS.md` §14.2 (task-specific test categories) |
+
+---
+
+## 3. Knowledge Routing
+
+### 3.1 Task-based routing
+
+- **Changing `PolicyInfoManager` validation logic**: Read `include/service/sandbox_manager_const.h` for `MODE_FILTER` and batch constants. Read `include/database/policy_field_const.h` for field names.
+- **Changing MAC adapter commands**: Read `include/mac/mac_adapter.h` thoroughly — check `IsMacSupport()` callers, `MacParams` layout, and all ioctl call sites.
+- **Changing RDB behavior**: Read `include/database/sandbox_manager_rdb_open_callback.h` `OnUpgrade()` — never drop tables. Read `services/common/AGENTS.md` for `GenericValues` type-safety rules.
+- **Adding new permission checks to `CheckPermission()`**: Cross-reference `sandbox_manager_const.h` permission strings AND `bundle.json#requestPermissions` in the root.
+- **Changing event subscriber**: Read `include/sensitive/sandbox_manager_event_subscriber.h` to understand the event filter keys before modifying the handler.
+
+### 3.2 Path-based routing
+
+Read the following when opening directories:
+
+| Path | Read this |
+| --- | --- |
+| `include/service/` | Root `AGENTS.md` §11 (arch diagram), §4 (Do not) |
+| `include/database/` | Root `AGENTS.md` §3.1 (persistence routing), this file §4.1 (RDB no-DROP rule) |
+| `include/mac/` | Root `AGENTS.md` §3.3 (MacParams, IsMacSupport) |
+| `include/media/` | This file §4.1 (media path constraints), §7 API reference for media permission types |
+| `include/preserve/` | Root `AGENTS.md` §7.4, this file §6.2 (preserve flow) |
+
+### 3.3 Vocabulary-based routing
+
+| Term | Meaning | Load this |
+| --- | --- | --- |
+| `PolicyTrie` | Trie tree for path-prefix matching and mode lookup | `include/service/policy_trie.h` |
+| `GenericValues` | Key-value container for RDB operations | `services/common/AGENTS.md` |
+| `SandboxManagerRdb::DataType` | `PERSIST_POLICY` / `SHARED_FILE_INFO` enum | `include/database/sandbox_manager_rdb.h` |
+| `MacParams` | ioctl param struct: `tokenId`, `policyFlag`, `timestamp`, `userId` | `include/mac/mac_adapter.h` |
+| `IsMacSupport()` | Runtime probe: is MAC available on this device? | `include/mac/mac_adapter.h` |
+| `OnUpgrade()` | RDB schema migration entry — never DROP | `include/database/sandbox_manager_rdb_open_callback.h` |
+| `CheckPermission()` | Permission gate in `SandboxManagerService` | Root `AGENTS.md` §4 (do not bypass) |
+| `OperateModeToPhotoPermissionType()` | Media path mode -> permission type conversion | `include/media/media_path_support.h` |
+
+---
+
+## 4. Do not / Ask before
+
+### 4.1 Do not (must have upgrade confirmation)
+
+- Do **not** modify `PolicyInfoManager` singleton lifecycle — it uses `DECLARE_DELAYED_SINGLETON` and is managed by `SandboxManagerService`.
+- Do **not** call `MacAdapter::SetSandboxPolicy` / `UnSetSandboxPolicy` without first checking `IsMacSupport()`.
+- Do **not** add, remove, or reorder fields in `policy_table` schema. Schema changes must go through `SandboxManagerRdbOpenCallback::OnUpgrade` only.
+- Do **not** add new database tables without adding corresponding `DataType` enum entries in `SandboxManagerRdb` and updating `PolicyFieldConst`.
+- Do **not** modify `policyTableName` or `sharedFileInfoTableName` in `policy_field_const.h` — existing RDB databases reference these names.
+- Do **not** modify `HiSysEvent` event key strings in `sandbox_manager_event_subscriber.h` without checking all downstream event consumers.
+- Do **not** delete the `MacAdapter` singleton or assume MAC is always present — the adapter may be uninitialized on products without MAC support.
+- Do **not** add synchronous long-running operations to IPC handler paths (`SandboxManagerService` stub methods) — they block the Binder thread pool.
+
+### 4.2 Ask before (escalate to maintainer)
+
+- Changing `SandboxManagerRdb::GetInstance()` to a non-singleton pattern or changing its lock strategy (`RWLock`).
+- Adding new `HiSysEvent` event types in the subscriber — must align with `FILEMANAGEMENT` domain conventions.
+- Changing `PolicyTrie` matching semantics (prefix match depth, mode accumulation) — affects policy query correctness for all callers.
+- Replacing `std::variant` in `VariantValue` with a different type-erasure mechanism.
+- Adding new media permission types in `media_path_support.h` — must align with the photo-library framework's permission enum.
+- Changing `g_shareMap` structure in `share_files.h` from the bundle→user→path hierarchy.
+- Moving code between `services/sandbox_manager/` and `services/common/` — each targets a different `.so` boundary.
+
+---
+
+## 5. Key Components (compact reference)
+
+### 5.1 Service component (`include/service/`)
+
+| Class | File | Key role |
+| --- | --- | --- |
+| `SandboxManagerService` | `sandbox_manager_service.h` | `SystemAbility` + `SandboxManagerStub`, IPC dispatch, `CheckPermission()` |
+| `PolicyInfoManager` | `policy_info_manager.h` | Core singleton: validate/filter/match policies, RDB CRUD, MAC dispatch |
+| `PolicyTrie` | `policy_trie.h` | Trie for path-prefix matching and mode checking |
+| `SandboxManagerConst` | `sandbox_manager_const.h` | Limits (`POLICY_PATH_LIMIT`, batch sizes), 7 permission strings, `MODE_FILTER` |
+
+### 5.2 Database component (`include/database/`)
+
+| Class | File | Key role |
+| --- | --- | --- |
+| `SandboxManagerRdb` | `sandbox_manager_rdb.h` | RDB wrapper: `Add`/`Remove`/`Modify`/`Find` via `GenericValues` |
+| `SandboxManagerRdbOpenCallback` | `sandbox_manager_rdb_open_callback.h` | `OnCreate`/`OnUpgrade` — schema evolution |
+| `PolicyFiledConst` | `policy_field_const.h` | `FIELD_*` constants, table names |
+
+### 5.3 MAC adapter (`include/mac/`)
+
+| Class | File | Key role |
+| --- | --- | --- |
+| `MacAdapter` | `mac_adapter.h` | `SetSandboxPolicy`/`UnSetSandboxPolicy`/`QuerySandboxPolicy` etc. ioctl wrapper |
+| `MacParams` | (same) | `{tokenId, policyFlag, timestamp, userId}` |
+
+### 5.4 Media / Share / Sensitive / Preserve
+
+| Class | File | Key role |
+| --- | --- | --- |
+| `SandboxManagerMedia` | `include/media/media_path_support.h` | Media path detection, permission type conversion |
+| `SandboxManagerShare` | `include/share/share_files.h` | Shared file JSON config map |
+| `SandboxManagerCommonEventSubscriber` | `include/sensitive/sandbox_manager_event_subscriber.h` | HiSysEvent listener (install/uninstall) |
+| `PersistentPreserve` (static) | `include/preserve/persistent_preserve.h` | Save/restore policies across app uninstall/reinstall |
+
+---
+
+## 6. Data Flow Examples
+
+### Persist policy
 
 ```
-services/sandbox_manager/
-├── common/                                # Common utilities shared across service layer
-│   ├── database/                          # Database common utilities
-│   │   ├── generic_values.h/cpp           # Generic key-value container for DB operations
-│   │   └── variant_value.h/cpp            # Variant value type supporting multiple data types
-│   └── utils/                             # Service utility classes
-│       ├── data_size_report_adapter.h/cpp # Memory size reporting adapter
-│       └── sandbox_memory_manager.h/cpp   # Memory management utilities
-│
-├── main/cpp/                              # Main service implementation
-│   ├── include/                           # Public headers for service components
-│   │   ├── service/                       # Core service logic
-│   │   │   ├── sandbox_manager_service.h       # Main SystemAbility service class
-│   │   │   ├── policy_info_manager.h           # Policy management business logic (core)
-│   │   │   ├── policy_trie.h                  # Trie tree for path matching
-│   │   │   └── sandbox_manager_const.h         # Service constants and permissions
-│   │   ├── database/                      # RDB storage operations
-│   │   │   ├── sandbox_manager_rdb.h          # RDB database operation wrapper
-│   │   │   ├── sandbox_manager_rdb_utils.h    # RDB utility functions
-│   │   │   ├── sandbox_manager_rdb_open_callback.h  # Database open callback
-│   │   │   └── policy_field_const.h            # Database field name constants
-│   │   ├── mac/                           # MAC (Mandatory Access Control) layer adaptation
-│   │   │   └── mac_adapter.h                   # MAC security control adapter
-│   │   ├── media/                         # Media library path support
-│   │   │   └── media_path_support.h           # Media path handling
-│   │   ├── sensitive/                     # Sensitive event subscription
-│   │   │   └── sandbox_manager_event_subscriber.h  # HiSysEvent subscriber
-│   │   └── share/                         # File sharing business logic
-│   │       └── share_files.h                   # Shared file configuration manager
-│   │
-│   └── src/                               # Implementation files (mirror include structure)
-│       ├── service/
-│       ├── database/
-│       ├── mac/
-│       ├── media/
-│       ├── sensitive/
-│       └── share/
-│
-└── test/                                  # Service layer tests
-    ├── unittest/                          # Unit tests
-    └── mock/                              # Mock implementations
-```
-
----
-
-## Core Components
-
-### 1. Service Component (`service/`)
-
-The service component implements the main SystemAbility and core business logic.
-
-| Class | File | Responsibility |
-|-------|------|----------------|
-| **SandboxManagerService** | [sandbox_manager_service.h](main/cpp/include/service/sandbox_manager_service.h) | Main SystemAbility service, IPC entry point, service lifecycle management (OnStart/OnStop) |
-| **PolicyInfoManager** | [policy_info_manager.h](main/cpp/include/service/policy_info_manager.h) | **Core policy management logic**: persist/unpersist, set/unset, activate/deactivate, policy validation, path matching |
-| **PolicyTrie** | [policy_trie.h](main/cpp/include/service/policy_trie.h) | Trie tree data structure for efficient path prefix matching and mode checking |
-
-#### SandboxManagerService
-- **Base Class**: `SystemAbility`, `SandboxManagerStub` (IPC)
-- **SA ID**: System-defined ID for Sandbox Manager service
-- **Key Responsibilities**:
-  - Service lifecycle: `OnStart()`, `OnStop()`, `OnIdle()`
-  - Permission checking: `CheckPermission()`
-  - IPC request dispatching to `PolicyInfoManager`
-  - Delayed unload management for memory optimization
-
-#### PolicyInfoManager (The Core Brain)
-- **Pattern**: Singleton (`GetInstance()`)
-- **Key Methods**:
-  - **Persistent Policy Operations**:
-    - `AddPolicy()` - Add policies to RDB database
-    - `RemovePolicy()` - Remove policies from database
-    - `MatchPolicy()` - Match policies from database
-  - **Temporary Policy Operations**:
-    - `SetPolicy()` - Set temporary policies (auto-activated)
-    - `UnSetPolicy()` - Remove temporary policies
-  - **Activation Control**:
-    - `StartAccessingPolicy()` - Activate persistent policies (load to MAC)
-    - `StopAccessingPolicy()` - Deactivate policies (remove from MAC)
-  - **Policy Validation**:
-    - `CheckPolicyValidity()` - Validate policy path and mode
-    - `CheckPathIsBlocked()` - Check if path is in blocklist
-    - `FilterValidPolicyInBatch()` - Batch filter invalid policies
-  - **Database Operations**:
-    - `ExactFind()` - Find exact policy record
-    - `RangeFind()` - Find policies within depth range
-    - `TransferPolicyToGeneric()` / `TransferGenericToPolicy()` - Convert between Policy and GenericValues
-  - **Bundle Lifecycle**:
-    - `RemoveBundlePolicy()` - Clean up policies on app uninstall
-    - `CleanPolicyByUserId()` - Clean up policies for specific user
-
----
-
-### 2. Database Component (`database/`)
-
-The database component handles all RDB (Relational Database) operations for persistent storage.
-
-| Class | File | Responsibility |
-|-------|------|----------------|
-| **SandboxManagerRdb** | [sandbox_manager_rdb.h](main/cpp/include/database/sandbox_manager_rdb.h) | RDB wrapper, provides Add/Remove/Modify/Find operations |
-| **PolicyFiledConst** | [policy_field_const.h](main/cpp/include/database/policy_field_const.h) | Database field name constants (TOKENID, PATH, MODE, DEPTH, FLAG) |
-| **SandboxManagerRdbOpenCallback** | [sandbox_manager_rdb_open_callback.h](main/cpp/include/database/sandbox_manager_rdb_open_callback.h) | RDB open callback, handles database creation and version upgrades |
-
-#### Database Schema
-| Table Name | Fields |
-|------------|--------|
-| **policy_table** | `tokenId` (INT32), `path` (TEXT), `mode` (INT32), `depth` (INT32), `flag` (INT32) |
-
-#### SandboxManagerRdb API
-```cpp
-// Add records to database
-int32_t Add(const DataType type, const std::vector<GenericValues> &values,
-            const std::string &duplicateMode = IGNORE);
-
-// Remove records matching conditions
-int32_t Remove(const DataType type, const GenericValues &conditions);
-
-// Modify records matching conditions
-int32_t Modify(const DataType type, const GenericValues &modifyValues,
-               const GenericValues &conditions);
-
-// Find records matching conditions with symbol comparison
-int32_t Find(const DataType type, const GenericValues &conditions,
-             const GenericValues &symbols, std::vector<GenericValues> &results);
-```
-
----
-
-### 3. MAC Adapter Component (`mac/`)
-
-The MAC (Mandatory Access Control) adapter interfaces with the kernel-level security layer.
-
-| Class | File | Responsibility |
-|-------|------|----------------|
-| **MacAdapter** | [mac_adapter.h](main/cpp/include/mac/mac_adapter.h) | MAC layer ioctl interface, set/unset/query/check sandbox policies |
-
-#### MacAdapter Methods
-- `SetSandboxPolicy()` - Set sandbox policies to MAC layer
-- `UnSetSandboxPolicy()` - Unset sandbox policies from MAC layer
-- `SetDenyPolicy()` - Set deny policies (blocking mode)
-- `UnSetDenyPolicy()` - Unset deny policies
-- `QuerySandboxPolicy()` - Query if policy exists in MAC
-- `CheckSandboxPolicy()` - Check if policy is active in MAC
-- `DestroySandboxPolicy()` - Destroy all policies for a tokenId
-- `UnSetSandboxPolicyByUser()` - Unset policies by userId
-
-#### MacParams Structure
-```cpp
-struct MacParams {
-    uint32_t tokenId;      // Application token ID
-    uint64_t policyFlag;   // Policy flag (0=临时, 1=持久化)
-    uint64_t timestamp;    // Policy timestamp
-    int32_t userId;        // User ID
-};
-```
-
----
-
-### 4. Media Path Support Component (`media/`)
-
-The media component handles special logic for media library paths.
-
-| Class | File | Responsibility |
-|-------|------|----------------|
-| **SandboxManagerMedia** | [media_path_support.h](main/cpp/include/media/media_path_support.h) | Media path detection, permission type conversion, media library interaction |
-
-#### SandboxManagerMedia Methods
-- `IsMediaPolicy()` - Check if path is a media library path
-- `OperateModeToPhotoPermissionType()` - Convert OperateMode to PhotoPermissionType
-- `CheckPolicyBeforeGrant()` - Check media permissions before granting
-- `AddMediaPolicy()` - Add media-specific policies
-- `RemoveMediaPolicy()` - Remove media-specific policies
-- `GetMediaPermission()` - Get media permission status
-
----
-
-### 5. Sensitive Event Component (`sensitive/`)
-
-The sensitive component subscribes to system events for policy cleanup.
-
-| Class | File | Responsibility |
-|-------|------|----------------|
-| **SandboxManagerCommonEventSubscriber** | [sandbox_manager_event_subscriber.h](main/cpp/include/sensitive/sandbox_manager_event_subscriber.h) | HiSysEvent subscriber, listens for app install/uninstall events |
-
-#### Event Handling
-- `OnReceiveEvent()` - Handle common events
-- `OnReceiveEventRemove()` - Handle app uninstall (clean up policies)
-- `OnReceiveEventAdd()` - Handle app install events
-
----
-
-### 6. File Sharing Component (`share/`)
-
-The share component manages shared file configuration from JSON profiles.
-
-| Class | File | Responsibility |
-|-------|------|----------------|
-| **SandboxManagerShare** | [share_files.h](main/cpp/include/share/share_files.h) | Shared file configuration manager, loads JSON config |
-
-#### Share Configuration Map Structure
-```
-g_shareMap hierarchy:
-├── bundleName1
-│   ├── User100
-│   │   └── path1: r/w
-│   └── User200
-│       ├── path1: r/w
-│       └── path2: r/w
-└── bundleName2
-    └── User100
-        ├── path1: r/w
-        └── path2: r/w
-```
-
-#### SandboxManagerShare Methods
-- `InitShareMap()` - Initialize share configuration map
-- `GetShareCfgByBundle()` - Get share config for a specific bundle
-- `FindPermission()` - Find permission for path in share map
-- `DeleteByBundleName()` - Delete share config for bundle
-- `TransAndSetToMap()` - Parse JSON and add to map
-
----
-
-### 7. Common Utilities (`common/`)
-
-#### GenericValues
-Generic key-value container for database operations.
-- Supports `int32_t`, `int64_t`, `string`, `VariantValue` types
-- Used for database query conditions and results
-
-#### VariantValue
-Variant value type that can hold multiple data types.
-
----
-
-## Service Layer Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    IPC Client (Interfaces Layer)                │
-│                    SandboxManagerKit                             │
-└─────────────────────────────────────────────────────────────────┘
-                                ↓ IPC/Binder
-┌─────────────────────────────────────────────────────────────────┐
-│              SandboxManagerService (SystemAbility)              │
-│              - Service Lifecycle (OnStart/OnStop)                │
-│              - Permission Checking                              │
-│              - Request Dispatching                              │
-└─────────────────────────────────────────────────────────────────┘
-                                ↓
-┌─────────────────────────────────────────────────────────────────┐
-│              PolicyInfoManager (Core Business Logic)            │
-│              - Policy Validation                                │
-│              - Path Matching (PolicyTrie)                        │
-│              - Policy Lifecycle Management                       │
-└──────────┬────────────────────────────────────┬─────────────────┘
-           ↓                                    ↓
-┌──────────────────────┐            ┌──────────────────────────┐
-│  SandboxManagerRDB   │            │      MacAdapter          │
-│  (Persistent Storage)│            │  (MAC Security Layer)    │
-│                      │            │                          │
-│  - Add/Remove/Find   │            │  - Set/UnSet Policy      │
-│  - RDB Operations    │            │  - Query/Check Policy    │
-└──────────────────────┘            └──────────────────────────┘
-           ↓                                    ↓
-┌──────────────────────┐            ┌──────────────────────────┐
-│  RDB Database        │            │   Kernel MAC Layer       │
-│  (policy_table)      │            │   (Sandbox Control)      │
-└──────────────────────┘            └──────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│                    Supporting Components                        │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
-│  │ MediaSupport │  │ ShareFiles   │  │ EventSubscriber      │ │
-│  │              │  │              │  │                      │ │
-│  │ Media paths  │  │ Shared cfg   │  │ App install/remove   │ │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Key Data Flow Examples
-
-### Example 1: Persist Policy Flow
-
-```
-Client (SandboxManagerKit)
-    → IPC: PersistPolicy(policies)
-    ↓
-SandboxManagerService
-    → CheckPermission(SET_SANDBOX_POLICY)
-    ↓
+Client → IPC: PersistPolicy(policies)
+SandboxManagerService → CheckPermission(SET_SANDBOX_POLICY)
 PolicyInfoManager::AddPolicy()
-    → FilterValidPolicyInBatch() - Validate policies
-    → CheckPathIsBlocked() - Check blocklist
-    → CheckPolicyValidity() - Validate path/mode
-    → ExactFind() - Check for duplicates
-    ↓
-SandboxManagerRdb::Add()
-    → Insert into RDB policy_table
-    ↓
-Return results to client
+  → FilterValidPolicyInBatch() — validate
+  → CheckPathIsBlocked() — blocklist check
+  → CheckPolicyValidity() — path/mode check
+  → ExactFind() — duplicate check
+SandboxManagerRdb::Add() → INSERT INTO policy_table
 ```
 
-### Example 2: Start Accessing Policy Flow (Activation)
+### Activate policy
 
 ```
-Client
-    → IPC: StartAccessingPolicy(policies)
-    ↓
-SandboxManagerService
-    ↓
+Client → IPC: StartAccessingPolicy(policies)
 PolicyInfoManager::StartAccessingPolicy()
-    → Query from RDB for persistent policies
-    → MatchPolicy() - Find matching policies
-    ↓
-MacAdapter::SetSandboxPolicy()
-    → ioctl to MAC layer
-    → Load policies to kernel
-    ↓
-Return results (policies now active)
+  → RDB query for persistent policies
+  → MatchPolicy() — find matching
+  MacAdapter::SetSandboxPolicy() → ioctl to kernel
 ```
 
-### Example 3: Set Temporary Policy Flow
+### Set temporary policy
 
 ```
-Client
-    → IPC: SetPolicy(policies)
-    ↓
-SandboxManagerService
-    ↓
+Client → IPC: SetPolicy(policies)
 PolicyInfoManager::SetPolicy()
-    → FilterValidPolicyInBatch() - Validate
-    ↓
-MacAdapter::SetSandboxPolicy()
-    → ioctl to MAC layer
-    → Set policyFlag = 0 (temporary)
-    ↓
-Return results (policies immediately active)
-    Note: NOT stored in RDB, lost on app restart
+  → FilterValidPolicyInBatch() — validate
+  MacAdapter::SetSandboxPolicy(policyFlag=0) → ioctl
+  (NOT stored in RDB; lost on restart)
 ```
 
 ---
 
-## Database Operations Guide
+## 7. Verification Loop
 
-### GenericValues Usage
-
-`GenericValues` is a key-value map used for database operations:
-
-```cpp
-// Create condition for query
-GenericValues conditions;
-conditions.Put(PolicyFiledConst::FIELD_TOKENID, tokenId);
-conditions.Put(PolicyFiledConst::FIELD_MODE, OperateMode::READ);
-
-// Create symbols for comparison (e.g., depth <= 2)
-GenericValues symbols;
-symbols.Put(PolicyFiledConst::FIELD_DEPTH, 2);
-
-// Query results
-std::vector<GenericValues> results;
-int32_t ret = SandboxManagerRdb::GetInstance().Find(
-    DataType::PERSIST_POLICY, conditions, symbols, results);
-
-// Access result values
-for (const auto& result : results) {
-    std::string path = result.GetString(PolicyFiledConst::FIELD_PATH);
-    uint32_t mode = result.GetInt(PolicyFiledConst::FIELD_MODE);
-}
-```
-
----
-
-## Constants and Permissions
-
-### Permissions (sandbox_manager_const.h)
-
-| Permission | Purpose | Used By |
-|------------|---------|---------|
-| `ohos.permission.SET_SANDBOX_POLICY` | Set/unset sandbox policies | PersistPolicy, SetPolicy, StartAccessingPolicy, etc. |
-| `ohos.permission.CHECK_SANDBOX_POLICY` | Check sandbox policies | CheckPolicy, CheckPersistPolicy |
-| `ohos.permission.FILE_ACCESS_PERSIST` | Persist file access | StartAccessingPolicy |
-| `ohos.permission.FILE_ACCESS_MANAGER` | File access manager | File manager operations |
-
-### Constants
-
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `SA_LIFE_TIME` | 180000 ms (3 min) | Service idle timeout before unload |
-| `POLICY_PATH_LIMIT` | 4095 | Maximum policy path length |
-| `MODE_FILTER` | 0b11 | Mode filter for read/write bits |
-| `SPACE_MGR_SERVICE_UID` | 7013 | Space manager service UID |
-| `FOUNDATION_UID` | 5523 | Foundation process UID |
-
----
-
-## Policy Lifecycle Management
-
-### Persistent Policy Lifecycle
-
-```
-1. PERSIST PHASE
-   Client → PersistPolicy()
-   PolicyInfoManager → AddPolicy() → RDB::Add()
-   Result: Stored in database
-
-2. ACTIVATION PHASE
-   Client → StartAccessingPolicy()
-   PolicyInfoManager → MatchPolicy() (from RDB)
-   PolicyInfoManager → MacAdapter::SetSandboxPolicy()
-   Result: Loaded to MAC layer, now effective
-
-3. DEACTIVATION PHASE
-   Client → StopAccessingPolicy()
-   PolicyInfoManager → MacAdapter::UnSetSandboxPolicy()
-   Result: Removed from MAC layer, still in RDB
-
-4. CLEANUP PHASE
-   Client → UnPersistPolicy()
-   PolicyInfoManager → RemovePolicy() → RDB::Remove()
-   Result: Deleted from database
-```
-
-### Temporary Policy Lifecycle
-
-```
-1. SET PHASE
-   Client → SetPolicy()
-   PolicyInfoManager → MacAdapter::SetSandboxPolicy()
-   policyFlag = 0 (temporary)
-   Result: Immediately active in MAC layer
-   Note: NOT stored in RDB
-
-2. AUTO-UNSET PHASE
-   - App process terminates
-   - OR: UnSetPolicy() explicitly called
-   PolicyInfoManager → MacAdapter::UnSetSandboxPolicy()
-   Result: Removed from MAC layer
-```
-
----
-
-## Common Pitfalls in Services Layer
-
-### Pitfall 1: Forgetting to Activate Persistent Policies
-
-**Problem**: After `PersistPolicy`, policies are only in RDB, not active.
-
-**Solution**: Must call `StartAccessingPolicy` to activate.
-
-### Pitfall 2: Policy Path Validation
-
-**Problem**: Invalid paths (e.g., blocklisted paths) cause failures.
-
-**Solution**: Always call `CheckPolicyValidity()` and `CheckPathIsBlocked()` before adding policies.
-
-### Pitfall 3: Thread Safety in Database Operations
-
-**Problem**: Concurrent database access can cause corruption.
-
-**Solution**: `SandboxManagerRdb` uses `RWLock` for thread-safe access. Always use the singleton instance.
-
-### Pitfall 4: MAC Layer Not Available
-
-**Problem**: MAC operations fail on systems without MAC support.
-
-**Solution**: Always check `MacAdapter::IsMacSupport()` before MAC operations.
-
----
-
-## Testing
-
-### Unit Tests Location
-- `services/sandbox_manager/test/unittest/`
-  - `sandbox_manager_service_test.cpp` - Service tests
-  - `policy_info_manager_test.cpp` - Policy manager tests
-  - `sandbox_manager_rdb_test.cpp` - Database tests
-  - `policy_trie_test.cpp` - Trie tree tests
-  - `media_path_mock_test.cpp` - Media path tests
-  - `dec_testcase.cpp` - DEC tests
-
-### Build and Run Tests
+### 7.1 Minimum checks (every change)
 
 ```bash
-# Build tests
-./build.sh --product-name {product_name} --build-target sandbox_manager_build_module_test
+# Build service + tests
+hb build -T sandbox_manager --product-name {product_name}
+hb build -T sandbox_manager_build_module_test --product-name {product_name}
 
-# Run tests (on device)
-# Tests are installed to /data/bin/
+# Build fuzz
+hb build -T sandbox_manager_build_fuzz_test --product-name {product_name}
 ```
 
----
+### 7.2 Task-specific checks
 
-## Integration with Other Layers
+| Changed component | Extra validation |
+| --- | --- |
+| `include/service/policy_info_manager.h` | Run `policy_info_manager_test.cpp` — verify validate/filter/match flows with edge-case inputs (empty paths, null modes, unicode paths, max-batch-size lists) |
+| `include/database/` | Run `sandbox_manager_rdb_test.cpp` — verify `OnUpgrade` migration path with old schema version |
+| `include/mac/mac_adapter.h` | Run module UT; verify `IsMacSupport()` paths with both `true` and `false`; test ioctl error handling |
+| `include/media/media_path_support.h` | Run `media_path_mock_test.cpp` with various path formats |
+| `include/preserve/persistent_preserve.h` | Simulate uninstall→reinstall; verify `SaveBundlePersistentPolicies` + `RestoreBundlePersistentPolicies` produce matching tokenId mapping |
+| `include/service/sandbox_manager_const.h` (limits) | Verify downstream consumers handle changed limits — test with boundary values |
+| `test/` additions | All new test cases must build and pass with `sandbox_manager_build_module_test` |
 
-### Upstream: Interfaces Layer
-- Receives IPC requests via `SandboxManagerStub`
-- Returns results via `PolicyVecRawData`, `Uint32VecRawData`, `BoolVecRawData`
+### 7.3 Done definition
 
-### Downstream Dependencies
-- **RDB (relational_store)**: Persistent storage
-- **MAC Layer**: Kernel security control
-- **Media Library**: Media path handling
-- **HiSysEvent**: System event subscription
-- **Bundle Manager**: App install/uninstall events
-- **AccessToken**: Token ID management
+- [ ] Build passes (`sandbox_manager` + `sandbox_manager_build_module_test`)
+- [ ] All relevant service-layer unit tests PASS
+- [ ] If RDB schema changed: migration SQL documented in PR, `OnUpgrade` covers old→new schema
+- [ ] If MAC adapter changed: `IsMacSupport()` both branches verified; ioctl error codes documented
+- [ ] If permission logic changed: `CheckPermission()` path verified (not bypassed); `bundle.json` synced if new permission added
 
----
+### 7.4 Fallback
 
-## Development Notes
-
-### Adding New Policy Types
-
-1. Extend `OperateMode` in interfaces layer
-2. Update `PolicyInfoManager::CheckPolicyValidity()`
-3. Add MAC layer support in `MacAdapter`
-4. Update database schema if needed
-
-### Debugging Tips
-
-1. Enable HiSysEvent logging for policy operations
-2. Check RDB database at `/data/service/el2/public/database/sandbox_manager_rdb`
-3. Use `CheckPolicy()` to verify policy status in MAC layer
-4. Review `PolicyInfoManager` logs for validation failures
+If validation cannot be run, state in the final response:
+1. Which checks were skipped and why.
+2. The exact `hb build -T` command a maintainer would use.
 
 ---
 
-## Version History
+## 8. Common Pitfalls
+
+### Pitfall 1: Forgetting to activate after persist
+
+`PersistPolicy` → RDB only. Must call `StartAccessingPolicy` for MAC activation.
+
+### Pitfall 2: MAC not available
+
+`MacAdapter::IsMacSupport()` may return false. All MAC call paths in `PolicyInfoManager` check this — if you add a new MAC call, add the check too.
+
+### Pitfall 3: Thread safety — `PolicyInfoManager` singleton
+
+`PolicyInfoManager::GetInstance()` is accessed from multiple Binder threads. Internal state (`PolicyTrie`, batch counters) must remain thread-safe.
+
+### Pitfall 4: `OnUpgrade` version ordering
+
+`RdbStoreCallback::OnUpgrade(oldVersion, newVersion)` may be called with any oldVersion — write defensive migration that handles gaps (e.g., 1→3, not just 2→3).
+
+---
+
+## 9. Version History
 
 | Version | Date | Changes | Maintainer |
-|---------|------|---------|------------|
-| v1.0 | 2026-02-11 | Initial services layer documentation | AI Assistant |
+| --- | --- | --- | --- |
+| v2.0 | 2026-07-10 | Rewrote from README to agent instruction format: added Where to look, Do not/Ask before, Knowledge routing, Verification loop | AI Assistant |
+| v1.0 | 2026-02-11 | Initial documentation | AI Assistant |
