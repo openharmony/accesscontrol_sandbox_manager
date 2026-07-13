@@ -14,10 +14,21 @@
  */
 
 #include "accesstoken_kit.h"
+#include "sandbox_mock_state.h"
 #include "securec.h"
 #include <string>
 #include <cstring>
 #include <cstdlib>
+
+using namespace OHOS::AccessControl::SANDBOX;
+
+namespace OHOS {
+namespace AccessControl {
+namespace SANDBOX {
+bool g_customSandboxGranted = false;
+}  // namespace SANDBOX
+}  // namespace AccessControl
+}  // namespace OHOS
 
 namespace OHOS {
 namespace Security {
@@ -37,8 +48,13 @@ namespace AccessToken {
 
     int32_t AccessTokenKit::VerifyAccessToken(AccessTokenID tokenId, const std::string &permissionName)
     {
-        if (tokenId != 0 && permissionName.find("GRANTED") != std::string::npos) {
-            return PermissionState::PERMISSION_GRANTED;
+        if (tokenId != 0) {
+            if (permissionName.find("GRANTED") != std::string::npos) {
+                return PermissionState::PERMISSION_GRANTED;
+            }
+            if (permissionName == "ohos.permission.CUSTOM_SANDBOX" && g_customSandboxGranted) {
+                return PermissionState::PERMISSION_GRANTED;
+            }
         }
         return -1;
     }

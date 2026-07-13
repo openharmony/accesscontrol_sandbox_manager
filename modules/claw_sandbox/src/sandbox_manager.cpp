@@ -178,6 +178,38 @@ struct DecPolicyInfo {
 };
 
 constexpr unsigned long SET_DEC_POLICY_CMD = _IOWR(HM_DEC_IOCTL_BASE, HM_SET_POLICY_ID, DecPolicyInfo);
+constexpr uint32_t DEC_MODE_DENY_INHERIT = (1 << 9);
+
+// Path mark constants (matching appspawn appspawn_isolate.c)
+constexpr int HM_ADD_PATH_MARK = 11;
+constexpr uint32_t SEC_UGC_PATH_TYPE = (1 << 0);
+constexpr uint32_t SEC_SANDBOX_PATH_TYPE = (1 << 3);
+constexpr uint32_t MARK_ENABLE_RECURSIVE = 1;
+struct MarkPathInfo {
+    const char *path;
+    uint32_t flags;
+    uint32_t recursive;
+    uint32_t reserved[7];
+};
+constexpr unsigned long ADD_PATH_MARK_CMD = _IOWR(HM_DEC_IOCTL_BASE, HM_ADD_PATH_MARK, MarkPathInfo);
+
+// DEC deny path entries: paths to deny when the app lacks the corresponding permission
+struct DecDenyPathEntry {
+    const char *permission;
+    const char *path;
+};
+static const DecDenyPathEntry DEC_DENY_PATH_MAP[] = {
+    {"ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY", "/storage/Users/currentUser/Download"},
+    {"ohos.permission.READ_WRITE_DESKTOP_DIRECTORY", "/storage/Users/currentUser/Desktop"},
+    {"ohos.permission.READ_WRITE_DOCUMENTS_DIRECTORY", "/storage/Users/currentUser/Documents"},
+};
+
+// Encaps device constants (matching appspawn appspawn_encaps.c)
+constexpr const char *ENCAPS_DEVICE_PATH = "/dev/encaps";
+constexpr int HM_ENCAPS_PROC_FLAG_BASE = 0x1F;
+constexpr int OH_ENCAPS_MAGIC = 'E';
+constexpr uint32_t CUSTOM_SANDBOX_PROCESS_TYPE = (1U << 0);
+constexpr unsigned long SET_ENCAPS_PROC_FLAG_CMD = _IOW(OH_ENCAPS_MAGIC, HM_ENCAPS_PROC_FLAG_BASE, uint32_t);
 
 constexpr unsigned long DEC_CMD_POLICY_ADD = _IOWR(HM_DEC_IOCTL_BASE, HM_POLICY_ADD_ID, struct AgentLockAddPolicyArg);
 constexpr unsigned long DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT =
@@ -372,11 +404,9 @@ int SandboxManager::DeleteSandboxDir()
         return SANDBOX_ERR_BAD_PARAMETERS;
     }
 
-    if (config_.type != "shell") {
-        ret = EnterCallerSandbox();
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
+    ret = EnterCallerSandbox();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
     }
 
     std::string sandboxPath = std::string(SANDBOX_BASE_DIR) + "/" + config_.name;
@@ -432,7 +462,7 @@ int SandboxManager::Execute()
         return ret;
     }
 
-    // Steps 12-20: Set token, ainfo, uid/gid, DEC policies, workdir, env, seccomp, drop caps, exec
+    // Steps 12-22: Set token → uid/gid → DEC → workdir → env → seccomp → caps → marks → exec
     return ExecuteLateSteps();
 }
 
@@ -467,11 +497,9 @@ int SandboxManager::ExecuteEarlySteps()
         return ret;
     }
 
-    if (config_.type != "shell") {
-        ret = EnterCallerSandbox();
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
+    ret = EnterCallerSandbox();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
     }
     return SANDBOX_SUCCESS;
 }
@@ -500,7 +528,7 @@ int SandboxManager::ExecuteMountSteps()
         &SandboxManager::SetProcessGroup,
         
         &SandboxManager::ForkAfterUnshare,
-        &SandboxManager::MountProcFs
+        &SandboxManager::MountProcFs,
     };
 
     for (auto step : steps) {
@@ -514,74 +542,48 @@ int SandboxManager::ExecuteMountSteps()
 }
 
 /**
- * @brief Execute steps 12-21: set access token, ainfo, uid/gid, DEC policies,
- *        workdir, environment, seccomp filter, drop capabilities, and execute command.
+ * @brief Execute steps 12-22: set access token, ainfo, uid/gid, DEC pre-deny,
+ *        DEC policies, workdir, environment, seccomp filter, drop capabilities,
+ *        and execute command.
  *        These steps do NOT require cleanup on failure.
  */
 int SandboxManager::ExecuteLateSteps()
 {
-    // Step 12: Set access token.
-    int ret = SetAccessToken();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
+    using LateStep = int (SandboxManager::*)();
+    static const LateStep steps[] = {
+        &SandboxManager::SetAccessToken,
+        &SandboxManager::SetXpmOwnerId,
+        &SandboxManager::SetAinfo,
+        &SandboxManager::SetUidGid,
+        // Pre-deny DEC for paths without permission (before DEC authorization).
+        &SandboxManager::PreDecDenyPaths,
+        // Apply DEC policies after UID/GID and supplementary groups are set.
+        &SandboxManager::ApplyDecPolicies,
+        // Prepare optional workdir before installing seccomp, because seccomp may block chdir.
+        &SandboxManager::PrepareWorkdir,
+        // Apply optional environment after UID/GID switch so exec inherits the final environment.
+        &SandboxManager::ApplyEnvironment,
+        // Set Seccomp (always applied to block setpgid/setsid for process group protection).
+        &SandboxManager::SetSeccomp,
+        // Deliver AgentLock policy if specified in config.
+        &SandboxManager::DeliverPolicy,
+        // Drop capabilities after seccomp; capset() is not blocked in block mode
+        // and is expected to be allowlisted in whitelist mode.
+        &SandboxManager::DropCapabilities,
+        // Mark root path as sandbox path type (for kernel sandbox isolation).
+        &SandboxManager::SetSandboxPathMark,
+        // Set encaps proc flag (custom sandbox marker for kernel).
+        &SandboxManager::SetEncapsProcFlag,
+    };
+
+    for (auto step : steps) {
+        int ret = (this->*step)();
+        if (ret != SANDBOX_SUCCESS) {
+            return ret;
+        }
     }
 
-    // Step 13: Set xpm owner id.
-    ret = SetXpmOwnerId();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Step 14: Set ainfo.
-    ret = SetAinfo();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Step 15: Set UID/GID (with SECBIT_KEEP_CAPS to preserve capabilities across setuid).
-    ret = SetUidGid();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Step 16: Apply DEC policies after UID/GID and supplementary groups are set.
-    ret = ApplyDecPolicies();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Step 17: Prepare optional workdir before installing seccomp, because seccomp may block chdir.
-    ret = PrepareWorkdir();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Step 18: Apply optional environment after UID/GID switch so exec inherits the final environment.
-    ret = ApplyEnvironment();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Step 19: Set Seccomp (always applied to block setpgid/setsid for process group protection).
-    ret = SetSeccomp();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Step 20: Deliver AgentLock policy if specified in config.
-    ret = DeliverPolicy();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Step 21: Drop capabilities after seccomp; capset() is not blocked in block mode
-    //          and is expected to be allowlisted in whitelist mode.
-    ret = DropCapabilities();
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Step 22: Execute the command.
+    // Step 23: Execute the command (replaces the current process on success).
     return ExecuteCommand();
 }
 
@@ -833,6 +835,66 @@ int SandboxManager::SetDecPolicyBatch(int fd, const std::vector<std::string> &pa
             start, count, ret);
     }
     return ret;
+}
+
+int SandboxManager::PreDecDenyPaths()
+{
+    DecPolicyInfo decPolicyInfo = {};
+    decPolicyInfo.pathNum = 0;
+    uint32_t count = sizeof(DEC_DENY_PATH_MAP) / sizeof(DEC_DENY_PATH_MAP[0]);
+    for (uint32_t i = 0, j = 0; i < count; i++) {
+        if (IsPermissionGranted(DEC_DENY_PATH_MAP[i].permission)) {
+            continue;
+        }
+        if (j >= DEC_KERNEL_BATCH_SIZE) {
+            SANDBOX_LOGW("PreDecDenyPaths: deny paths exceed batch size %{public}u", DEC_KERNEL_BATCH_SIZE);
+            break;
+        }
+        DecPathInfo pathInfo = {};
+        pathInfo.path = const_cast<char *>(DEC_DENY_PATH_MAP[i].path);
+        pathInfo.pathLen = static_cast<uint32_t>(strlen(pathInfo.path));
+        // Use DEC_MODE_DENY_INHERIT to mark this as a deny rule.
+        // The kernel distinguishes deny vs grant by this mode flag,
+        // so it must be sent via SET_DEC_POLICY_CMD (not DENY_DEC_POLICY_CMD).
+        pathInfo.mode = DEC_MODE_DENY_INHERIT;
+        decPolicyInfo.path[j++] = pathInfo;
+        decPolicyInfo.pathNum++;
+    }
+
+    if (decPolicyInfo.pathNum == 0) {
+        SANDBOX_LOGD("PreDecDenyPaths: no paths to deny (all permissions granted)");
+        return SANDBOX_SUCCESS;
+    }
+
+    uint64_t callerId = config_.type == "shell" ? config_.callerTokenId : config_.tokenIdEx.tokenIDEx;
+    decPolicyInfo.tokenId = callerId;
+
+    struct timespec ts = {};
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        SANDBOX_LOGW("PreDecDenyPaths: clock_gettime failed, errno=%{public}d", errno);
+        return SANDBOX_SUCCESS;
+    }
+    decPolicyInfo.timestamp = static_cast<uint64_t>(ts.tv_sec) * SEC_TO_NSEC +
+                              static_cast<uint64_t>(ts.tv_nsec);
+
+    int fd = open(DEC_DEVICE_PATH, O_RDWR);
+    if (fd < 0) {
+        SANDBOX_LOGW("PreDecDenyPaths: open %{public}s failed, errno=%{public}d", DEC_DEVICE_PATH, errno);
+        return SANDBOX_SUCCESS;
+    }
+
+    // NOTE: deny rules are sent via SET_DEC_POLICY_CMD (same as grant rules),
+    // with DEC_MODE_DENY_INHERIT mode to distinguish them. This matches
+    // appspawn's SetDecDenyWithDir behavior.
+    int ret = ioctl(fd, SET_DEC_POLICY_CMD, &decPolicyInfo);
+    if (ret < 0) {
+        SANDBOX_LOGW("PreDecDenyPaths: SET_DEC_POLICY_CMD failed, errno=%{public}d", errno);
+    } else {
+        SANDBOX_LOGI("PreDecDenyPaths: denied %{public}u paths", decPolicyInfo.pathNum);
+    }
+
+    close(fd);
+    return SANDBOX_SUCCESS;
 }
 
 int SandboxManager::ApplyDecPolicies()
@@ -1975,6 +2037,72 @@ int SandboxManager::ApplyEnvironment()
         overrideRejectedInvalid, sanitizedEnv.size());
 
     return ApplySanitizedEnv(sanitizedEnv);
+}
+
+int SandboxManager::SetSandboxPathMark()
+{
+    if (!IsPermissionGranted("ohos.permission.CUSTOM_SANDBOX")) {
+        SANDBOX_LOGD("SetSandboxPathMark: skip (CUSTOM_SANDBOX not granted)");
+        return SANDBOX_SUCCESS;
+    }
+
+    int fd = open(DEC_DEVICE_PATH, O_RDWR);
+    if (fd < 0) {
+        SANDBOX_LOGW("SetSandboxPathMark: open %{public}s failed, errno=%{public}d",
+            DEC_DEVICE_PATH, errno);
+        return SANDBOX_SUCCESS;
+    }
+
+    MarkPathInfo pathInfo = {};
+    pathInfo.path = const_cast<char *>("/");
+    pathInfo.flags = SEC_SANDBOX_PATH_TYPE;
+    pathInfo.recursive = MARK_ENABLE_RECURSIVE;
+    int ret = ioctl(fd, ADD_PATH_MARK_CMD, &pathInfo);
+    if (ret < 0) {
+        SANDBOX_LOGW("SetSandboxPathMark: ADD_PATH_MARK_CMD (sandbox) failed, errno=%{public}d", errno);
+    } else {
+        SANDBOX_LOGD("SetSandboxPathMark: marked / dir with SEC_SANDBOX_PATH_TYPE");
+    }
+
+    MarkPathInfo ugcInfo = {};
+    ugcInfo.path = const_cast<char *>("/storage/Users/currentUser");
+    ugcInfo.flags = SEC_UGC_PATH_TYPE;
+    ugcInfo.recursive = 0;
+    ret = ioctl(fd, ADD_PATH_MARK_CMD, &ugcInfo);
+    if (ret < 0) {
+        SANDBOX_LOGW("SetSandboxPathMark: ADD_PATH_MARK_CMD (ugc) failed, errno=%{public}d", errno);
+    } else {
+        SANDBOX_LOGD("SetSandboxPathMark: marked User dir with SEC_UGC_PATH_TYPE");
+    }
+
+    close(fd);
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::SetEncapsProcFlag()
+{
+    if (!IsPermissionGranted("ohos.permission.CUSTOM_SANDBOX")) {
+        SANDBOX_LOGD("SetEncapsProcFlag: skip (CUSTOM_SANDBOX not granted)");
+        return SANDBOX_SUCCESS;
+    }
+
+    int fd = open(ENCAPS_DEVICE_PATH, O_RDWR);
+    if (fd < 0) {
+        SANDBOX_LOGW("SetEncapsProcFlag: open %{public}s failed, errno=%{public}d",
+            ENCAPS_DEVICE_PATH, errno);
+        return SANDBOX_SUCCESS;
+    }
+
+    uint32_t procFlag = CUSTOM_SANDBOX_PROCESS_TYPE;
+    int ret = ioctl(fd, SET_ENCAPS_PROC_FLAG_CMD, &procFlag);
+    if (ret < 0) {
+        SANDBOX_LOGW("SetEncapsProcFlag: SET_ENCAPS_PROC_FLAG_CMD failed, errno=%{public}d", errno);
+    } else {
+        SANDBOX_LOGD("SetEncapsProcFlag: success");
+    }
+
+    close(fd);
+    return SANDBOX_SUCCESS;
 }
 
 int SandboxManager::ExecuteCommand()

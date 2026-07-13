@@ -802,7 +802,8 @@ HWTEST_F(ClawSandboxManagerTest, DeleteSandboxDir003, TestSize.Level0)
 
 /**
  * @tc.name: DeleteSandboxDir004
- * @tc.desc: DeleteSandboxDir with shell type skips EnterCallerSandbox
+ * @tc.desc: DeleteSandboxDir with shell type now also enters EnterCallerSandbox,
+ *           which fails in UT environment (no readproc group).
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -821,11 +822,11 @@ HWTEST_F(ClawSandboxManagerTest, DeleteSandboxDir004, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(config, cmdInfo);
 
-    // With type "shell", EnterCallerSandbox is skipped.
-    // DeleteSandboxDir tries to stat /mnt/sandbox/claw/<name> which
-    // does not exist in test environment, so it returns PATH_INVALID.
+    // With type "shell", EnterCallerSandbox is now called.
+    // In UT environment this fails with NS_FAILED because
+    // the "readproc" group is not available.
     int ret = manager.DeleteSandboxDir();
-    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, ret);
+    EXPECT_EQ(SANDBOX_ERR_NS_FAILED, ret);
 }
 
 // ==================== LoadTemplate tests ====================
@@ -1449,6 +1450,214 @@ HWTEST_F(ClawSandboxManagerTest, ApplyDecPolicies002, TestSize.Level0)
     // /dev/dec does not exist in test env, so open() fails.
     // The function logs a warning and returns SANDBOX_SUCCESS.
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
+}
+
+// ==================== PreDecDenyPaths tests ====================
+
+/**
+ * @tc.name: PreDecDenyPaths001
+ * @tc.desc: PreDecDenyPaths with all three permissions granted returns success
+ *           and sends no deny ioctl (no paths to deny).
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, PreDecDenyPaths001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    // All three permissions contain "GRANTED" in name → IsPermissionGranted returns true
+    SandboxManager::PermissionConfig permConfig;
+    permConfig.sandboxSwitch = true;
+    manager.templateConfig_.permissions["ohos.permission.GRANTED_READ_WRITE_DOWNLOAD_DIRECTORY"] = permConfig;
+    manager.templateConfig_.permissions["ohos.permission.GRANTED_READ_WRITE_DESKTOP_DIRECTORY"] = permConfig;
+    manager.templateConfig_.permissions["ohos.permission.GRANTED_READ_WRITE_DOCUMENTS_DIRECTORY"] = permConfig;
+
+    int ret = manager.PreDecDenyPaths();
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+}
+
+/**
+ * @tc.name: PreDecDenyPaths002
+ * @tc.desc: PreDecDenyPaths with no permissions granted attempts deny ioctl.
+ *           /dev/dec does not exist in test env, so open() fails and logs a
+ *           warning, but the function still returns SANDBOX_SUCCESS.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, PreDecDenyPaths002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    // No permissions registered → IsPermissionGranted returns false for all DENY paths
+    // Three paths (Download, Desktop, Documents) will be collected for deny
+    int ret = manager.PreDecDenyPaths();
+    // /dev/dec does not exist in test env, but the function gracefully handles
+    // open failure and returns SANDBOX_SUCCESS.
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+}
+
+/**
+ * @tc.name: PreDecDenyPaths003
+ * @tc.desc: PreDecDenyPaths with partial permissions only denies paths without
+ *           the corresponding permission. /dev/dec may not exist but function
+ *           returns SANDBOX_SUCCESS.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, PreDecDenyPaths003, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    // Only Desktop has GRANTED in name → Desktop permission is granted,
+    // Download and Documents are not → those two paths should be denied
+    SandboxManager::PermissionConfig permConfig;
+    permConfig.sandboxSwitch = true;
+    manager.templateConfig_.permissions["ohos.permission.GRANTED_READ_WRITE_DESKTOP_DIRECTORY"] = permConfig;
+
+    int ret = manager.PreDecDenyPaths();
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+}
+
+/**
+ * @tc.name: PreDecDenyPaths004
+ * @tc.desc: PreDecDenyPaths with shell type uses callerTokenId for deny ioctl.
+ *           Function returns SANDBOX_SUCCESS even if /dev/dec does not exist.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, PreDecDenyPaths004, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.type = "shell";
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    // No permissions registered → all three paths will be collected for deny.
+    // shell type uses callerTokenId directly for the deny ioctl token.
+    int ret = manager.PreDecDenyPaths();
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+}
+
+// ==================== SetSandboxPathMark tests ====================
+
+/**
+ * @tc.name: SetSandboxPathMark001
+ * @tc.desc: SetSandboxPathMark skips when CUSTOM_SANDBOX not granted
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetSandboxPathMark001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    g_customSandboxGranted = false;
+    int ret = manager.SetSandboxPathMark();
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+}
+
+/**
+ * @tc.name: SetSandboxPathMark002
+ * @tc.desc: SetSandboxPathMark proceeds when CUSTOM_SANDBOX granted,
+ *           opens /dev/dec (fails in UT env, returns SANDBOX_SUCCESS).
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetSandboxPathMark002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    g_customSandboxGranted = true;
+    int ret = manager.SetSandboxPathMark();
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    g_customSandboxGranted = false;
+}
+
+// ==================== SetEncapsProcFlag tests ====================
+
+/**
+ * @tc.name: SetEncapsProcFlag001
+ * @tc.desc: SetEncapsProcFlag skips when CUSTOM_SANDBOX not granted
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetEncapsProcFlag001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    g_customSandboxGranted = false;
+    int ret = manager.SetEncapsProcFlag();
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+}
+
+/**
+ * @tc.name: SetEncapsProcFlag002
+ * @tc.desc: SetEncapsProcFlag proceeds when CUSTOM_SANDBOX granted,
+ *           opens /dev/encaps (fails in UT env, returns SANDBOX_SUCCESS).
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetEncapsProcFlag002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(config, cmdInfo);
+
+    g_customSandboxGranted = true;
+    int ret = manager.SetEncapsProcFlag();
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    g_customSandboxGranted = false;
 }
 
 // ==================== BuildSeccompFilter tests ====================
@@ -2715,7 +2924,8 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps001, TestSize.Level0)
 
 /**
  * @tc.name: ExecuteEarlySteps002
- * @tc.desc: ExecuteEarlySteps with shell type skips EnterCallerSandbox
+ * @tc.desc: ExecuteEarlySteps with shell type now also enters EnterCallerSandbox,
+ *           which fails in UT environment (no readproc group).
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -2732,7 +2942,7 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps002, TestSize.Level0)
     manager.Initialize(config, cmdInfo);
 
     int ret = manager.ExecuteEarlySteps();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(SANDBOX_ERR_NS_FAILED, ret);
 }
 
 // ==================== ExecuteLateSteps tests ====================

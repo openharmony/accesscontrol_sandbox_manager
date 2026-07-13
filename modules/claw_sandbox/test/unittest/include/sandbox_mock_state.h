@@ -44,6 +44,10 @@ struct IoctlMockState {
 
 extern IoctlMockState g_ioctlMockState;
 
+// Mock state for permission checks. When true, AccessTokenKit::VerifyAccessToken
+// returns PERMISSION_GRANTED for "ohos.permission.CUSTOM_SANDBOX".
+extern bool g_customSandboxGranted;
+
 }  // namespace SANDBOX
 }  // namespace AccessControl
 }  // namespace OHOS
