@@ -15,6 +15,8 @@
 
 #include "policy_info_parcel.h"
 #include "parcel_utils.h"
+#include "sandbox_manager_log.h"
+#include "sandbox_manager_dfx_helper.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -33,7 +35,18 @@ PolicyInfoParcel* PolicyInfoParcel::Unmarshalling(Parcel &in)
         return nullptr;
     }
 
-    policyInfoParcel->policyInfo.path = in.ReadString().c_str();
+    policyInfoParcel->policyInfo.path = in.ReadString();
+    size_t actualLen = strnlen(policyInfoParcel->policyInfo.path.c_str(),
+        policyInfoParcel->policyInfo.path.length());
+    if (actualLen != policyInfoParcel->policyInfo.path.length()) {
+        std::string maskedPath = SandboxManagerLog::MaskRealPath(
+            policyInfoParcel->policyInfo.path.substr(0, actualLen));
+        std::string error = "path contains null byte, expected length: " +
+            std::to_string(policyInfoParcel->policyInfo.path.length()) +
+            ", actual length: " + std::to_string(actualLen) + ", maskedPath: " + maskedPath;
+        SandboxManagerDfxHelper::WriteEmergencyReportData(error, 0);
+        policyInfoParcel->policyInfo.path.resize(actualLen);
+    }
     RELEASE_IF_FALSE(in.ReadUint64(policyInfoParcel->policyInfo.mode), policyInfoParcel);
     return policyInfoParcel;
 }

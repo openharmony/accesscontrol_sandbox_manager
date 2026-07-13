@@ -22,6 +22,7 @@
 #include "policy_info.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_dfx_helper.h"
+#include "sandbox_manager_log.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -181,6 +182,12 @@ private:
 
             size_t actualLen = strnlen(dataPtr_, pathLen);
             info.path.assign(dataPtr_, actualLen);
+            if (actualLen != pathLen) {
+                std::string maskedPath = SandboxManagerLog::MaskRealPath(info.path);
+                std::string error = "path contains null byte, expected length: " + std::to_string(pathLen) +
+                    ", actual length: " + std::to_string(actualLen) + ", maskedPath: " + maskedPath;
+                OHOS::AccessControl::SandboxManager::SandboxManagerDfxHelper::WriteEmergencyReportData(error, 0);
+            }
             dataPtr_ += pathLen;
             remainingSize_ -= pathLen;
 
