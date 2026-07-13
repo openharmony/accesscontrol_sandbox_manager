@@ -83,6 +83,8 @@ sandbox_manager_external_deps = [
   "relational_store:native_rdb",
   "safwk:system_ability_fwk",
   "samgr:samgr_proxy",
+  "ability_runtime:dataobs_manager",
+  "kv_store:distributeddata_inner",
 ]
 
 sandbox_manager_flag_cc = [ "-DHILOG_ENABLE" ]
