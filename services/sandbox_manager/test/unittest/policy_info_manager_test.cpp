@@ -3527,6 +3527,53 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest013, TestSize.Level0)
     ret = PolicyInfoManager::GetInstance().CleanPolicyByUserId(userId, filePathList2);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
 }
+
+/**
+ * @tc.name: ArrayOutOfBoundsTest001
+ * @tc.desc: Test AddPolicy with high-index valid policies - core array bounds fix test
+ * @tc.type: FUNC
+ * @tc.require: Issue #396 - Fix array out of bounds vulnerability
+ */
+HWTEST_F(PolicyInfoManagerTest, ArrayOutOfBoundsTest001, TestSize.Level0)
+{
+    PolicyInfo info;
+    uint64_t sizeLimit = 3;
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(info);
+
+    info.path = "/data/log";
+    info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
+    policy[0] = info;
+    std::vector<uint32_t> setResult;
+    SetInfo setInfo;
+    setInfo.userId = 0;
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, setInfo));
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
+
+
+    std::vector<PolicyInfo> policies;
+
+    // Add 2 invalid policies and 1 pass policy
+    for (int i = 0; i < 2; ++i) {
+        info.path = "/data/log";
+        info.mode = OperateMode::MAX_MODE;
+        policies.push_back(info);
+    }
+
+    info.path = "/data/log";
+    info.mode = OperateMode::READ_MODE;
+    policies.push_back(info);
+
+    std::vector<uint32_t> result11;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().AddPolicy(selfTokenId_, policies, result11));
+    EXPECT_EQ(sizeLimit, result11.size());
+    EXPECT_EQ(SandboxRetType::INVALID_MODE, result11[0]);
+    EXPECT_EQ(SandboxRetType::INVALID_MODE, result11[1]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result11[2]);
+    PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_);
+}
 #endif
 } // SandboxManager
 } // AccessControl

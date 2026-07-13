@@ -292,7 +292,6 @@ int32_t PolicyInfoManager::AddNormalPolicy(const uint32_t tokenId, const std::ve
 {
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
-        result.resize(policy.size(), SandboxRetType::OPERATE_SUCCESSFULLY);
         return SANDBOX_MANAGER_OK;
     }
     size_t policySize = policy.size();
@@ -334,7 +333,6 @@ int32_t PolicyInfoManager::AddNormalPolicy(const uint32_t tokenId, const std::ve
     ret = AddToDatabaseIfNotDuplicate(tokenId, policy, addPolicyIndex, flag, result);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "AddToDatabaseIfNotDuplicate failed.");
-        result.clear();
         return ret;
     }
     WriteDfxInner(OperateTypeEnum::PERSIST_POLICY, info, addPolicyIndex.size(), failNum, invalidNum);
@@ -391,10 +389,6 @@ int32_t PolicyInfoManager::AddToDatabaseIfNotDuplicate(const uint32_t tokenId, c
         LOGE_WITH_REPORT(LABEL, "Database operate error");
         results.clear();
         return SANDBOX_MANAGER_DB_ERR;
-    }
-    // write results
-    for (size_t each: passIndexes) {
-        results[each] = SandboxRetType::OPERATE_SUCCESSFULLY;
     }
     return SANDBOX_MANAGER_OK;
 }
@@ -1866,7 +1860,8 @@ int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const std::vector<P
 
     if (!queryPolicyIndex.empty()) {
         size_t queryPolicyIndexSize = queryPolicyIndex.size();
-        std::vector<uint32_t> queryResults(queryPolicyIndexSize);
+        std::vector<uint32_t> queryResults;
+        queryResults.resize(queryPolicyIndexSize, SandboxRetType::OPERATE_SUCCESSFULLY);
         ret = AddNormalPolicy(tokenId, policy, queryResults, flag, queryPolicyIndex, invalidNum);
         if (ret != SANDBOX_MANAGER_OK) {
             SANDBOXMANAGER_LOG_ERROR(LABEL, "AddNormalPolicy failed.");
