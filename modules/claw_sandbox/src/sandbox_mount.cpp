@@ -585,8 +585,10 @@ int SandboxManager::MountSingleEntry(const MountEntry &entry, const std::string 
     if (allFlags & MS_RDONLY) {
         if (mount(entry.source.c_str(), target.c_str(), nullptr,
                   MS_BIND | MS_REMOUNT | MS_RDONLY | MS_REC, nullptr) < 0) {
-            SANDBOX_LOGW("Failed to remount readonly %{public}s: %{public}s",
+            SANDBOX_LOGE("Failed to remount readonly %{public}s: %{public}s",
                 target.c_str(), strerror(errno));
+            umount2(target.c_str(), MNT_DETACH);
+            return SANDBOX_ERR_MOUNT_FAILED;
         }
     }
 
@@ -884,8 +886,10 @@ int SandboxManager::BindMountConditionalPath(const SandboxConfig::PolicyMount &p
     if (policyMount.readOnly) {
         unsigned long roFlags = MS_BIND | MS_REMOUNT | MS_REC | MS_RDONLY;
         if (mount(nullptr, mountTarget.c_str(), nullptr, roFlags, nullptr) < 0) {
-            SANDBOX_LOGW("Failed to remount conditional path %{public}s as readonly: %{public}s",
+            SANDBOX_LOGE("Failed to remount conditional path %{public}s as readonly: %{public}s",
                 mountTarget.c_str(), strerror(errno));
+            umount2(mountTarget.c_str(), MNT_DETACH);
+            return SANDBOX_ERR_MOUNT_FAILED;
         }
     }
 

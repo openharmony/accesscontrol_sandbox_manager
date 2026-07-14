@@ -569,10 +569,6 @@ int SandboxManager::LoadJsonConfig(const std::string &jsonPath)
     buffer << file.rdbuf();
     std::string content = buffer.str();
 
-    // Replace variables at file content level (before JSON parse)
-    content = ReplaceVariable(content, "<PackageName>", config_.bundleName);
-    content = ReplaceVariable(content, "<currentUserId>", config_.currentUserId);
-
     std::unique_ptr<cJSON, decltype(&cJSON_Delete)> root_ptr(cJSON_Parse(content.c_str()), cJSON_Delete);
     cJSON *root = root_ptr.get();
 

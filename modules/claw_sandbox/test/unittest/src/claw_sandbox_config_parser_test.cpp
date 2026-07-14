@@ -132,31 +132,6 @@ HWTEST_F(ClawSandboxConfigParserTest, LoadJsonConfig002, TestSize.Level0)
     EXPECT_TRUE(manager.templateConfig_.systemMounts.empty());
 }
 
-/**
- * @tc.name: LoadJsonConfig003
- * @tc.desc: LoadJsonConfig replaces template variables before parsing JSON
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxConfigParserTest, LoadJsonConfig003, TestSize.Level0)
-{
-    TempJsonFile file("variables");
-    ASSERT_TRUE(file.Write(R"({"app-mounts":[{"source":"/data/<currentUserId>/<PackageName>",
-        "target":"/dst/<PackageName>"}]})"));
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.bundleName = "com.example.bundle";
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.LoadJsonConfig(file.Path());
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-    ASSERT_EQ(1U, manager.templateConfig_.appMounts.size());
-    EXPECT_EQ("/data/100/com.example.bundle", manager.templateConfig_.appMounts[0].source);
-    EXPECT_EQ("/dst/com.example.bundle", manager.templateConfig_.appMounts[0].target);
-}
-
 // ==================== ParseMountEntry tests ====================
 
 /**
