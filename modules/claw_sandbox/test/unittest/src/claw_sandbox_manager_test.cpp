@@ -1258,6 +1258,7 @@ HWTEST_F(ClawSandboxManagerTest, ParsePermissionDecPaths001, TestSize.Level0)
     cJSON_Delete(nonObj);
 }
 
+#ifdef CONFIG_PC_PLATFORM
 // ==================== CollectPermissionDecPaths tests ====================
 
 /**
@@ -1384,7 +1385,9 @@ HWTEST_F(ClawSandboxManagerTest, CollectDecPolicyPaths001, TestSize.Level0)
     EXPECT_EQ("/storage/Users/currentUser/Download", decPaths[0]);
     EXPECT_EQ("/storage/Users/currentUser/Desktop", decPaths[1]);
 }
+#endif
 
+#ifdef CONFIG_PC_PLATFORM
 /**
  * @tc.name: SetDecPolicyBatch001
  * @tc.desc: SetDecPolicyBatch rejects invalid batch ranges before ioctl
@@ -1563,9 +1566,9 @@ HWTEST_F(ClawSandboxManagerTest, PreDecDenyPaths004, TestSize.Level0)
     int ret = manager.PreDecDenyPaths();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
+#endif
 
-// ==================== SetSandboxPathMark tests ====================
-
+#ifdef CONFIG_PC_PLATFORM
 /**
  * @tc.name: SetSandboxPathMark001
  * @tc.desc: SetSandboxPathMark skips when CUSTOM_SANDBOX not granted
@@ -1659,6 +1662,7 @@ HWTEST_F(ClawSandboxManagerTest, SetEncapsProcFlag002, TestSize.Level0)
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     g_customSandboxGranted = false;
 }
+#endif
 
 // ==================== BuildSeccompFilter tests ====================
 
