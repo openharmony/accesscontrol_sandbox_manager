@@ -19,11 +19,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#ifdef DEC_ENABLED
 const uint64_t TOKEN_ID = 123;
 const uint64_t TOKEN_ID1 = 222;
 const int32_t USER_ID = 100;
-const int32_t normal_user1 = 114514;
+const int32_t NORMAL_USER1 = 114514;
 const mode_t CMASK = 066;
 
 using namespace testing::ext;
@@ -117,23 +116,23 @@ HWTEST_F(DecTestCaseExt, DecTestCaseExt002, TestSize.Level0)
         EXPECT_EQ(ConstraintPath("/data/mntdec"), 0);
         EXPECT_EQ(SetPath(TOKEN_ID, "/data/mntdec", DEC_MODE_WRITE, true, 0, USER_ID), 0);
         EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntdec", DEC_MODE_WRITE), 0);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/testA.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir1/dir11/newtest.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", normal_user1, normal_user1), -1);
-        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/test.txt", normal_user1, normal_user1), -1);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/testA.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir1/dir11/newtest.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/test.txt", NORMAL_USER1, NORMAL_USER1), -1);
         EXPECT_EQ(
-            TestCopy(TOKEN_ID, "/data/mntdec/test.txt", "/data/mntdec/dstTest1.txt", normal_user1, normal_user1), -1);
+            TestCopy(TOKEN_ID, "/data/mntdec/test.txt", "/data/mntdec/dstTest1.txt", NORMAL_USER1, NORMAL_USER1), -1);
         EXPECT_EQ(
-            TestCopy(TOKEN_ID, "/data/mntdec/test.txt", "/data/dec/dstTest11.txt", normal_user1, normal_user1), -1);
-        EXPECT_EQ(Mkdir(TOKEN_ID, "/data/mntdec/dir2", normal_user1, normal_user1), 0);
-        EXPECT_EQ(Mkdir(TOKEN_ID, "/data/mntdec/dir1/dir12", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRename(TOKEN_ID, "/data/mntdec/test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRename(TOKEN_ID, "/data/mntdec/dir1/dir11/test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntdec/test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntdec/dir1/dir1test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", normal_user1, normal_user1), 0);
+            TestCopy(TOKEN_ID, "/data/mntdec/test.txt", "/data/dec/dstTest11.txt", NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(Mkdir(TOKEN_ID, "/data/mntdec/dir2", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(Mkdir(TOKEN_ID, "/data/mntdec/dir1/dir12", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRename(TOKEN_ID, "/data/mntdec/test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRename(TOKEN_ID, "/data/mntdec/dir1/dir11/test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntdec/test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntdec/dir1/dir1test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", NORMAL_USER1, NORMAL_USER1), 0);
         exit(0);
     } else {
         wait(NULL);
@@ -164,18 +163,18 @@ HWTEST_F(DecTestCaseExt, DecTestCaseExt003, TestSize.Level0)
         EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntdec", DEC_MODE_READ), 0);
         EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntdec", DEC_MODE_WRITE), -1);
         EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntdec", DEC_MODE_RW), -1);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/testnew.txt", normal_user1, normal_user1), -1);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", normal_user1, normal_user1), -1);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/test.txt", normal_user1, normal_user1), -1);
-        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/test.txt", normal_user1, normal_user1), 0);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/testnew.txt", NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/test.txt", NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/test.txt", NORMAL_USER1, NORMAL_USER1), 0);
         EXPECT_EQ(
-            TestCopy(TOKEN_ID, "/data/mntdec/test.txt", "/data/mntdec/dstTest.txt", normal_user1, normal_user1), -1);
-        EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntdec/test.txt", normal_user1, normal_user1), -1);
-        EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", normal_user1, normal_user1), -1);
-        EXPECT_EQ(TestRename(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", normal_user1, normal_user1), -1);
-        EXPECT_EQ(Mkdir(TOKEN_ID, "/data/mntdec/dir2", normal_user1, normal_user1), -1);
-        EXPECT_EQ(Mkdir(TOKEN_ID, "/data/mntdec/dir1/dir12", normal_user1, normal_user1), -1);
+            TestCopy(TOKEN_ID, "/data/mntdec/test.txt", "/data/mntdec/dstTest.txt", NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntdec/test.txt", NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(TestRename(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(Mkdir(TOKEN_ID, "/data/mntdec/dir2", NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(Mkdir(TOKEN_ID, "/data/mntdec/dir1/dir12", NORMAL_USER1, NORMAL_USER1), -1);
         exit(0);
     } else {
         wait(NULL);
@@ -208,18 +207,18 @@ HWTEST_F(DecTestCaseExt, DecTestCaseExt004, TestSize.Level0)
         EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntdec", DEC_MODE_RW), 0);
         EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntdec/dir2", DEC_MODE_RW), 0);
         EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntdec/dir2/dir21", DEC_MODE_RW), 0);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/testnew.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec//dir2/testnew.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir2/dir21/testnew.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/test.txt", normal_user1, normal_user1), 0);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/testnew.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec//dir2/testnew.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir2/dir21/testnew.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/test.txt", NORMAL_USER1, NORMAL_USER1), 0);
         EXPECT_EQ(
-            TestCopy(TOKEN_ID, "/data/mntdec/test.txt", "/data/mntdec/dstTest.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntdec/test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRename(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(Mkdir(TOKEN_ID, "/data/mntdec/dir1/dir12", normal_user1, normal_user1), 0);
+            TestCopy(TOKEN_ID, "/data/mntdec/test.txt", "/data/mntdec/dstTest.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRemove(TOKEN_ID, "/data/mntdec/test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRename(TOKEN_ID, "/data/mntdec/dir1/dir11/dir11test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(Mkdir(TOKEN_ID, "/data/mntdec/dir1/dir12", NORMAL_USER1, NORMAL_USER1), 0);
         EXPECT_EQ(DestroyByTokenid(TOKEN_ID, 0), 0);
         exit(0);
     } else {
@@ -258,14 +257,14 @@ HWTEST_F(DecTestCaseExt, DecTestCaseExt005, TestSize.Level0)
         EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntdec/dir1/dir1test.txt", DEC_MODE_RW), 0);
         EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntdec/dir1/dir1test2.txt", DEC_MODE_READ), 0);
         EXPECT_EQ(CheckPath(TOKEN_ID, "/data/mntdec/dir1/dir1test2.txt", DEC_MODE_RW), -1);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/test2.txt", normal_user1, normal_user1), -1);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir1/dir1test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir1/dir1test2.txt", normal_user1, normal_user1), -1);
-        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/test2.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/dir1/dir1test.txt", normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/dir1/dir1test2.txt", normal_user1, normal_user1), 0);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/test2.txt", NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir1/dir1test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestWrite(TOKEN_ID, "/data/mntdec/dir1/dir1test2.txt", NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/test2.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/dir1/dir1test.txt", NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestRead(TOKEN_ID, "/data/mntdec/dir1/dir1test2.txt", NORMAL_USER1, NORMAL_USER1), 0);
         exit(0);
     } else {
         wait(NULL);
@@ -295,26 +294,26 @@ HWTEST_F(DecTestCaseExt, testaccess006, TestSize.Level0)
         EXPECT_EQ(ConstraintPath("/data/mntdecaccess/dir1"), 0);
         EXPECT_EQ(DestroyByTokenid(TOKEN_ID1, 0), 0);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", 0, normal_user1, normal_user1), 0);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", 0, NORMAL_USER1, NORMAL_USER1), 0);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_READ, normal_user1, normal_user1), -1);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_READ, NORMAL_USER1, NORMAL_USER1), -1);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_WRITE, normal_user1, normal_user1), -1);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_WRITE, NORMAL_USER1, NORMAL_USER1), -1);
         EXPECT_EQ(SetPath(TOKEN_ID1, "/data/mntdecaccess/dir1", DEC_MODE_READ, true, 0, USER_ID), 0);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", 0, normal_user1, normal_user1), 0);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", 0, NORMAL_USER1, NORMAL_USER1), 0);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_READ, normal_user1, normal_user1), 0);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_READ, NORMAL_USER1, NORMAL_USER1), 0);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_WRITE, normal_user1, normal_user1), -1);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_WRITE, NORMAL_USER1, NORMAL_USER1), -1);
         EXPECT_EQ(DestroyByTokenid(TOKEN_ID1, 0), 0);
         EXPECT_EQ(SetPath(TOKEN_ID1, "/data/mntdecaccess/dir1", DEC_MODE_WRITE, true, 0, USER_ID), 0);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", 0, normal_user1, normal_user1), 0);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", 0, NORMAL_USER1, NORMAL_USER1), 0);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_READ, normal_user1, normal_user1), -1);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_READ, NORMAL_USER1, NORMAL_USER1), -1);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_WRITE, normal_user1, normal_user1), 0);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_WRITE, NORMAL_USER1, NORMAL_USER1), 0);
         EXPECT_EQ(DestroyByTokenid(TOKEN_ID1, 0), 0);
         exit(0);
     } else {
@@ -346,30 +345,30 @@ HWTEST_F(DecTestCaseExt, testaccess007, TestSize.Level0)
         EXPECT_EQ(DestroyByTokenid(TOKEN_ID1, 0), 0);
         EXPECT_EQ(SetPath(TOKEN_ID1, "/data/mntdecaccess/dir1", DEC_MODE_RW, true, 0, USER_ID), 0);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", 0, normal_user1, normal_user1), 0);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", 0, NORMAL_USER1, NORMAL_USER1), 0);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_READ, normal_user1, normal_user1), 0);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_READ, NORMAL_USER1, NORMAL_USER1), 0);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_WRITE, normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/test.txt", 0, normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/test.txt", DEC_MODE_READ, normal_user1, normal_user1), -1);
-        EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/test.txt", DEC_MODE_WRITE, normal_user1, normal_user1), -1);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_WRITE, NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/test.txt", 0, NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/test.txt", DEC_MODE_READ, NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/mntdecaccess/test.txt", DEC_MODE_WRITE, NORMAL_USER1, NORMAL_USER1), -1);
         EXPECT_EQ(DestroyByTokenid(TOKEN_ID1, 0), 0);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", 0, normal_user1, normal_user1), 0);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", 0, NORMAL_USER1, NORMAL_USER1), 0);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_READ, normal_user1, normal_user1), -1);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_READ, NORMAL_USER1, NORMAL_USER1), -1);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_WRITE, normal_user1, normal_user1), -1);
-        EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/dec/test.txt", 0, normal_user1, normal_user1), 0);
-        EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/dec/test.txt", DEC_MODE_READ, normal_user1, normal_user1), -1);
-        EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/dec/test.txt", DEC_MODE_WRITE, normal_user1, normal_user1), -1);
+            "/data/mntdecaccess/dir1/dir11/dir11test.txt", DEC_MODE_WRITE, NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/dec/test.txt", 0, NORMAL_USER1, NORMAL_USER1), 0);
+        EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/dec/test.txt", DEC_MODE_READ, NORMAL_USER1, NORMAL_USER1), -1);
+        EXPECT_EQ(TestAccess(TOKEN_ID1, "/data/dec/test.txt", DEC_MODE_WRITE, NORMAL_USER1, NORMAL_USER1), -1);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test1.txt", 0, normal_user1, normal_user1), -1);
+            "/data/mntdecaccess/dir1/dir11/dir11test1.txt", 0, NORMAL_USER1, NORMAL_USER1), -1);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test1.txt", DEC_MODE_READ, normal_user1, normal_user1), -1);
+            "/data/mntdecaccess/dir1/dir11/dir11test1.txt", DEC_MODE_READ, NORMAL_USER1, NORMAL_USER1), -1);
         EXPECT_EQ(TestAccess(TOKEN_ID1,
-            "/data/mntdecaccess/dir1/dir11/dir11test1.txt", DEC_MODE_WRITE, normal_user1, normal_user1), -1);
+            "/data/mntdecaccess/dir1/dir11/dir11test1.txt", DEC_MODE_WRITE, NORMAL_USER1, NORMAL_USER1), -1);
         exit(0);
     } else {
         wait(NULL);
@@ -409,5 +408,4 @@ HWTEST_F(DecTestCaseExt, testpaths008, TestSize.Level0)
 }
 } // SandboxManager
 } // AccessControl
-} // OHOS
-#endif
+} // OHOS

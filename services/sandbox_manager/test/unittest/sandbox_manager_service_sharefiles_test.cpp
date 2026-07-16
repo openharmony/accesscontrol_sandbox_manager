@@ -26,9 +26,7 @@ namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
 namespace {
-#ifdef DEC_ENABLED
 const size_t MAX_JSON_SIZE = 5 * 1024 * 1024;
-#endif
 } // namespace
 
 class SandboxManagerServiceSharefilesTest : public testing::Test {
@@ -54,7 +52,6 @@ void SandboxManagerServiceSharefilesTest::SetUp()
 void SandboxManagerServiceSharefilesTest::TearDown()
 {}
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: SetShareFileInfoTest001
  * @tc.desc: SetShareFileInfo with invalid tokenId (0).
@@ -1154,7 +1151,6 @@ HWTEST_F(SandboxManagerServiceSharefilesTest, UnsetShareFileInfoTest003, TestSiz
     int32_t ret = SandboxManagerShare::GetInstance().UnsetShareFileInfo(tokenId, bundleName, userId);
     EXPECT_EQ(INVALID_PARAMTER, ret);
 }
-#endif
 } // namespace SandboxManager
 } // namespace AccessControl
 } // namespace OHOS

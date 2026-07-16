@@ -99,7 +99,6 @@ static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerRdbTest"
 };
 
-#ifdef DEC_ENABLED
 struct PathInfo {
     char *path = nullptr;
     uint32_t pathLen = 0;
@@ -138,7 +137,6 @@ static int SetDeny(const std::string& path)
     close(fd);
     return ret;
 }
-#endif
 
 void PolicyInfoManagerTest::SetUpTestCase(void)
 {
@@ -202,7 +200,6 @@ void PrintDbRecords()
     }
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyInfoManagerTest002
  * @tc.desc: Test AddPolicy - normal cases
@@ -255,9 +252,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest002, TestSize.Level0)
     PrintDbRecords();
     // db should have result9, result10, result11, result13
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyInfoManagerTest003
  * @tc.desc: Test AddPolicy - block list path cases
@@ -305,9 +300,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest003, TestSize.Level0)
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, setResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyInfoManagerTest004
  * @tc.desc: Test AddPolicy - block list path traversal
@@ -363,9 +356,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest004, TestSize.Level0)
         PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, policy, 1, setResult, setInfo));
     EXPECT_EQ(SandboxRetType::INVALID_PATH, setResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyInfoManagerTest005
  * @tc.desc: Test MatchPolicy - normal
@@ -411,7 +402,6 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest005, TestSize.Level0)
     EXPECT_EQ(sizeLimit, result14.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result14[0]);
 }
-#endif
 
 /**
  * @tc.name: PolicyInfoManagerTest006
@@ -581,7 +571,6 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest011, TestSize.Level0)
     EXPECT_EQ(SandboxRetType::INVALID_MODE, PolicyInfoManager::GetInstance().CheckPolicyValidity(err4));
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyInfoManagerTest014
  * @tc.desc: Test single mode
@@ -1100,9 +1089,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest023, TestSize.Level0)
 
     PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: QuerySandboxPolicyTest001
  * @tc.desc: Test AddPolicy with unset flag
@@ -1158,6 +1145,7 @@ HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest002, TestSize.Level0)
     EXPECT_EQ(SandboxRetType::FORBIDDEN_TO_BE_PERSISTED, result11[0]);
 }
 
+#ifdef DEC_SUPPORT_QUERY_WITH_ERROR_CODE
 /**
  * @tc.name: QuerySandboxPolicyTest003
  * @tc.desc: Test AddPolicy with unset flag
@@ -1195,7 +1183,9 @@ HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest003, TestSize.Level0)
     ASSERT_EQ(1, u32Res.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
 }
+#endif
 
+#ifdef DEC_SUPPORT_QUERY_WITH_ERROR_CODE
 /**
  * @tc.name: QuerySandboxPolicyTest004
  * @tc.desc: Test AddPolicy with unset flag
@@ -1230,6 +1220,7 @@ HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest004, TestSize.Level0)
     ASSERT_EQ(1, u32Res.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, u32Res[0]);
 }
+#endif
 
 /**
  * @tc.name: QuerySandboxPolicyTest005
@@ -1293,7 +1284,6 @@ HWTEST_F(PolicyInfoManagerTest, QuerySandboxPolicyTest006, TestSize.Level0)
     info.mode = OperateMode::READ_MODE + OperateMode::WRITE_MODE;
     EXPECT_FALSE(PolicyInfoManager::GetInstance().IsVerifyPermissionPass(g_mockToken, info));
 }
-#endif
 
 /**
  * @tc.name: GenericValuesTest001
@@ -1321,7 +1311,6 @@ HWTEST_F(PolicyInfoManagerTest, GenericValuesTest001, TestSize.Level0)
     EXPECT_EQ(str, variantValue.GetString());
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPersistPolicyByPathTest001
  * @tc.desc: Test CleanPersistPolicyByPath
@@ -1364,7 +1353,6 @@ HWTEST_F(PolicyInfoManagerTest, CleanPersistPolicyByPathTest001, TestSize.Level0
     EXPECT_EQ(sizeLimit, result13.size());
     EXPECT_EQ(SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED, result13[0]);
 }
-#endif
 
 /**
  * @tc.name: MacAdapterTest001
@@ -1389,7 +1377,6 @@ HWTEST_F(PolicyInfoManagerTest, MacAdapterTest001, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_MAC_NOT_INIT, macAdapter.DestroySandboxPolicy(selfTokenId_, 0));
 }
 
-#ifdef DEC_ENABLED
 #ifndef NOT_RESIDENT
 /**
  * @tc.name: DenyTest001
@@ -1529,9 +1516,7 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest010, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().macAdapter_.ReadDenyFile(jsonPath, inputString));
 }
 #endif
-#endif
 
-#ifdef DEC_ENABLED
 #ifdef NOT_RESIDENT
 const char *source = "/data/dec";
 const char *target = "/data/mntDenyTest";
@@ -1541,6 +1526,7 @@ const char *testPathParent = "/data/mntDenyTest/test1";
 const char *testPathChild = "/data/mntDenyTest/test1/a";
 const char *testPathChildNew = "/data/mntDenyTest/test1/b";
 
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 static int UnSetDeny(const std::string& path)
 {
     struct PathInfo info;
@@ -1563,7 +1549,9 @@ static int UnSetDeny(const std::string& path)
     close(fd);
     return ret;
 }
+#endif
 
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 /**
  * @tc.name: DenyTest011
  * @tc.desc: Test Deny
@@ -1604,7 +1592,9 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest011, TestSize.Level0)
     rmdir(target);
     rmdir(source);
 }
+#endif
 
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 /**
  * @tc.name: DenyTest012
  * @tc.desc: Test Deny delete
@@ -1643,7 +1633,9 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest012, TestSize.Level0)
     rmdir(target);
     rmdir(source);
 }
+#endif
 
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 /**
  * @tc.name: DenyTest013
  * @tc.desc: Test Deny inherit
@@ -1799,7 +1791,6 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerBatchRawDataTest001, TestSize.L
     }
 }
 
-#ifdef DEC_ENABLED
 #ifdef NOT_RESIDENT
 HWTEST_F(PolicyInfoManagerTest, ShareTest001, TestSize.Level0)
 {
@@ -3399,9 +3390,7 @@ HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest013, TestSize.Level0)
     SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
     SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: GetSharedDirectoryInfoTest001
  * @tc.desc: Test GetSharedDirectoryInfo interface call
@@ -3441,9 +3430,7 @@ HWTEST_F(PolicyInfoManagerTest, RevokeSharedDirectoryPermissionTest001, TestSize
     int32_t ret = PolicyInfoManager::GetInstance().RevokeSharedDirectoryPermission(g_mockToken, userId);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: SetPolicyWithSpecificUserIdTest
  * @tc.desc: Test setting policy with specific userId (200), check permission, clean by userId, and verify cleanup
@@ -3574,7 +3561,6 @@ HWTEST_F(PolicyInfoManagerTest, ArrayOutOfBoundsTest001, TestSize.Level0)
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result11[2]);
     PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(selfTokenId_);
 }
-#endif
 } // SandboxManager
 } // AccessControl
 } // OHOS

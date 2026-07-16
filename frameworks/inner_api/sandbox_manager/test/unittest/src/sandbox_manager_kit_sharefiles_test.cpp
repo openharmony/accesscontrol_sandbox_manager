@@ -51,10 +51,8 @@ const size_t MAX_POLICY_NUM = 8;
 const int DEC_POLICY_HEADER_RESERVED = 64;
 uint32_t g_selfTokenId;
 uint32_t g_mockToken;
-#ifdef DEC_ENABLED
 const int32_t FOUNDATION_UID = 5523;
 const size_t MAX_JSON_SIZE = 5 * 1024 * 1024;
-#endif
 Security::AccessToken::PermissionStateFull g_testState1 = {
     .permissionName = SET_POLICY_PERMISSION,
     .isGeneral = true,
@@ -165,7 +163,6 @@ void SandboxManagerKitSharefilesTest::TearDown()
     EXPECT_EQ(0, SetSelfTokenID(g_selfTokenId));
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: SetShareFileInfoTest001
  * @tc.desc: SetShareFileInfo with non-BMS process.
@@ -1499,7 +1496,6 @@ HWTEST_F(SandboxManagerKitSharefilesTest, RevokeSharedDirectoryPermissionTest002
     int32_t ret = SandboxManagerKit::RevokeSharedDirectoryPermission();
     EXPECT_EQ(SANDBOX_MANAGER_NOT_SYS_APP, ret);
 }
-#endif
 } // SandboxManager
 } // AccessControl
 } // OHOS

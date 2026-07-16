@@ -49,14 +49,12 @@ public:
     uint32_t selfTokenId_;
 };
 
-#ifdef DEC_ENABLED
 constexpr const char* MEDIA_PATH_1 = "/data/storage/el2/media/Photo/1/1/1.jpg";
 constexpr const char* MEDIA_PATH_2 = "/data/storage/el2/media/Photo/2/2/2.jpg";
 // For coverage, when input this path , will return no policy
 constexpr const char* MEDIA_PATH_3 = "/data/storage/el2/media/Photo/3/3/3.jpg";
 // For coverage, when input this path , will return failed
 constexpr const char* MEDIA_PATH_4 = "/data/storage/el2/media/Photo/4/4/4.jpg";
-#endif
 
 void MediaPathMockTest::SetUpTestCase(void)
 {}
@@ -201,7 +199,6 @@ HWTEST_F(MediaPathMockTest, MediaPathMockTest_CancelPhotoUriPersistPermission, T
 }
 
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: MediaPathMockTest001
  * @tc.desc: Test AddPolicy - normal cases
@@ -255,9 +252,7 @@ HWTEST_F(MediaPathMockTest, MediaPathMockTest001, TestSize.Level0)
     ASSERT_EQ(sizeLimit, result33.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result33[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: MediaPathMockTest002
  * @tc.desc: Test AddPolicy - normal cases 2
@@ -284,9 +279,7 @@ HWTEST_F(MediaPathMockTest, MediaPathMockTest002, TestSize.Level0)
     ASSERT_EQ(sizeLimit, result21.size());
     EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, result21[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: MediaPathMockTest002
  * @tc.desc: Test AddPolicy - normal cases 2
@@ -318,9 +311,7 @@ HWTEST_F(MediaPathMockTest, MediaPathMockTest003, TestSize.Level0)
     ASSERT_EQ(sizeLimit, result33.size());
     EXPECT_EQ(SandboxRetType::POLICY_HAS_NOT_BEEN_PERSISTED, result33[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: MediaPathMockTest004
  * @tc.desc: Test AddPolicy - Abnormal branch
@@ -346,9 +337,7 @@ HWTEST_F(MediaPathMockTest, MediaPathMockTest004, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_MEDIA_CALL_ERR,
         PolicyInfoManager::GetInstance().RemovePolicy(selfTokenId_, policy, result31));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: MediaPathMockTest005
  * @tc.desc: Test AddPolicy - Abnormal branch
@@ -378,9 +367,7 @@ HWTEST_F(MediaPathMockTest, MediaPathMockTest005, TestSize.Level0)
     EXPECT_EQ(sizeLimit, result11.size());
     EXPECT_EQ(SandboxRetType::INVALID_MODE, result31[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: MediaPathMockTest006
  * @tc.desc: Test concurrent AddMediaPolicy calls - verify thread safety
@@ -393,13 +380,13 @@ HWTEST_F(MediaPathMockTest, MediaPathMockTest006, TestSize.Level0)
     info.path = MEDIA_PATH_1;
     info.mode = OperateMode::READ_MODE;
 
-    constexpr int THREAD_COUNT = 5;
+    constexpr int threadCount = 5;
     std::vector<std::thread> threads;
     std::atomic<int> successCount(0);
     std::atomic<int> readyCount(0);
     std::atomic<bool> start(false);
 
-    for (int i = 0; i < THREAD_COUNT; ++i) {
+    for (int i = 0; i < threadCount; ++i) {
         threads.emplace_back([this, &info, &readyCount, &start, &successCount]() {
             readyCount.fetch_add(1);
             while (!start.load()) {
@@ -418,7 +405,7 @@ HWTEST_F(MediaPathMockTest, MediaPathMockTest006, TestSize.Level0)
         });
     }
 
-    while (readyCount.load() < THREAD_COUNT) {
+    while (readyCount.load() < threadCount) {
         std::this_thread::yield();
     }
 
@@ -429,9 +416,8 @@ HWTEST_F(MediaPathMockTest, MediaPathMockTest006, TestSize.Level0)
         }
     }
 
-    EXPECT_EQ(THREAD_COUNT, successCount.load());
+    EXPECT_EQ(threadCount, successCount.load());
 }
-#endif
 } // SandboxManager
 } // AccessControl
 } // OHOS

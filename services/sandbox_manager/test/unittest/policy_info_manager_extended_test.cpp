@@ -95,7 +95,6 @@ public:
     uint32_t selfTokenId_;
 };
 
-#ifdef DEC_ENABLED
 struct PathInfo {
     char *path = nullptr;
     uint32_t pathLen = 0;
@@ -134,7 +133,6 @@ static int SetConstraint(const std::string& path)
     close(fd);
     return ret;
 }
-#endif
 
 void NewPolicyTests::SetUpTestCase(void)
 {
@@ -171,7 +169,6 @@ void NewPolicyTests::TearDown(void)
     Security::AccessToken::AccessTokenKit::DeleteToken(g_mockToken);
 }
 
-#ifdef DEC_ENABLED
 
 /**
  * @tc.name: RemovePolicyCaseSensitiveTest
@@ -391,7 +388,6 @@ HWTEST_F(NewPolicyTests, AddPolicyCaseInsensitiveTest, TestSize.Level0)
     PolicyInfoManager::GetInstance().caseInsensitivePaths_.clear();
 }
 
-#endif
 
 /**
  * @tc.name: GetMediaPoliciesTest

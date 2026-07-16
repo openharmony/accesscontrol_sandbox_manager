@@ -28,6 +28,10 @@ public:
 
     void SetUp();
     void TearDown();
+
+    static bool currentUserDenied_;
+    static bool fileManagerPresent_;
+    static bool denyPolicyFileExists_;
 };
 } //SandboxManager
 } //AccessControl

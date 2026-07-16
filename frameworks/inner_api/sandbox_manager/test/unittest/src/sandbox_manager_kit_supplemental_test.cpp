@@ -50,12 +50,12 @@ const std::string SET_POLICY_PERMISSION = "ohos.permission.SET_SANDBOX_POLICY";
 const std::string CHECK_POLICY_PERMISSION = "ohos.permission.CHECK_SANDBOX_POLICY";
 const std::string ACCESS_PERSIST_PERMISSION = "ohos.permission.FILE_ACCESS_PERSIST";
 const std::string FILE_ACCESS_PERMISSION = "ohos.permission.FILE_ACCESS_MANAGER";
-#ifdef DEC_ENABLED
 const uint32_t INVALID_OPERATE_MODE = 0;
+#ifdef PERFORMANCE_TEST
 const double SET_POLICY_MAX_TIME_SEC = 15.0;
 const double CHECK_PERSIST_MAX_TIME_SEC = 200.0 / 1000.0;
-#define TEST_TIMESTAMP 5
 #endif
+#define TEST_TIMESTAMP 5
 const int32_t FOUNDATION_UID = 5523;
 const size_t MAX_POLICY_NUM = 8;
 const int DEC_POLICY_HEADER_RESERVED = 64;
@@ -104,11 +104,9 @@ Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
 };
 };
 
-#ifdef DEC_ENABLED
 static constexpr OHOS::HiviewDFX::HiLogLabel LABEL = {
     LOG_CORE, ACCESSCONTROL_DOMAIN_SANDBOXMANAGER, "SandboxManagerKitTest"
 };
-#endif
 
 struct PathInfo {
     char *path = nullptr;
@@ -173,6 +171,7 @@ void SandboxManagerKitSupplementalTest::SetUp()
     EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
     g_uid = getuid();
     setuid(FOUNDATION_UID);
+    fileManagerPresent_ = (GetTokenIdFromProcess("file_manager_service") != 0);
 }
 
 void SandboxManagerKitSupplementalTest::TearDown()
@@ -181,7 +180,6 @@ void SandboxManagerKitSupplementalTest::TearDown()
     EXPECT_EQ(0, SetSelfTokenID(g_selfTokenId));
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: StartAccessingPolicy001
  * @tc.desc: Test INVALID_PATH/INVALID_MODE.
@@ -233,11 +231,9 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicy001, TestSize.Le
     EXPECT_EQ(INVALID_PATH, unPersistResult[1]);
     EXPECT_EQ(INVALID_MODE, unPersistResult[2]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 const int32_t SPACE_MGR_SERVICE_UID = 7013;
-#ifdef DEC_EXT
+#ifdef DEC_SUPPORT_DENY_RW
 /**
  * @tc.name: PhysicalPathDenyTest001
  * @tc.desc: test deny physical path
@@ -280,7 +276,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PhysicalPathDenyTest001, TestSize.Le
     ASSERT_EQ(dir, nullptr);
     setuid(uid);
 }
-#endif // DEC_EXT
+#endif
 
 /**
  * @tc.name: PhysicalPathDenyTest002
@@ -354,6 +350,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PhysicalPathDenyTest004, TestSize.Le
     EXPECT_EQ(PERMISSION_DENIED, SandboxManagerKit::UnSetDenyPolicy(tokenId, info1));
 }
 
+#ifdef DEC_SUPPORT_DENY_RW
 /**
  * @tc.name: PhysicalPathDenyTest005
  * @tc.desc: test deny physical path
@@ -392,10 +389,9 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PhysicalPathDenyTest005, TestSize.Le
 
     setuid(uid);
 }
+#endif
 
-#endif // DEC_ENABLED
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: SetPolicy001
  * @tc.desc: Test setting READ_MODE and WRITE_MODE separately.
@@ -433,9 +429,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, SetPolicy001, TestSize.Level0)
     ASSERT_EQ(1, result.size());
     EXPECT_TRUE(result[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: SetPolicy002
  * @tc.desc: Test setting READ_MODE and READ_MODE | WRITE_MODE separately.
@@ -473,9 +467,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, SetPolicy002, TestSize.Level0)
     ASSERT_EQ(1, result.size());
     EXPECT_TRUE(result[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: SetPolicy003
  * @tc.desc: Test setting WRITE_MODE and READ_MODE | WRITE_MODE separately.
@@ -513,9 +505,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, SetPolicy003, TestSize.Level0)
     ASSERT_EQ(1, result.size());
     EXPECT_TRUE(result[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicyCoverage001
  * @tc.desc: CheckPersistPolicyInput with invalid input.
@@ -544,9 +534,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PersistPolicyCoverage001, TestSize.L
     EXPECT_FALSE(checkResult1[0]);
     EXPECT_FALSE(checkResult1[1]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicyCoverage002
  * @tc.desc: PersistPolicy with diffrent mode.
@@ -584,9 +572,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PersistPolicyCoverage002, TestSize.L
     ASSERT_EQ(1, result.size());
     EXPECT_TRUE(result[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicyCoverage003
  * @tc.desc: PersistPolicy with diffrent mode.
@@ -624,9 +610,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PersistPolicyCoverage003, TestSize.L
     ASSERT_EQ(1, result.size());
     EXPECT_TRUE(result[0]);\
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicyCoverage004
  * @tc.desc: PersistPolicy with diffrent mode.
@@ -664,9 +648,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PersistPolicyCoverage004, TestSize.L
     ASSERT_EQ(1, result.size());
     EXPECT_FALSE(result[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: UnPersistPolicyCoverage001
  * @tc.desc: UnPersistPolicy Input with invalid input.
@@ -687,9 +669,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, UnPersistPolicyCoverage001, TestSize
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
     EXPECT_EQ(INVALID_MODE, unPersistResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPolicyByUserId
  * @tc.desc: UnPersistPolicy Input with invalid input.
@@ -717,9 +697,8 @@ HWTEST_F(SandboxManagerKitSupplementalTest, CleanPolicyByUserIdCoverage001, Test
     filePaths.emplace_back(infoParent.path);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPolicyByUserId(-1, filePaths));
 }
-#endif
 
-#ifdef DEC_ENABLED
+#ifdef PERFORMANCE_TEST
 /**
  * @tc.name: MassiveIPCTest001
  * @tc.desc: SetPolicy test time.
@@ -754,9 +733,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, MassiveIPCTest001, TestSize.Level0)
         EXPECT_EQ(OPERATE_SUCCESSFULLY, ret[i]);
     }
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: MassiveIPCTest002
  * @tc.desc: CheckPersistPolicy test time.
@@ -820,8 +797,6 @@ HWTEST_F(SandboxManagerKitSupplementalTest, MassiveIPCTest002, TestSize.Level1)
     }
 }
 #endif
-
-#ifdef DEC_ENABLED
 /**
  * @tc.name: StartAccessingPolicyCoverage001
  * @tc.desc: StartAccessingPolicy with invalid input.
@@ -867,9 +842,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyCoverage001, Tes
 
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetAllPolicyByToken(g_mockToken));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: StartAccessingPolicyCoverage002
  * @tc.desc: StartAccessingPolicy with time.
@@ -914,9 +887,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyCoverage002, Tes
     ASSERT_EQ(1, result.size());
     EXPECT_FALSE(result[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: StopAccessingPolicyCoverage001
  * @tc.desc: StopAccessingPolicyCoverage001 invalid input.
@@ -966,9 +937,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StopAccessingPolicyCoverage001, Test
     EXPECT_EQ(1, unPersistResult.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyModeCoverage001
  * @tc.desc: diffent mode test.
@@ -1025,9 +994,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PolicyModeCoverage001, TestSize.Leve
     EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
     EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyModeCoverage002
  * @tc.desc: diffent mode test.
@@ -1089,9 +1056,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PolicyModeCoverage002, TestSize.Leve
     EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
     EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[2]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyModeCoverage003
  * @tc.desc: diffent mode test.
@@ -1144,9 +1109,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PolicyModeCoverage003, TestSize.Leve
     ASSERT_EQ(1, persistResult.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyModeCoverage004
  * @tc.desc: diffent mode test.
@@ -1199,9 +1162,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PolicyModeCoverage004, TestSize.Leve
     ASSERT_EQ(1, persistResult.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyModeCoverage005
  * @tc.desc: diffent mode test.
@@ -1250,9 +1211,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PolicyModeCoverage005, TestSize.Leve
     EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
     EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[1]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyAsyncCoverage001
  * @tc.desc: SetPolicyAsync with invalid input
@@ -1286,9 +1245,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PolicyAsyncCoverage001, TestSize.Lev
     ASSERT_EQ(SandboxManagerErrCode::INVALID_PARAMTER,
         SandboxManagerKit::SetPolicyAsync(0, policy3, policyFlag));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyAsyncCoverage002
  * @tc.desc: SetPolicyAsync with time
@@ -1317,9 +1274,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PolicyAsyncCoverage002, TestSize.Lev
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, info1));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: SetPolicyWithUIDCoverage001
  * @tc.desc: setpolicy with default userId
@@ -1328,6 +1283,9 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PolicyAsyncCoverage002, TestSize.Lev
  */
 HWTEST_F(SandboxManagerKitSupplementalTest, SetPolicyWithUIDCoverage001, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     setuid(g_uid);
     std::vector<PolicyInfo> policy;
     std::vector<uint32_t> policyResult;
@@ -1364,9 +1322,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, SetPolicyWithUIDCoverage001, TestSiz
     ASSERT_EQ(1, result.size());
     EXPECT_FALSE(result[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: SetPolicyWithUIDCoverage002
  * @tc.desc: setpolicy without permission
@@ -1406,9 +1362,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, SetPolicyWithUIDCoverage002, TestSiz
     EXPECT_TRUE(result[0]);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, info1));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetPolicyCoverage001
  * @tc.desc: UnSetPolicy with invalid input
@@ -1438,9 +1392,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, UnSetPolicyCoverage001, TestSize.Lev
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetPolicy(g_mockToken, info2));
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, info1));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetPolicyAsyncCoverage001
  * @tc.desc: UnSetPolicyAsync with invalid input
@@ -1476,14 +1428,12 @@ HWTEST_F(SandboxManagerKitSupplementalTest, UnSetPolicyAsyncCoverage001, TestSiz
     EXPECT_TRUE(result[0]);
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicyAsync(g_mockToken, info1));
-    sleep(1);
+    sleep(2);
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy1, result));
     ASSERT_EQ(1, result.size());
     EXPECT_FALSE(result[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetAllPolicyByTokenCoverage001
  * @tc.desc: UnSetAllPolicyByToken with invalid input
@@ -1514,9 +1464,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, UnSetAllPolicyByTokenCoverage001, Te
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetAllPolicyByToken(g_mockToken));
     sleep(1);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyModeUnsetCoverage001
  * @tc.desc: set r + w, unset r, clean all.
@@ -1568,9 +1516,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PolicyModeUnsetCoverage001, TestSize
     EXPECT_FALSE(checkResult[1]);
     EXPECT_FALSE(checkResult[2]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: StartAccessingPolicyCoverage003
  * @tc.desc: StartAccessingByTokenId with time.
@@ -1611,9 +1557,8 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyCoverage003, Tes
     ASSERT_EQ(1, result.size());
     EXPECT_FALSE(result[0]);
 }
-#endif
 
-#ifdef DEC_EXT
+#ifdef DEC_SUPPORT_DENY_RW
 /**
  * @tc.name: StartAccessingPolicyNullByte001
  * @tc.desc: StartAccessingPolicy with path containing embedded null byte (\\0 truncation).

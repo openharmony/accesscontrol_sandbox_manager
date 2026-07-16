@@ -160,7 +160,6 @@ void SandboxManagerKitModeTest::TearDown()
     EXPECT_EQ(0, SetSelfTokenID(g_selfTokenId));
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicyParentAndChildDirTest001
  * @tc.desc: Test persistent authorization for both subdirectories and parent directories simultaneously.
@@ -1752,7 +1751,6 @@ HWTEST_F(SandboxManagerKitModeTest, PersistPolicySuccCase008, TestSize.Level0)
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkResult2));
     ASSERT_EQ(false, checkResult2[0]);
 }
-#endif
 } // SandboxManager
 } // AccessControl
 } // OHOS

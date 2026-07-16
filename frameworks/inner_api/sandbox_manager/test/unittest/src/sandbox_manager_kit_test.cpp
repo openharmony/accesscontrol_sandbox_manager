@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <dirent.h>
+#include <random>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -38,6 +39,7 @@
 #include "token_setproc.h"
 #include "mac_adapter.h"
 #include "os_account_manager.h"
+#include "sandbox_test_utils.h"
 
 #define HM_DEC_IOCTL_BASE 's'
 #define HM_DENY_POLICY_ID 6
@@ -60,9 +62,9 @@ const std::string ACCESS_SHARED_FILE = "ohos.permission.ACCESS_SHARED_FILE";
 
 const Security::AccessToken::AccessTokenID INVALID_TOKENID = 0;
 const uint64_t POLICY_VECTOR_SIZE = 5000;
-#ifdef DEC_ENABLED
 const uint32_t INVALID_OPERATE_MODE = 0;
 const uint32_t MAX_PATH_LENGTH = 4095;
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 const int SET_DENY_FAIL = -1;
 #endif
 const int32_t FOUNDATION_UID = 5523;
@@ -164,23 +166,27 @@ struct SandboxPolicyInfo {
     bool persist = false;
 };
 
-#ifdef DEC_ENABLED
 static void GeneratePath(const uint32_t len, std::string& path)
 {
+    const uint32_t maxComponentLen = 255;
     path = "/";
-    char tmp;
-    for (uint32_t i = 1; i < len; i++) {
-        tmp = random() % 36;
-        if (tmp < 10) {
-            tmp += '0';
-        } else {
-            tmp -= 10;
-            tmp += 'A';
+    uint32_t componentLen = 1;
+    static constexpr char digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    static constexpr int digitMaxIndex = static_cast<int>(sizeof(digits)) - 2;
+    static std::mt19937 generator(std::random_device{}());
+    static std::uniform_int_distribution<int> distribution(0, digitMaxIndex);
+    for (uint32_t i = 1; i < len && path.size() < len; i++) {
+        if (componentLen >= maxComponentLen) {
+            if (path.size() + 1 >= len) {
+                break;
+            }
+            path += '/';
+            componentLen = 1;
         }
-        path += tmp;
+        path += digits[distribution(generator)];
+        componentLen++;
     }
 }
-#endif
 
 static int SetDeny(const std::string& path)
 {
@@ -204,12 +210,19 @@ static int SetDeny(const std::string& path)
     close(fd);
     return ret;
 }
+bool SandboxManagerKitTest::currentUserDenied_ = false;
+bool SandboxManagerKitTest::fileManagerPresent_ = false;
+bool SandboxManagerKitTest::denyPolicyFileExists_ = false;
+
 void SandboxManagerKitTest::SetUpTestCase()
 {
     g_selfTokenId = GetSelfTokenID();
     SetDeny("/A");
     SetDeny("/C/D");
     SetDeny("/data/temp");
+    currentUserDenied_ = IsDenyPolicyForPath("/storage/Users/currentUser");
+    fileManagerPresent_ = (GetTokenIdFromProcess("file_manager_service") != 0);
+    denyPolicyFileExists_ = IsDenyPolicyFileExists();
 }
 
 void SandboxManagerKitTest::TearDownTestCase()
@@ -236,7 +249,6 @@ void SandboxManagerKitTest::TearDown()
     EXPECT_EQ(0, SetSelfTokenID(g_selfTokenId));
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy003
  * @tc.desc: PersistPolicy with permission.
@@ -277,9 +289,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy003, TestSize.Level0)
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkResult2));
     ASSERT_EQ(false, checkResult2[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicyByTokenID001
  * @tc.desc: PersistPolicyByTokenId with permission.
@@ -288,6 +298,9 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy003, TestSize.Level0)
  */
 HWTEST_F(SandboxManagerKitTest, PersistPolicyByTokenID001, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     PolicyInfo info = {
         .path = "/A/B",
         .mode = OperateMode::READ_MODE
@@ -321,9 +334,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicyByTokenID001, TestSize.Level0)
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, checkResult2));
     ASSERT_EQ(false, checkResult2[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: GetPersistPolicy001
  * @tc.desc: GetPersistPolicy basic functionality test.
@@ -385,9 +396,7 @@ HWTEST_F(SandboxManagerKitTest, GetPersistPolicy002, TestSize.Level0)
     EXPECT_TRUE(policies.empty());
 }
 
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy004
  * @tc.desc: PersistPolicy with invalid path.
@@ -416,9 +425,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy004, TestSize.Level0)
     EXPECT_EQ(2, result2.size());
     EXPECT_EQ(INVALID_MODE, result2[1]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy005
  * @tc.desc: PersistPolicy directory.
@@ -463,9 +470,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy005, TestSize.Level0)
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy006
  * @tc.desc: PersistPolicy directory.
@@ -514,9 +519,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy006, TestSize.Level0)
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy007
  * @tc.desc: PersistPolicy directory.
@@ -564,9 +567,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy007, TestSize.Level0)
     EXPECT_EQ(1, unPersistResult.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy008
  * @tc.desc: PersistPolicy directory.
@@ -607,9 +608,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy008, TestSize.Level0)
     EXPECT_EQ(1, unPersistResult.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy009
  * @tc.desc: PersistPolicy directory.
@@ -656,9 +655,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy009, TestSize.Level0)
     EXPECT_EQ(1, unPersistResult.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy010
  * @tc.desc: PersistPolicy directory.
@@ -703,9 +700,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy010, TestSize.Level0)
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
     EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy011
  * @tc.desc: PersistPolicy directory.
@@ -750,9 +745,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy011, TestSize.Level0)
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
     EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, unPersistResult[1]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy012
  * @tc.desc: PersistPolicy directory.
@@ -798,9 +791,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy012, TestSize.Level0)
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy013
  * @tc.desc: PersistPolicy directory.
@@ -856,6 +847,9 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy013, TestSize.Level0)
  */
 HWTEST_F(SandboxManagerKitTest, PersistPolicy014, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     uint32_t tokenId = 0;
     std::vector<PolicyInfo> policy;
     std::vector<uint32_t> result;
@@ -908,7 +902,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy014, TestSize.Level0)
               SandboxManagerKit::SetPolicy(tokenId, policy, policyFlag, result));
     EXPECT_EQ(SandboxManagerErrCode::SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(tokenId, policy, flag));
 }
-#endif
+
 /**
  * @tc.name: PersistPolicy015
  * @tc.desc: PersistPolicy directory.
@@ -930,7 +924,6 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy015, TestSize.Level0)
     EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::CheckPolicy(tokenId, policy, flag));
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy016
  * @tc.desc: PersistPolicy with permission.
@@ -980,9 +973,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy016, TestSize.Level0)
     ASSERT_EQ(1, checkResult1.size());
     EXPECT_EQ(true, checkResult1[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy017
  * @tc.desc: persistpolicy without temp policy. sandbox_1500
@@ -1006,9 +997,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy017, TestSize.Level0)
     ASSERT_EQ(1, checkPersistResult.size());
     EXPECT_FALSE(checkPersistResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy018
  * @tc.desc: persistpolicy with temp policy and checkpersistpolicy, sandbox_1600
@@ -1050,9 +1039,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy018, TestSize.Level0)
     EXPECT_TRUE(checkPersistResult[0]);
     EXPECT_TRUE(checkPersistResult[1]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy019
  * @tc.desc: persistpolicy with policyflag 0, sandbox_1700
@@ -1094,9 +1081,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy019, TestSize.Level0)
     EXPECT_FALSE(checkPersistResult[0]);
     EXPECT_FALSE(checkPersistResult[1]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PersistPolicy020
  * @tc.desc: persistpolicy with invalid tokenid, sandbox_1800
@@ -1123,9 +1108,8 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy020, TestSize.Level0)
     std::vector<uint32_t> setPersistResult;
     ASSERT_EQ(PERMISSION_DENIED, SandboxManagerKit::PersistPolicy(policys, setPersistResult));
 }
-#endif
 
-#ifdef DEC_ENABLED
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 /**
  * @tc.name: PersistPolicy021
  * @tc.desc: persistpolicy with invalid tokenid, sandbox_1900
@@ -1155,7 +1139,7 @@ HWTEST_F(SandboxManagerKitTest, PersistPolicy021, TestSize.Level0)
 }
 #endif
 
-#ifdef DEC_ENABLED
+#ifdef PERFORMANCE_TEST
 /**
  * @tc.name: MassiveIPCTest001
  * @tc.desc: IPC with massive policyinfos.
@@ -1205,9 +1189,7 @@ HWTEST_F(SandboxManagerKitTest, MassiveIPCTest001, TestSize.Level0)
         EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(tokenId, policy[i]));
     }
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: MassiveIPCTest002
  * @tc.desc: IPC with massive policyinfos.
@@ -1276,9 +1258,7 @@ HWTEST_F(SandboxManagerKitTest, MassiveIPCTest002, TestSize.Level0)
     }
     EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: MassiveIPCTest003
  * @tc.desc: IPC with massive policyinfos.
@@ -1344,9 +1324,7 @@ HWTEST_F(SandboxManagerKitTest, MassiveIPCTest003, TestSize.Level0)
         EXPECT_FALSE(checkResult2[i]);
     }
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: MassiveIPCTest004
  * @tc.desc: IPC with massive policyinfos.
@@ -1408,9 +1386,7 @@ HWTEST_F(SandboxManagerKitTest, MassiveIPCTest004, TestSize.Level0)
         EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[i]);
     }
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: MassiveIPCTest005
  * @tc.desc: IPC with massive policyinfos.
@@ -1470,9 +1446,7 @@ HWTEST_F(SandboxManagerKitTest, MassiveIPCTest005, TestSize.Level0)
         EXPECT_FALSE(checkResult2[i]);
     }
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: MassiveIPCTest006
  * @tc.desc: IPC with massive policyinfos.
@@ -1534,9 +1508,7 @@ HWTEST_F(SandboxManagerKitTest, MassiveIPCTest006, TestSize.Level0)
         EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[i]);
     }
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: MassiveIPCTest007
  * @tc.desc: IPC with massive policyinfos.
@@ -1595,9 +1567,7 @@ HWTEST_F(SandboxManagerKitTest, MassiveIPCTest007, TestSize.Level0)
         EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[i]);
     }
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPerformanceTest001
  * @tc.desc: Unmarshall 50000 policyinfos
@@ -1627,8 +1597,6 @@ HWTEST_F(SandboxManagerKitTest, CheckPerformanceTest001, TestSize.Level0)
     ASSERT_EQ(policySize, result.size());
 }
 #endif
-
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest001
  * @tc.desc: Check allowed policy
@@ -1673,9 +1641,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest001, TestSize.Level0)
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, policyA[0]));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest002
  * @tc.desc: Check allowed policy
@@ -1721,9 +1687,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest002, TestSize.Level0)
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, policyA[0]));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest003
  * @tc.desc: Check parent directory policy with r+w
@@ -1769,9 +1733,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest003, TestSize.Level0)
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, policyA[0]));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest004
  * @tc.desc: Check parent directory policy with r
@@ -1824,9 +1786,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest004, TestSize.Level0)
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, policyA[0]));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest005
  * @tc.desc: Check parent directory policy with w
@@ -1879,9 +1839,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest005, TestSize.Level0)
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, policyA[0]));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest006
  * @tc.desc: Check parent directory policy with w
@@ -1923,9 +1881,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest006, TestSize.Level0)
     EXPECT_TRUE(result[1]);
     EXPECT_FALSE(result[2]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest007
  * @tc.desc: Check allowed policy with invalid tokenID
@@ -1956,9 +1912,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest007, TestSize.Level0)
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, policy[0]));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest008
  * @tc.desc: Check allowed policy with invalid policy
@@ -2009,9 +1963,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest008, TestSize.Level0)
     ASSERT_EQ(1, result.size());
     EXPECT_FALSE(result[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest009
  * @tc.desc: Set and Check parent_dir, sub_dir and sub_file, sandbox_0100
@@ -2049,9 +2001,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest009, TestSize.Level0)
     EXPECT_TRUE(checkResult[1]);
     EXPECT_TRUE(checkResult[2]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest010
  * @tc.desc: Set invalid operate mode and check, sandbox_0500
@@ -2089,9 +2039,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest010, TestSize.Level0)
     EXPECT_FALSE(checkResult[1]);
     EXPECT_FALSE(checkResult[2]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest011
  * @tc.desc: Set invalid token, sandbox_0600
@@ -2110,9 +2058,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest011, TestSize.Level0)
     policys.emplace_back(std::move(infoDir));
     ASSERT_EQ(INVALID_PARAMTER, SandboxManagerKit::SetPolicy(INVALID_TOKENID, policys, policyFlag, setResult));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest012
  * @tc.desc: Set invalid operate mode, sandbox_0700
@@ -2133,9 +2079,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest012, TestSize.Level0)
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(0, setResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest013
  * @tc.desc: Set and check MAX_PATH_LEN, sandbox_0900
@@ -2163,9 +2107,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest013, TestSize.Level0)
     ASSERT_EQ(1, checkResult.size());
     EXPECT_TRUE(checkResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest014
  * @tc.desc: Set and Check 256 length path, sandbox_1000
@@ -2193,9 +2135,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest014, TestSize.Level0)
     ASSERT_EQ(1, checkResult.size());
     EXPECT_TRUE(checkResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest015
  * @tc.desc: Set and Check root path, sandbox_1100
@@ -2221,9 +2161,7 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest015, TestSize.Level0)
     ASSERT_EQ(1, checkResult.size());
     EXPECT_TRUE(checkResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CheckPolicyTest016
  * @tc.desc: path without '/', kernel fault, sandbox_1200
@@ -2245,9 +2183,8 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest016, TestSize.Level0)
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(POLICY_MAC_FAIL, setResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 /**
  * @tc.name: CheckPolicyTest017
  * @tc.desc: empty path, sandbox_1300
@@ -2271,7 +2208,6 @@ HWTEST_F(SandboxManagerKitTest, CheckPolicyTest017, TestSize.Level0)
 }
 #endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyFlagTest001
  * @tc.desc: invalid policy flag, sandbox_1400
@@ -2290,9 +2226,7 @@ HWTEST_F(SandboxManagerKitTest, PolicyFlagTest001, TestSize.Level0)
     policys.emplace_back(std::move(infoDir));
     ASSERT_EQ(INVALID_PARAMTER, SandboxManagerKit::SetPolicy(g_mockToken, policys, policyFlag, setResult));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PathLengthTest001
  * @tc.desc: Set invalid PathLength, sandbox_0800
@@ -2315,9 +2249,7 @@ HWTEST_F(SandboxManagerKitTest, PathLengthTest001, TestSize.Level0)
     ASSERT_EQ(1, setResult.size());
     EXPECT_EQ(INVALID_PATH, setResult[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetPolicyTest001
  * @tc.desc: Unset policy with invalid tokenID
@@ -2342,9 +2274,7 @@ HWTEST_F(SandboxManagerKitTest, UnSetPolicyTest001, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_selfTokenId, policy[0]));
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, policy[0]));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetPolicyTest002
  * @tc.desc: Unset allowed policy
@@ -2391,9 +2321,7 @@ HWTEST_F(SandboxManagerKitTest, UnSetPolicyTest002, TestSize.Level0)
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, policy[0]));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetPolicyTest003
  * @tc.desc: Unset parent policy
@@ -2425,9 +2353,7 @@ HWTEST_F(SandboxManagerKitTest, UnSetPolicyTest003, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, policyB[0]));
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, policyA[0]));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetPolicyTest004
  * @tc.desc: Unset policy without permission
@@ -2459,9 +2385,7 @@ HWTEST_F(SandboxManagerKitTest, UnSetPolicyTest004, TestSize.Level0)
     ASSERT_EQ(0, SetSelfTokenID(g_mockToken));
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, policy[0]));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetPolicyTest005
  * @tc.desc: Unset policy without permission, sandbox_0300
@@ -2504,7 +2428,6 @@ HWTEST_F(SandboxManagerKitTest, UnSetPolicyTest005, TestSize.Level0)
     EXPECT_FALSE(checkResult1[1]);
     EXPECT_FALSE(checkResult1[2]);
 }
-#endif
 
 /**
  * @tc.name: PolicyAsyncTest001
@@ -2531,7 +2454,6 @@ HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest001, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicyAsync(g_selfTokenId, policy[0]));
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyAsyncTest002
  * @tc.desc: Set/Unset allowed policy
@@ -2575,9 +2497,7 @@ HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest002, TestSize.Level0)
 
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicyAsync(g_mockToken, policy[0]));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyAsyncTest003
  * @tc.desc: Set/UnSet parent policy
@@ -2605,9 +2525,7 @@ HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest003, TestSize.Level0)
     policyB.emplace_back(infoParent);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicyAsync(g_mockToken, policyB[0]));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyAsyncTest004
  * @tc.desc: Set/UnSet policy without permission
@@ -2637,9 +2555,7 @@ HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest004, TestSize.Level0)
     ASSERT_EQ(0, SetSelfTokenID(g_mockToken));
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicyAsync(g_mockToken, policy[0]));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PolicyAsyncTest005
  * @tc.desc: Set and Check parent_dir, sub_dir and sub_file, sandbox_0200
@@ -2674,9 +2590,7 @@ HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest005, TestSize.Level0)
     EXPECT_FALSE(checkResult[1]);
     EXPECT_FALSE(checkResult[2]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPersistPolicyByPathTest001
  * @tc.desc: Clean persist policy by path
@@ -2685,6 +2599,9 @@ HWTEST_F(SandboxManagerKitTest, PolicyAsyncTest005, TestSize.Level0)
  */
 HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest001, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -2727,9 +2644,8 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest001, TestSize.Level0
     ASSERT_EQ(1, result2.size());
     EXPECT_FALSE(result2[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
+
 /**
  * @tc.name: CleanPersistPolicyByPathTest002
  * @tc.desc: Clean child persist policy by path
@@ -2738,6 +2654,9 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest001, TestSize.Level0
  */
 HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest002, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -2790,9 +2709,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest002, TestSize.Level0
     ASSERT_EQ(1, result.size());
     EXPECT_FALSE(result[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPersistPolicyByPathTest003
  * @tc.desc: Clean child persist policy by path
@@ -2801,6 +2718,9 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest002, TestSize.Level0
  */
 HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest003, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -2848,7 +2768,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest003, TestSize.Level0
     ASSERT_EQ(1, result.size());
     EXPECT_FALSE(result[0]);
 }
-#endif
+
 
 /**
  * @tc.name: CleanPersistPolicyByPathTest004
@@ -2866,7 +2786,6 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest004, TestSize.Level0
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPersistPolicyByPathTest005
  * @tc.desc: Clean persist policy by path with invalid path
@@ -2904,9 +2823,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest005, TestSize.Level0
     ASSERT_EQ(0, SetSelfTokenID(g_mockToken));
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPersistPolicyByPathTest006
  * @tc.desc: Clean persist policy by path with invalid path
@@ -2915,6 +2832,9 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest005, TestSize.Level0
  */
 HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest006, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -2966,10 +2886,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest006, TestSize.Level0
     ASSERT_EQ(1, checkrResult.size());
     EXPECT_TRUE(checkrResult[0]);
 }
-#endif
 
-
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPolicyByUserIdTest001
  * @tc.desc: Clean persist policy by path
@@ -2978,6 +2895,9 @@ HWTEST_F(SandboxManagerKitTest, CleanPersistPolicyByPathTest006, TestSize.Level0
  */
 HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest001, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -3025,9 +2945,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest001, TestSize.Level0)
     ASSERT_EQ(1, result2.size());
     EXPECT_FALSE(result2[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPolicyByUserIdTest002
  * @tc.desc: Clean child persist policy by path
@@ -3036,6 +2954,9 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest001, TestSize.Level0)
  */
 HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest002, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -3086,9 +3007,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest002, TestSize.Level0)
     ASSERT_EQ(1, result.size());
     EXPECT_FALSE(result[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPolicyByUserIdTest003
  * @tc.desc: Clean child persist policy by path
@@ -3097,13 +3016,13 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest002, TestSize.Level0)
  */
 HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest003, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
-    PolicyInfo infoParent = {
-        .path = "/A/B",
-        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
-    };
+    PolicyInfo infoParent = { .path = "/A/B", .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE };
     policy.emplace_back(infoParent);
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
     ASSERT_EQ(1, policyResult.size());
@@ -3150,7 +3069,6 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest003, TestSize.Level0)
     ASSERT_EQ(1, result.size());
     EXPECT_FALSE(result[0]);
 }
-#endif
 
 /**
  * @tc.name: CleanPolicyByUserIdTest004
@@ -3174,7 +3092,6 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest004, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPolicyByUserId(userId, filePaths));
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPolicyByUserIdTest005
  * @tc.desc: Clean persist policy by path with invalid path
@@ -3215,9 +3132,7 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest005, TestSize.Level0)
     filePaths.emplace_back(infoParent.path);
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPolicyByUserId(userId, filePaths));
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: CleanPolicyByUserIdTest006
  * @tc.desc: Clean persist policy by path with invalid path
@@ -3226,17 +3141,14 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest005, TestSize.Level0)
  */
 HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest006, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
-    PolicyInfo infoParentB = {
-        .path = "/A/C",
-        .mode = OperateMode::READ_MODE
-    };
-    PolicyInfo infoParentC = {
-        .path = "/A/B/C",
-        .mode = OperateMode::WRITE_MODE
-    };
+    PolicyInfo infoParentB = { .path = "/A/C", .mode = OperateMode::READ_MODE };
+    PolicyInfo infoParentC = { .path = "/A/B/C", .mode = OperateMode::WRITE_MODE };
     policy.emplace_back(infoParentB);
     policy.emplace_back(infoParentC);
 
@@ -3279,7 +3191,6 @@ HWTEST_F(SandboxManagerKitTest, CleanPolicyByUserIdTest006, TestSize.Level0)
     ASSERT_EQ(1, checkrResult.size());
     EXPECT_TRUE(checkrResult[0]);
 }
-#endif
 
 /**
  * @tc.name: StartAccessingByTokenIdTest001
@@ -3305,7 +3216,6 @@ HWTEST_F(SandboxManagerKitTest, StartAccessingByTokenIdTest002, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingByTokenId(g_selfTokenId));
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: StartAccessingByTokenIdTest003
  * @tc.desc: Start accessing by tokenID
@@ -3358,9 +3268,7 @@ HWTEST_F(SandboxManagerKitTest, StartAccessingByTokenIdTest003, TestSize.Level0)
     ASSERT_EQ(1, result.size());
     EXPECT_TRUE(result[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: UnSetAllPolicyByTokenTest001
  * @tc.desc: destroy all mac policy in kernel with given tokenid
@@ -3506,7 +3414,6 @@ HWTEST_F(SandboxManagerKitTest, TimestampTest002, TestSize.Level0)
     EXPECT_FALSE(result[0]);
 }
 
-#ifdef DEC_ENABLED
 HWTEST_F(SandboxManagerKitTest, UserIdTest001, TestSize.Level0)
 {
     MacAdapter macAdapter;
@@ -3543,6 +3450,7 @@ HWTEST_F(SandboxManagerKitTest, UserIdTest001, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.UnSetSandboxPolicyByUser(101, policy, boolRes));
 }
 
+#ifdef DEC_SUPPORT_QUERY_WITH_ERROR_CODE
 HWTEST_F(SandboxManagerKitTest, QueryTest001, TestSize.Level0)
 {
     MacAdapter macAdapter;
@@ -3569,6 +3477,7 @@ HWTEST_F(SandboxManagerKitTest, QueryTest001, TestSize.Level0)
     EXPECT_EQ(SANDBOX_MANAGER_OK, macAdapter.QuerySandboxPolicy(101, policy, u32Res));
     EXPECT_EQ(FORBIDDEN_TO_BE_PERSISTED, u32Res[0]);
 }
+#endif
 
 HWTEST_F(SandboxManagerKitTest, QueryTest002, TestSize.Level0)
 {
@@ -3598,6 +3507,7 @@ HWTEST_F(SandboxManagerKitTest, QueryTest002, TestSize.Level0)
     EXPECT_EQ(FORBIDDEN_TO_BE_PERSISTED, u32Res[0]);
 }
 
+#ifdef DEC_SUPPORT_QUERY_WITH_ERROR_CODE
 HWTEST_F(SandboxManagerKitTest, QueryTest003, TestSize.Level0)
 {
     std::vector<PolicyInfo> policy;
@@ -3629,6 +3539,7 @@ HWTEST_F(SandboxManagerKitTest, QueryTest003, TestSize.Level0)
     EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[0]);
     EXPECT_EQ(OPERATE_SUCCESSFULLY, retType[1]);
 }
+#endif
 
 HWTEST_F(SandboxManagerKitTest, QueryTest004, TestSize.Level0)
 {
@@ -3661,9 +3572,7 @@ HWTEST_F(SandboxManagerKitTest, QueryTest004, TestSize.Level0)
     EXPECT_EQ(FORBIDDEN_TO_BE_PERSISTED, retType[0]);
     EXPECT_EQ(FORBIDDEN_TO_BE_PERSISTED, retType[1]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: ohos.permission.CHECK_SANDBOX_POLICY test001
  * @tc.desc: Permissions required for checking non-self temporary authorization and persistent authorization
@@ -3672,6 +3581,9 @@ HWTEST_F(SandboxManagerKitTest, QueryTest004, TestSize.Level0)
  */
 HWTEST_F(SandboxManagerKitTest, CheckSandboxPolicyPermissionsTest001, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -3715,9 +3627,7 @@ HWTEST_F(SandboxManagerKitTest, CheckSandboxPolicyPermissionsTest001, TestSize.L
     ASSERT_EQ(1, result1.size());
     EXPECT_TRUE(result1[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: PhysicalPathDenyTest002
  * @tc.desc: test deny physical path with invalid mode
@@ -3748,9 +3658,7 @@ HWTEST_F(SandboxManagerKitTest, PhysicalPathDenyTest002, TestSize.Level1)
     EXPECT_EQ(INVALID_MODE, policyResult[1]);
 }
 
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: SetPolicyByBundleNameTest001
  * @tc.desc: set policy by bundle name, and other basic operations.
@@ -3910,7 +3818,6 @@ HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest003, TestSize.Level0)
     EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, startResult[0]);
     EXPECT_EQ(OPERATE_SUCCESSFULLY, startResult[1]);
 }
-#endif
 
 /**
  * @tc.name: Test SetPolicy input bundleName001
@@ -4122,9 +4029,6 @@ HWTEST_F(SandboxManagerKitTest, TestSetPolicyInputBundleName005, TestSize.Level0
     EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[2]);
 }
 
-/* The device type phone does not allow setting policies for /storage/Users/currentUser/,
-    The DEC_EXT macro takes effect on the PC platform. */
-#ifdef DEC_EXT
 /**
  * @tc.name: TestAccessing001
  * @tc.desc: test accessing appdata
@@ -4133,6 +4037,9 @@ HWTEST_F(SandboxManagerKitTest, TestSetPolicyInputBundleName005, TestSize.Level0
  */
 HWTEST_F(SandboxManagerKitTest, TestAccessingPolicy001, TestSize.Level0)
 {
+    if (!denyPolicyFileExists_ || currentUserDenied_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -4183,6 +4090,9 @@ HWTEST_F(SandboxManagerKitTest, TestAccessingPolicy001, TestSize.Level0)
  */
 HWTEST_F(SandboxManagerKitTest, TestAccessingPolicy002, TestSize.Level0)
 {
+    if (!denyPolicyFileExists_ || currentUserDenied_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -4238,6 +4148,9 @@ HWTEST_F(SandboxManagerKitTest, TestAccessingPolicy002, TestSize.Level0)
  */
 HWTEST_F(SandboxManagerKitTest, TestAccessingPolicy003, TestSize.Level0)
 {
+    if (!denyPolicyFileExists_ || currentUserDenied_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -4296,6 +4209,9 @@ HWTEST_F(SandboxManagerKitTest, TestAccessingPolicy003, TestSize.Level0)
  */
 HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy001, TestSize.Level0)
 {
+    if (!denyPolicyFileExists_ || currentUserDenied_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -4354,6 +4270,9 @@ HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy001, TestSize.
  */
 HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy002, TestSize.Level0)
 {
+    if (!denyPolicyFileExists_ || currentUserDenied_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -4408,6 +4327,9 @@ HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy002, TestSize.
  */
 HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy003, TestSize.Level0)
 {
+    if (!denyPolicyFileExists_ || currentUserDenied_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -4466,6 +4388,9 @@ HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy003, TestSize.
  */
 HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy004, TestSize.Level0)
 {
+    if (!denyPolicyFileExists_ || currentUserDenied_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     uint64_t policyFlag = 1;
     std::vector<uint32_t> policyResult;
@@ -4566,10 +4491,8 @@ HWTEST_F(SandboxManagerKitTest, TestPersistWithMultiLevelSetPolicy005, TestSize.
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
     EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
 }
-#endif
-#endif
 
-#ifdef DEC_ENABLED
+#ifdef SUPPORT_MEDIA
 /**
  * @tc.name: UnPersistPolicyByTokenId001
  * @tc.desc: UnPersistPolicy with a given tokenId.
@@ -4616,7 +4539,6 @@ HWTEST_F(SandboxManagerKitTest, UnPersistPolicyByTokenId001, TestSize.Level0)
 }
 #endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: UnPersistPolicyByTokenIdWithPolicyVector001
  * @tc.desc: UnPersistPolicy with a given tokenId and policy vector.
@@ -4664,9 +4586,7 @@ HWTEST_F(SandboxManagerKitTest, UnPersistPolicyByTokenIdWithPolicyVector001, Tes
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(g_mockToken, policy, checkResult2));
     EXPECT_EQ(false, checkResult2[0]);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: GetSharedDirectoryInfoTest001
  * @tc.desc: Test GetSharedDirectoryInfo interface call
@@ -4709,9 +4629,7 @@ HWTEST_F(SandboxManagerKitTest, RevokeSharedDirectoryPermissionTest001, TestSize
     int32_t ret = SandboxManagerKit::RevokeSharedDirectoryPermission();
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
 }
-#endif
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: SetPolicyWithSpecificUserIdTest001
  * @tc.desc: Test setting policy with specific userId (200), check permission, clean by userId, and verify cleanup
@@ -4720,6 +4638,9 @@ HWTEST_F(SandboxManagerKitTest, RevokeSharedDirectoryPermissionTest001, TestSize
  */
 HWTEST_F(SandboxManagerKitTest, SetPolicyWithSpecificUserIdTest001, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     // Step 1: Prepare test data with specific userId = 200
     uint32_t testTokenId = g_mockToken;
     int32_t testUserId = 200; // Special userId for this test
@@ -4762,7 +4683,6 @@ HWTEST_F(SandboxManagerKitTest, SetPolicyWithSpecificUserIdTest001, TestSize.Lev
     ASSERT_EQ(1, checkResult.size());
     EXPECT_FALSE(checkResult[0]); // Should NOT have permission anymore
 }
-#endif
 } // SandboxManager
 } // AccessControl
 } // OHOS

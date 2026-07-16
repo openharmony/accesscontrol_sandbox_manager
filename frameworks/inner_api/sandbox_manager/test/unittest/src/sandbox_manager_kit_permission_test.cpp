@@ -166,7 +166,6 @@ void SandboxManagerKitPermissionTest::TearDown()
     EXPECT_EQ(0, SetSelfTokenID(g_selfTokenId));
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: StartAndStopAccessingPolicyTest001
  * @tc.desc: PersistPolicy directory.
@@ -1940,7 +1939,6 @@ HWTEST_F(SandboxManagerKitPermissionTest, GetSharedDirectoryInfoTest001, TestSiz
     int32_t ret = SandboxManagerKit::GetSharedDirectoryInfo(result);
     EXPECT_EQ(PERMISSION_DENIED, ret);
 }
-#endif
 } // SandboxManager
 } // AccessControl
 } // OHOS
