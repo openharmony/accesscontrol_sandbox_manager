@@ -47,6 +47,8 @@ group("fuzztest") {
     "setpolicybybundlenamestub_fuzzer:SetPolicyByBundleNameStubFuzzTest",
     "startbyeventaction_fuzzer:StartByEventActionFuzzTest",
     "mac_fuzzer:MacFuzzTest",
-    "sandboxstub_fuzzer:SandboxStubFuzzTest"
+    "sandboxstub_fuzzer:SandboxStubFuzzTest",
+    "setpolicy_checkpolicy_appdata_fuzzer:setpolicy_checkpolicy_appdata_fuzzer",
+    "persist_activate_appdata_fuzzer:persist_activate_appdata_fuzzer"
   ]
 }

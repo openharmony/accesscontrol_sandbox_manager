@@ -1,0 +1,29 @@
+# Copyright (c) 2026 Huawei Device Co., Ltd.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Seed paths for appdata denyInherit fuzz testing.
+# Each byte selects an appdata variant path to test the denyInherit mechanism.
+# Variant 0: /storage/Users/currentUser/appdata
+# Variant 1: /storage/Users/currentUser/Appdata
+# Variant 2: /storage/Users/currentUser/APPDATA
+# Variant 3: /storage/Users/currentUser/AppData
+# Variant 4: /storage/Users/currentUser/appData
+# Variant 5: /storage/Users/currentUser/aPpDaTa
+# Variant 6: /storage/Users/currentUser/appdata/
+# Variant 7: /storage/Users/currentUser/appdata/.
+# Variant 8: /storage/Users/currentUser/appdata/..
+# Variant 9: /storage/Users/currentUser/appdata/sub
+# Variant 10: /storage/Users/currentUser/appdata/../sub
+# Variant 11: /storage/Users/currentUser/appdata/./sub
+
+FUZZ
