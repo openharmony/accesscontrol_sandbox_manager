@@ -65,12 +65,14 @@ if (is_standard_system) {
       "main/cpp/src/media/media_path_support.cpp",
       "main/cpp/src/sensitive/sandbox_manager_event_subscriber.cpp",
       "main/cpp/src/service/policy_info_manager.cpp",
+      "main/cpp/src/service/policy_info_manager_interface.cpp",
       "main/cpp/src/service/policy_trie.cpp",
       "main/cpp/src/service/sandbox_manager_service.cpp",
       "main/cpp/src/service/sandbox_stats_reporter.cpp",
       "main/cpp/src/share/share_files.cpp",
       "main/cpp/src/preserve/persistent_preserve.cpp",
       "main/cpp/src/utils/data_size_report_adapter.cpp",
+      "main/cpp/src/utils/sandbox_param_validator.cpp",
     ]
 
     cflags_cc = [ "-DHILOG_ENABLE" ]

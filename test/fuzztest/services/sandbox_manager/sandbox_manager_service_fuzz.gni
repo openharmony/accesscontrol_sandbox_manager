@@ -43,11 +43,13 @@ sandbox_manager_sources = [
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/media/media_path_support.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/sensitive/sandbox_manager_event_subscriber.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/service/policy_info_manager.cpp",
+  "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/service/policy_info_manager_interface.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/service/policy_trie.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/service/sandbox_manager_service.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/service/sandbox_stats_reporter.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/share/share_files.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/preserve/persistent_preserve.cpp",
+  "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/utils/sandbox_param_validator.cpp",
   "${sandbox_manager_path}/test/fuzztest/common/alloc_token.cpp",
   "${sandbox_manager_path}/test/fuzztest/common/fuzz_common.cpp",
 ]

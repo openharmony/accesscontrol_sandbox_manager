@@ -28,6 +28,7 @@
 #include "policy_info.h"
 #define private public
 #include "policy_info_manager.h"
+#include "policy_info_manager_interface.h"
 #include "share_files.h"
 #include "persistent_preserve.h"
 #undef private
@@ -1785,14 +1786,15 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerBatchRawDataTest001, TestSize.L
     SetInfo setInfo;
     setInfo.userId = 0;
     EXPECT_EQ(SANDBOX_MANAGER_OK,
-        PolicyInfoManager::GetInstance().SetPolicy(selfTokenId_, rawData, 0, setResult, setInfo));
+        PolicyInfoManagerInterface::GetInstance().SetPolicy(selfTokenId_, rawData, 0, setResult, setInfo));
     ASSERT_EQ(policy.size(), setResult.size());
     for (const auto &item : setResult) {
         EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, item);
     }
 
     std::vector<bool> checkResult;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CheckPolicy(selfTokenId_, rawData, checkResult));
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManagerInterface::GetInstance().CheckPolicy(selfTokenId_, rawData, checkResult));
     ASSERT_EQ(policy.size(), checkResult.size());
     for (bool item : checkResult) {
         EXPECT_TRUE(item);
