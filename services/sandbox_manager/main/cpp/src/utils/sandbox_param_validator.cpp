@@ -126,7 +126,13 @@ int32_t SandboxParamValidator::ValidateGenericPath(const std::string& path)
         return SandboxRetType::INVALID_PATH;
     }
 
+    // Path starts with "//"
     if (normalized.length() > 1 && normalized[1] == '/') {
+        return SandboxRetType::INVALID_PATH;
+    }
+
+    // Path ends with "/" but is not root
+    if (normalized.length() > 1 && normalized.back() == '/') {
         return SandboxRetType::INVALID_PATH;
     }
 
@@ -271,16 +277,15 @@ int32_t SandboxParamValidator::ValidateExtendedPathRules(int32_t userID, const s
         }
     }
 
-    if (components.size() > MAX_CHECK_COM_NUM) {
 #ifdef NOT_RESIDENT
+    if (components.size() > MAX_CHECK_COM_NUM) {
         if (policy.type != PolicyType::AUTHORIZATION_PATH) {
             if (!CheckPathWithinShareMap(userID, path, policy)) {
                 return SandboxRetType::INVALID_PATH;
             }
         }
-#endif
-        return SANDBOX_MANAGER_OK;
     }
+#endif
 
     return SANDBOX_MANAGER_OK;
 }

@@ -425,7 +425,7 @@ int32_t MacAdapter::SetDenyPolicy(const std::vector<PolicyInfo> &policy, std::ve
             SandboxManagerDfxHelper::WriteValidationFailure("SetDenyPolicy", macParams.tokenId,
                 SandboxRetType::INVALID_PATH, maskedPath, policy[i].mode);
         }
-        if (SandboxParamValidator::ValidateTempMode(policy[i].mode) != SANDBOX_MANAGER_OK) {
+        if (SandboxParamValidator::ValidateDenyMode(policy[i].mode) != SANDBOX_MANAGER_OK) {
             SandboxManagerDfxHelper::WriteValidationFailure("SetDenyPolicy", macParams.tokenId,
                 SandboxRetType::INVALID_MODE, maskedPath, policy[i].mode);
         }
