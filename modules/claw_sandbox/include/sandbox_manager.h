@@ -130,8 +130,10 @@ private:
     int MountAppDirs();
     int ApplyPolicyMounts();
     int PivotRoot();
+#ifdef CONFIG_PC_PLATFORM
     int ApplyDecPolicies();
     int PreDecDenyPaths();
+#endif
     int ForkAfterUnshare();
     int MountProcFs();
     int SetAccessToken();
@@ -152,8 +154,10 @@ private:
     int ApplyEnvironment();
     int DeliverPolicy();
     int DeliverNetPolicy(int fd);
+#ifdef CONFIG_PC_PLATFORM
     int SetEncapsProcFlag();
     int SetSandboxPathMark();
+#endif
     int ExecuteCommand();
 
     // Helper methods

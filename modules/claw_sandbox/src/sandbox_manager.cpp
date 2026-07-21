@@ -112,13 +112,37 @@ constexpr unsigned int UID_MIN_LIMIT = 20000000;
 // DEC device policy ABI, aligned with startup_appspawn/modules/sandbox/sandbox_dec.h
 constexpr const char *DEC_DEVICE_PATH = "/dev/dec";
 constexpr int HM_DEC_IOCTL_BASE = 's';
+
+// DEC policy IOCTL constants and structs, only used on PC platform
+#ifdef CONFIG_PC_PLATFORM
 constexpr int HM_SET_POLICY_ID = 1;
 constexpr size_t DEC_MAX_POLICY_NUM = 64;
 constexpr uint32_t DEC_KERNEL_BATCH_SIZE = 8;
 constexpr uint32_t DEC_SANDBOX_MODE_READ = 0x00000001;
 constexpr uint32_t DEC_SANDBOX_MODE_WRITE = (DEC_SANDBOX_MODE_READ << 1);
 constexpr uint32_t DEC_POLICY_HEADER_RESERVED = 64;
+
+struct DecPathInfo {
+    char *path;
+    uint32_t pathLen;
+    uint32_t mode;
+    bool flag;
+};
+
+struct DecPolicyInfo {
+    uint64_t tokenId;
+    uint64_t timestamp;
+    DecPathInfo path[DEC_KERNEL_BATCH_SIZE];
+    uint32_t pathNum;
+    int32_t userId;
+    uint64_t reserved[DEC_POLICY_HEADER_RESERVED];
+    bool flag;
+};
+
+constexpr unsigned long SET_DEC_POLICY_CMD = _IOWR(HM_DEC_IOCTL_BASE, HM_SET_POLICY_ID, DecPolicyInfo);
+constexpr uint32_t DEC_MODE_DENY_INHERIT = (1 << 9);
 constexpr uint64_t SEC_TO_NSEC = 1000000000ULL;
+#endif
 
 // IOCTL command for delivering AgentLock policy to kernel
 constexpr int HM_POLICY_ADD_ID = 104;
@@ -160,26 +184,7 @@ constexpr EnvVar PRESET_ENV_VARS[] = {
 #endif
 };
 
-struct DecPathInfo {
-    char *path;
-    uint32_t pathLen;
-    uint32_t mode;
-    bool flag;
-};
-
-struct DecPolicyInfo {
-    uint64_t tokenId;
-    uint64_t timestamp;
-    DecPathInfo path[DEC_KERNEL_BATCH_SIZE];
-    uint32_t pathNum;
-    int32_t userId;
-    uint64_t reserved[DEC_POLICY_HEADER_RESERVED];
-    bool flag;
-};
-
-constexpr unsigned long SET_DEC_POLICY_CMD = _IOWR(HM_DEC_IOCTL_BASE, HM_SET_POLICY_ID, DecPolicyInfo);
-constexpr uint32_t DEC_MODE_DENY_INHERIT = (1 << 9);
-
+#ifdef CONFIG_PC_PLATFORM
 // Path mark constants (matching appspawn appspawn_isolate.c)
 constexpr int HM_ADD_PATH_MARK = 11;
 constexpr uint32_t SEC_UGC_PATH_TYPE = (1 << 0);
@@ -210,6 +215,7 @@ constexpr int HM_ENCAPS_PROC_FLAG_BASE = 0x1F;
 constexpr int OH_ENCAPS_MAGIC = 'E';
 constexpr uint32_t CUSTOM_SANDBOX_PROCESS_TYPE = (1U << 0);
 constexpr unsigned long SET_ENCAPS_PROC_FLAG_CMD = _IOW(OH_ENCAPS_MAGIC, HM_ENCAPS_PROC_FLAG_BASE, uint32_t);
+#endif
 
 constexpr unsigned long DEC_CMD_POLICY_ADD = _IOWR(HM_DEC_IOCTL_BASE, HM_POLICY_ADD_ID, struct AgentLockAddPolicyArg);
 constexpr unsigned long DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT =
@@ -555,10 +561,12 @@ int SandboxManager::ExecuteLateSteps()
         &SandboxManager::SetXpmOwnerId,
         &SandboxManager::SetAinfo,
         &SandboxManager::SetUidGid,
+#ifdef CONFIG_PC_PLATFORM
         // Pre-deny DEC for paths without permission (before DEC authorization).
         &SandboxManager::PreDecDenyPaths,
         // Apply DEC policies after UID/GID and supplementary groups are set.
         &SandboxManager::ApplyDecPolicies,
+#endif
         // Prepare optional workdir before installing seccomp, because seccomp may block chdir.
         &SandboxManager::PrepareWorkdir,
         // Apply optional environment after UID/GID switch so exec inherits the final environment.
@@ -570,10 +578,12 @@ int SandboxManager::ExecuteLateSteps()
         // Drop capabilities after seccomp; capset() is not blocked in block mode
         // and is expected to be allowlisted in whitelist mode.
         &SandboxManager::DropCapabilities,
+#ifdef CONFIG_PC_PLATFORM
         // Mark root path as sandbox path type (for kernel sandbox isolation).
         &SandboxManager::SetSandboxPathMark,
         // Set encaps proc flag (custom sandbox marker for kernel).
         &SandboxManager::SetEncapsProcFlag,
+#endif
     };
 
     for (auto step : steps) {
@@ -748,6 +758,7 @@ std::vector<int> SandboxManager::CollectGrantedPermissionGids() const
     return permissionGids;
 }
 
+#ifdef CONFIG_PC_PLATFORM
 int SandboxManager::CollectPermissionDecPaths(const PermissionConfig &config,
                                               std::vector<std::string> &decPaths) const
 {
@@ -948,6 +959,7 @@ int SandboxManager::ApplyDecPolicies()
     }
     return SANDBOX_SUCCESS;
 }
+#endif
 
 int SandboxManager::GenerateTokenId()
 {
@@ -2039,6 +2051,7 @@ int SandboxManager::ApplyEnvironment()
     return ApplySanitizedEnv(sanitizedEnv);
 }
 
+#ifdef CONFIG_PC_PLATFORM
 int SandboxManager::SetSandboxPathMark()
 {
     if (!IsPermissionGranted("ohos.permission.CUSTOM_SANDBOX")) {
@@ -2104,6 +2117,7 @@ int SandboxManager::SetEncapsProcFlag()
     close(fd);
     return SANDBOX_SUCCESS;
 }
+#endif
 
 int SandboxManager::ExecuteCommand()
 {
