@@ -101,7 +101,7 @@ if(!defined(ohos_lite)) {
     if (claw_sandbox_mcs_enable) {
       defines += [ "MCS_ENABLE" ]
     }
-    if (!is_emulator && claw_sandbox_need_set_seccomp) {
+    if (!is_emulator && claw_sandbox_need_set_seccomp && build_seccomp) {
       defines += [ "WITH_SECCOMP" ]
       external_deps += [ "init:seccomp" ]
     }
