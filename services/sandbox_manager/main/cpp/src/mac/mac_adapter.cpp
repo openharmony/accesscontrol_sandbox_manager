@@ -24,8 +24,10 @@
 #include <vector>
 #include "cJSON.h"
 #include "config_policy_utils.h"
+#include "sandbox_manager_dfx_helper.h"
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_log.h"
+#include "sandbox_param_validator.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -385,13 +387,57 @@ int32_t MacAdapter::SetPolicyToMac(const std::vector<PolicyInfo> &policy, std::v
 int32_t MacAdapter::SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
     MacParams &macParams)
 {
-    return SetPolicyToMac(policy, result, macParams, SET_POLICY_CMD);
+    std::vector<PolicyInfo> validPolicies;
+    std::vector<size_t> validIndex;
+    for (size_t i = 0; i < policy.size(); ++i) {
+        std::string maskedPath = SandboxManagerLog::MaskRealPath(policy[i].path);
+        if (SandboxParamValidator::ValidateGenericPath(policy[i].path) != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("SetSandboxPolicy", macParams.tokenId,
+                SandboxRetType::INVALID_PATH, maskedPath, policy[i].mode);
+        }
+        if (SandboxParamValidator::ValidateBasicPathRules(policy[i].path) != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("SetSandboxPolicy", macParams.tokenId,
+                SandboxRetType::INVALID_PATH, maskedPath, policy[i].mode);
+        }
+        if (SandboxParamValidator::ValidateTempMode(policy[i].mode) != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("SetSandboxPolicy", macParams.tokenId,
+                SandboxRetType::INVALID_MODE, maskedPath, policy[i].mode);
+        }
+        validPolicies.emplace_back(policy[i]);
+        validIndex.emplace_back(i);
+    }
+    std::vector<uint32_t> validResults(validPolicies.size());
+    int32_t ret = SetPolicyToMac(validPolicies, validResults, macParams, SET_POLICY_CMD);
+    for (size_t i = 0; i < validIndex.size(); ++i) {
+        result[validIndex[i]] = validResults[i];
+    }
+    return ret;
 }
 
 int32_t MacAdapter::SetDenyPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
     MacParams &macParams)
 {
-    return SetPolicyToMac(policy, result, macParams, DENY_DEC_RULE_CMD);
+    std::vector<PolicyInfo> validPolicies;
+    std::vector<size_t> validIndex;
+    for (size_t i = 0; i < policy.size(); ++i) {
+        std::string maskedPath = SandboxManagerLog::MaskRealPath(policy[i].path);
+        if (SandboxParamValidator::ValidateGenericPath(policy[i].path) != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("SetDenyPolicy", macParams.tokenId,
+                SandboxRetType::INVALID_PATH, maskedPath, policy[i].mode);
+        }
+        if (SandboxParamValidator::ValidateDenyMode(policy[i].mode) != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("SetDenyPolicy", macParams.tokenId,
+                SandboxRetType::INVALID_MODE, maskedPath, policy[i].mode);
+        }
+        validPolicies.emplace_back(policy[i]);
+        validIndex.emplace_back(i);
+    }
+    std::vector<uint32_t> validResults(validPolicies.size());
+    int32_t ret = SetPolicyToMac(validPolicies, validResults, macParams, DENY_DEC_RULE_CMD);
+    for (size_t i = 0; i < validIndex.size(); ++i) {
+        result[validIndex[i]] = validResults[i];
+    }
+    return ret;
 }
 
 #define DEC_ERR_QUERY_RULE_NOT_FOUND 1

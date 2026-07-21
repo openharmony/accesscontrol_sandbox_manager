@@ -293,6 +293,26 @@ std::string SandboxManagerDfxHelper::GetBundleNameByTokenId(uint32_t tokenId)
     }
     return hapTokenInfoRes.bundleName;
 }
+
+#define VALIDATION_MAGIC_PID 2147483646
+void SandboxManagerDfxHelper::WriteValidationFailure(const std::string &operation, uint32_t tokenId,
+    int32_t result, const std::string &path, uint64_t mode)
+{
+    uint32_t inputTokenid = tokenId;
+    if (inputTokenid == 0) {
+        inputTokenid = IPCSkeleton::GetCallingTokenID();
+    }
+    std::string bundlename = GetBundleNameByTokenId(inputTokenid);
+    std::string maskedPath = SandboxManagerLog::MaskRealPath(path);
+    std::string reportString = "Bundlename: " + bundlename + ", Token: " + std::to_string(inputTokenid)
+        + ", Operation: " + operation + ", Result: " + std::to_string(result)
+        + ", Path: " + maskedPath + ", Mode: " + std::to_string(mode);
+    SANDBOXMANAGER_LOG_ERROR(LABEL, "WriteValidationFailure: %{public}s", reportString.c_str());
+
+    HiSysEventWrite(HiviewDFX::HiSysEvent::Domain::CODE_SIGN, "CS_SA_INVALID_CALLER",
+        HiviewDFX::HiSysEvent::EventType::SECURITY, "TOKEN_ID", VALIDATION_MAGIC_PID,
+        "INTERFACE", reportString);
+}
 }
 }
 }

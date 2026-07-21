@@ -16,10 +16,12 @@ import("../../../sandbox_manager.gni")
 
 sandbox_manager_service_src = [
   "../main/cpp/src/utils/data_size_report_adapter.cpp",
+  "../main/cpp/src/utils/sandbox_param_validator.cpp",
   "../main/cpp/src/service/sandbox_manager_service.cpp",
   "../main/cpp/src/service/sandbox_stats_reporter.cpp",
   "../main/cpp/src/sensitive/sandbox_manager_event_subscriber.cpp",
   "../main/cpp/src/service/policy_info_manager.cpp",
+  "../main/cpp/src/service/policy_info_manager_interface.cpp",
   "../main/cpp/src/service/policy_trie.cpp",
   "../main/cpp/src/database/policy_field_const.cpp",
   "../main/cpp/src/database/sandbox_manager_rdb.cpp",
@@ -193,12 +195,14 @@ ohos_unittest("libsandbox_policy_test") {
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/media",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/share",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/preserve",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/utils",
   ]
   include_dirs += sandbox_manager_service_mock_include
 
   sources = [
     "unittest/policy_info_manager_test.cpp",
     "unittest/policy_info_manager_extended_test.cpp",
+    "unittest/sandbox_param_validator_test.cpp",
   ]
   sources += sandbox_manager_service_src
   sources += sandbox_manager_service_mock_src
@@ -262,8 +266,15 @@ ohos_unittest("libsandbox_macadapter_test") {
 
   include_dirs = [
     "mock/include",
-    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/mac",
+    "${sandbox_manager_path}/frameworks/sandbox_manager/include",
+    "${sandbox_manager_path}/frameworks/common/include",
     "${sandbox_manager_path}/interfaces/inner_api/sandbox_manager/include",
+    "${sandbox_manager_path}/services/common/database/include",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/mac",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/utils",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/service",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/share",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/include/media",
   ]
 
   deps = [
@@ -278,14 +289,17 @@ ohos_unittest("libsandbox_macadapter_test") {
     "access_token:libtoken_setproc",
     "c_utils:utils",
     "config_policy:configpolicy_util",
+    "data_share:datashare_consumer",
     "hilog:libhilog",
-    "cJSON:cjson"
+    "cJSON:cjson",
+    "media_library:media_permission_helper",
   ]
 
   sources = [
     "unittest/mac_adapter_test.cpp",
     "mock/src/dec_test.cpp",
     "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/mac/mac_adapter.cpp",
+    "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/utils/sandbox_param_validator.cpp",
   ]
 
   configs = [ "${sandbox_manager_path}/config:coverage_flags" ]

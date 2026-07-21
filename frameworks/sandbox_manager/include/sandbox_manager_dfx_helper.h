@@ -117,6 +117,8 @@ public:
     static void ReportDataSize(uint64_t partitionRemainSize, uint64_t folderSize);
     static void WriteAuthorizationStatEvent(const AuthorizationStatData &statData);
     static std::string GetBundleNameByTokenId(uint32_t tokenId);
+    static void WriteValidationFailure(const std::string &operation, uint32_t tokenId,
+        int32_t result, const std::string &path, uint64_t mode);
 };
 } // SandboxManager
 } // AccessControl
