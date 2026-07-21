@@ -17,7 +17,6 @@
 #include <gtest/gtest.h>
 #include <sstream>
 
-#ifdef DEC_ENABLED
 const uint64_t TOKEN_ID = 123;
 const uint64_t TOKEN_ID1 = 222;
 const int32_t USER_ID = 100;
@@ -39,8 +38,8 @@ std::string CreatePath()
 {
     std::string path{};
     path += PATH_PREFIX;
-    const int BASE_COUNT = 39;
-    for (int i = 0; i < BASE_COUNT; ++i) {
+    const int baseCount = 39;
+    for (int i = 0; i < baseCount; ++i) {
         path += TEST_BASE_PATH;
     }
     path += SUFFIX;
@@ -836,6 +835,7 @@ HWTEST_F(DecTestCase, testRecursiveDelete, TestSize.Level0)
     EXPECT_TRUE(ExcuteCmd("if [ -d /data/mntRecursiveDelete ]; then rm -rf /data/mntRecursiveDelete; fi"));
 }
 
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 HWTEST_F(DecTestCase, testDenyInherit, TestSize.Level0)
 {
     EXPECT_TRUE(ExcuteCmd("if [ -d /data/testDeny ]; then rm -rf /data/testDeny; fi"));
@@ -862,7 +862,9 @@ HWTEST_F(DecTestCase, testDenyInherit, TestSize.Level0)
     EXPECT_TRUE(ExcuteCmd("[ -d /data/testDeny/ ] && rm -rf  "));
     EXPECT_TRUE(ExcuteCmd("[ -d /data/mntTestDeny ] && rm -rf /data/mntTestDeny"));
 }
+#endif
 
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 HWTEST_F(DecTestCase, testDenyDelete, TestSize.Level0)
 {
     EXPECT_TRUE(ExcuteCmd("if [ -d /data/testDenyDelete ]; then rm -rf /data/testDenyDelete; fi"));
@@ -889,7 +891,9 @@ HWTEST_F(DecTestCase, testDenyDelete, TestSize.Level0)
     EXPECT_TRUE(ExcuteCmd("[ -d /data/testDenyDelete/ ] && rm -rf  "));
     EXPECT_TRUE(ExcuteCmd("[ -d /data/mntTestDenyDelete ] && rm -rf /data/mntTestDenyDelete"));
 }
+#endif
 
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 HWTEST_F(DecTestCase, testDenyRename, TestSize.Level0)
 {
     EXPECT_TRUE(ExcuteCmd("if [ -d /data/testDenyRename ]; then rm -rf /data/testDenyRename; fi"));
@@ -917,7 +921,9 @@ HWTEST_F(DecTestCase, testDenyRename, TestSize.Level0)
     EXPECT_TRUE(ExcuteCmd("[ -d /data/testDenyRename/ ] && rm -rf testDenyRename"));
     EXPECT_TRUE(ExcuteCmd("[ -d /data/mntTestDenyRename ] && rm -rf /data/mntTestDenyRename"));
 }
+#endif
 
+#ifdef DEC_SUPPORT_SINGLE_FILE_OPERATIONS
 HWTEST_F(DecTestCase, testSingleCreate, TestSize.Level0)
 {
     EXPECT_TRUE(ExcuteCmd("if [ -d /data/testSingleCreate ]; then rm -rf /data/testSingleCreate; fi"));
@@ -1088,6 +1094,7 @@ HWTEST_F(DecTestCase, testSingleRenameDir, TestSize.Level0)
     EXPECT_TRUE(ExcuteCmd("[ -d /data/testSingleRenameDir/ ] && rm -rf testSingleRenameDir"));
     EXPECT_TRUE(ExcuteCmd("[ -d /data/mntTestSingleRenameDir ] && rm -rf /data/mntTestSingleRenameDir"));
 }
+#endif
 
 /**
  * @tc.name: testBatchSetPaths020
@@ -1097,11 +1104,11 @@ HWTEST_F(DecTestCase, testSingleRenameDir, TestSize.Level0)
  */
 HWTEST_F(DecTestCase, testBatchSetPaths020, TestSize.Level0)
 {
-    const int PATH_COUNT = 10000;
+    const int pathCount = 10000;
 
     // Batch set multiple paths with different modes
     std::vector<std::pair<std::string, uint32_t>> pathModePairs;
-    for (int i = 0; i < PATH_COUNT; i++) {
+    for (int i = 0; i < pathCount; i++) {
         std::string path = "/data/path_" + std::to_string(i) + ".txt";
         uint32_t mode = DEC_MODE_RW;
         pathModePairs.push_back({path, mode});
@@ -1134,8 +1141,9 @@ HWTEST_F(DecTestCase, testBatchSetPaths020, TestSize.Level0)
     }
 
     // Print before and after counts
-    printf("path_tree_node: before=%lu, after=%lu, expected_increase=%d\n",
-        beforePathNodeCount, afterPathNodeCount, PATH_COUNT);
+    printf("path_tree_node: before=%llu, after=%llu, expected_increase=%d\n",
+        static_cast<unsigned long long>(beforePathNodeCount),
+        static_cast<unsigned long long>(afterPathNodeCount), pathCount);
 
     // Clean up
     EXPECT_EQ(DestroyByTokenid(TOKEN_ID, 0), 0);
@@ -1146,4 +1154,3 @@ HWTEST_F(DecTestCase, testBatchSetPaths020, TestSize.Level0)
 } // SandboxManager
 } // AccessControl
 } // OHOS
-#endif

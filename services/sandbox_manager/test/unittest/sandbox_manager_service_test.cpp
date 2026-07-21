@@ -175,6 +175,7 @@ public:
     std::shared_ptr<SandboxManagerService> sandboxManagerService_;
     uint64_t selfTokenId_ = 1; // test token
     uint64_t sysGrantToken_;
+    bool fileManagerPresent_ = false;
 };
 
 void SandboxManagerServiceTest::SetUpTestCase(void)
@@ -193,6 +194,7 @@ void SandboxManagerServiceTest::TearDownTestCase(void)
 void SandboxManagerServiceTest::SetUp(void)
 {
     EXPECT_TRUE(MockTokenId("foundation"));
+    fileManagerPresent_ = (GetTokenIdFromProcess("file_manager_service") != 0);
     sandboxManagerService_ = DelayedSingleton<SandboxManagerService>::GetInstance();
     ASSERT_NE(nullptr, sandboxManagerService_);
 
@@ -407,6 +409,9 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest007, TestSize.Level
  */
 HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest008, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     int32_t uid = getuid();
     setuid(FOUNDATION_UID);
     std::vector<PolicyInfo> policy;
@@ -702,6 +707,9 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceBundleNameTest001, Test
  */
  HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub001, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     std::vector<std::string> paths = {};
     uint32_t fileManagerToken = Security::AccessToken::AccessTokenKit::GetNativeTokenId("file_manager_service");
     EXPECT_EQ(PERMISSION_DENIED, sandboxManagerService_->CleanPersistPolicyByPath(paths));
@@ -722,6 +730,9 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceBundleNameTest001, Test
  */
  HWTEST_F(SandboxManagerServiceTest, SandboxManagerStub002, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     std::vector<std::string> paths = {};
     int32_t userId = 0;
     int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
@@ -865,6 +876,9 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest002, TestSiz
  */
 HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest003, TestSize.Level0)
 {
+    if (!fileManagerPresent_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     policy.resize(POLICY_VECTOR_LARGE_SIZE + 1);
     PolicyVecRawData policyRawData1;
@@ -1425,7 +1439,6 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest020, TestSiz
     EXPECT_EQ(policyInfo.type, batchPolicy[0].type);
 }
 
-#ifdef DEC_ENABLED
 /**
  * @tc.name: SandboxManagerServiceNew001
  * @tc.desc: Test SetPolicyByBundleName
@@ -1509,6 +1522,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceNew002, TestSize.Level0
     EXPECT_EQ(PERMISSION_DENIED, sandboxManagerService_->SetDenyPolicy(selfTokenId_, policyRawData2, resultRawData4));
 }
 
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 /**
  * @tc.name: SandboxManagerServiceNew003
  * @tc.desc: Test UnSetPolicy
@@ -1542,6 +1556,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceNew003, TestSize.Level0
     EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->UnSetDenyPolicy(selfTokenId_, policyInfoParcel));
     setuid(uid);
 }
+#endif
 
 /**
  * @tc.name: SandboxManagerServiceNew004
@@ -1958,7 +1973,6 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerDfxHelperReportPolicyViolateTe
     int32_t ret = SandboxManagerDfxHelper::ReportPolicyViolate(tokenId, "invalid param", path, bundleName, errorCode);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
 }
-#endif
 
 /**
  * @tc.name: GetPersistPolicyTest001
@@ -2099,6 +2113,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxStatsReporterTest001, TestSize.Level0
     EXPECT_EQ(std::string("not_get"), persistBundleName);
 }
 
+#ifdef SUPPORT_MEDIA
 /**
  * @tc.name: SandboxManagerService_UnPersistPolicy_MediaBranch
  * @tc.desc: Test SandboxManagerService::UnPersistPolicy function to cover media branch
@@ -2140,6 +2155,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerService_UnPersistPolicy_MediaB
     // Clean up
     Security::AccessToken::AccessTokenKit::DeleteToken(testTokenId);
 }
+#endif
 
 } // SandboxManager
 } // AccessControl

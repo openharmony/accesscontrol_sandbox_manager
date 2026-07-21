@@ -15,7 +15,6 @@
 #ifndef DEC_TEST_H
 #define DEC_TEST_H
 
-#ifdef DEC_ENABLED
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
@@ -90,13 +89,17 @@ struct path_info {
     path_info(const char *_path) : mode(0)
     {
         path = (char *)malloc(strlen(_path) + 1);
-        (void)memcpy_s(path, strlen(_path), _path, strlen(_path));
+        if (memcpy_s(path, strlen(_path), _path, strlen(_path)) != 0) {
+            printf("[path_info] memcpy_s failed in constructor\n");
+        }
         path_len = strlen(_path);
     }
     path_info(const char *_path, uint32_t _mode) : mode(_mode)
     {
         path = (char *)malloc(strlen(_path) + 1);
-        (void)memcpy_s(path, strlen(_path), _path, strlen(_path));
+        if (memcpy_s(path, strlen(_path), _path, strlen(_path)) != 0) {
+            printf("[path_info] memcpy_s failed in constructor\n");
+        }
         path_len = strlen(_path);
     }
     ~path_info()
@@ -109,7 +112,9 @@ struct path_info {
     path_info(const path_info &other)
     {
         path = (char *)malloc(strlen(other.path) + 1);
-        (void)memcpy_s(path, strlen(other.path), other.path, strlen(other.path));
+        if (memcpy_s(path, strlen(other.path), other.path, strlen(other.path)) != 0) {
+            printf("[path_info] memcpy_s failed in copy constructor\n");
+        }
         path_len = other.path_len;
         mode = other.mode;
         ret_flag = other.ret_flag;
@@ -117,7 +122,9 @@ struct path_info {
     path_info &operator=(const path_info &other)
     {
         path = (char *)malloc(strlen(other.path) + 1);
-        (void)memcpy_s(path, strlen(other.path), other.path, strlen(other.path));
+        if (memcpy_s(path, strlen(other.path), other.path, strlen(other.path)) != 0) {
+            printf("[path_info] memcpy_s failed in assignment\n");
+        }
         path_len = other.path_len;
         mode = other.mode;
         ret_flag = other.ret_flag;
@@ -173,7 +180,6 @@ int TestAccess(uint64_t tokenid, const std::string &fileName, uint32_t mode, int
 int DeletePath(uint64_t tokenid, const std::string &path, uint64_t timestamp);
 int TestReadDir(uint64_t tokenid, const std::string &dirName, int32_t uid = 0, int32_t gid = 0);
 int TestRemoveDir(uint64_t tokenid, const std::string &fileName, int32_t uid = 0, int32_t gid = 0);
-int DeletePathByUser(int32_t user_id, const std::string &path);
+int DeletePathByUser(int32_t userId, const std::string &path);
 void DecTestClose();
-#endif
 #endif // DEC_TEST_H

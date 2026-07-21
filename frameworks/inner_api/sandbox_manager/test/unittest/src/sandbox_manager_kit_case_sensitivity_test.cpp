@@ -18,6 +18,7 @@
 #include <vector>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include "sandbox_test_utils.h"
 #include <unistd.h>
 #include <chrono>
 #include "gtest/gtest.h"
@@ -136,7 +137,9 @@ public:
     static void SetUpTestCase()
     {
         g_selfTokenId = GetSelfTokenID();
-        
+        currentUserDenied_ = IsDenyPolicyForPath("/storage/Users/currentUser");
+        denyPolicyFileExists_ = IsDenyPolicyFileExists();
+
         // Allocate token for SetDeny
         int mockRet = MockTokenId("foundation");
         (void)mockRet;
@@ -183,7 +186,13 @@ public:
         ASSERT_EQ(1, unPersistResult.size());
         EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
     }
+
+    static bool currentUserDenied_;
+    static bool denyPolicyFileExists_;
 };
+
+bool CaseSensitivityTest::currentUserDenied_ = false;
+bool CaseSensitivityTest::denyPolicyFileExists_ = false;
 
 /**
  * @tc.name: SandboxManagerKitApiTest_CaseInsensitivePath_001
@@ -382,7 +391,6 @@ HWTEST_F(CaseSensitivityTest, SetPolicy_AppDataBlocked, TestSize.Level0)
     EXPECT_EQ(OPERATE_SUCCESSFULLY, setResult[7]) << "myappdata";
 }
 
-#ifdef DEC_EXT
 
 /**
  * @tc.name: SandboxManagerKitApiTest_AppDataCaseInsensitiveActivation
@@ -393,6 +401,9 @@ HWTEST_F(CaseSensitivityTest, SetPolicy_AppDataBlocked, TestSize.Level0)
  */
 HWTEST_F(CaseSensitivityTest, AppDataCaseInsensitiveActivation, TestSize.Level0)
 {
+    if (!denyPolicyFileExists_ || currentUserDenied_) {
+        return;
+    }
     std::vector<PolicyInfo> policy;
     std::vector<uint32_t> setResult;
     std::vector<uint32_t> persistResult;
@@ -402,10 +413,8 @@ HWTEST_F(CaseSensitivityTest, AppDataCaseInsensitiveActivation, TestSize.Level0)
 
     // Persist policy for /storage/Users/currentUser/appdata/el2/base/com.ohos.dlpmanager
     // This path has 8 components, which is > MAX_CHECK_COM_NUM (6), so it's allowed
-    PolicyInfo infoParent = {
-        .path = "/storage/Users/currentUser/appdata/el2/base/com.ohos.dlpmanager",
-        .mode = OperateMode::READ_MODE
-    };
+    PolicyInfo infoParent = { .path = "/storage/Users/currentUser/appdata/el2/base/com.ohos.dlpmanager",
+        .mode = OperateMode::READ_MODE };
     policy.emplace_back(infoParent);
 
     // First set policy (temporary)
@@ -424,38 +433,34 @@ HWTEST_F(CaseSensitivityTest, AppDataCaseInsensitiveActivation, TestSize.Level0)
     // All should succeed because:
     // 1. The paths have 9 components (> MAX_CHECK_COM_NUM), so they're not blocked
     // 2. Case-insensitive matching allows all variations to match appdata
-    std::vector<PolicyInfo> activatePolicies = {
-        {.path = "/storage/Users/currentUser/appdata/el2/base/com.ohos.dlpmanager/test.txt",
-         .mode = OperateMode::READ_MODE},
-        {.path = "/storage/Users/currentUser/AppData/el2/base/com.ohos.dlpmanager/test.txt",
-         .mode = OperateMode::READ_MODE},
-        {.path = "/storage/Users/currentUser/APPDATA/el2/base/com.ohos.dlpmanager/test.txt",
-         .mode = OperateMode::READ_MODE},
-        {.path = "/storage/Users/currentUser/aPpDaTa/el2/base/com.ohos.dlpmanager/test.txt",
-         .mode = OperateMode::READ_MODE},
-        {.path = "/storage/Users/CURRENTUSER/aPpDaTa/el2/base/com.ohos.dlpmanager/test.txt",
-         .mode = OperateMode::READ_MODE}
+    struct {
+        std::string path;
+        uint32_t expectedStartResult;
+        bool expectedCheckResult;
+    } activateCases[] = {
+        {"/storage/Users/currentUser/appdata/el2/base/com.ohos.dlpmanager/test.txt", OPERATE_SUCCESSFULLY, true},
+        {"/storage/Users/currentUser/AppData/el2/base/com.ohos.dlpmanager/test.txt", OPERATE_SUCCESSFULLY, true},
+        {"/storage/Users/currentUser/APPDATA/el2/base/com.ohos.dlpmanager/test.txt", OPERATE_SUCCESSFULLY, true},
+        {"/storage/Users/currentUser/aPpDaTa/el2/base/com.ohos.dlpmanager/test.txt", OPERATE_SUCCESSFULLY, true},
+        {"/storage/Users/CURRENTUSER/aPpDaTa/el2/base/com.ohos.dlpmanager/test.txt",
+            POLICY_HAS_NOT_BEEN_PERSISTED, false},
     };
 
-    // Test StartAccessingPolicy - all should succeed
+    std::vector<PolicyInfo> activatePolicies;
+    for (const auto& tc : activateCases) {
+        activatePolicies.push_back({.path = tc.path, .mode = OperateMode::READ_MODE});
+    }
+
     ret = SandboxManagerKit::StartAccessingPolicy(activatePolicies, startResult);
     ASSERT_EQ(SANDBOX_MANAGER_OK, ret);
     ASSERT_EQ(5, startResult.size());
-    EXPECT_EQ(OPERATE_SUCCESSFULLY, startResult[0]); // appdata
-    EXPECT_EQ(OPERATE_SUCCESSFULLY, startResult[1]); // AppData
-    EXPECT_EQ(OPERATE_SUCCESSFULLY, startResult[2]); // APPDATA
-    EXPECT_EQ(OPERATE_SUCCESSFULLY, startResult[3]); // aPpDaTa
-    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, startResult[4]);
-
-    // Test CheckPersistPolicy - all should succeed
     ret = SandboxManagerKit::CheckPersistPolicy(g_mockToken, activatePolicies, checkResult);
     ASSERT_EQ(SANDBOX_MANAGER_OK, ret);
     ASSERT_EQ(5, checkResult.size());
-    EXPECT_TRUE(checkResult[0]); // appdata
-    EXPECT_TRUE(checkResult[1]); // AppData
-    EXPECT_TRUE(checkResult[2]); // APPDATA
-    EXPECT_TRUE(checkResult[3]); // aPpDaTa
-    EXPECT_FALSE(checkResult[4]);
+    for (size_t i = 0; i < 5; i++) {
+        EXPECT_EQ(activateCases[i].expectedStartResult, startResult[i]);
+        EXPECT_EQ(activateCases[i].expectedCheckResult, checkResult[i]);
+    }
 
     // Clean up
     CleanPersistedPolicy(policy);
@@ -470,6 +475,10 @@ HWTEST_F(CaseSensitivityTest, AppDataCaseInsensitiveActivation, TestSize.Level0)
  */
 HWTEST_F(CaseSensitivityTest, AppDataBlocked, TestSize.Level0)
 {
+    if (!denyPolicyFileExists_ || currentUserDenied_) {
+        return;
+    }
+
     std::vector<PolicyInfo> policy = {
         {.path = "/storage/Users/currentUser", .mode = OperateMode::READ_MODE}
     };
@@ -530,6 +539,10 @@ HWTEST_F(CaseSensitivityTest, AppDataBlocked, TestSize.Level0)
  */
 HWTEST_F(CaseSensitivityTest, DeepDeniedPath_ThumbsBlocked, TestSize.Level0)
 {
+    if (!denyPolicyFileExists_ || currentUserDenied_) {
+        return;
+    }
+
     std::vector<PolicyInfo> policy;
     std::vector<uint32_t> setResult;
     std::vector<uint32_t> persistResult;
@@ -644,7 +657,6 @@ HWTEST_F(CaseSensitivityTest, AuthorizeDeniedPath_ExactCaseOnly, TestSize.Level0
     // Clean up
     CleanPersistedPolicy(policy);
 }
-#endif
 
 } // SandboxManager
 } // AccessControl

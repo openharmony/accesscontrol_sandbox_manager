@@ -20,7 +20,7 @@
 #include "sandbox_manager_err_code.h"
 #include "policy_info.h"
 
-#ifdef DEC_ENABLED
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 const uint64_t TOKEN_ID = 123;
 const uint64_t TOKEN_ID_SET_DENY_CFG = 124;
 const uint64_t TOKEN_ID_ALLOW_MODE = 125;
@@ -28,6 +28,7 @@ const uint64_t TOKEN_ID_DENY_MODE = 126;
 const uint64_t TOKEN_ID_EXISTING_RULE = 127;
 const uint64_t TOKEN_ID_NEW_RULE = 128;
 const int32_t USER_ID = 100;
+#endif
 
 using namespace testing::ext;
 
@@ -80,6 +81,7 @@ void MacAdapterTestCase::SetUp(void)
 void MacAdapterTestCase::TearDown(void)
 {}
 
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 /**
  * @tc.name: MacAdapterTestCase001
  * @tc.desc: Test set deny
@@ -111,7 +113,9 @@ HWTEST_F(MacAdapterTestCase, MacAdapterTestCase001, TestSize.Level0)
     EXPECT_EQ(DelDenyPath(0, "/testpath_001/persist_dir"), 0);
     EXPECT_EQ(DelDenyPath(0, "/testpath_001/dir"), 0);
 }
+#endif
 
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 /**
  * @tc.name: MacAdapterTestCase002
  * @tc.desc: Test SetDenyCfg applies set_policy and set_policy_all deny bits
@@ -139,6 +143,7 @@ HWTEST_F(MacAdapterTestCase, MacAdapterTestCase002, TestSize.Level0)
     EXPECT_EQ(DelDenyPath(0, "/testpath_002/dir"), 0);
     EXPECT_EQ(DestroyByTokenid(TOKEN_ID_SET_DENY_CFG, 0), 0);
 }
+#endif
 
 /**
  * @tc.name: MacAdapterTestCase003
@@ -174,6 +179,7 @@ HWTEST_F(MacAdapterTestCase, MacAdapterTestCase004, TestSize.Level0)
     EXPECT_EQ(macAdapter.SetDenyCfg(denyCfg), SANDBOX_MANAGER_DENY_ERR);
 }
 
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 /**
  * @tc.name: MacAdapterTestCase005
  * @tc.desc: Test deny_set and deny_set_all reject allow modes and their combinations
@@ -200,7 +206,9 @@ HWTEST_F(MacAdapterTestCase, MacAdapterTestCase005, TestSize.Level0)
     EXPECT_EQ(DelDenyPath(0, denySetAllPath), 0);
     EXPECT_EQ(DestroyByTokenid(TOKEN_ID_ALLOW_MODE, 0), 0);
 }
+#endif
 
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 /**
  * @tc.name: MacAdapterTestCase006
  * @tc.desc: Test deny_set and deny_set_all do not reject deny modes and their combinations
@@ -232,7 +240,9 @@ HWTEST_F(MacAdapterTestCase, MacAdapterTestCase006, TestSize.Level0)
     EXPECT_EQ(DelDenyPath(0, denySetAllPath), 0);
     EXPECT_EQ(DestroyByTokenid(TOKEN_ID_DENY_MODE, 0), 0);
 }
+#endif
 
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
 /**
  * @tc.name: MacAdapterTestCase007
  * @tc.desc: Test rules set before deny_set and deny_set_all remain valid
@@ -266,7 +276,7 @@ HWTEST_F(MacAdapterTestCase, MacAdapterTestCase007, TestSize.Level0)
     EXPECT_EQ(DestroyByTokenid(TOKEN_ID_EXISTING_RULE, 0), 0);
     EXPECT_EQ(DestroyByTokenid(TOKEN_ID_NEW_RULE, 0), 0);
 }
+#endif
 } // SandboxManager
 } // AccessControl
 } // OHOS
-#endif

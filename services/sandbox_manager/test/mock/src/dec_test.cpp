@@ -18,7 +18,6 @@
 #include <sys/wait.h>
 #include "token_setproc.h"
 
-#ifdef DEC_ENABLED
 const int32_t DEC_CHAR_LEN = 256;
 const int32_t DEC_BUF_LEN = 32;
 const int32_t DEC_CNT_LEN = 5;
@@ -102,6 +101,7 @@ void DecTestClose()
 {
     if (g_fd > 0) {
         close(g_fd);
+        g_fd = -1;
     }
 }
 
@@ -562,12 +562,12 @@ int TestRemoveDir(uint64_t tokenid, const std::string &fileName, int32_t uid, in
     return 0;
 }
 
-int DeletePathByUser(int32_t user_id, const std::string &path)
+int DeletePathByUser(int32_t userId, const std::string &path)
 {
     OpenDevDec();
     struct dec_rule_s info;
     info.addPath(path.c_str());
-    info.userId = user_id;
+    info.userId = userId;
     int ret = ioctl(g_fd, DEL_DEC_RULE_BY_USER_CMD, &info);
     if (ret != 0) {
         return -1;
@@ -577,4 +577,3 @@ int DeletePathByUser(int32_t user_id, const std::string &path)
     }
     return -1;
 }
-#endif

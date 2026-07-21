@@ -86,7 +86,13 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
 
   cflags_cc = [ "-DHILOG_ENABLE" ]
   if (sandbox_manager_with_dec) {
-    cflags_cc += [ "-DDEC_ENABLED" ]
+    cflags_cc += [ "-DDEC_SUPPORT_DENY_DELETE_RENAME" ]
+    cflags_cc += [ "-DDEC_SUPPORT_SINGLE_FILE_OPERATIONS" ]
+    cflags_cc += [ "-DDEC_SUPPORT_QUERY_WITH_ERROR_CODE" ]
+    cflags_cc += [ "-DSUPPORT_MEDIA" ]
+  }
+  if (sandbox_manager_dec_ext) {
+    cflags_cc += [ "-DDEC_SUPPORT_DENY_RW" ]
   }
 
   deps = [
@@ -153,7 +159,12 @@ ohos_unittest("libsandbox_dec_test") {
 
   cflags_cc = [ "-DHILOG_ENABLE" ]
   if (sandbox_manager_with_dec) {
-    cflags_cc += [ "-DDEC_ENABLED" ]
+    cflags_cc += [ "-DDEC_SUPPORT_DENY_DELETE_RENAME" ]
+    cflags_cc += [ "-DDEC_SUPPORT_SINGLE_FILE_OPERATIONS" ]
+    cflags_cc += [ "-DDEC_SUPPORT_QUERY_WITH_ERROR_CODE" ]
+  }
+  if (sandbox_manager_dec_ext) {
+    cflags_cc += [ "-DDEC_SUPPORT_DENY_RW" ]
   }
 }
 
@@ -196,7 +207,12 @@ ohos_unittest("libsandbox_policy_test") {
 
   cflags_cc = [ "-DHILOG_ENABLE" ]
   if (sandbox_manager_with_dec) {
-    cflags_cc += [ "-DDEC_ENABLED" ]
+    cflags_cc += [ "-DDEC_SUPPORT_DENY_DELETE_RENAME" ]
+    cflags_cc += [ "-DDEC_SUPPORT_SINGLE_FILE_OPERATIONS" ]
+    cflags_cc += [ "-DDEC_SUPPORT_QUERY_WITH_ERROR_CODE" ]
+  }
+  if (sandbox_manager_dec_ext) {
+    cflags_cc += [ "-DDEC_SUPPORT_DENY_RW" ]
   }
 
   if (!sandbox_manager_process_resident) {
@@ -276,7 +292,6 @@ ohos_unittest("libsandbox_macadapter_test") {
 
   cflags_cc = [ "-DHILOG_ENABLE" ]
   if (sandbox_manager_with_dec) {
-    cflags_cc += [ "-DDEC_ENABLED" ]
   }
 }
 
@@ -299,9 +314,6 @@ ohos_unittest("libsandbox_sniff_test") {
   configs = [ "${sandbox_manager_path}/config:coverage_flags" ]
 
   cflags_cc = [ "-DHILOG_ENABLE" ]
-  if (sandbox_manager_with_dec) {
-    cflags_cc += [ "-DDEC_ENABLED" ]
-  }
 }
 
 group("unittest") {
@@ -311,6 +323,8 @@ group("unittest") {
     ":libsandbox_dec_test",
     ":libsandbox_policy_test",
     ":libsandbox_macadapter_test",
-    ":libsandbox_sniff_test",
   ]
+  if (sandbox_manager_with_dec && !sandbox_manager_dec_ext) {
+    deps += [ ":libsandbox_sniff_test" ]
+  }
 }
