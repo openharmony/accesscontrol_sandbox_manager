@@ -600,7 +600,7 @@ int SandboxManager::ExecuteLateSteps()
 int SandboxManager::SetXpmOwnerId()
 {
     if (config_.type != "shell") {
-        // only shell need to set xpm ownner id
+        // only shell need to set xpm owner id
         return SANDBOX_SUCCESS;
     }
 
@@ -611,30 +611,34 @@ int SandboxManager::SetXpmOwnerId()
         return SANDBOX_ERR_BAD_PARAMETERS;
     }
 
-    int fd = open(DEV_XPM_PATH, O_RDWR);
+    int fd = open(DEV_XPM_PATH, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
-        SANDBOX_LOGW("Open %{public}s failed, err: %{public}s", DEV_XPM_PATH, strerror(errno));
-        return SANDBOX_SUCCESS;
+        std::cerr << "Error: open " << DEV_XPM_PATH << " failed, err: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Open %{public}s failed, err: %{public}s", DEV_XPM_PATH, strerror(errno));
+        return SANDBOX_ERR_SET_XPM_FAILED;
     }
 
     struct XpmRegionInfo info = { 0 };
     info.idType = XPM_ID_TYPE_APPID;
     size_t copyLen = std::min(ownerId.size(), static_cast<size_t>(MAX_OWNERID_LEN - 1));
     int ret = memcpy_s(info.ownerid, MAX_OWNERID_LEN, ownerId.c_str(), copyLen);
-    if (ret != SANDBOX_SUCCESS) {
+    if (ret != 0) {
         std::cerr << "Error: failed to copy ownerid to XpmRegionInfo" << std::endl;
         SANDBOX_LOGE("Error: failed to copy ownerid to XpmRegionInfo");
         close(fd);
-        return SANDBOX_ERR_BAD_PARAMETERS;
+        return SANDBOX_ERR_SET_XPM_FAILED;
     }
+
     ret = ioctl(fd, SET_XPM_OWNERID_CMD, &info);
     if (ret < 0) {
-        SANDBOX_LOGW("Set xpm ownner id failed, err: %{public}s", strerror(errno));
+        std::cerr << "Error: set xpm owner id failed, err: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Set xpm owner id failed, err: %{public}s", strerror(errno));
+        ret = SANDBOX_ERR_SET_XPM_FAILED;
     } else {
-        SANDBOX_LOGD("Set xpm Ownner id success");
+        SANDBOX_LOGD("Set xpm owner id success");
     }
     close(fd);
-    return SANDBOX_SUCCESS;
+    return ret;
 }
 
 int SandboxManager::ValidateBasicParams()
@@ -888,10 +892,11 @@ int SandboxManager::PreDecDenyPaths()
     decPolicyInfo.timestamp = static_cast<uint64_t>(ts.tv_sec) * SEC_TO_NSEC +
                               static_cast<uint64_t>(ts.tv_nsec);
 
-    int fd = open(DEC_DEVICE_PATH, O_RDWR);
+    int fd = open(DEC_DEVICE_PATH, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
-        SANDBOX_LOGW("PreDecDenyPaths: open %{public}s failed, errno=%{public}d", DEC_DEVICE_PATH, errno);
-        return SANDBOX_SUCCESS;
+        std::cerr << "Error: open " << DEC_DEVICE_PATH << " failed, ret: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("PreDecDenyPaths: open %{public}s failed, errno=%{public}s", DEC_DEVICE_PATH, strerror(errno));
+        return SANDBOX_ERR_SET_DEC_FAILED;
     }
 
     // NOTE: deny rules are sent via SET_DEC_POLICY_CMD (same as grant rules),
@@ -899,13 +904,15 @@ int SandboxManager::PreDecDenyPaths()
     // appspawn's SetDecDenyWithDir behavior.
     int ret = ioctl(fd, SET_DEC_POLICY_CMD, &decPolicyInfo);
     if (ret < 0) {
-        SANDBOX_LOGW("PreDecDenyPaths: SET_DEC_POLICY_CMD failed, errno=%{public}d", errno);
+        std::cerr << "Error: SET_DEC_POLICY_CMD failed, ret: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("PreDecDenyPaths: SET_DEC_POLICY_CMD failed, errno=%{public}s", strerror(errno));
+        ret = SANDBOX_ERR_SET_DEC_FAILED;
     } else {
         SANDBOX_LOGI("PreDecDenyPaths: denied %{public}u paths", decPolicyInfo.pathNum);
     }
 
     close(fd);
-    return SANDBOX_SUCCESS;
+    return ret;
 }
 
 int SandboxManager::ApplyDecPolicies()
@@ -923,10 +930,11 @@ int SandboxManager::ApplyDecPolicies()
         return SANDBOX_SUCCESS;
     }
 
-    int fd = open(DEC_DEVICE_PATH, O_RDWR);
+    int fd = open(DEC_DEVICE_PATH, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
-        SANDBOX_LOGW("Open %{public}s failed, errno=%{public}d", DEC_DEVICE_PATH, errno);
-        return SANDBOX_SUCCESS;
+        std::cerr << "Error: open " << DEC_DEVICE_PATH << " failed, ret: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Open %{public}s failed, errno=%{public}s", DEC_DEVICE_PATH, strerror(errno));
+        return SANDBOX_ERR_SET_DEC_FAILED;
     }
     SANDBOX_LOGD("[DEBUG INFO] DEC debug device opened, path=%{public}s, fd=%{public}d", DEC_DEVICE_PATH, fd);
 
@@ -952,8 +960,10 @@ int SandboxManager::ApplyDecPolicies()
 
     close(fd);
     if (failedBatches > 0) {
-        SANDBOX_LOGW("Applied DEC policies with failures, pathCount=%{public}zu, failedBatches=%{public}zu/%{public}zu",
+        std::cerr << "Error: DEC debug apply batch failed, pathCount=" << decPaths.size() << std::endl;
+        SANDBOX_LOGE("Applied DEC policies with failures, pathCount=%{public}zu, failedBatches=%{public}zu/%{public}zu",
             decPaths.size(), failedBatches, totalBatches);
+        return SANDBOX_ERR_SET_DEC_FAILED;
     } else {
         SANDBOX_LOGI("Applied DEC policies, pathCount=%{public}zu", decPaths.size());
     }
@@ -993,22 +1003,21 @@ int SandboxManager::GenerateTokenId()
 int SandboxManager::SetParentHapTokenId(uint64_t tokenId)
 {
     auto atmTokenId = TokenIdKit::AddCliBinaryInvokerTokenFlag(tokenId);
-    int32_t fd = open(DEV_ACCESS_TOKEN_PATH, O_RDWR);
+    int32_t fd = open(DEV_ACCESS_TOKEN_PATH, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
-        std::cerr << "Error: open " << DEV_ACCESS_TOKEN_PATH << "failed, ret: " << strerror(errno) << std::endl;
+        std::cerr << "Error: open " << DEV_ACCESS_TOKEN_PATH << " failed, ret: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("open %{public}s error, ret: %{public}s", DEV_ACCESS_TOKEN_PATH, strerror(errno));
-        return SANDBOX_SUCCESS;
+        return SANDBOX_ERR_SET_PTOKENID_FAILED;
     }
 
     int32_t ret = ioctl(fd, ACCESS_TOKENID_SET_HAP_PTOKENID, &atmTokenId);
     if (ret < 0) {
         std::cerr << "Error: ioctl ACCESS_TOKENID_SET_HAP_PTOKENID failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("ioctl ACCESS_TOKENID_SET_HAP_PTOKENID failed: %{public}s", strerror(errno));
-        close(fd);
-        return SANDBOX_SUCCESS;
+        ret = SANDBOX_ERR_SET_PTOKENID_FAILED;
     }
     close(fd);
-    return SANDBOX_SUCCESS;
+    return ret;
 }
 #endif
 
@@ -1035,8 +1044,9 @@ int SandboxManager::SetAinfo()
     AidsClient aids;
     int ret = aids.setLabel();
     if (ret != 0) {
-        // Setting up an AI identity is optional for the time being
-        SANDBOX_LOGW("SetAinfo failed: %{public}d", ret);
+        std::cerr << "Error: SetAinfo failed: " << ret << std::endl;
+        SANDBOX_LOGE("SetAinfo failed: %{public}d", ret);
+        return SANDBOX_ERR_SET_AINFO_FAILED;
     }
     return SANDBOX_SUCCESS;
 }
@@ -1809,7 +1819,7 @@ int SandboxManager::DeliverPolicy()
     if (config_.policyArg == nullptr) {
         return SANDBOX_SUCCESS;
     }
-    int fd = open(DEC_DEVICE_PATH, O_RDWR);
+    int fd = open(DEC_DEVICE_PATH, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
         std::cerr << "Error: open " << DEC_DEVICE_PATH << " failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("open %s failed: %{public}s", DEC_DEVICE_PATH, strerror(errno));
@@ -2059,11 +2069,13 @@ int SandboxManager::SetSandboxPathMark()
         return SANDBOX_SUCCESS;
     }
 
-    int fd = open(DEC_DEVICE_PATH, O_RDWR);
+    int fd = open(DEC_DEVICE_PATH, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
-        SANDBOX_LOGW("SetSandboxPathMark: open %{public}s failed, errno=%{public}d",
-            DEC_DEVICE_PATH, errno);
-        return SANDBOX_SUCCESS;
+        std::cerr << "SetSandboxPathMark: open " << DEC_DEVICE_PATH << " failed, errno="
+            << strerror(errno) << std::endl;
+        SANDBOX_LOGE("SetSandboxPathMark: open %{public}s failed, errno=%{public}s",
+            DEC_DEVICE_PATH, strerror(errno));
+        return SANDBOX_ERR_SET_DEC_FAILED;
     }
 
     MarkPathInfo pathInfo = {};
@@ -2072,7 +2084,10 @@ int SandboxManager::SetSandboxPathMark()
     pathInfo.recursive = MARK_ENABLE_RECURSIVE;
     int ret = ioctl(fd, ADD_PATH_MARK_CMD, &pathInfo);
     if (ret < 0) {
-        SANDBOX_LOGW("SetSandboxPathMark: ADD_PATH_MARK_CMD (sandbox) failed, errno=%{public}d", errno);
+        std::cerr << "Error: ADD_PATH_MARK_CMD (sandbox) failed, errno=" << strerror(errno) << std::endl;
+        SANDBOX_LOGE("SetSandboxPathMark: ADD_PATH_MARK_CMD (sandbox) failed, errno=%{public}s", strerror(errno));
+        close(fd);
+        return SANDBOX_ERR_SET_DEC_FAILED;
     } else {
         SANDBOX_LOGD("SetSandboxPathMark: marked / dir with SEC_SANDBOX_PATH_TYPE");
     }
@@ -2083,13 +2098,15 @@ int SandboxManager::SetSandboxPathMark()
     ugcInfo.recursive = 0;
     ret = ioctl(fd, ADD_PATH_MARK_CMD, &ugcInfo);
     if (ret < 0) {
-        SANDBOX_LOGW("SetSandboxPathMark: ADD_PATH_MARK_CMD (ugc) failed, errno=%{public}d", errno);
+        std::cerr << "Error: ADD_PATH_MARK_CMD (ugc) failed, errno=" << strerror(errno) << std::endl;
+        SANDBOX_LOGE("SetSandboxPathMark: ADD_PATH_MARK_CMD (ugc) failed, errno=%{public}s", strerror(errno));
+        ret = SANDBOX_ERR_SET_DEC_FAILED;
     } else {
         SANDBOX_LOGD("SetSandboxPathMark: marked User dir with SEC_UGC_PATH_TYPE");
     }
 
     close(fd);
-    return SANDBOX_SUCCESS;
+    return ret;
 }
 
 int SandboxManager::SetEncapsProcFlag()
@@ -2099,23 +2116,27 @@ int SandboxManager::SetEncapsProcFlag()
         return SANDBOX_SUCCESS;
     }
 
-    int fd = open(ENCAPS_DEVICE_PATH, O_RDWR);
+    int fd = open(ENCAPS_DEVICE_PATH, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
-        SANDBOX_LOGW("SetEncapsProcFlag: open %{public}s failed, errno=%{public}d",
-            ENCAPS_DEVICE_PATH, errno);
-        return SANDBOX_SUCCESS;
+        std::cerr << "SetEncapsProcFlag: open " << ENCAPS_DEVICE_PATH << " failed, ret="
+            << strerror(errno) << std::endl;
+        SANDBOX_LOGE("SetEncapsProcFlag: open %{public}s failed, errno=%{public}s",
+            ENCAPS_DEVICE_PATH, strerror(errno));
+        return SANDBOX_ERR_SET_ENCAPS_FAILED;
     }
 
     uint32_t procFlag = CUSTOM_SANDBOX_PROCESS_TYPE;
     int ret = ioctl(fd, SET_ENCAPS_PROC_FLAG_CMD, &procFlag);
     if (ret < 0) {
-        SANDBOX_LOGW("SetEncapsProcFlag: SET_ENCAPS_PROC_FLAG_CMD failed, errno=%{public}d", errno);
+        std::cerr << "Error: SET_ENCAPS_PROC_FLAG_CMD failed, ret: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("SetEncapsProcFlag: SET_ENCAPS_PROC_FLAG_CMD failed, ret: %{public}s", strerror(errno));
+        ret = SANDBOX_ERR_SET_ENCAPS_FAILED;
     } else {
         SANDBOX_LOGD("SetEncapsProcFlag: success");
     }
 
     close(fd);
-    return SANDBOX_SUCCESS;
+    return ret;
 }
 #endif
 

@@ -51,6 +51,10 @@ enum SandboxError : int {
     SANDBOX_ERR_SET_POLICY_FAILED  = -21,  // Failed to deliver AgentLock policy to kernel
     SANDBOX_ERR_SET_PTOKENID_FAILED = -22,  // Set Parent Hap TokenID failed
     SANDBOX_ERR_SYMLINK_FAILED     = -23,  // Symlink failed
+    SANDBOX_ERR_SET_AINFO_FAILED   = -24,  // Set ainfo failed
+    SANDBOX_ERR_SET_XPM_FAILED     = -25,  // Set xpm owner id failed
+    SANDBOX_ERR_SET_DEC_FAILED     = -26,  // Set dec policy failed
+    SANDBOX_ERR_SET_ENCAPS_FAILED  = -27,  // Set encaps failed
 };
 
 } // namespace SANDBOX
