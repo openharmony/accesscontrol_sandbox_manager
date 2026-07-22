@@ -417,19 +417,55 @@ static int32_t CheckShareFileInfoParams(const std::string &bundleName, uint32_t 
     return SANDBOX_MANAGER_OK;
 }
 
-static bool IsPathSafe(const char *path)
+static int32_t CheckParamsAndCfginfo(const std::string &bundleName, uint32_t tokenId, const std::string &cfginfo)
 {
-    if (memchr(path, '\0', strlen(path) + 1) != path + strlen(path)) {
-        return false;
+    int32_t ret = CheckShareFileInfoParams(bundleName, tokenId);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "SetShareFileInfo param invalid.");
+        return ret;
     }
-    if (strstr(path, "/./") != NULL || strstr(path, "/../") != NULL) {
-        return false;
+
+    if (cfginfo.size() > MAX_JSON_SIZE) {
+        LOGE_WITH_REPORT(LABEL, "json size exceeds limit, bundleName=%{public}s", bundleName.c_str());
+        return INVALID_PARAMTER;
     }
-    return true;
+
+    return SANDBOX_MANAGER_OK;
 }
 
-static int32_t ValidateSharingOSPathAndPermission(cJSON *scopes, const char *sharingOSPath,
-    const char *sharingOSPermission)
+struct ShareFileFields {
+    std::string sharingOSPath;
+    std::string sharingOSPermission;
+    std::string sharingOSSubPath;
+};
+
+static int32_t GetCStringFromJson(cJSON *object, const char *key, std::string &result)
+{
+    if (object == nullptr) {
+        return INVALID_PARAMTER;
+    }
+
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(object, key);
+    if (!cJSON_IsString(item) || item->valuestring == nullptr) {
+        return INVALID_PARAMTER;
+    }
+
+    result = std::string(item->valuestring);
+    return SANDBOX_MANAGER_OK;
+}
+
+static std::string NormalizeBasePath(const std::string &path)
+{
+    // Normalize /base/ paths to /el2/base/ for comparison
+    // /base/test and /el2/base/test are considered equivalent
+    if (path.find("/base/") == 0) {  // starts with /base/
+        return "/el2" + path;
+    }
+    return path;
+}
+
+static int32_t ValidateSharingOSPathAndPermission(cJSON *scopes, const std::string &sharingOSPath,
+    const std::string &sharingOSPermission)
 {
     std::string scopePermission;
     bool found = false;
@@ -442,10 +478,12 @@ static int32_t ValidateSharingOSPathAndPermission(cJSON *scopes, const char *sha
         if (!cJSON_IsString(path_item) || path_item->valuestring == nullptr) {
             continue;
         }
-        if (strcmp(path_item->valuestring, sharingOSPath) == 0) {
+
+        std::string scopePath = std::string(path_item->valuestring);
+        if (NormalizeBasePath(scopePath) == NormalizeBasePath(sharingOSPath)) {
             cJSON *permission_item = cJSON_GetObjectItemCaseSensitive(scope, "permission");
             if (!cJSON_IsString(permission_item) || permission_item->valuestring == nullptr) {
-                LOGE_WITH_REPORT(LABEL, "permission field is invalid for path: %{public}s.", sharingOSPath);
+                LOGE_WITH_REPORT(LABEL, "permission field is invalid for path: %{public}s.", sharingOSPath.c_str());
                 return INVALID_PARAMTER;
             }
             scopePermission = std::string(permission_item->valuestring);
@@ -454,71 +492,52 @@ static int32_t ValidateSharingOSPathAndPermission(cJSON *scopes, const char *sha
         }
     }
     if (!found) {
-        LOGE_WITH_REPORT(LABEL, "sharingOSPath %{public}s not found in scopes.", sharingOSPath);
+        LOGE_WITH_REPORT(LABEL, "sharingOSPath %{public}s not found in scopes.", sharingOSPath.c_str());
         return INVALID_PARAMTER;
     }
 
-    bool isPermissionValid = (strcmp(scopePermission.c_str(), sharingOSPermission) == 0) ||
-        (strcmp(scopePermission.c_str(), "r+w") == 0 && strcmp(sharingOSPermission, "r") == 0);
+    bool isPermissionValid = (scopePermission == sharingOSPermission) ||
+        (scopePermission == "r+w" && sharingOSPermission == "r");
     if (!isPermissionValid) {
         LOGE_WITH_REPORT(LABEL, "sharingOSPermission %{public}s exceeds scope permission %{public}s.",
-            sharingOSPermission, scopePermission.c_str());
+            sharingOSPermission.c_str(), scopePermission.c_str());
         return INVALID_PARAMTER;
     }
     return SANDBOX_MANAGER_OK;
 }
 
-static int32_t ValidateSharingOSSubPath(const char *sharingOSSubPath)
+static int32_t ValidateSharingOSSubPath(const std::string &sharingOSSubPath)
 {
-    if (sharingOSSubPath == nullptr) {
-        LOGE_WITH_REPORT(LABEL, "sharingOSSubPath cannot be null.");
+    if (sharingOSSubPath.length() > MAX_SHARED_OS_SUB_PATH_LENGTH) {
+        LOGE_WITH_REPORT(LABEL, "sharingOSSubPath length exceeds 32, length=%{public}zu.", sharingOSSubPath.length());
         return INVALID_PARAMTER;
     }
-    if (strlen(sharingOSSubPath) == 0) {
+
+    if (sharingOSSubPath.empty()) {
         return SANDBOX_MANAGER_OK;
     }
-    size_t length = strlen(sharingOSSubPath);
-    if (length > MAX_SHARED_OS_SUB_PATH_LENGTH) {
-        LOGE_WITH_REPORT(LABEL, "sharingOSSubPath length exceeds 32, length=%{public}zu.", length);
-        return INVALID_PARAMTER;
-    }
-    if (!IsPathSafe(sharingOSSubPath)) {
+
+    if (!IsPathSecure(sharingOSSubPath)) {
         LOGE_WITH_REPORT(LABEL, "sharingOSSubPath contains invalid path components: %{public}s.",
-            sharingOSSubPath);
+            sharingOSSubPath.c_str());
         return INVALID_PARAMTER;
     }
+
     return SANDBOX_MANAGER_OK;
 }
 
-static int32_t WriteShareFileToDb(cJSON *share_files, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
+static int32_t WriteShareFileToDb(const ShareFileFields &fields, const std::string &bundleName,
+    uint32_t userId, uint32_t tokenId)
 {
-    cJSON *sharingOSSubpath_item = cJSON_GetObjectItemCaseSensitive(share_files, "sharingOSSubpath");
-    if (!cJSON_IsString(sharingOSSubpath_item)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "sharingOSSubPath is not a valid string.");
-        return INVALID_PARAMTER;
-    }
-    const char *sharingOSSubPath = sharingOSSubpath_item->valuestring;
-
-    cJSON *sharingOSPath_item = cJSON_GetObjectItemCaseSensitive(share_files, "sharingOSPath");
-    if (!cJSON_IsString(sharingOSPath_item) || strlen(sharingOSPath_item->valuestring) == 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "sharingOSPath is not a valid string.");
-        return INVALID_PARAMTER;
-    }
-    const char *sharingOSPath = sharingOSPath_item->valuestring;
-    std::string composedPath = PathCompose(std::string(sharingOSPath), bundleName);
+    std::string composedPath = PathCompose(fields.sharingOSPath, bundleName);
     if (composedPath.empty()) {
-        LOGE_WITH_REPORT(LABEL, "PathCompose failed, invalid sharingOSPath: %s", sharingOSPath);
+        LOGE_WITH_REPORT(LABEL, "PathCompose failed, invalid sharingOSPath: %{public}s",
+            fields.sharingOSPath.c_str());
         return INVALID_PARAMTER;
     }
-    std::string sharedFilePath = composedPath + std::string(sharingOSSubPath);
 
-    cJSON *sharingOSPermission_item = cJSON_GetObjectItemCaseSensitive(share_files, "sharingOSPermission");
-    if (!cJSON_IsString(sharingOSPermission_item)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "sharingOSPermission is not a valid string.");
-        return INVALID_PARAMTER;
-    }
-    const char *sharingOSPermission = sharingOSPermission_item->valuestring;
-    uint32_t sharedFileMode = PermissionToMode(std::string(sharingOSPermission));
+    std::string sharedFilePath = composedPath + fields.sharingOSSubPath;
+    uint32_t sharedFileMode = PermissionToMode(fields.sharingOSPermission);
 
     GenericValues values;
     values.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(tokenId));
@@ -538,141 +557,67 @@ static int32_t WriteShareFileToDb(cJSON *share_files, const std::string &bundleN
         LOGE_WITH_REPORT(LABEL, "WriteShareFileToDb add to db failed, tokenId: %{public}d", tokenId);
         return SANDBOX_MANAGER_DB_ERR;
     }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "ShareFile set success, %{public}s:%{public}s",
+        bundleName.c_str(), sharedFilePath.c_str());
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t SandboxManagerShare::SetShareFileInfoInner(cJSON *root, const std::string &bundleName, uint32_t userId,
-    uint32_t tokenId)
+static int32_t ProcessShareFileInfo(cJSON *root, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
 {
-    cJSON *share_files = cJSON_GetObjectItemCaseSensitive(root, "share_files");
-    if (!cJSON_IsObject(share_files)) {
+    cJSON *shareFiles = cJSON_GetObjectItemCaseSensitive(root, "share_files");
+    if (shareFiles == nullptr || !cJSON_IsObject(shareFiles)) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "No share_files object, skip writing to db.");
         return SANDBOX_MANAGER_OK;
     }
 
-    cJSON *scopes = cJSON_GetObjectItemCaseSensitive(share_files, "scopes");
+    ShareFileFields fields;
+    cJSON *scopes = cJSON_GetObjectItemCaseSensitive(shareFiles, "scopes");
     if (!cJSON_IsArray(scopes)) {
         LOGE_WITH_REPORT(LABEL, "scopes is not an array.");
         return INVALID_PARAMTER;
     }
 
-    cJSON *sharingOSPath_item = cJSON_GetObjectItemCaseSensitive(share_files, "sharingOSPath");
-    if (sharingOSPath_item == nullptr) {
+    if (GetCStringFromJson(shareFiles, "sharingOSPath", fields.sharingOSPath) != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "No sharingOSPath field, skip writing to db.");
         return SANDBOX_MANAGER_OK;
     }
-    if (!cJSON_IsString(sharingOSPath_item) || sharingOSPath_item->valuestring == nullptr) {
-        LOGE_WITH_REPORT(LABEL, "sharingOSPath field is invalid.");
-        return INVALID_PARAMTER;
-    }
-    const char *sharingOSPath = sharingOSPath_item->valuestring;
-    if (!IsPathSafe(sharingOSPath)) {
-        LOGE_WITH_REPORT(LABEL, "sharingOSPath contains invalid path components: %{public}s.", sharingOSPath);
+
+    if (GetCStringFromJson(shareFiles, "sharingOSPermission", fields.sharingOSPermission) != SANDBOX_MANAGER_OK) {
+        LOGE_WITH_REPORT(LABEL, "sharingOSPermission field is invalid.");
         return INVALID_PARAMTER;
     }
 
-    cJSON *sharingOSPermission_item = cJSON_GetObjectItemCaseSensitive(share_files, "sharingOSPermission");
-    if (!cJSON_IsString(sharingOSPermission_item) || sharingOSPermission_item->valuestring == nullptr) {
-        LOGE_WITH_REPORT(LABEL, "sharingOSPermission is not a valid string.");
-        return INVALID_PARAMTER;
-    }
-    const char *sharingOSPermission = sharingOSPermission_item->valuestring;
-
-    int32_t ret = ValidateSharingOSPathAndPermission(scopes, sharingOSPath, sharingOSPermission);
-    if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "ValidateSharingOSPathAndPermission failed.");
-        return ret;
-    }
-
-    cJSON *sharingOSSubpath_item = cJSON_GetObjectItemCaseSensitive(share_files, "sharingOSSubpath");
-    if (!cJSON_IsString(sharingOSSubpath_item) || sharingOSSubpath_item->valuestring == nullptr) {
+    if (GetCStringFromJson(shareFiles, "sharingOSSubpath", fields.sharingOSSubPath) != SANDBOX_MANAGER_OK) {
         LOGE_WITH_REPORT(LABEL, "sharingOSSubpath field is invalid.");
         return INVALID_PARAMTER;
     }
-    const char *sharingOSSubPath = sharingOSSubpath_item->valuestring;
-    ret = ValidateSharingOSSubPath(sharingOSSubPath);
+
+    int32_t ret = ValidateSharingOSSubPath(fields.sharingOSSubPath);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "ValidateSharingOSSubPath failed.");
         return ret;
     }
 
-    return WriteShareFileToDb(share_files, bundleName, userId, tokenId);
-}
-
-int32_t SandboxManagerShare::UpdateShareFileInfoInner(cJSON *root, const std::string &bundleName, uint32_t userId,
-    uint32_t tokenId)
-{
-    cJSON *share_files = cJSON_GetObjectItemCaseSensitive(root, "share_files");
-    if (!cJSON_IsObject(share_files)) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "No share_files object, call UnsetShareFileInfo.");
-        return UnsetShareFileInfo(tokenId, bundleName, userId);
-    }
-
-    cJSON *scopes = cJSON_GetObjectItemCaseSensitive(share_files, "scopes");
-    if (!cJSON_IsArray(scopes)) {
-        LOGE_WITH_REPORT(LABEL, "scopes is not an array.");
-        return INVALID_PARAMTER;
-    }
-
-    cJSON *sharingOSPath_item = cJSON_GetObjectItemCaseSensitive(share_files, "sharingOSPath");
-    if (sharingOSPath_item == nullptr) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "No sharingOSPath field, call UnsetShareFileInfo.");
-        return UnsetShareFileInfo(tokenId, bundleName, userId);
-    }
-    if (!cJSON_IsString(sharingOSPath_item) || sharingOSPath_item->valuestring == nullptr) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "No sharingOSPath field, call UnsetShareFileInfo.");
-        return UnsetShareFileInfo(tokenId, bundleName, userId);
-    }
-
-    const char *sharingOSPath = sharingOSPath_item->valuestring;
-    if (!IsPathSafe(sharingOSPath)) {
-        LOGE_WITH_REPORT(LABEL, "sharingOSPath contains invalid path components: %{public}s.", sharingOSPath);
-        return INVALID_PARAMTER;
-    }
-
-    cJSON *sharingOSPermission_item = cJSON_GetObjectItemCaseSensitive(share_files, "sharingOSPermission");
-    if (!cJSON_IsString(sharingOSPermission_item) || sharingOSPermission_item->valuestring == nullptr) {
-        LOGE_WITH_REPORT(LABEL, "sharingOSPermission is not a valid string.");
-        return INVALID_PARAMTER;
-    }
-    const char *sharingOSPermission = sharingOSPermission_item->valuestring;
-
-    int32_t ret = ValidateSharingOSPathAndPermission(scopes, sharingOSPath, sharingOSPermission);
+    ret = ValidateSharingOSPathAndPermission(scopes, fields.sharingOSPath, fields.sharingOSPermission);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "ValidateSharingOSPathAndPermission failed.");
         return ret;
     }
 
-    cJSON *sharingOSSubpath_item = cJSON_GetObjectItemCaseSensitive(share_files, "sharingOSSubpath");
-    if (!cJSON_IsString(sharingOSSubpath_item) || sharingOSSubpath_item->valuestring == nullptr) {
-        LOGE_WITH_REPORT(LABEL, "sharingOSSubpath field is invalid.");
-        return INVALID_PARAMTER;
-    }
-    const char *sharingOSSubPath = sharingOSSubpath_item->valuestring;
-    ret = ValidateSharingOSSubPath(sharingOSSubPath);
-    if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "ValidateSharingOSSubPath failed.");
-        return ret;
-    }
-
-    return WriteShareFileToDb(share_files, bundleName, userId, tokenId);
+    return WriteShareFileToDb(fields, bundleName, userId, tokenId);
 }
 
 int32_t SandboxManagerShare::SetShareFileInfo(
     const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
 {
-    int32_t ret = CheckShareFileInfoParams(bundleName, tokenId);
-    if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "SetShareFileInfo param invalid.");
-        return ret;
-    }
     if (cfginfo.empty()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "cfginfo is empty, return success.");
         return SANDBOX_MANAGER_OK;
     }
-    if (cfginfo.size() > MAX_JSON_SIZE) {
-        LOGE_WITH_REPORT(LABEL, "json size exceeds limit, bundleName=%{public}s", bundleName.c_str());
-        return INVALID_PARAMTER;
+
+    int32_t ret = CheckParamsAndCfginfo(bundleName, tokenId, cfginfo);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
     }
 
     cJSON *root = cJSON_Parse(cfginfo.c_str());
@@ -681,7 +626,7 @@ int32_t SandboxManagerShare::SetShareFileInfo(
         return INVALID_PARAMTER;
     }
 
-    ret = SetShareFileInfoInner(root, bundleName, userId, tokenId);
+    ret = ProcessShareFileInfo(root, bundleName, userId, tokenId);
     cJSON_Delete(root);
     return ret;
 }
@@ -689,18 +634,14 @@ int32_t SandboxManagerShare::SetShareFileInfo(
 int32_t SandboxManagerShare::UpdateShareFileInfo(
     const std::string &cfginfo, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
 {
-    int32_t ret = CheckShareFileInfoParams(bundleName, tokenId);
-    if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "UpdateShareFileInfo param invalid.");
-        return ret;
-    }
     if (cfginfo.empty()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "cfginfo is empty, call UnsetShareFileInfo.");
         return UnsetShareFileInfo(tokenId, bundleName, userId);
     }
-    if (cfginfo.size() > MAX_JSON_SIZE) {
-        LOGE_WITH_REPORT(LABEL, "json size exceeds limit, bundleName=%{public}s", bundleName.c_str());
-        return INVALID_PARAMTER;
+
+    int32_t ret = CheckParamsAndCfginfo(bundleName, tokenId, cfginfo);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
     }
 
     cJSON *root = cJSON_Parse(cfginfo.c_str());
@@ -709,7 +650,10 @@ int32_t SandboxManagerShare::UpdateShareFileInfo(
         return INVALID_PARAMTER;
     }
 
-    ret = UpdateShareFileInfoInner(root, bundleName, userId, tokenId);
+    ret = ProcessShareFileInfo(root, bundleName, userId, tokenId);
+    if (SANDBOX_MANAGER_OK != ret) {
+        (void)UnsetShareFileInfo(tokenId, bundleName, userId);
+    }
     cJSON_Delete(root);
     return ret;
 }
