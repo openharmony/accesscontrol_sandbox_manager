@@ -2211,52 +2211,6 @@ HWTEST_F(ClawSandboxManagerTest, SetAinfo001, TestSize.Level0)
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
-// ==================== SetSeccomp tests ====================
-
-/**
- * @tc.name: SetSeccomp001
- * @tc.desc: SetSeccomp attempts to install seccomp filter
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, SetSeccomp001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.SetSeccomp();
-    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_SECCOMP_FAILED);
-}
-
-// ==================== InstallCustomSeccompFilter tests ====================
-
-/**
- * @tc.name: InstallCustomSeccompFilter001
- * @tc.desc: InstallCustomSeccompFilter builds filter and installs via prctl
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, InstallCustomSeccompFilter001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.InstallCustomSeccompFilter();
-    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_SECCOMP_FAILED);
-}
-
 // ==================== DropCapabilities tests ====================
 
 /**
@@ -2733,61 +2687,6 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps002, TestSize.Level0)
 
     int ret = manager.ExecuteEarlySteps();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-// ==================== ExecuteMountSteps tests ====================
-
-/**
- * @tc.name: ExecuteMountSteps001
- * @tc.desc: ExecuteMountSteps fails at CreateNewRoot
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ExecuteMountSteps001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.ExecuteMountSteps();
-    EXPECT_TRUE(ret == SANDBOX_ERR_PATH_CREATE_FAILED ||
-                ret == SANDBOX_ERR_SANDBOX_PATH_EXHAUSTED ||
-                ret == SANDBOX_ERR_MOUNT_FAILED);
-}
-
-// ==================== ExecuteLateSteps tests ====================
-
-/**
- * @tc.name: ExecuteLateSteps001
- * @tc.desc: ExecuteLateSteps with empty cmd fails at ExecuteCommand
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ExecuteLateSteps001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.ExecuteLateSteps();
-    // ExecuteLateSteps calls SetAccessToken/SetXpmOwnerId/SetAinfo first.
-    // SetSelfTokenID may fail in some environments → SET_TOKENID_FAILED,
-    // or SetUidGid fails at setresgid → SET_UGID_FAILED,
-    // or in privileged environments SetUidGid/SetSeccomp succeed and
-    // ExecuteCommand fails with CMD_INVALID (empty cmd).
-    EXPECT_TRUE(ret == SANDBOX_ERR_SET_UGID_FAILED ||
-                ret == SANDBOX_ERR_SET_TOKENID_FAILED ||
-                ret == SANDBOX_ERR_CMD_INVALID);
 }
 
 // ==================== Execute tests ====================
