@@ -46,6 +46,18 @@ SandboxManagerRdb& SandboxManagerRdb::GetInstance()
     return instance;
 }
 
+std::string SandboxManagerRdb::EscapeLikeWildcards(const std::string &input)
+{
+    std::string result;
+    for (char c : input) {
+        if (c == '%' || c == '_' || c == '\\') {
+            result += '\\';
+        }
+        result += c;
+    }
+    return result;
+}
+
 int32_t SandboxManagerRdb::OpenDatabaseInternal()
 {
     if (db_ != nullptr) {
@@ -388,14 +400,14 @@ int32_t SandboxManagerRdb::FindSubPathIgnoreCase(
         return FAILURE;
     }
     std::vector<NativeRdb::ValueObject> bindArgs;
-    std::string like_arg_str = filePath + "/%";
+    std::string like_arg_str = SandboxManagerRdb::EscapeLikeWildcards(filePath) + "/%";
     NativeRdb::ValueObject arg1(like_arg_str);
     NativeRdb::ValueObject arg2(filePath);
     bindArgs.push_back(arg1);
     bindArgs.push_back(arg2);
 
     std::string sql = "select * from " + tableName + " where " + PolicyFiledConst::FIELD_PATH
-        + " LIKE ? COLLATE NOCASE or " + PolicyFiledConst::FIELD_PATH + " = ? COLLATE NOCASE";
+        + " LIKE ? COLLATE NOCASE ESCAPE '\\' or " + PolicyFiledConst::FIELD_PATH + " = ? COLLATE NOCASE";
 
     OHOS::Utils::UniqueReadGuard<OHOS::Utils::RWLock> lock(rwLock_);
     auto queryResultSet = db->QuerySql(sql, bindArgs);

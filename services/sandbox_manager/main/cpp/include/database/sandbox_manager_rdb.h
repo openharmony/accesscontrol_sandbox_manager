@@ -48,6 +48,8 @@ public:
 
     int32_t Modify(const DataType type, const GenericValues &modifyValues, const GenericValues &conditions);
 
+    static std::string EscapeLikeWildcards(const std::string &input);
+
     int32_t FindSubPathIgnoreCase(const DataType type, const std::string &filePath,
         std::vector<GenericValues> &results);
     int32_t Find(const DataType type, const GenericValues &conditions,

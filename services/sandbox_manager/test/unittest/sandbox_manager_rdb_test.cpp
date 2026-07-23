@@ -254,6 +254,273 @@ HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_FindSubPathIgnoreCase_002,
 }
 
 /**
+ * @tc.name: FindSubPath_PercentInQuery
+ * @tc.desc: Insert /data/testXfile/sub, query /data/test%file. Bug: % in query acts as LIKE
+ *           wildcard, so /data/testXfile/sub is incorrectly matched.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, FindSubPath_PercentInQuery, TestSize.Level0)
+{
+    GenericValues sub;
+    sub.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    sub.Put(PolicyFiledConst::FIELD_PATH, "/data/testXfile/sub");
+    sub.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
+    sub.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(3));
+    sub.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    std::vector<GenericValues> values = {sub};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(SANDBOX_MANAGER_PERSISTED_POLICY,
+        "/data/test%file", dbResult));
+
+    // After fix: % is escaped, so no match
+    EXPECT_EQ(0, dbResult.size());
+
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+}
+
+/**
+ * @tc.name: FindSubPath_UnderscoreInQuery
+ * @tc.desc: Insert /data/testXfile/sub, query /data/test_file. Bug: _ in query acts as LIKE
+ *           single-char wildcard, so /data/testXfile/sub is incorrectly matched.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, FindSubPath_UnderscoreInQuery, TestSize.Level0)
+{
+    GenericValues sub;
+    sub.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    sub.Put(PolicyFiledConst::FIELD_PATH, "/data/testXfile/sub");
+    sub.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
+    sub.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(3));
+    sub.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    std::vector<GenericValues> values = {sub};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(SANDBOX_MANAGER_PERSISTED_POLICY,
+        "/data/test_file", dbResult));
+
+    // After fix: _ is escaped, so no match
+    EXPECT_EQ(0, dbResult.size());
+
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+}
+
+/**
+ * @tc.name: FindSubPath_PercentAtEnd
+ * @tc.desc: Insert /data/abc/sub, query /data/%. Bug: % in query matches any sequence,
+ *           so /data/abc/sub is incorrectly matched (more extreme: /data/% would match all
+ *           subdirectories under /data/).
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, FindSubPath_PercentAtEnd, TestSize.Level0)
+{
+    GenericValues sub;
+    sub.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    sub.Put(PolicyFiledConst::FIELD_PATH, "/data/abc/sub");
+    sub.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
+    sub.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(3));
+    sub.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    std::vector<GenericValues> values = {sub};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(SANDBOX_MANAGER_PERSISTED_POLICY,
+        "/data/%", dbResult));
+
+    // After fix: % is escaped, so no match
+    EXPECT_EQ(0, dbResult.size());
+
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+}
+
+/**
+ * @tc.name: FindSubPath_UnderscoreAtEnd
+ * @tc.desc: Insert /data/testABCD/sub, query /data/test____. Bug: each _ in query matches
+ *           any single char, so /data/testABCD/sub is incorrectly matched.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, FindSubPath_UnderscoreAtEnd, TestSize.Level0)
+{
+    GenericValues sub;
+    sub.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    sub.Put(PolicyFiledConst::FIELD_PATH, "/data/testABCD/sub");
+    sub.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
+    sub.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(3));
+    sub.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    std::vector<GenericValues> values = {sub};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(SANDBOX_MANAGER_PERSISTED_POLICY,
+        "/data/test____", dbResult));
+
+    // After fix: _ is escaped, so no match
+    EXPECT_EQ(0, dbResult.size());
+
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+}
+
+/**
+ * @tc.name: FindSubPath_BackslashPercentInQuery
+ * @tc.desc: Insert /data/test%file/sub, query /data/test%file. % is a LIKE wildcard, so
+ *           EscapeLikeWildcards escapes it to \% in the LIKE pattern. The ESCAPE '\' clause
+ *           then treats \% as literal %, correctly matching /data/test%file/sub.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, FindSubPath_BackslashPercentInQuery, TestSize.Level0)
+{
+    GenericValues sub;
+    sub.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    sub.Put(PolicyFiledConst::FIELD_PATH, "/data/test%file/sub");
+    sub.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
+    sub.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(3));
+    sub.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    std::vector<GenericValues> values = {sub};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(SANDBOX_MANAGER_PERSISTED_POLICY,
+        "/data/test%file", dbResult));
+
+    // % is escaped by EscapeLikeWildcards, so LIKE pattern is /data/test\%file/%, matching correctly
+    EXPECT_EQ(1, dbResult.size());
+
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+}
+
+/**
+ * @tc.name: FindSubPath_BackslashUnderscoreInQuery
+ * @tc.desc: Insert /data/test_file/sub, query /data/test_file. _ is a LIKE wildcard, so
+ *           EscapeLikeWildcards escapes it to \_ in the LIKE pattern. The ESCAPE '\' clause
+ *           then treats \_ as literal _, correctly matching /data/test_file/sub.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, FindSubPath_BackslashUnderscoreInQuery, TestSize.Level0)
+{
+    GenericValues sub;
+    sub.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    sub.Put(PolicyFiledConst::FIELD_PATH, "/data/test_file/sub");
+    sub.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
+    sub.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(3));
+    sub.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    std::vector<GenericValues> values = {sub};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(SANDBOX_MANAGER_PERSISTED_POLICY,
+        "/data/test_file", dbResult));
+
+    // _ is escaped by EscapeLikeWildcards, so LIKE pattern is /data/test\_file/%, matching correctly
+    EXPECT_EQ(1, dbResult.size());
+
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+}
+
+/**
+ * @tc.name: FindSubPath_LiteralBackslashPercentInPath
+ * @tc.desc: Insert /data/test\%file/sub, query /data/test\%file. The path actually contains
+ *           literal \ before %. EscapeLikeWildcards escapes both \ and %, so LIKE pattern
+ *           is /data/test\\%file/%, correctly matching the stored path.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, FindSubPath_LiteralBackslashPercentInPath, TestSize.Level0)
+{
+    GenericValues sub;
+    sub.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    sub.Put(PolicyFiledConst::FIELD_PATH, "/data/test\\%file/sub");
+    sub.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
+    sub.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(3));
+    sub.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    std::vector<GenericValues> values = {sub};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(SANDBOX_MANAGER_PERSISTED_POLICY,
+        "/data/test\\%file", dbResult));
+
+    // \ is escaped to \\, % is escaped to \%, so LIKE pattern is /data/test\\%file/%, matching correctly
+    EXPECT_EQ(1, dbResult.size());
+
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+}
+
+/**
+ * @tc.name: FindSubPath_LiteralBackslashUnderscoreInPath
+ * @tc.desc: Insert /data/test\_file/sub, query /data/test\_file. The path actually contains
+ *           literal \ before _. EscapeLikeWildcards escapes both \ and _, so LIKE pattern
+ *           is /data/test\\_file/%, correctly matching the stored path.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, FindSubPath_LiteralBackslashUnderscoreInPath, TestSize.Level0)
+{
+    GenericValues sub;
+    sub.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    sub.Put(PolicyFiledConst::FIELD_PATH, "/data/test\\_file/sub");
+    sub.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
+    sub.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(3));
+    sub.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    std::vector<GenericValues> values = {sub};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(SANDBOX_MANAGER_PERSISTED_POLICY,
+        "/data/test\\_file", dbResult));
+
+    // \ is escaped to \\, _ is escaped to \_, so LIKE pattern is /data/test\\_file/%, matching correctly
+    EXPECT_EQ(1, dbResult.size());
+
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+}
+
+/**
+ * @tc.name: FindSubPath_BackslashInQuery
+ * @tc.desc: Insert /data/test\file/sub, query /data/test\file. Bug: \ in query is consumed
+ *           by ESCAPE '\' clause, so \f is treated as literal \f, but the trailing backslash
+ *           before / is also consumed. After fix: \ is escaped as \\, so it matches correctly.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, FindSubPath_BackslashInQuery, TestSize.Level0)
+{
+    GenericValues sub;
+    sub.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1));
+    sub.Put(PolicyFiledConst::FIELD_PATH, "/data/test\\file/sub");
+    sub.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(0b01));
+    sub.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int64_t>(3));
+    sub.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int64_t>(0));
+
+    std::vector<GenericValues> values = {sub};
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+
+    std::vector<GenericValues> dbResult;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(SANDBOX_MANAGER_PERSISTED_POLICY,
+        "/data/test\\file", dbResult));
+
+    // After fix: \ is escaped as \\, so LIKE pattern matches correctly
+    EXPECT_EQ(1, dbResult.size());
+
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, values));
+}
+
+/**
  * @tc.name: SandboxManagerRdbTest001
  * @tc.desc: Test add func
  * @tc.type: FUNC
