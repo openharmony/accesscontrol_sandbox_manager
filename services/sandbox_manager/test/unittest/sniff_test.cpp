@@ -38,6 +38,39 @@ constexpr int32_t EL2_PATH_DIS = 3;
 constexpr int32_t EL5_PATH = 4;
 const std::string APPDATA_ROOT = "/storage/Users/currentUser/appdata";
 
+#define MAX_OWNERID_LEN 64
+
+struct xpm_region_info_s {
+    unsigned long addr_base;
+    unsigned long length;
+    unsigned int id_type;
+    char ownerid[MAX_OWNERID_LEN];
+    unsigned int api_version;
+};
+
+#define HM_XPM_REGION_IOCTL_BASE 'x'
+#define HM_SET_XPM_OWNERID 2
+#define SET_XPM_OWNERID_CMD _IOW(HM_XPM_REGION_IOCTL_BASE, HM_SET_XPM_OWNERID, struct xpm_region_info_s)
+
+static int SetAPIVersion(void)
+{
+    int fd = open("/dev/xpm", O_RDWR);
+    if (fd < 0) {
+        perror("cannot open /dev/xpm");
+        return -1;
+    }
+    struct xpm_region_info_s info = {0};
+    info.id_type = 2; // 2 for APP
+    info.api_version = 26; // 26 is the lowest supported api version
+
+    int ret = ioctl(fd, SET_XPM_OWNERID_CMD, &info);
+    if (ret < 0) {
+        perror("ioctl failed");
+    }
+    close(fd);
+    return 0;
+}
+
 std::vector<std::string> GetSniffPaths(const std::string &name)
 {
     return {
@@ -83,6 +116,7 @@ void SniffTest::SetUpTestCase(void)
 {
     OpenDevDec();
     PrepareMountEnv();
+    SetAPIVersion();
 }
 
 void SniffTest::TearDownTestCase(void)
