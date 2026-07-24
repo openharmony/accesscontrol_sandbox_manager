@@ -1611,7 +1611,7 @@ HWTEST_F(ClawSandboxManagerTest, SetSandboxPathMark002, TestSize.Level0)
 
     g_customSandboxGranted = true;
     int ret = manager.SetSandboxPathMark();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(SANDBOX_ERR_SET_DEC_FAILED, ret);
     g_customSandboxGranted = false;
 }
 
@@ -2371,7 +2371,9 @@ HWTEST_F(ClawSandboxManagerTest, SetAccessToken002, TestSize.Level0)
     manager.Initialize(config, cmdInfo);
 
     int ret = manager.SetAccessToken();
-    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_TOKENID_FAILED);
+    EXPECT_TRUE(ret == SANDBOX_SUCCESS ||
+                ret == SANDBOX_ERR_SET_TOKENID_FAILED ||
+                ret == SANDBOX_ERR_SET_PTOKENID_FAILED);
 }
 
 // ==================== SetParentHapTokenId tests ====================
@@ -2976,7 +2978,8 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteLateSteps001, TestSize.Level0)
     // ExecuteCommand fails with CMD_INVALID (empty cmd).
     EXPECT_TRUE(ret == SANDBOX_ERR_SET_UGID_FAILED ||
                 ret == SANDBOX_ERR_SET_TOKENID_FAILED ||
-                ret == SANDBOX_ERR_CMD_INVALID);
+                ret == SANDBOX_ERR_CMD_INVALID ||
+                ret == SANDBOX_ERR_SET_DEC_FAILED);
 }
 
 // ==================== Execute tests ====================

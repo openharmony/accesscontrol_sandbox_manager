@@ -22,6 +22,7 @@
 #include <cstring>
 #include <sys/types.h>
 #include <unistd.h>
+#include <iostream>
 #include "securec.h"
 
 namespace OHOS {
@@ -30,8 +31,9 @@ namespace SANDBOX {
 
 AidsClient::AidsClient(const std::string& device_path)
 {
-    fd_ = open(device_path.c_str(), O_RDWR);
+    fd_ = open(device_path.c_str(), O_RDWR | O_CLOEXEC);
     if (fd_ < 0) {
+        std::cerr << "Error: Failed to open " << device_path.c_str() << ", err: " << std::strerror(errno) << std::endl;
         SANDBOX_LOGE("Failed to open device: %{public}s, error: %{public}s", device_path.c_str(), std::strerror(errno));
         return;
     }
