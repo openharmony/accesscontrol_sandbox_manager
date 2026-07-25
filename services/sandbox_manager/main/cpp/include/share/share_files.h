@@ -44,6 +44,12 @@ namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
 
+struct ShareFileFields {
+    std::string sharingOSPath;
+    std::string sharingOSPermission;
+    std::string sharingOSSubPath;
+};
+
 typedef enum ShareStatus {
     SHARE_PATH_UNSET = UINT32_MAX - 1,
     SHARE_BUNDLE_UNSET = UINT32_MAX - 2,
@@ -69,6 +75,18 @@ public:
 private:
     SandboxManagerShare();
     ~SandboxManagerShare() = default;
+    static bool IsPathSecure(const std::string &path);
+    static bool IsValidElNumber(const std::string &elStr);
+    static uint32_t PermissionToMode(const std::string &permission);
+    static std::string NormalizeBasePath(const std::string &path);
+    static std::string PathCompose(const std::string &path, const std::string &name);
+    static int32_t ValidateSharingOSSubPath(const std::string &sharingOSSubPath);
+    static int32_t ValidateSharingOSPathAndPermission(cJSON *scopes, const std::string &sharingOSPath,
+        const std::string &sharingOSPermission);
+    static int32_t WriteShareFileToDb(const ShareFileFields &fields, const std::string &bundleName,
+        uint32_t userId, uint32_t tokenId);
+    static int32_t ProcessShareFileInfo(cJSON *root, const std::string &bundleName, uint32_t userId,
+        uint32_t tokenId);
     bool AddToMap(const std::string &bundleName, uint32_t userId, const std::string &path, uint32_t mode);
     int32_t TransAndSetToMapInner(cJSON *root, const std::string &bundleName, int32_t userId);
     bool Exists(const std::string &bundleName, uint32_t userId);

@@ -44,6 +44,7 @@ constexpr uint32_t MAX_BATCH_COUNT = 1u << MAX_BATCH_COUNT_SHIFT;
 const uint32_t NON_PERSIST_POLICY_BATCH_SIZE = 200;
 // Persist policy has a significant overhead for each call, thus requires a larger batch.
 const uint32_t PERSIST_POLICY_BATCH_SIZE = 200000;
+
 } // namespace SandboxManager
 } // namespace AccessControl
 } // namespace OHOS

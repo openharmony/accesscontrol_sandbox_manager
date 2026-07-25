@@ -51,6 +51,8 @@ ohos_unittest("libsandbox_manager_sdk_test") {
     "unittest/src/sandbox_manager_kit_sharefiles_test.cpp",
     "unittest/src/sandbox_manager_kit_supplemental_test.cpp",
     "unittest/src/sandbox_manager_kit_test.cpp",
+    "unittest/src/sandbox_manager_kit_nonsys_noperm_test.cpp",
+    "unittest/src/sandbox_manager_kit_sys_noperm_test.cpp",
     "unittest/src/sandbox_test_utils.cpp",
   ]
 

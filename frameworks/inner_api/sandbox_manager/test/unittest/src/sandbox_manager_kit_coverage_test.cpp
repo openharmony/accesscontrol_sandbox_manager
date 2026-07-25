@@ -339,7 +339,7 @@ HWTEST_F(SandboxManagerKitCoverageTest, SetPolicyByBundleNameTest001, TestSize.L
     };
     std::string bundleName = "sandbox_test";
     policy.emplace_back(infoParent);
-    ASSERT_EQ(PERMISSION_DENIED, SandboxManagerKit::SetPolicyByBundleName(bundleName, 0,
+    ASSERT_EQ(SANDBOX_MANAGER_NOT_SYS_APP, SandboxManagerKit::SetPolicyByBundleName(bundleName, 0,
         policy, policyFlag, policyResult));
 }
 } //SandboxManager

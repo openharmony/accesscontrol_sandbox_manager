@@ -79,7 +79,7 @@ int32_t SandboxManagerShare::InitShareMap()
     return GetAllShareCfg(userId);
 }
 
-static uint32_t PermissionToMode(const std::string &permission)
+uint32_t SandboxManagerShare::PermissionToMode(const std::string &permission)
 {
     if (permission == "r") {
         return OperateMode::READ_MODE;
@@ -109,15 +109,20 @@ namespace {
     };
 }
 
-static bool IsValidElNumber(const std::string &elStr)
+bool SandboxManagerShare::IsValidElNumber(const std::string &elStr)
 {
     return std::find(VALID_EL_NUMBERS.begin(), VALID_EL_NUMBERS.end(), elStr)
            != VALID_EL_NUMBERS.end();
 }
 
-static bool IsPathSecure(const std::string &path)
+bool SandboxManagerShare::IsPathSecure(const std::string &path)
 {
     if (path.empty() || path[0] != '/' || path.back() == '/') {
+        return false;
+    }
+
+    // Reject embedded null bytes
+    if (path.find('\0') != std::string::npos) {
         return false;
     }
 
@@ -137,7 +142,7 @@ static bool IsPathSecure(const std::string &path)
     return normalized == path;
 }
 
-static std::string PathCompose(const std::string &path, const std::string &name)
+std::string SandboxManagerShare::PathCompose(const std::string &path, const std::string &name)
 {
     if (path.empty() || name.empty()) {
         return "";
@@ -433,12 +438,6 @@ static int32_t CheckParamsAndCfginfo(const std::string &bundleName, uint32_t tok
     return SANDBOX_MANAGER_OK;
 }
 
-struct ShareFileFields {
-    std::string sharingOSPath;
-    std::string sharingOSPermission;
-    std::string sharingOSSubPath;
-};
-
 static int32_t GetCStringFromJson(cJSON *object, const char *key, std::string &result)
 {
     if (object == nullptr) {
@@ -454,7 +453,7 @@ static int32_t GetCStringFromJson(cJSON *object, const char *key, std::string &r
     return SANDBOX_MANAGER_OK;
 }
 
-static std::string NormalizeBasePath(const std::string &path)
+std::string SandboxManagerShare::NormalizeBasePath(const std::string &path)
 {
     // Normalize /base/ paths to /el2/base/ for comparison
     // /base/test and /el2/base/test are considered equivalent
@@ -464,7 +463,7 @@ static std::string NormalizeBasePath(const std::string &path)
     return path;
 }
 
-static int32_t ValidateSharingOSPathAndPermission(cJSON *scopes, const std::string &sharingOSPath,
+int32_t SandboxManagerShare::ValidateSharingOSPathAndPermission(cJSON *scopes, const std::string &sharingOSPath,
     const std::string &sharingOSPermission)
 {
     std::string scopePermission;
@@ -506,7 +505,7 @@ static int32_t ValidateSharingOSPathAndPermission(cJSON *scopes, const std::stri
     return SANDBOX_MANAGER_OK;
 }
 
-static int32_t ValidateSharingOSSubPath(const std::string &sharingOSSubPath)
+int32_t SandboxManagerShare::ValidateSharingOSSubPath(const std::string &sharingOSSubPath)
 {
     if (sharingOSSubPath.length() > MAX_SHARED_OS_SUB_PATH_LENGTH) {
         LOGE_WITH_REPORT(LABEL, "sharingOSSubPath length exceeds 32, length=%{public}zu.", sharingOSSubPath.length());
@@ -526,7 +525,7 @@ static int32_t ValidateSharingOSSubPath(const std::string &sharingOSSubPath)
     return SANDBOX_MANAGER_OK;
 }
 
-static int32_t WriteShareFileToDb(const ShareFileFields &fields, const std::string &bundleName,
+int32_t SandboxManagerShare::WriteShareFileToDb(const ShareFileFields &fields, const std::string &bundleName,
     uint32_t userId, uint32_t tokenId)
 {
     std::string composedPath = PathCompose(fields.sharingOSPath, bundleName);
@@ -562,7 +561,8 @@ static int32_t WriteShareFileToDb(const ShareFileFields &fields, const std::stri
     return SANDBOX_MANAGER_OK;
 }
 
-static int32_t ProcessShareFileInfo(cJSON *root, const std::string &bundleName, uint32_t userId, uint32_t tokenId)
+int32_t SandboxManagerShare::ProcessShareFileInfo(cJSON *root, const std::string &bundleName, uint32_t userId,
+    uint32_t tokenId)
 {
     cJSON *shareFiles = cJSON_GetObjectItemCaseSensitive(root, "share_files");
     if (shareFiles == nullptr || !cJSON_IsObject(shareFiles)) {

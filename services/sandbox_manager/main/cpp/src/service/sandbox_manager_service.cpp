@@ -231,6 +231,11 @@ int32_t SandboxManagerService::SetPolicyByBundleName(const std::string &bundleNa
 {
     SANDBOXMANAGER_LOG_INFO(LABEL, "set policy by bundle:%{public}s", bundleName.c_str());
     DelayUnloadService();
+    uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
+    if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
+        LOGE_WITH_REPORT(LABEL, "SetPolicyByBundleName failed, not system app");
+        return SANDBOX_MANAGER_NOT_SYS_APP;
+    }
     uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
     if (!CheckPermission(callingTokenId, FILE_ACCESS_PERMISSION_NAME)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Check tokenId failed.");
