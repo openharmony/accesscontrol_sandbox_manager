@@ -153,7 +153,12 @@ static void PutIntegerColumn(const std::shared_ptr<NativeRdb::ResultSet> &result
     // Special handling for timestamp field - always use int64_t
     if (columnName == PolicyFiledConst::FIELD_TIMESTAMP) {
         int64_t data = 0;
-        resultSet->GetLong(columnIndex, data);
+        int32_t errCode = resultSet->GetLong(columnIndex, data);
+        if (errCode != NativeRdb::E_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to get long value for column %{public}s, err=%{public}d",
+                columnName.c_str(), errCode);
+            return;
+        }
         value.Put(columnName, data);
         return;
     }
@@ -162,11 +167,21 @@ static void PutIntegerColumn(const std::shared_ptr<NativeRdb::ResultSet> &result
     resultSet->GetSize(columnIndex, typeSize);
     if (typeSize == sizeof(int64_t)) {
         int64_t data = 0;
-        resultSet->GetLong(columnIndex, data);
+        int32_t errCode = resultSet->GetLong(columnIndex, data);
+        if (errCode != NativeRdb::E_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to get long value for column %{public}s, err=%{public}d",
+                columnName.c_str(), errCode);
+            return;
+        }
         value.Put(columnName, data);
     } else {
         int32_t data = 0;
-        resultSet->GetInt(columnIndex, data);
+        int32_t errCode = resultSet->GetInt(columnIndex, data);
+        if (errCode != NativeRdb::E_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to get int value for column %{public}s, err=%{public}d",
+                columnName.c_str(), errCode);
+            return;
+        }
         value.Put(columnName, data);
     }
 }
@@ -175,7 +190,12 @@ static void PutStringColumn(const std::shared_ptr<NativeRdb::ResultSet> &resultS
     int32_t columnIndex, const std::string &columnName, GenericValues &value)
 {
     std::string data;
-    resultSet->GetString(columnIndex, data);
+    int32_t errCode = resultSet->GetString(columnIndex, data);
+    if (errCode != NativeRdb::E_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to get string value for column %{public}s, err=%{public}d",
+            columnName.c_str(), errCode);
+        return;
+    }
     value.Put(columnName, data);
 }
 
@@ -183,10 +203,20 @@ static void ProcessColumn(const std::shared_ptr<NativeRdb::ResultSet> &resultSet
     const std::string &columnName, GenericValues &value)
 {
     int32_t columnIndex = 0;
-    resultSet->GetColumnIndex(columnName, columnIndex);
+    int32_t errCode = resultSet->GetColumnIndex(columnName, columnIndex);
+    if (errCode != NativeRdb::E_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to get column index for %{public}s, err=%{public}d",
+            columnName.c_str(), errCode);
+        return;
+    }
 
     NativeRdb::ColumnType type;
-    resultSet->GetColumnType(columnIndex, type);
+    errCode = resultSet->GetColumnType(columnIndex, type);
+    if (errCode != NativeRdb::E_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to get column type for %{public}s, err=%{public}d",
+            columnName.c_str(), errCode);
+        return;
+    }
 
     if (type == NativeRdb::ColumnType::TYPE_INTEGER) {
         PutIntegerColumn(resultSet, columnIndex, columnName, value);
@@ -198,7 +228,11 @@ static void ProcessColumn(const std::shared_ptr<NativeRdb::ResultSet> &resultSet
 void ResultToGenericValues(const std::shared_ptr<NativeRdb::ResultSet> &resultSet, GenericValues &value)
 {
     std::vector<std::string> columnNames;
-    resultSet->GetAllColumnNames(columnNames);
+    int32_t errCode = resultSet->GetAllColumnNames(columnNames);
+    if (errCode != NativeRdb::E_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to get all column names, err=%{public}d", errCode);
+        return;
+    }
     for (const auto &columnName : columnNames) {
         ProcessColumn(resultSet, columnName, value);
     }

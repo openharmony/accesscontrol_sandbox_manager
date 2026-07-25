@@ -218,7 +218,11 @@ int32_t  SandboxManagerRdb::Add(const DataType type, const std::vector<GenericVa
     }
 
     OHOS::Utils::UniqueWriteGuard<OHOS::Utils::RWLock> lock(rwLock_);
-    db->BeginTransaction();
+    int32_t transRes = db->BeginTransaction();
+    if (transRes != NativeRdb::E_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to begin transaction, res is %{public}d.", transRes);
+        return FAILURE;
+    }
     for (const auto& value : values) {
         NativeRdb::ValuesBucket bucket;
         ToRdbValueBucket(value, bucket);
@@ -302,7 +306,11 @@ int32_t SandboxManagerRdb::Remove(const DataType type, const std::vector<Generic
     }
 
     OHOS::Utils::UniqueWriteGuard<OHOS::Utils::RWLock> lock(rwLock_);
-    db->BeginTransaction();
+    int32_t transRes = db->BeginTransaction();
+    if (transRes != NativeRdb::E_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to begin transaction, res is %{public}d.", transRes);
+        return FAILURE;
+    }
     for (const auto& condition : conditions) {
         NativeRdb::RdbPredicates predicates(tableName);
         ToRdbPredicates(condition, predicates);
@@ -482,10 +490,10 @@ int32_t SandboxManagerRdb::GetRecordCount(const DataType type, int32_t &count)
 
     count = 0;
     if (queryResultSet->GoToNextRow() == NativeRdb::E_OK) {
-        int64_t countValue = 0;
-        int32_t res = queryResultSet->GetLong(0, countValue);
+        int32_t countValue = 0;
+        int32_t res = queryResultSet->GetInt(0, countValue);
         if (res == NativeRdb::E_OK) {
-            count = static_cast<int32_t>(countValue);
+            count = countValue;
         }
     }
 
@@ -512,7 +520,7 @@ int32_t SandboxManagerRdb::GetTokenIdWithMostRecords(const DataType type, uint32
         return FAILURE;
     }
 
-    std::string sql = "SELECT " + PolicyFiledConst::FIELD_TOKENID + ", COUNT(*) as count" +
+    std::string sql = std::string("SELECT ") + PolicyFiledConst::FIELD_TOKENID + ", COUNT(*) as count" +
                       " FROM " + tableName +
                       " GROUP BY " + PolicyFiledConst::FIELD_TOKENID +
                       " ORDER BY count DESC LIMIT 1";

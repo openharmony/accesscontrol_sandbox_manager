@@ -815,6 +815,7 @@ void SandboxManagerService::DelayUnloadService()
 #endif
 }
 
+constexpr int DECIMAL_BASE = 10;
 template <typename T>
 static int32_t GetDemandReasonValue(std::string value, T &data)
 {
@@ -822,19 +823,26 @@ static int32_t GetDemandReasonValue(std::string value, T &data)
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Error empty value received.");
         return INVALID_PARAMTER;
     }
-    if (std::isdigit(value[0]) == 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid digit userId string received.");
-        return INVALID_PARAMTER;
-    }
-    size_t idx = 0;
-    
+
+    errno = 0;
+    char *endPtr = nullptr;
     if constexpr (std::is_same_v<T, uint32_t>) {
-        data = std::stoul(value, &idx);
+        unsigned long result = strtoul(value.c_str(), &endPtr, DECIMAL_BASE);
+        if (errno == ERANGE) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Value out of range: %{public}s", value.c_str());
+            return INVALID_PARAMTER;
+        }
+        data = static_cast<T>(result);
     } else {
-        data = std::stoi(value, &idx);
+        long result = strtol(value.c_str(), &endPtr, DECIMAL_BASE);
+        if (errno == ERANGE) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Value out of range: %{public}s", value.c_str());
+            return INVALID_PARAMTER;
+        }
+        data = static_cast<T>(result);
     }
-    
-    if (idx != value.length()) {
+
+    if (endPtr == nullptr || *endPtr != '\0') {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Convert failed, %{public}s.", value.c_str());
         return INVALID_PARAMTER;
     }

@@ -320,10 +320,9 @@ private:
      * @brief remove policies not belong to the user
      * @param results input policies to check
      * @param userId delete policies not belong to this user
+     * @param trieTree trie tree for check path
      * @return
      */
-    void RemoveResultByUserId(std::vector<GenericValues> &results, int32_t userId);
-
     void RemoveResultByUserIdAndPrefix(std::vector<GenericValues> &results, int32_t userId, PolicyTrie &trieTree);
 private:
     MacAdapter macAdapter_;

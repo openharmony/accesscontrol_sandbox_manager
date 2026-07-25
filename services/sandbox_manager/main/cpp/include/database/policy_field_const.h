@@ -24,22 +24,22 @@ namespace AccessControl {
 namespace SandboxManager {
 class PolicyFiledConst {
 public:
-    const static std::string FIELD_TOKENID;
-    const static std::string FIELD_PATH;
-    const static std::string FIELD_MODE;
-    const static std::string FIELD_DEPTH;
-    const static std::string FIELD_FLAG;
+    static constexpr const char *FIELD_TOKENID = "tokenId";
+    static constexpr const char *FIELD_PATH = "path";
+    static constexpr const char *FIELD_MODE = "mode";
+    static constexpr const char *FIELD_DEPTH = "depth";
+    static constexpr const char *FIELD_FLAG = "flag";
     // Fields for bundle persistent policy table
-    const static std::string FIELD_BUNDLENAME;
-    const static std::string FIELD_USERID;
-    const static std::string FIELD_TIMESTAMP;
-    const static std::string FIELD_APPIDENTIFIER;
-    const static std::string FIELD_ORIGINAL_TOKENID;
+    static constexpr const char *FIELD_BUNDLENAME = "bundleName";
+    static constexpr const char *FIELD_USERID = "userId";
+    static constexpr const char *FIELD_TIMESTAMP = "timestamp";
+    static constexpr const char *FIELD_APPIDENTIFIER = "appIdentifier";
+    static constexpr const char *FIELD_ORIGINAL_TOKENID = "tokenId";
     // Fields for shared file info table
-    const static std::string FIELD_BUNDLE_NAME;
-    const static std::string FIELD_USER_ID;
-    const static std::string FIELD_SHARED_OS_PATH;
-    const static std::string FIELD_SHARED_MODE;
+    static constexpr const char *FIELD_BUNDLE_NAME = "bundleName";
+    static constexpr const char *FIELD_USER_ID = "userId";
+    static constexpr const char *FIELD_SHARED_OS_PATH = "sharedOsPath";
+    static constexpr const char *FIELD_SHARED_MODE = "sharedMode";
 };
 } // namespace SandboxManager
 } // namespace AccessControl

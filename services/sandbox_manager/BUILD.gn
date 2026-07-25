@@ -57,7 +57,6 @@ if (is_standard_system) {
     ]
 
     sources = [
-      "main/cpp/src/database/policy_field_const.cpp",
       "main/cpp/src/database/sandbox_manager_rdb.cpp",
       "main/cpp/src/database/sandbox_manager_rdb_open_callback.cpp",
       "main/cpp/src/database/sandbox_manager_rdb_utils.cpp",
