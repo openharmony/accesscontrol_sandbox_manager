@@ -1455,7 +1455,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceNew001, TestSize.Level0
     std::string bundleName = "sandbox_manager_test";
     int32_t index = 0;
     uint64_t policyFlag = 0;
-    EXPECT_EQ(PERMISSION_DENIED,
+    EXPECT_EQ(SANDBOX_MANAGER_NOT_SYS_APP,
         sandboxManagerService_->SetPolicyByBundleName(bundleName, index, policyRawData, policyFlag, resultRawData));
 
     SetSelfTokenID(sysGrantToken_);

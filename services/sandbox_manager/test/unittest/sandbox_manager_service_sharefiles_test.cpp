@@ -15,7 +15,9 @@
 
 #include <gtest/gtest.h>
 #include <string>
+#define private public  // NOLINT
 #include "share_files.h"
+#undef private
 #include "sandbox_manager_err_code.h"
 #include "sandbox_manager_service.h"
 #include "sandbox_test_common.h"
@@ -1243,6 +1245,268 @@ HWTEST_F(SandboxManagerServiceSharefilesTest, UnsetShareFileInfoTest003, TestSiz
 
     int32_t ret = SandboxManagerShare::GetInstance().UnsetShareFileInfo(tokenId, bundleName, userId);
     EXPECT_EQ(INVALID_PARAMTER, ret);
+}
+
+/**
+ * @tc.name: IsPathSecureTest_Normal
+ * @tc.desc: IsPathSecure returns true for normal valid paths.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, IsPathSecureTest_Normal, TestSize.Level0)
+{
+    EXPECT_TRUE(SandboxManagerShare::IsPathSecure("/data/storage/el2/base/files/test.txt"));
+}
+
+/**
+ * @tc.name: IsPathSecureTest_EmbeddedNull
+ * @tc.desc: IsPathSecure returns false for paths with embedded null bytes.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, IsPathSecureTest_EmbeddedNull, TestSize.Level0)
+{
+    std::string pathWithNull = std::string("/data/storage/") + '\0' + "el2/base";
+    EXPECT_FALSE(SandboxManagerShare::IsPathSecure(pathWithNull));
+
+    std::string pathWithNull2 = std::string("/data/storage/el2") + '\0' + "/base/files/test.txt";
+    EXPECT_FALSE(SandboxManagerShare::IsPathSecure(pathWithNull2));
+}
+
+/**
+ * @tc.name: IsPathSecureTest_EmptyPath
+ * @tc.desc: IsPathSecure returns false for empty path.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, IsPathSecureTest_EmptyPath, TestSize.Level0)
+{
+    EXPECT_FALSE(SandboxManagerShare::IsPathSecure(""));
+}
+
+/**
+ * @tc.name: IsPathSecureTest_InvalidFormat
+ * @tc.desc: IsPathSecure returns false for no leading /, trailing /, double leading //.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, IsPathSecureTest_InvalidFormat, TestSize.Level0)
+{
+    EXPECT_FALSE(SandboxManagerShare::IsPathSecure("data/storage/el2"));
+    EXPECT_FALSE(SandboxManagerShare::IsPathSecure("/data/storage/"));
+    EXPECT_FALSE(SandboxManagerShare::IsPathSecure("//data/storage/el2"));
+}
+
+/**
+ * @tc.name: IsPathSecureTest_PathTraversal
+ * @tc.desc: IsPathSecure returns false for paths with traversal components.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, IsPathSecureTest_PathTraversal, TestSize.Level0)
+{
+    EXPECT_FALSE(SandboxManagerShare::IsPathSecure("/data/storage/el2/../base"));
+    EXPECT_FALSE(SandboxManagerShare::IsPathSecure("/data/storage/el2/./base"));
+}
+
+/**
+ * @tc.name: PathComposeTest_ElFormat
+ * @tc.desc: PathCompose with EL format path.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, PathComposeTest_ElFormat, TestSize.Level0)
+{
+    std::string result = SandboxManagerShare::PathCompose("/el2/base", "com.example.app");
+    EXPECT_EQ("/storage/Users/currentUser/appdata/el2/base/com.example.app", result);
+}
+
+/**
+ * @tc.name: PathComposeTest_BaseFormat
+ * @tc.desc: PathCompose with base format path.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, PathComposeTest_BaseFormat, TestSize.Level0)
+{
+    std::string result = SandboxManagerShare::PathCompose("/base/haps", "com.example.app");
+    EXPECT_EQ("/storage/Users/currentUser/appdata/el2/base/com.example.app/haps", result);
+}
+
+/**
+ * @tc.name: PathComposeTest_ExtraComponents
+ * @tc.desc: PathCompose with extra components.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, PathComposeTest_ExtraComponents, TestSize.Level0)
+{
+    std::string result = SandboxManagerShare::PathCompose("/el2/base/haps/files", "com.example.app");
+    EXPECT_EQ("/storage/Users/currentUser/appdata/el2/base/com.example.app/haps/files", result);
+}
+
+/**
+ * @tc.name: PathComposeTest_EmptyPath
+ * @tc.desc: PathCompose with empty path.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, PathComposeTest_EmptyPath, TestSize.Level0)
+{
+    EXPECT_EQ("", SandboxManagerShare::PathCompose("", "com.example.app"));
+}
+
+/**
+ * @tc.name: PathComposeTest_EmptyName
+ * @tc.desc: PathCompose with empty name.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, PathComposeTest_EmptyName, TestSize.Level0)
+{
+    EXPECT_EQ("", SandboxManagerShare::PathCompose("/el2/base", ""));
+}
+
+/**
+ * @tc.name: PathComposeTest_InsecurePath
+ * @tc.desc: PathCompose with insecure path (traversal).
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, PathComposeTest_InsecurePath, TestSize.Level0)
+{
+    EXPECT_EQ("", SandboxManagerShare::PathCompose("/el2/../base", "com.example.app"));
+}
+
+/**
+ * @tc.name: PathComposeTest_InvalidFirstComponent
+ * @tc.desc: PathCompose with invalid first component.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, PathComposeTest_InvalidFirstComponent, TestSize.Level0)
+{
+    EXPECT_EQ("", SandboxManagerShare::PathCompose("/invalid/xxx", "com.example.app"));
+}
+
+/**
+ * @tc.name: PathComposeTest_SingleComponent
+ * @tc.desc: PathCompose with single component (below MIN_PARTS_FORMAT).
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, PathComposeTest_SingleComponent, TestSize.Level0)
+{
+    EXPECT_EQ("", SandboxManagerShare::PathCompose("/el2", "com.example.app"));
+}
+
+/**
+ * @tc.name: PathComposeTest_DifferentElNumbers
+ * @tc.desc: PathCompose with different EL numbers.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, PathComposeTest_DifferentElNumbers, TestSize.Level0)
+{
+    EXPECT_EQ("/storage/Users/currentUser/appdata/el1/base/com.example.app",
+        SandboxManagerShare::PathCompose("/el1/base", "com.example.app"));
+    EXPECT_EQ("/storage/Users/currentUser/appdata/el3/base/com.example.app",
+        SandboxManagerShare::PathCompose("/el3/base", "com.example.app"));
+    EXPECT_EQ("/storage/Users/currentUser/appdata/el5/base/com.example.app",
+        SandboxManagerShare::PathCompose("/el5/base", "com.example.app"));
+}
+
+/**
+ * @tc.name: IsValidElNumberTest_Valid
+ * @tc.desc: IsValidElNumber returns true for valid EL numbers.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, IsValidElNumberTest_Valid, TestSize.Level0)
+{
+    EXPECT_TRUE(SandboxManagerShare::IsValidElNumber("el1"));
+    EXPECT_TRUE(SandboxManagerShare::IsValidElNumber("el2"));
+    EXPECT_TRUE(SandboxManagerShare::IsValidElNumber("el3"));
+    EXPECT_TRUE(SandboxManagerShare::IsValidElNumber("el4"));
+    EXPECT_TRUE(SandboxManagerShare::IsValidElNumber("el5"));
+}
+
+/**
+ * @tc.name: IsValidElNumberTest_Invalid
+ * @tc.desc: IsValidElNumber returns false for invalid EL numbers.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, IsValidElNumberTest_Invalid, TestSize.Level0)
+{
+    EXPECT_FALSE(SandboxManagerShare::IsValidElNumber("el0"));
+    EXPECT_FALSE(SandboxManagerShare::IsValidElNumber("el6"));
+    EXPECT_FALSE(SandboxManagerShare::IsValidElNumber("EL2"));
+    EXPECT_FALSE(SandboxManagerShare::IsValidElNumber("base"));
+    EXPECT_FALSE(SandboxManagerShare::IsValidElNumber(""));
+    EXPECT_FALSE(SandboxManagerShare::IsValidElNumber("el"));
+}
+
+/**
+ * @tc.name: PermissionToModeTest_ReadMode
+ * @tc.desc: PermissionToMode returns correct mode for "r".
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, PermissionToModeTest_ReadMode, TestSize.Level0)
+{
+    EXPECT_EQ(OperateMode::READ_MODE, SandboxManagerShare::PermissionToMode("r"));
+}
+
+/**
+ * @tc.name: PermissionToModeTest_ReadWriteMode
+ * @tc.desc: PermissionToMode returns correct mode for "r+w".
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, PermissionToModeTest_ReadWriteMode, TestSize.Level0)
+{
+    EXPECT_EQ(OperateMode::READ_MODE | OperateMode::WRITE_MODE,
+        SandboxManagerShare::PermissionToMode("r+w"));
+}
+
+/**
+ * @tc.name: PermissionToModeTest_Unknown
+ * @tc.desc: PermissionToMode returns 0 for unknown permission string.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, PermissionToModeTest_Unknown, TestSize.Level0)
+{
+    EXPECT_EQ(0, SandboxManagerShare::PermissionToMode("w"));
+    EXPECT_EQ(0, SandboxManagerShare::PermissionToMode("rw"));
+    EXPECT_EQ(0, SandboxManagerShare::PermissionToMode(""));
+    EXPECT_EQ(0, SandboxManagerShare::PermissionToMode("r+w+x"));
+}
+
+/**
+ * @tc.name: NormalizeBasePathTest_BasePath
+ * @tc.desc: NormalizeBasePath prepends /el2 for /base/ paths.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, NormalizeBasePathTest_BasePath, TestSize.Level0)
+{
+    EXPECT_EQ("/el2/base/haps", SandboxManagerShare::NormalizeBasePath("/base/haps"));
+}
+
+/**
+ * @tc.name: NormalizeBasePathTest_NonBasePath
+ * @tc.desc: NormalizeBasePath returns path unchanged for non-/base/ paths.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceSharefilesTest, NormalizeBasePathTest_NonBasePath, TestSize.Level0)
+{
+    EXPECT_EQ("/el2/base", SandboxManagerShare::NormalizeBasePath("/el2/base"));
+    EXPECT_EQ("/el2/base/haps", SandboxManagerShare::NormalizeBasePath("/el2/base/haps"));
+    EXPECT_EQ("/data/test", SandboxManagerShare::NormalizeBasePath("/data/test"));
+    EXPECT_EQ("", SandboxManagerShare::NormalizeBasePath(""));
 }
 } // namespace SandboxManager
 } // namespace AccessControl

@@ -32,6 +32,7 @@
 #include "policy_field_const.h"
 #include "policy_info.h"
 #include "policy_trie.h"
+#include "sandbox_param_validator.h"
 #include "sandbox_manager_const.h"
 #include "sandbox_manager_rdb.h"
 #include "sandbox_manager_dfx_helper.h"
@@ -589,6 +590,13 @@ void PolicyInfoManager::ProcessPolicyMatches(const std::vector<PolicyInfo> &poli
         int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
         if (checkPolicyRet != SANDBOX_MANAGER_OK) {
             result[i] = static_cast<uint32_t>(checkPolicyRet);
+            continue;
+        }
+
+        // Use ValidateBasicPathRules to block shallow appdata paths (depth 4-6) and other
+        // invalid storage paths (e.g. non-currentUser, segment count violations).
+        if (SandboxParamValidator::ValidateBasicPathRules(policy[i].path) != SANDBOX_MANAGER_OK) {
+            result[i] = static_cast<uint32_t>(SandboxRetType::INVALID_PATH);
             continue;
         }
 

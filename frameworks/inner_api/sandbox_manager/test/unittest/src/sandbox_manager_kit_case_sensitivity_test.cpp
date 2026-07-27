@@ -187,6 +187,29 @@ public:
         EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
     }
 
+    std::vector<PolicyInfo> SetAndPersistPolicy(const std::vector<PolicyInfo> &policy)
+    {
+        std::vector<uint32_t> setResult;
+        std::vector<uint32_t> persistResult;
+        uint64_t policyFlag = 1;
+
+        int32_t ret = SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, setResult);
+        EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+        EXPECT_EQ(policy.size(), setResult.size());
+        for (auto r : setResult) {
+            EXPECT_EQ(OPERATE_SUCCESSFULLY, r);
+        }
+
+        ret = SandboxManagerKit::PersistPolicy(policy, persistResult);
+        EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+        EXPECT_EQ(policy.size(), persistResult.size());
+        for (auto r : persistResult) {
+            EXPECT_EQ(OPERATE_SUCCESSFULLY, r);
+        }
+
+        return policy;
+    }
+
     static bool currentUserDenied_;
     static bool denyPolicyFileExists_;
 };
@@ -531,6 +554,72 @@ HWTEST_F(CaseSensitivityTest, AppDataBlocked, TestSize.Level0)
 }
 
 /**
+ * @tc.name: SandboxManagerKitApiTest_ProcessPolicyMatches_AppDataDepthBlocked
+ * @tc.desc: Test ProcessPolicyMatches blocks appdata paths with depth 4-6 (including case variants)
+ *           while allowing depth 7+ paths. This validates the IsAppDataPathPrefix check in
+ *           ProcessPolicyMatches for StartAccessingPolicy.
+ * @tc.type: FUNC
+ * @tc.require: Issue Number
+ */
+HWTEST_F(CaseSensitivityTest, ProcessPolicyMatches_AppDataDepthBlocked, TestSize.Level0)
+{
+    if (currentUserDenied_) {
+        return;
+    }
+
+    auto basePolicy = SetAndPersistPolicy(
+        {{.path = "/storage/Users/currentUser", .mode = OperateMode::READ_MODE}});
+
+    struct TestCase {
+        PolicyInfo policy;
+        uint32_t expected;
+        bool expectedCheckResult;
+    };
+
+    std::vector<TestCase> testCases = {
+        // Depth 4 - blocked (exact appdata, case-insensitive)
+        {{.path = "/storage/Users/currentUser/appdata", .mode = OperateMode::READ_MODE}, INVALID_PATH, false},
+        {{.path = "/storage/Users/currentUser/APPDATA", .mode = OperateMode::READ_MODE}, INVALID_PATH, false},
+        {{.path = "/storage/Users/currentUser/AppData", .mode = OperateMode::READ_MODE}, INVALID_PATH, false},
+        {{.path = "/storage/Users/currentUser/aPpDaTa", .mode = OperateMode::READ_MODE}, INVALID_PATH, false},
+        // Depth 5 - blocked
+        {{.path = "/storage/Users/currentUser/appdata/el2", .mode = OperateMode::READ_MODE}, INVALID_PATH, false},
+        // Depth 6 - blocked (including case variant)
+        {{.path = "/storage/Users/currentUser/appdata/el2/base", .mode = OperateMode::READ_MODE}, INVALID_PATH, false},
+        {{.path = "/storage/Users/currentUser/APPDATA/el2/base", .mode = OperateMode::READ_MODE}, INVALID_PATH, false},
+        // Non-appdata path - allowed (under persisted parent, not blocked by appdata)
+        {{.path = "/storage/Users/currentUser/appdata2", .mode = OperateMode::READ_MODE}, OPERATE_SUCCESSFULLY, true},
+    };
+
+    std::vector<PolicyInfo> policies;
+    for (const auto &tc : testCases) {
+        policies.push_back(tc.policy);
+    }
+
+    // Test StartAccessingPolicy
+    std::vector<uint32_t> startResult;
+    int32_t ret = SandboxManagerKit::StartAccessingPolicy(policies, startResult);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(testCases.size(), startResult.size());
+    for (size_t i = 0; i < startResult.size(); i++) {
+        EXPECT_EQ(testCases[i].expected, startResult[i]) << "index " << i << " path: "
+            << testCases[i].policy.path;
+    }
+
+    // Test CheckPersistPolicy
+    std::vector<bool> checkResult;
+    ret = SandboxManagerKit::CheckPersistPolicy(g_mockToken, policies, checkResult);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(testCases.size(), checkResult.size());
+    for (size_t i = 0; i < checkResult.size(); i++) {
+        EXPECT_EQ(testCases[i].expectedCheckResult, checkResult[i]) << "index " << i << " path: "
+            << testCases[i].policy.path;
+    }
+
+    CleanPersistedPolicy(basePolicy);
+}
+
+/**
  * @tc.name: SandboxManagerKitApiTest_DeepDeniedPath_ThumbsBlocked
  * @tc.desc: Persist .thumbnails path, then test that deep denied sub-path .nomedia is blocked
  *           while .NOMEDIA (different case) and normal sub-paths succeed in StartAccessingPolicy
@@ -646,7 +735,7 @@ HWTEST_F(CaseSensitivityTest, AuthorizeDeniedPath_ExactCaseOnly, TestSize.Level0
     ASSERT_EQ(3, startResult.size());
     EXPECT_EQ(OPERATE_SUCCESSFULLY, startResult[0]);
     EXPECT_EQ(OPERATE_SUCCESSFULLY, startResult[1]);
-    EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, startResult[2]);
+    EXPECT_EQ(INVALID_PATH, startResult[2]);
     // Test CheckPersistPolicy
     ret = SandboxManagerKit::CheckPersistPolicy(g_mockToken, subPolicies, checkResult);
     ASSERT_EQ(SANDBOX_MANAGER_OK, ret);
