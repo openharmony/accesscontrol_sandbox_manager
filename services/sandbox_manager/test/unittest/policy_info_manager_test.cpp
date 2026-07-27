@@ -73,6 +73,13 @@ Security::AccessToken::PermissionStateFull g_testState3 = {
     .grantStatus = {0},
     .grantFlags = {0},
 };
+Security::AccessToken::PermissionStateFull g_testState4 = {
+    .permissionName = "ohos.permission.GET_BUNDLE_INFO_PRIVILEGED",
+    .isGeneral = true,
+    .resDeviceID = {"1"},
+    .grantStatus = {0},
+    .grantFlags = {0},
+};
 Security::AccessToken::HapInfoParams g_testInfoParms = {
     .userID = 100,
     .bundleName = "sandbox_manager_test",
@@ -83,7 +90,7 @@ Security::AccessToken::HapPolicyParams g_testPolicyPrams = {
     .apl = Security::AccessToken::APL_NORMAL,
     .domain = "test.domain",
     .permList = {},
-    .permStateList = {g_testState1, g_testState2, g_testState3}
+    .permStateList = {g_testState1, g_testState2, g_testState3, g_testState4}
 };
 };
 
