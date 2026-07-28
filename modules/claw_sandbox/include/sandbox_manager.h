@@ -29,6 +29,28 @@ namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
+#ifdef CONFIG_PC_PLATFORM
+constexpr uint32_t DEC_KERNEL_BATCH_SIZE = 8;
+constexpr uint32_t DEC_POLICY_HEADER_RESERVED = 64;
+
+struct DecPathInfo {
+    char *path;
+    uint32_t pathLen;
+    uint32_t mode;
+    bool flag;
+};
+
+struct DecPolicyInfo {
+    uint64_t tokenId;
+    uint64_t timestamp;
+    DecPathInfo path[DEC_KERNEL_BATCH_SIZE];
+    uint32_t pathNum;
+    int32_t userId;
+    uint64_t reserved[DEC_POLICY_HEADER_RESERVED];
+    bool flag;
+};
+#endif
+
 /**
  * @brief Sandbox manager, responsible for executing the 15-step sandbox creation workflow
  *
@@ -131,6 +153,10 @@ private:
     int ApplyPolicyMounts();
     int PivotRoot();
 #ifdef CONFIG_PC_PLATFORM
+    void CollectDenyPaths(DecPolicyInfo& decPolicyInfo);
+    bool FillPolicyMetadata(DecPolicyInfo& decPolicyInfo);
+    int SendDecPolicyIoctl(const DecPolicyInfo& decPolicyInfo);
+    int DispatchDecBatches(const std::vector<std::string>& decPaths, uint64_t tokenId, uint64_t timestamp);
     int ApplyDecPolicies();
     int PreDecDenyPaths();
 #endif

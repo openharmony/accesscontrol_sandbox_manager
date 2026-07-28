@@ -117,27 +117,8 @@ constexpr int HM_DEC_IOCTL_BASE = 's';
 #ifdef CONFIG_PC_PLATFORM
 constexpr int HM_SET_POLICY_ID = 1;
 constexpr size_t DEC_MAX_POLICY_NUM = 64;
-constexpr uint32_t DEC_KERNEL_BATCH_SIZE = 8;
 constexpr uint32_t DEC_SANDBOX_MODE_READ = 0x00000001;
 constexpr uint32_t DEC_SANDBOX_MODE_WRITE = (DEC_SANDBOX_MODE_READ << 1);
-constexpr uint32_t DEC_POLICY_HEADER_RESERVED = 64;
-
-struct DecPathInfo {
-    char *path;
-    uint32_t pathLen;
-    uint32_t mode;
-    bool flag;
-};
-
-struct DecPolicyInfo {
-    uint64_t tokenId;
-    uint64_t timestamp;
-    DecPathInfo path[DEC_KERNEL_BATCH_SIZE];
-    uint32_t pathNum;
-    int32_t userId;
-    uint64_t reserved[DEC_POLICY_HEADER_RESERVED];
-    bool flag;
-};
 
 constexpr unsigned long SET_DEC_POLICY_CMD = _IOWR(HM_DEC_IOCTL_BASE, HM_SET_POLICY_ID, DecPolicyInfo);
 constexpr uint32_t DEC_MODE_DENY_INHERIT = (1 << 9);
@@ -852,9 +833,8 @@ int SandboxManager::SetDecPolicyBatch(int fd, const std::vector<std::string> &pa
     return ret;
 }
 
-int SandboxManager::PreDecDenyPaths()
+void SandboxManager::CollectDenyPaths(DecPolicyInfo& decPolicyInfo)
 {
-    DecPolicyInfo decPolicyInfo = {};
     decPolicyInfo.pathNum = 0;
     uint32_t count = sizeof(DEC_DENY_PATH_MAP) / sizeof(DEC_DENY_PATH_MAP[0]);
     for (uint32_t i = 0, j = 0; i < count; i++) {
@@ -875,23 +855,25 @@ int SandboxManager::PreDecDenyPaths()
         decPolicyInfo.path[j++] = pathInfo;
         decPolicyInfo.pathNum++;
     }
+}
 
-    if (decPolicyInfo.pathNum == 0) {
-        SANDBOX_LOGD("PreDecDenyPaths: no paths to deny (all permissions granted)");
-        return SANDBOX_SUCCESS;
-    }
-
-    uint64_t callerId = config_.type == "shell" ? config_.callerTokenId : config_.tokenIdEx.tokenIDEx;
-    decPolicyInfo.tokenId = callerId;
-
+bool SandboxManager::FillPolicyMetadata(DecPolicyInfo& decPolicyInfo)
+{
     struct timespec ts = {};
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
-        SANDBOX_LOGW("PreDecDenyPaths: clock_gettime failed, errno=%{public}d", errno);
-        return SANDBOX_SUCCESS;
+        std::cerr << "Error: clock_gettime failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("FillPolicyMetadata: clock_gettime failed, errno=%{public}s", strerror(errno));
+        return false;
     }
+
+    decPolicyInfo.tokenId = (config_.type == "shell") ? config_.callerTokenId : config_.tokenIdEx.tokenIDEx;
     decPolicyInfo.timestamp = static_cast<uint64_t>(ts.tv_sec) * SEC_TO_NSEC +
                               static_cast<uint64_t>(ts.tv_nsec);
+    return true;
+}
 
+int SandboxManager::SendDecPolicyIoctl(const DecPolicyInfo& decPolicyInfo)
+{
     int fd = open(DEC_DEVICE_PATH, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
         std::cerr << "Error: open " << DEC_DEVICE_PATH << " failed, ret: " << strerror(errno) << std::endl;
@@ -915,59 +897,88 @@ int SandboxManager::PreDecDenyPaths()
     return ret;
 }
 
-int SandboxManager::ApplyDecPolicies()
+int SandboxManager::PreDecDenyPaths()
 {
-    std::vector<std::string> decPaths = CollectDecPolicyPaths();
-    SANDBOX_LOGD("[DEBUG INFO] DEC debug apply begin, collectedPathCount=%{public}zu", decPaths.size());
-    if (decPaths.empty()) {
-        SANDBOX_LOGD("No DEC paths to apply");
+    if (config_.type != "shell") {
         return SANDBOX_SUCCESS;
     }
 
-    uint64_t tokenId = config_.callerTokenId;
-    if (tokenId == 0) {
-        SANDBOX_LOGW("Skip DEC policy: empty callerTokenId");
+    DecPolicyInfo decPolicyInfo = {};
+    CollectDenyPaths(decPolicyInfo);
+
+    if (decPolicyInfo.pathNum == 0) {
+        SANDBOX_LOGD("PreDecDenyPaths: no paths to deny (all permissions granted)");
         return SANDBOX_SUCCESS;
     }
 
+    if (!FillPolicyMetadata(decPolicyInfo)) {
+        return SANDBOX_ERR_SET_DEC_FAILED;
+    }
+
+    return SendDecPolicyIoctl(decPolicyInfo);
+}
+
+int SandboxManager::DispatchDecBatches(const std::vector<std::string>& decPaths, uint64_t tokenId, uint64_t timestamp)
+{
     int fd = open(DEC_DEVICE_PATH, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
-        std::cerr << "Error: open " << DEC_DEVICE_PATH << " failed, ret: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Open %{public}s failed, errno=%{public}s", DEC_DEVICE_PATH, strerror(errno));
+        std::cerr << "Error: open " << DEC_DEVICE_PATH << " failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("DispatchDecBatches: Open %{public}s failed, errno=%{public}s", DEC_DEVICE_PATH, strerror(errno));
         return SANDBOX_ERR_SET_DEC_FAILED;
     }
     SANDBOX_LOGD("[DEBUG INFO] DEC debug device opened, path=%{public}s, fd=%{public}d", DEC_DEVICE_PATH, fd);
 
-    struct timespec ts = {};
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
-        SANDBOX_LOGW("clock_gettime failed for DEC policy, errno=%{public}d", errno);
-        close(fd);
-        return SANDBOX_SUCCESS;
-    }
-    uint64_t timestamp = static_cast<uint64_t>(ts.tv_sec) * SEC_TO_NSEC + static_cast<uint64_t>(ts.tv_nsec);
-
     size_t failedBatches = 0;
     size_t totalBatches = 0;
+
     for (size_t start = 0; start < decPaths.size(); start += DEC_KERNEL_BATCH_SIZE) {
         size_t count = std::min(decPaths.size() - start, static_cast<size_t>(DEC_KERNEL_BATCH_SIZE));
         totalBatches++;
-        SANDBOX_LOGD("[DEBUG INFO] DEC debug apply batch, batchIndex=%{public}zu, start=%{public}zu, count=%{public}zu",
-            totalBatches - 1, start, count);
+        SANDBOX_LOGD("[DEBUG INFO] DEC apply batch %{public}zu, start=%{public}zu, count=%{public}zu",
+                     totalBatches - 1, start, count);
         if (SetDecPolicyBatch(fd, decPaths, tokenId, timestamp, start, count) != 0) {
             failedBatches++;
         }
     }
 
     close(fd);
+
     if (failedBatches > 0) {
-        std::cerr << "Error: DEC debug apply batch failed, pathCount=" << decPaths.size() << std::endl;
+        std::cerr << "Error: DEC apply batch failed, pathCount=" << decPaths.size() << std::endl;
         SANDBOX_LOGE("Applied DEC policies with failures, pathCount=%{public}zu, failedBatches=%{public}zu/%{public}zu",
-            decPaths.size(), failedBatches, totalBatches);
+                     decPaths.size(), failedBatches, totalBatches);
         return SANDBOX_ERR_SET_DEC_FAILED;
-    } else {
-        SANDBOX_LOGI("Applied DEC policies, pathCount=%{public}zu", decPaths.size());
     }
+
+    SANDBOX_LOGD("DispatchDecBatches: Successfully applied %{public}zu paths", decPaths.size());
     return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::ApplyDecPolicies()
+{
+    if (config_.type != "shell") {
+        return SANDBOX_SUCCESS;
+    }
+
+    std::vector<std::string> decPaths = CollectDecPolicyPaths();
+    if (decPaths.empty()) {
+        SANDBOX_LOGD("ApplyDecPolicies: No DEC paths to apply");
+        return SANDBOX_SUCCESS;
+    }
+
+    uint64_t tokenId = config_.callerTokenId;
+
+    struct timespec ts = {};
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        std::cerr << "Error: clock_gettime failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("ApplyDecPolicies: clock_gettime failed, errno=%{public}d", errno);
+        return SANDBOX_ERR_SET_DEC_FAILED;
+    }
+    uint64_t timestamp = static_cast<uint64_t>(ts.tv_sec) * SEC_TO_NSEC + static_cast<uint64_t>(ts.tv_nsec);
+
+    SANDBOX_LOGD("[DEBUG INFO] DEC apply begin, pathCount=%{public}zu", decPaths.size());
+
+    return DispatchDecBatches(decPaths, tokenId, timestamp);
 }
 #endif
 
@@ -2064,6 +2075,10 @@ int SandboxManager::ApplyEnvironment()
 #ifdef CONFIG_PC_PLATFORM
 int SandboxManager::SetSandboxPathMark()
 {
+    if (config_.type != "shell") {
+        return SANDBOX_SUCCESS;
+    }
+
     if (!IsPermissionGranted("ohos.permission.CUSTOM_SANDBOX")) {
         SANDBOX_LOGD("SetSandboxPathMark: skip (CUSTOM_SANDBOX not granted)");
         return SANDBOX_SUCCESS;
@@ -2111,6 +2126,10 @@ int SandboxManager::SetSandboxPathMark()
 
 int SandboxManager::SetEncapsProcFlag()
 {
+    if (config_.type != "shell") {
+        return SANDBOX_SUCCESS;
+    }
+
     if (!IsPermissionGranted("ohos.permission.CUSTOM_SANDBOX")) {
         SANDBOX_LOGD("SetEncapsProcFlag: skip (CUSTOM_SANDBOX not granted)");
         return SANDBOX_SUCCESS;
@@ -2150,7 +2169,7 @@ int SandboxManager::ExecuteCommand()
     argv.push_back(nullptr);
 
     // Execute the target command -- on success, the current process is replaced
-    SANDBOX_LOGD("Executing command: %{public}s", argv[0] ? argv[0] : "null");
+    SANDBOX_LOGI("Executing command: %{public}s", argv[0] ? argv[0] : "null");
     execvp(argv[0], argv.data());
 
     // Only reached if exec fails
