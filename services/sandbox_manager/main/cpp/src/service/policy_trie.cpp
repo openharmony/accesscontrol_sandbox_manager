@@ -44,7 +44,7 @@ const std::unordered_map<std::string, int> PolicyTrie::DENIED_PATHS = {
     {"/storage/Users/currentUser/appdata", DENIED_PATHS_DEEP}
 };
 
-void PolicyTrie::AddDeniedPaths(const std::vector<std::string> &paths)
+bool PolicyTrie::AddDeniedPaths(const std::vector<std::string> &paths)
 {
     for (const auto &deniedPath : paths) {
         PolicyTrie *curNode = this;
@@ -57,7 +57,7 @@ void PolicyTrie::AddDeniedPaths(const std::vector<std::string> &paths)
             }
             auto *newNode = new (std::nothrow) PolicyTrie();
             if (newNode == nullptr) {
-                return;
+                return false;
             }
             newNode->caseInsensitive_ = curNode->caseInsensitive_;
             curNode->children_[key] = newNode;
@@ -66,6 +66,7 @@ void PolicyTrie::AddDeniedPaths(const std::vector<std::string> &paths)
 
         curNode->denyInherit_ = true;
     }
+    return true;
 }
 
 void PolicyTrie::DeleteChildren()
@@ -94,15 +95,13 @@ void PolicyTrie::Clear()
     mode_ = 0;
     modes_.clear();
     caseInsensitive_ = false;
+    indexMap_.clear();        // Clear the index mapping to avoid stale data
+    denyInherit_ = false;     // Reset the deny inheritance flag
 }
 
 void PolicyTrie::SetCasePolicy(const std::string &path, bool caseInsensitive)
 {
     PolicyTrie *curNode = this;
-    if (curNode == nullptr) {
-        return;
-    }
-
     std::vector<std::string> pathSegments = SplitPath(path);
     for (const std::string &segment : pathSegments) {
         if (curNode == nullptr) {

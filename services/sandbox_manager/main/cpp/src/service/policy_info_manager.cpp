@@ -118,31 +118,6 @@ void PolicyInfoManager::CleanPolicyOnMac(const std::vector<std::string> &filePat
     SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::CLEAN_PERSIST_POLICY_BY_PATH, info);
 }
 
-void PolicyInfoManager::RemoveResultByUserId(std::vector<GenericValues> &results, int32_t userId)
-{
-    for (auto it = results.begin(); it != results.end();) {
-        uint32_t tokenId = static_cast<uint32_t>(it->GetInt(PolicyFiledConst::FIELD_TOKENID));
-        Security::AccessToken::HapTokenInfo hapTokenInfoRes;
-        int ret = Security::AccessToken::AccessTokenKit::GetHapTokenInfo(tokenId, hapTokenInfoRes);
-        if (ret != 0) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "find user id by token id failed ret:%{public}d", ret);
-            ++it;
-            continue;
-        }
-        SANDBOXMANAGER_LOG_INFO(LABEL, "check result userId:%{public}d hap userId:%{public}d target:%{public}u",
-            userId, hapTokenInfoRes.userID, tokenId);
-
-        if (hapTokenInfoRes.userID != userId) {
-            SANDBOXMANAGER_LOG_INFO(LABEL,
-                "userId:%{public}d hap userId:%{public}d mismatch, do not delete target:%{public}u", userId,
-                hapTokenInfoRes.userID, tokenId);
-            it = results.erase(it);
-        } else {
-            ++it;
-        }
-    }
-}
-
 void PolicyInfoManager::RemoveResultByUserIdAndPrefix(std::vector<GenericValues> &results,
     int32_t userId, PolicyTrie &trieTree)
 {
@@ -176,7 +151,7 @@ void PolicyInfoManager::RemoveResultByUserIdAndPrefix(std::vector<GenericValues>
 int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
 {
     SANDBOXMANAGER_LOG_INFO(LABEL, "clean policy by userId:%{public}d", userId);
-    CleanPolicyOnMac(filePathList, userId);
+    std::vector<std::string> filePathListTmp;
     PolicyTrie trieTree;
     InitTrieWithCaseSensitivity(trieTree);
 
@@ -194,6 +169,7 @@ int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vecto
             continue;
         }
         std::string pathTmp = AdjustPath(trimmedPath);
+        filePathListTmp.push_back(pathTmp);
         trieTree.InsertPath(pathTmp, 0);
         int32_t ret = SandboxManagerRdb::GetInstance().FindSubPathIgnoreCase(
             SANDBOX_MANAGER_PERSISTED_POLICY, pathTmp, dbResults);
@@ -201,6 +177,8 @@ int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vecto
             LOGE_WITH_REPORT(LABEL, "Database operate error.");
         }
     }
+
+    CleanPolicyOnMac(filePathListTmp, userId);
     if (dbResults.empty()) {
         PolicyOperateInfo info(0, 0, 0, 0);
         SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(
@@ -265,17 +243,18 @@ bool PolicyInfoManager::FindInGrantMap(const uint32_t tokenId, const PolicyInfo 
 bool PolicyInfoManager::IsVerifyPermissionPass(const uint32_t tokenId, const PolicyInfo &policy)
 {
     std::string permission;
+    std::string maskPath = SandboxManagerLog::MaskRealPath(policy.path);
     if (FindInGrantMap(tokenId, policy, permission) == false) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "%{public}s not InUserGrantMap", policy.path.c_str());
+        SANDBOXMANAGER_LOG_INFO(LABEL, "%{public}s not InUserGrantMap", maskPath.c_str());
         return false;
     }
 
     int32_t ret = Security::AccessToken::AccessTokenKit::VerifyAccessToken(tokenId, permission);
     if (ret != Security::AccessToken::PERMISSION_GRANTED) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "no need add %{public}s %{public}s", policy.path.c_str(), permission.c_str());
+        SANDBOXMANAGER_LOG_INFO(LABEL, "no need add %{public}s %{public}s", maskPath.c_str(), permission.c_str());
         return false;
     }
-    SANDBOXMANAGER_LOG_INFO(LABEL, "%{public}s VerifyPermissionPass", policy.path.c_str());
+    SANDBOXMANAGER_LOG_INFO(LABEL, "%{public}s VerifyPermissionPass", maskPath.c_str());
     return true;
 }
 
@@ -441,7 +420,11 @@ int32_t PolicyInfoManager::MatchNormalPolicy(const uint32_t tokenId, const std::
     InitTrieWithCaseSensitivity(trieTree);
     trieTreeNew.SetInsensitive("/storage/Users/currentUser");
     trieTreeNew.SetSensitive("/storage/Users/currentUser/appdata");
-    trieTreeNew.AddDeniedPaths(macAdapter_.GetBlockedInheritPaths());
+    bool boolen = trieTreeNew.AddDeniedPaths(macAdapter_.GetBlockedInheritPaths());
+    if (boolen != true) {
+        LOGE_WITH_REPORT(LABEL, "AddDeniedPaths error");
+        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+    }
 
     int32_t ret = BuildTrieForPolicyOperationsNew(tokenId, trieTree, trieTreeNew);
     if (ret != SANDBOX_MANAGER_OK) {
@@ -636,7 +619,10 @@ int32_t PolicyInfoManager::RemoveNormalPolicy(const uint32_t tokenId, const std:
 
     PolicyTrie trieTree;
     InitTrieWithCaseSensitivity(trieTree);
-    BuildTrieForPolicyOperations(tokenId, trieTree, true);
+    int32_t ret = BuildTrieForPolicyOperations(tokenId, trieTree, true);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
 
     for (size_t i = 0; i < policySize; ++i) {
         ValidatePolicyAtIndex(i, policy, result, invalidNum, mediaPolicy, validMediaIndex);
@@ -1226,8 +1212,11 @@ int32_t PolicyInfoManager::UnSetAllPolicyByToken(const uint32_t tokenId, uint64_
     }
     PolicyOperateInfo info(0, 0, 0, 0);
     info.callerTokenid = tokenId;
-    SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNSET_ALL_POLICY_BY_TOKEN, info);
-    return macAdapter_.DestroySandboxPolicy(tokenId, timestamp);
+    int32_t ret = macAdapter_.DestroySandboxPolicy(tokenId, timestamp);
+    if (ret == SANDBOX_MANAGER_OK) {
+        SandboxManagerDfxHelper::WritePersistPolicyOperateSucc(OperateTypeEnum::UNSET_ALL_POLICY_BY_TOKEN, info);
+    }
+    return ret;
 }
 
 int32_t PolicyInfoManager::GetPersistPolicy(const uint32_t tokenId, PolicyVecRawData &policyRawData)

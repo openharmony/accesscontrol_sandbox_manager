@@ -131,6 +131,11 @@ bool SandboxManagerShare::IsPathSecure(const std::string &path)
         return false;
     }
 
+    std::string trimmedPath = path.c_str();
+    if (trimmedPath.length() != path.length()) {
+        return false;
+    }
+
     // Use std::filesystem to normalize and check for path traversal
     // lexically_normal() resolves ".." and "." components
     // If normalized path differs from original, path had traversal components

@@ -45,7 +45,7 @@ public:
     void SetCasePolicy(const std::string &path, bool caseInsensitive);
     void SetInsensitive(const std::string &path);
     void SetSensitive(const std::string &path);
-    void AddDeniedPaths(const std::vector<std::string> &paths);
+    bool AddDeniedPaths(const std::vector<std::string> &paths);
     bool IsEmpty() const;
 private:
     inline static const uint64_t MODE_FILTER = 0b11111;

@@ -35,7 +35,6 @@ sandbox_manager_sources = [
   "${sandbox_manager_path}/services/common/database/src/generic_values.cpp",
   "${sandbox_manager_path}/services/common/database/src/variant_value.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/utils/data_size_report_adapter.cpp",
-  "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/policy_field_const.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/sandbox_manager_rdb.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/sandbox_manager_rdb_open_callback.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/database/sandbox_manager_rdb_utils.cpp",

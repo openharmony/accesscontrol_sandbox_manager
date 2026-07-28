@@ -126,7 +126,7 @@ int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
 {
     SetInfo info;
     info.timestamp = timestamp;
-    return SandboxManagerClient::GetInstance().SetPolicy(tokenId, policy, policyFlag, result, info);
+    return SetPolicy(tokenId, policy, policyFlag, result, info);
 }
 
 int32_t SandboxManagerKit::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
