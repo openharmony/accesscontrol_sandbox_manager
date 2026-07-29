@@ -663,7 +663,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSeccompJson001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 12345;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     manager.ParseSeccompJson(root);
     ASSERT_EQ(3U, manager.templateConfig_.seccompAllowList.size());
@@ -693,7 +693,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSeccompJson002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 12345;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // Should not crash
     manager.ParseSeccompJson(root);
@@ -870,7 +870,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSystemMountsJson001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 12345;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ParseSystemMountsJson(root);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
@@ -897,7 +897,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSystemMountsJson002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 12345;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ParseSystemMountsJson(root);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
@@ -978,7 +978,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSymLinkJson001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 12345;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ParseSymLinkJson(root);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
@@ -1005,7 +1005,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSymLinkJson002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 12345;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ParseSymLinkJson(root);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
@@ -1085,7 +1085,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseAppMountsJson001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 12345;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ParseAppMountsJson(root);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
@@ -1173,7 +1173,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionJson001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 12345;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ParsePermissionJson(root);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
@@ -1200,7 +1200,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionJson002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 12345;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ParsePermissionJson(root);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);

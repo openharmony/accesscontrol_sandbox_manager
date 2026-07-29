@@ -31,10 +31,7 @@ constexpr size_t MIN_ARGV_FOR_SUBCLI_NAME = 2;
 // Clean up any allocated resources, e.g. policyArg
 SandboxExec::~SandboxExec()
 {
-    if (config_.policyArg != nullptr) {
-        std::free(config_.policyArg);
-        config_.policyArg = nullptr;
-    }
+    config_.policyArg.reset();
 }
 
 int SandboxExec::ParseArguments(int argc, char *argv[])
@@ -80,6 +77,11 @@ int SandboxExec::ParseConfigArg(int argc, char *argv[])
             break;
         }
         if (strcmp(argv[i], "--config") == 0 || strcmp(argv[i], "-c") == 0) {
+            if (configParsed_) {
+                std::cerr << "Error: --config specified multiple times" << std::endl;
+                SANDBOX_LOGE("--config specified multiple times");
+                return SANDBOX_ERR_BAD_PARAMETERS;
+            }
             if (i + 1 >= argc) {
                 std::cerr << "Error: --config requires a JSON string argument" << std::endl;
                 SANDBOX_LOGE("--config requires a JSON string argument");
@@ -176,7 +178,7 @@ int SandboxExec::Run()
 
     // Create sandbox manager and execute
     SandboxManager manager;
-    if (manager.Initialize(config_, cmdInfo_) != SANDBOX_SUCCESS) {
+    if (manager.Initialize(std::move(config_), cmdInfo_) != SANDBOX_SUCCESS) {
         std::cerr << "Error: Failed to initialize SandboxManager" << std::endl;
         SANDBOX_LOGE("Failed to initialize SandboxManager");
         return SANDBOX_ERR_GENERIC;

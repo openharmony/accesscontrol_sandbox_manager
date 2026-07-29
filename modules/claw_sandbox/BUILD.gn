@@ -23,6 +23,7 @@ if(!defined(ohos_lite)) {
       "src/sandbox_exec.cpp",
       "src/sandbox_mount.cpp",
       "src/sandbox_config_parser.cpp",
+      "src/sandbox_utils.cpp",
     ]
 
     if (sandbox_manager_enable_aids) {

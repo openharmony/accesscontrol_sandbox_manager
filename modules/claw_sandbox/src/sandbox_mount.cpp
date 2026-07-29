@@ -16,6 +16,7 @@
 #include "sandbox_manager.h"
 #include "sandbox_error.h"
 #include "sandbox_log.h"
+#include "sandbox_utils.h"
 
 #include <algorithm>
 #include <cctype>
@@ -35,6 +36,7 @@
 #include <sys/syscall.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/random.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <cerrno>
@@ -67,7 +69,6 @@ constexpr mode_t DIR_MODE = 0711;
 constexpr int SIGNAL_EXIT_BASE = 128;
 
 // Hex string generation constants
-constexpr int HEX_MAX = 15;
 constexpr int HEX_CNT = 16;
 
 // Namespace path buffer size
@@ -215,7 +216,7 @@ static int ReadNamespaceId(pid_t callerPid, char *nsTarget, size_t nsTargetSize)
 {
     char nsPath[NS_PATH_BUF_SIZE] = {0};
     int ret = snprintf_s(nsPath, sizeof(nsPath), sizeof(nsPath) - 1,
-                         "/proc/%u/ns/mnt", callerPid);
+                         "/proc/%d/ns/mnt", callerPid);
     if (ret < 0) {
         std::cerr << "Error: snprintf_s failed for ns path" << std::endl;
         SANDBOX_LOGE("snprintf_s failed for ns path");
@@ -260,7 +261,7 @@ int SandboxManager::EnterCallerSandbox()
         return ret;
     }
 
-    pid_t callerPid = static_cast<pid_t>(config_.callerPid);
+    pid_t callerPid = config_.callerPid;
     uid_t uid = static_cast<uid_t>(config_.uid);
     gid_t gid = static_cast<gid_t>(config_.gid);
 
@@ -298,16 +299,29 @@ int SandboxManager::EnterCallerSandbox()
 
 static std::string GenerateSandboxName(void)
 {
-    // Use std::random_device for cryptographically secure random bytes.
-    // On most platforms (Linux/macOS), std::random_device is backed by
-    // /dev/urandom, providing non-deterministic random numbers.
-    std::random_device rd;
-    std::ostringstream oss;
-    for (int i = 0; i < HEX_CNT; ++i) {
-        unsigned int val = rd();
-        oss << std::hex << (val % (HEX_MAX + 1));
+    // Calculate required bytes: 1 byte provides 2 hexadecimal characters.
+    size_t byteCnt = (HEX_CNT + 1) / 2;
+    std::vector<unsigned char> rand_bytes(byteCnt);
+
+    // Fetch cryptographically secure pseudo-random bytes.
+    // GRND_NONBLOCK ensures the system call does not block the sandbox process.
+    ssize_t ret = getrandom(rand_bytes.data(), rand_bytes.size(), GRND_NONBLOCK);
+    if (ret != static_cast<ssize_t>(rand_bytes.size())) {
+        // Sandbox security must not be compromised; fail hard if entropy is unavailable.
+        return "";
     }
-    return oss.str();
+
+    std::ostringstream oss;
+    for (size_t i = 0; i < byteCnt; ++i) {
+        // setw(2) and setfill('0') guarantee that values like 0x5 become "05" instead of "5".
+        oss << std::hex << std::setw(2) << std::setfill('0')
+            << static_cast<int>(rand_bytes[i]);
+    }
+
+    std::string result = oss.str();
+
+    // Truncate the extra character if HEX_CNT is an odd number.
+    return result.substr(0, HEX_CNT);
 }
 
 static bool IsDirectoryExist(const std::string &path)
@@ -369,6 +383,12 @@ int SandboxManager::CreateSandboxAutoName()
     uint32_t tryCnt = 0;
     while (tryCnt < MAX_TRY_CNT) {
         std::string sandboxName = GenerateSandboxName();
+        if (sandboxName.empty()) {
+            std::cerr << "Error: Failed to generate secure random sandbox name" << std::endl;
+            SANDBOX_LOGE("Failed to generate secure random sandbox name");
+            return SANDBOX_ERR_SANDBOX_PATH_EXHAUSTED;
+        }
+
         std::string sandboxPath = std::string(SANDBOX_BASE_DIR) + "/" + sandboxName;
         if (IsDirectoryExist(sandboxPath)) {
             tryCnt++;
@@ -465,19 +485,30 @@ int SandboxManager::ForkAfterUnshare()
     } else if (pid > 0) {
         // Parent process: wait for child to exit and then exit
         int status = 0;
-        waitpid(pid, &status, 0);
-        if (WIFEXITED(status)) {
-            SANDBOX_LOGD("Child process exited with status %{public}d", WEXITSTATUS(status));
-            // use _exit to avoid call deconstructors and lower down the risk of
-            // multiple Cleanup calls if the child process called exit() instead of _exit()
-            _exit(WEXITSTATUS(status));
-        } else if (WIFSIGNALED(status)) {
-            SANDBOX_LOGD("Child process killed by signal %{public}d", WTERMSIG(status));
-            _exit(SIGNAL_EXIT_BASE + WTERMSIG(status));
-        } else {
-            SANDBOX_LOGD("Child process exited with unknown status");
+        pid_t ret;
+        do {
+            ret = waitpid(pid, &status, 0);
+        } while (ret < 0 && errno == EINTR);
+        if (ret < 0) {
+            std::cerr << "Error: waitpid failed: " << strerror(errno) << std::endl;
+            SANDBOX_LOGE("waitpid failed: %{public}s", strerror(errno));
+            Cleanup();
             _exit(SANDBOX_ERR_GENERIC);
         }
+
+        int exitCode;
+        if (WIFEXITED(status)) {
+            SANDBOX_LOGD("Child process exited with status %{public}d", WEXITSTATUS(status));
+            exitCode = WEXITSTATUS(status);
+        } else if (WIFSIGNALED(status)) {
+            SANDBOX_LOGD("Child process killed by signal %{public}d", WTERMSIG(status));
+            exitCode = SIGNAL_EXIT_BASE + WTERMSIG(status);
+        } else {
+            SANDBOX_LOGD("Child process exited with unknown status");
+            exitCode = SANDBOX_ERR_GENERIC;
+        }
+        Cleanup();
+        _exit(exitCode);
     }
     // Child process continues with sandbox setup in new PID namespace
     return SANDBOX_SUCCESS;
@@ -495,20 +526,62 @@ int SandboxManager::MountProcFs()
     return SANDBOX_SUCCESS;
 }
 
+/**
+ * @brief Open source path with O_PATH to pin the inode, preventing TOCTOU races.
+ *        Uses fstat to verify it's a directory (the expected type for bind mounts).
+ *
+ * @param path Source path to open
+ * @return File descriptor on success (caller must close), or -1 on error.
+ *         On -1, errno is preserved (ENOENT indicates path does not exist).
+ */
+static int OpenSourcePath(const std::string &path)
+{
+    int fd = open(path.c_str(), O_PATH | O_CLOEXEC | O_NOFOLLOW);
+    if (fd < 0) {
+        return -1;
+    }
+
+    struct stat st;
+    if (fstat(fd, &st) != 0) {
+        std::cerr << "Error: fstat failed for " << path << ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("fstat failed for %{public}s: %{public}s", path.c_str(), strerror(errno));
+        close(fd);
+        return -1;
+    }
+
+    if (!S_ISDIR(st.st_mode)) {
+        std::cerr << "Error: " << path << " is not a directory" << std::endl;
+        SANDBOX_LOGE("%{public}s is not a directory", path.c_str());
+        close(fd);
+        return -1;
+    }
+
+    return fd;
+}
+
 int SandboxManager::MountSystemEntry(const MountEntry &entry, const std::string &targetPrefix)
 {
     std::string target = targetPrefix + entry.target;
 
-    // Skip if source does not exist (no error)
-    struct stat st;
-    if (stat(entry.source.c_str(), &st) != 0) {
-        SANDBOX_LOGD("MountSystemEntry: %{public}s does not exist, skipping", entry.source.c_str());
-        return SANDBOX_SUCCESS;
+    // Open source path with O_PATH to pin inode (eliminates TOCTOU window
+    // between existence check and mount). The fd stays open so the kernel
+    // pins the dentry/inode even if the original path is tampered with.
+    int srcFd = OpenSourcePath(entry.source);
+    if (srcFd < 0) {
+        if (errno == ENOENT) {
+            SANDBOX_LOGD("MountSystemEntry: %{public}s does not exist, skipping", entry.source.c_str());
+            return SANDBOX_SUCCESS;
+        }
+        std::cerr << "Error: Failed to open " << entry.source <<
+                  ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to open %{public}s: %{public}s",
+            entry.source.c_str(), strerror(errno));
+        return SANDBOX_ERR_MOUNT_FAILED;
     }
 
     int ret = CreateDir(target);
     if (ret != SANDBOX_SUCCESS) {
-        SANDBOX_LOGD("MountSysDirs: %{public}s create dir failed", target.c_str());
+        close(srcFd);
         return ret;
     }
 
@@ -518,6 +591,7 @@ int SandboxManager::MountSystemEntry(const MountEntry &entry, const std::string 
         // Always mount procfs via mount -t proc, never bind-mount the host's /proc.
         // Bind-mounting /proc would expose the host process list inside the sandbox,
         // which is a security concern regardless of PID namespace isolation.
+        close(srcFd);
         return SANDBOX_SUCCESS;
     }
     if (mount(entry.source.c_str(), target.c_str(), nullptr, mountFlags, nullptr) < 0) {
@@ -525,9 +599,11 @@ int SandboxManager::MountSystemEntry(const MountEntry &entry, const std::string 
                   ": " << strerror(errno) << std::endl;
         SANDBOX_LOGE("Failed to mount %{public}s -> %{public}s: %{public}s",
             entry.source.c_str(), target.c_str(), strerror(errno));
+        close(srcFd);
         return SANDBOX_ERR_MOUNT_FAILED;
     }
 
+    close(srcFd);
     mountedDirs_.push_back(target);
     return SANDBOX_SUCCESS;
 }
@@ -552,41 +628,25 @@ int SandboxManager::SymlinkSingleEntry(const SymLinkEntry &entry, const std::str
     return SANDBOX_SUCCESS;
 }
 
-int SandboxManager::MountSingleEntry(const MountEntry &entry, const std::string &targetPrefix)
+int SandboxManager::DoMountSequence(const std::string &source, const std::string &target, unsigned long allFlags)
 {
     constexpr unsigned long PROPAGATION_MASK = MS_SLAVE | MS_SHARED | MS_PRIVATE | MS_UNBINDABLE;
-    std::string target = targetPrefix + entry.target;
-
-    if (entry.checkExists) {
-        struct stat st;
-        if (stat(entry.source.c_str(), &st) != 0) {
-            SANDBOX_LOGD("MountSingleEntry: %{public}s does not exists, skipping", entry.source.c_str());
-            return SANDBOX_SUCCESS;
-        }
-    }
-
-    int ret = CreateDir(target);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    unsigned long allFlags = ConvertMountFlags(entry.mountFlags);
     unsigned long mountFlags = allFlags & ~PROPAGATION_MASK;
     unsigned long propFlags = allFlags & PROPAGATION_MASK;
 
-    if (mount(entry.source.c_str(), target.c_str(), nullptr, mountFlags, nullptr) < 0) {
-        std::cerr << "Error: Failed to mount " << entry.source << " -> " << target <<
-                  ": " << strerror(errno) << std::endl;
+    if (mount(source.c_str(), target.c_str(), nullptr, mountFlags, nullptr) < 0) {
+        std::cerr << "Error: Failed to mount " << source << " -> " << target <<
+                     ": " << strerror(errno) << std::endl;
         SANDBOX_LOGE("Failed to mount %{public}s -> %{public}s: %{public}s",
-            entry.source.c_str(), target.c_str(), strerror(errno));
+                     source.c_str(), target.c_str(), strerror(errno));
         return SANDBOX_ERR_MOUNT_FAILED;
     }
 
     if (allFlags & MS_RDONLY) {
-        if (mount(entry.source.c_str(), target.c_str(), nullptr,
+        if (mount(source.c_str(), target.c_str(), nullptr,
                   MS_BIND | MS_REMOUNT | MS_RDONLY | MS_REC, nullptr) < 0) {
             SANDBOX_LOGE("Failed to remount readonly %{public}s: %{public}s",
-                target.c_str(), strerror(errno));
+                         target.c_str(), strerror(errno));
             umount2(target.c_str(), MNT_DETACH);
             return SANDBOX_ERR_MOUNT_FAILED;
         }
@@ -594,9 +654,50 @@ int SandboxManager::MountSingleEntry(const MountEntry &entry, const std::string 
 
     if (propFlags != 0) {
         if (mount(nullptr, target.c_str(), nullptr, propFlags, nullptr) < 0) {
-            SANDBOX_LOGW("Failed to set propagation on %{public}s: %{public}s",
-                target.c_str(), strerror(errno));
+            std::cerr << "Error: Failed to set propagation on " << target <<
+                         ": " << strerror(errno) << std::endl;
+            SANDBOX_LOGE("Failed to set propagation on %{public}s: %{public}s",
+                         target.c_str(), strerror(errno));
+            return SANDBOX_ERR_MOUNT_FAILED;
         }
+    }
+
+    return SANDBOX_SUCCESS;
+}
+
+
+int SandboxManager::MountSingleEntry(const MountEntry &entry, const std::string &targetPrefix)
+{
+    std::string target = targetPrefix + entry.target;
+
+    int srcFd = OpenSourcePath(entry.source);
+    if (srcFd < 0) {
+        if (entry.checkExists && errno == ENOENT) {
+            SANDBOX_LOGD("MountSingleEntry: %{public}s does not exist, skipping", entry.source.c_str());
+            return SANDBOX_SUCCESS;
+        }
+        std::cerr << "Error: Failed to open " << entry.source << ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to open %{public}s: %{public}s", entry.source.c_str(), strerror(errno));
+        return SANDBOX_ERR_MOUNT_FAILED;
+    }
+
+    struct ScopedFd {
+        int fd;
+        ~ScopedFd()
+        {
+            if (fd >= 0) close(fd);
+        }
+    } fdGuard{srcFd};
+
+    int ret = CreateDir(target);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    unsigned long allFlags = ConvertMountFlags(entry.mountFlags);
+    ret = DoMountSequence(entry.source, target, allFlags);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
     }
 
     mountedDirs_.push_back(target);
@@ -638,15 +739,23 @@ int SandboxManager::MountAppDirs()
 
 static bool IsPathUnderMountPoint(const std::string &path, const std::string &mountPoint)
 {
-    if (mountPoint == "/") {
-        return !path.empty() && path[0] == '/';
+    std::string realPath = GetRealPath(path);
+    std::string realMount = GetRealPath(mountPoint);
+    if (realPath.empty() || realMount.empty()) {
+        return false;
     }
-    if (path == mountPoint) {
+    if (realMount == "/") {
+        return !realPath.empty() && realPath[0] == '/';
+    }
+    if (realPath == realMount) {
         return true;
     }
-    return path.size() > mountPoint.size() &&
-        path.compare(0, mountPoint.size(), mountPoint) == 0 &&
-        path[mountPoint.size()] == '/';
+    // Prefix match ensuring it crosses a directory boundary.
+    // e.g., realMount="/data", realPath="/data/app" -> true
+    // e.g., realMount="/data", realPath="/data_app" -> false (blocked by the '/' check)
+    return realPath.size() > realMount.size() &&
+           realPath.compare(0, realMount.size(), realMount) == 0 &&
+           realPath[realMount.size()] == '/';
 }
 
 static bool MountOptionsReadOnly(const std::string &options)
@@ -749,6 +858,9 @@ SandboxManager::ConditionalMatchResult SandboxManager::MatchConditionalSource(co
         }
         // Prefix match: target must start with rule.target
         if (target.rfind(rule.target, 0) != 0) {
+            continue;
+        }
+        if (target.length() > rule.target.length() && target[rule.target.length()] != '/') {
             continue;
         }
         anyPrefixMatched = true;
@@ -856,7 +968,6 @@ int SandboxManager::BindMountConditionalPath(const SandboxConfig::PolicyMount &p
                                              const std::string &mountTarget,
                                              const std::string &physicalSource)
 {
-    // Check physical source exists
     struct stat st;
     if (stat(physicalSource.c_str(), &st) != 0) {
         std::cerr << "Error: Conditional physical source does not exist: " <<
@@ -865,7 +976,6 @@ int SandboxManager::BindMountConditionalPath(const SandboxConfig::PolicyMount &p
             physicalSource.c_str());
         return SANDBOX_ERR_PATH_INVALID;
     }
-
     // Create target directory under new root
     int ret = CreateDir(mountTarget);
     if (ret != SANDBOX_SUCCESS) {
@@ -933,7 +1043,9 @@ int SandboxManager::PivotRoot()
 
     // Unmount the old root
     if (umount2("/put_old", MNT_DETACH) < 0) {
-        SANDBOX_LOGW("umount put_old failed: %{public}s", strerror(errno));
+        std::cerr << "Error: umount put_old failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("umount put_old failed: %{public}s", strerror(errno));
+        return SANDBOX_ERR_MOUNT_FAILED;
     }
 
     // Remove the put_old directory
@@ -970,8 +1082,11 @@ int SandboxManager::MountDir(const std::string &source, const std::string &targe
 
     if (propFlags != 0) {
         if (mount(nullptr, target.c_str(), nullptr, propFlags, nullptr) < 0) {
-            SANDBOX_LOGW("Failed to set propagation on %{public}s: %{public}s",
+            std::cerr << "Error: Failed to set propagation on " << target <<
+                      ": " << strerror(errno) << std::endl;
+            SANDBOX_LOGE("Failed to set propagation on %{public}s: %{public}s",
                 target.c_str(), strerror(errno));
+            return SANDBOX_ERR_MOUNT_FAILED;
         }
     }
 
@@ -981,10 +1096,6 @@ int SandboxManager::MountDir(const std::string &source, const std::string &targe
 
 static int MkdirIfNotExist(const std::string &dirPath)
 {
-    struct stat st;
-    if (stat(dirPath.c_str(), &st) == 0) {
-        return SANDBOX_SUCCESS;
-    }
     if (mkdir(dirPath.c_str(), DIR_MODE) < 0) {
         if (errno == EEXIST) {
             return SANDBOX_SUCCESS;

@@ -17,6 +17,7 @@
 #include "sandbox_aids.h"
 #include "sandbox_error.h"
 #include "sandbox_log.h"
+#include "sandbox_utils.h"
 
 #include <algorithm>
 #include <cctype>
@@ -163,6 +164,13 @@ constexpr EnvVar PRESET_ENV_VARS[] = {
     {"PATH", "/usr/local/bin:/usr/bin:"
              "/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin"}
 #endif
+};
+
+// Default blocked syscalls: setpgid and setsid
+// (prevents descendant processes from escaping the process group)
+constexpr std::array<int, 2> BLOCKED_SYSCALLS = {
+    __NR_setpgid,
+    __NR_setsid
 };
 
 #ifdef CONFIG_PC_PLATFORM
@@ -314,9 +322,6 @@ constexpr uint8_t BPF_JEQ_SKIP_1ARG = BPF_PER_UID_SYSCALL_1ARG - 1;  // 3
 constexpr uint8_t BPF_JEQ_SKIP_2ARG = BPF_PER_UID_SYSCALL_2ARG - 1;  // 6
 constexpr uint8_t BPF_JEQ_SKIP_3ARG = BPF_PER_UID_SYSCALL_3ARG - 1;  // 9
 
-// Number of default blocked syscalls (setpgid, setsid)
-constexpr size_t BLOCKED_SYSCALL_COUNT = 2;
-
 // System app mask: bit 32 of AccessTokenIDEx indicates system app
 constexpr uint64_t SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32);
 
@@ -358,9 +363,9 @@ SandboxManager::~SandboxManager()
     Cleanup();
 }
 
-int SandboxManager::Initialize(const SandboxConfig &config, const CmdInfo &cmdInfo)
+int SandboxManager::Initialize(SandboxConfig config, const CmdInfo &cmdInfo)
 {
-    config_ = config;
+    config_ = std::move(config);
     cmdInfo_ = cmdInfo;
     // Derive currentUserId from uid (not parsed from JSON config)
     config_.currentUserId = std::to_string(config_.uid / UID_BASE);
@@ -508,12 +513,11 @@ int SandboxManager::ExecuteMountSteps()
         &SandboxManager::SetGroups,
         &SandboxManager::ApplyPolicyMounts,
         &SandboxManager::PivotRoot,
-        
+
         // Create a new process group (must be done BEFORE SetSeccomp & Fork,
         // because seccomp blocks setpgid/setsid to prevent process group escape,
         // and the child process must inherit the new process group to avoid being adopted by init)
         &SandboxManager::SetProcessGroup,
-        
         &SandboxManager::ForkAfterUnshare,
         &SandboxManager::MountProcFs,
     };
@@ -783,8 +787,6 @@ std::vector<std::string> SandboxManager::CollectDecPolicyPaths() const
 std::string SandboxManager::NormalizeDecPath(const std::string &decPath) const
 {
     std::string normalizedPath = decPath;
-    normalizedPath = ReplaceVariable(normalizedPath, "<currentUserId>", "currentUser");
-    normalizedPath = ReplaceVariable(normalizedPath, "<currentUser>", "currentUser");
     std::string userPrefix = "/storage/Users/" + config_.currentUserId + "/";
     constexpr const char *CURRENT_USER_PREFIX = "/storage/Users/currentUser/";
     if (normalizedPath.compare(0, userPrefix.size(), userPrefix) == 0) {
@@ -796,7 +798,8 @@ std::string SandboxManager::NormalizeDecPath(const std::string &decPath) const
 int SandboxManager::SetDecPolicyBatch(int fd, const std::vector<std::string> &paths,
                                       uint64_t tokenId, uint64_t timestamp, size_t start, size_t count)
 {
-    if (count == 0 || count > DEC_KERNEL_BATCH_SIZE || start + count > paths.size()) {
+    if (count == 0 || count > DEC_KERNEL_BATCH_SIZE ||
+        start > paths.size() || count > paths.size() - start) {
         SANDBOX_LOGW("Invalid DEC policy batch, start=%{public}zu, count=%{public}zu, total=%{public}zu",
             start, count, paths.size());
         return SANDBOX_ERR_BAD_PARAMETERS;
@@ -846,7 +849,7 @@ void SandboxManager::CollectDenyPaths(DecPolicyInfo& decPolicyInfo)
             break;
         }
         DecPathInfo pathInfo = {};
-        pathInfo.path = const_cast<char *>(DEC_DENY_PATH_MAP[i].path);
+        pathInfo.path = DEC_DENY_PATH_MAP[i].path;
         pathInfo.pathLen = static_cast<uint32_t>(strlen(pathInfo.path));
         // Use DEC_MODE_DENY_INHERIT to mark this as a deny rule.
         // The kernel distinguishes deny vs grant by this mode flag,
@@ -971,7 +974,7 @@ int SandboxManager::ApplyDecPolicies()
     struct timespec ts = {};
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
         std::cerr << "Error: clock_gettime failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("ApplyDecPolicies: clock_gettime failed, errno=%{public}d", errno);
+        SANDBOX_LOGE("ApplyDecPolicies: clock_gettime failed: %{public}s", strerror(errno));
         return SANDBOX_ERR_SET_DEC_FAILED;
     }
     uint64_t timestamp = static_cast<uint64_t>(ts.tv_sec) * SEC_TO_NSEC + static_cast<uint64_t>(ts.tv_nsec);
@@ -1206,9 +1209,9 @@ int SandboxManager::SetUidGid()
     if (prctl(PR_SET_SECUREBITS,
               SECBIT_KEEP_CAPS | SECBIT_KEEP_CAPS_LOCKED,
               0, 0, 0) < 0) {
-        SANDBOX_LOGW("PR_SET_SECUREBITS (KEEP_CAPS) failed: %{public}s. "
-            "Effective capabilities will be cleared by setresuid().",
-            strerror(errno));
+        std::cerr << "Error: PR_SET_SECUREBITS (KEEP_CAPS) failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("PR_SET_SECUREBITS (KEEP_CAPS) failed: %{public}s", strerror(errno));
+        return SANDBOX_ERR_SET_PRCTL_FAILED;
     }
 #endif
 
@@ -1557,17 +1560,11 @@ static void AppendAllowList(std::vector<struct sock_filter> &filter, size_t &idx
 static void AppendBlockedSyscalls(std::vector<struct sock_filter> &filter,
                                   size_t &idx)
 {
-    // Default blocked syscalls: setpgid and setsid
-    // (prevents descendant processes from escaping the process group)
-    static const std::vector<int> blockedSyscalls = {
-        __NR_setpgid, __NR_setsid,
-    };
-
     // Use SECCOMP_RET_ERRNO | EACCES instead of SECCOMP_RET_KILL,
     // so the calling process receives an error instead of being killed.
     // This allows shells (e.g. sh -c) to continue running even if they
     // attempt job control via setpgid/setsid.
-    for (int nr : blockedSyscalls) {
+    for (int nr : BLOCKED_SYSCALLS) {
         AppendErrnoFilter(filter, idx, nr);
     }
 }
@@ -1641,7 +1638,7 @@ int SandboxManager::BuildSeccompFilter(struct sock_fprog &prog)
     //   setfsuid:   BPF_PER_UID_SYSCALL_1ARG (4 insns)
     size_t totalLen = ARCH_CHECK_BPF_CNT
                       + templateConfig_.seccompAllowList.size() * BPF_PER_SYSCALL
-                      + BLOCKED_SYSCALL_COUNT * BPF_PER_SYSCALL
+                      + BLOCKED_SYSCALLS.size() * BPF_PER_SYSCALL
                       + BPF_PER_UID_SYSCALL_1ARG  // setuid
                       + BPF_PER_UID_SYSCALL_2ARG  // setreuid
                       + BPF_PER_UID_SYSCALL_3ARG  // setresuid
@@ -1766,9 +1763,9 @@ int SandboxManager::DropCapabilities()
               SECBIT_KEEP_CAPS | SECBIT_NO_SETUID_FIXUP |
               SECBIT_KEEP_CAPS_LOCKED | SECBIT_NO_SETUID_FIXUP_LOCKED,
               0, 0, 0) < 0) {
-        SANDBOX_LOGW("PR_SET_SECUREBITS failed: %{public}s. "
-            "setuid/setgid fixup protection not applied.",
-            strerror(errno));
+        std::cerr << "Error: PR_SET_SECUREBITS failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("PR_SET_SECUREBITS failed: %{public}s", strerror(errno));
+        return SANDBOX_ERR_SET_PRCTL_FAILED;
     }
 #endif
 
@@ -1784,14 +1781,10 @@ int SandboxManager::DropCapabilities()
     caps[1].permitted = 0;
     caps[1].inheritable = 0;
 
-    // capset() may be blocked by seccomp in whitelist mode if __NR_capset is
-    // not in the allow list. In that case, log a warning and continue.
     if (capset(&capHeader, caps) != 0) {
-        SANDBOX_LOGW("capset failed (may be blocked by seccomp): %{public}s",
-            strerror(errno));
-        // Non-fatal: the process is already running as non-root with
-        // restricted capabilities
-        return SANDBOX_SUCCESS;
+        std::cerr << "Error: capset failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("capset failed: %{public}s", strerror(errno));
+        return SANDBOX_ERR_SET_CAP_FAILED;
     }
 
     SANDBOX_LOGD("All capabilities dropped via capset");
@@ -1811,7 +1804,7 @@ static int DeliverPolicyInit(int fd)
 
 int SandboxManager::DeliverNetPolicy(int fd)
 {
-    int ret = ioctl(fd, DEC_CMD_POLICY_ADD, config_.policyArg);
+    int ret = ioctl(fd, DEC_CMD_POLICY_ADD, config_.policyArg.get());
     if (ret < 0) {
         std::cerr << "Error: ioctl DEC_CMD_POLICY_ADD failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("ioctl DEC_CMD_POLICY_ADD failed: %{public}s", strerror(errno));
@@ -2094,7 +2087,7 @@ int SandboxManager::SetSandboxPathMark()
     }
 
     MarkPathInfo pathInfo = {};
-    pathInfo.path = const_cast<char *>("/");
+    pathInfo.path = "/";
     pathInfo.flags = SEC_SANDBOX_PATH_TYPE;
     pathInfo.recursive = MARK_ENABLE_RECURSIVE;
     int ret = ioctl(fd, ADD_PATH_MARK_CMD, &pathInfo);
@@ -2108,7 +2101,7 @@ int SandboxManager::SetSandboxPathMark()
     }
 
     MarkPathInfo ugcInfo = {};
-    ugcInfo.path = const_cast<char *>("/storage/Users/currentUser");
+    ugcInfo.path = "/storage/Users/currentUser";
     ugcInfo.flags = SEC_UGC_PATH_TYPE;
     ugcInfo.recursive = 0;
     ret = ioctl(fd, ADD_PATH_MARK_CMD, &ugcInfo);
@@ -2159,6 +2152,47 @@ int SandboxManager::SetEncapsProcFlag()
 }
 #endif
 
+bool SandboxManager::IsAllowedExecContext(const char *path) {
+    char *con = NULL;
+    context_t ctx = NULL;
+    bool isAllowed = false;
+
+    std::string realpath = GetRealPath(path);
+    if (realpath.empty()) {
+        std::cerr << "Error: get realpath failed." << std::endl;
+        SANDBOX_LOGE("get realpath failed.");
+        return false;
+    }
+
+    if (getfilecon(realpath.c_str(), &con) == -1) {
+        std::cerr << "Error: getfilecon failed." << std::endl;
+        SANDBOX_LOGE("getfilecon failed.");
+        return false;
+    }
+
+    ctx = context_new(con);
+    if (!ctx) {
+        freecon(con);
+        return false;
+    }
+
+    const char *type = context_type_get(ctx);
+    if (type) {
+        if (config_.type == "shell" && (strcmp(type, "sh_exec") == 0)) {
+            isAllowed = true;
+        } else if (config_.type == "cli" && (strcmp(type, "sa_aimgr_climgr_exec_file") == 0)) {
+            isAllowed = true;
+        } else {
+            std::cerr << "Error: Sandbox Blocked: Executable type '" << type << "' is not allowed." << std::endl;
+            SANDBOX_LOGE("Sandbox Blocked: Executable type '%{public}s' is not allowed.", type);
+        }
+    }
+
+    context_free(ctx);
+    freecon(con);
+    return isAllowed;
+}
+
 int SandboxManager::ExecuteCommand()
 {
     // Build the argv array
@@ -2167,6 +2201,10 @@ int SandboxManager::ExecuteCommand()
         argv.push_back(const_cast<char*>(arg.c_str()));
     }
     argv.push_back(nullptr);
+
+    if (argv[0] != nullptr && !IsAllowedExecContext(argv[0])) {
+        return SANDBOX_ERR_CMD_INVALID;
+    }
 
     // Execute the target command -- on success, the current process is replaced
     SANDBOX_LOGI("Executing command: %{public}s", argv[0] ? argv[0] : "null");
@@ -2179,21 +2217,6 @@ int SandboxManager::ExecuteCommand()
     SANDBOX_LOGE("execvp(%{public}s) failed: %{public}s",
         argv[0] ? argv[0] : "null", strerror(execErrno));
     return SANDBOX_ERR_CMD_INVALID;
-}
-
-std::string SandboxManager::ReplaceVariable(std::string str,
-    const std::string &from, const std::string &to)
-{
-    // Guard against empty search string to avoid infinite loop
-    if (from.empty()) {
-        return str;
-    }
-    std::string::size_type pos = 0;
-    while ((pos = str.find(from, pos)) != std::string::npos) {
-        str.replace(pos, from.length(), to);
-        pos += to.length();
-    }
-    return str;
 }
 } // namespace SANDBOX
 } // namespace AccessControl
