@@ -34,6 +34,10 @@ public:
 
     PolicyTrie() {}
     ~PolicyTrie() { DeleteChildren(); }
+    PolicyTrie(const PolicyTrie&) = delete;
+    PolicyTrie &operator=(const PolicyTrie&) = delete;
+    PolicyTrie(PolicyTrie&&) = delete;
+    PolicyTrie &operator=(PolicyTrie&&) = delete;
 
     void Clear();
     void InsertPath(const std::string &path, uint64_t mode, bool preserveCase = false);
