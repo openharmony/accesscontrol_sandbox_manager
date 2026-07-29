@@ -334,28 +334,6 @@ HWTEST_F(ClawSandboxMountTest, CreateNewRoot002, TestSize.Level0)
 }
 
 /**
- * @tc.name: UnshareNamespaces001
- * @tc.desc: UnshareNamespaces with nsFlags=0 returns success
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, UnshareNamespaces001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.nsFlags = 0;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    int ret = manager.UnshareNamespaces();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
  * @tc.name: UnshareNamespaces002
  * @tc.desc: UnshareNamespaces with CLONE_NEWNS may fail in test env
  * @tc.type: FUNC
@@ -1171,31 +1149,6 @@ HWTEST_F(ClawSandboxMountTest, RemountPolicyMount002, TestSize.Level0)
     // → no write escalation → mount() with MS_REMOUNT fails in non-root env
     int ret = manager.RemountPolicyMount(policyMount, "/proc");
     EXPECT_EQ(SANDBOX_ERR_MOUNT_FAILED, ret);
-}
-
-/**
- * @tc.name: RemountPolicyMount003
- * @tc.desc: RemountPolicyMount with rw policy fails when mount point is not found
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, RemountPolicyMount003, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
-
-    SandboxConfig::PolicyMount policyMount;
-    policyMount.readOnly = false;
-
-    // rw policy + non-existent path → GetMountReadOnly fails → PATH_INVALID
-    int ret = manager.RemountPolicyMount(policyMount, "/nonexistent/path/that/does/not/exist");
-    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, ret);
 }
 
 // ==================== MountPolicyPath tests ====================

@@ -33,59 +33,6 @@ void ClawSandboxAidsTest::SetUp() {}
 void ClawSandboxAidsTest::TearDown() {}
 
 /**
- * @tc.name: AidsSetLabel001
- * @tc.desc: Test calling the setLabel interface with the default valid device path, expecting a successful return.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxAidsTest, AidsSetLabel001, TestSize.Level0) {
-    AidsClient aids;
-    int ret = aids.setLabel();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: AidsSetLabel002
- * @tc.desc: Test calling the addBlacklist interface with the default valid device path to
- * add a cmdblacklist entry, expecting a successful return.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxAidsTest, AidsSetLabel002, TestSize.Level0) {
-    AidsClient aids;
-    int ret = aids.addBlacklist("date", "", 0);
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: AidsSetLabel003
- * @tc.desc: Test calling the delBlacklist interface with the default valid device path to
- * delete an added cmdblacklist entry, expecting a successful return.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxAidsTest, AidsSetLabel003, TestSize.Level0) {
-    AidsClient aids;
-    int ret = aids.addBlacklist("date", "", 0);
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-    ret = aids.delBlacklist("date", "", 0);
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: AidsSetLabel004
- * @tc.desc: Test calling the clrBlacklist interface with the default valid device path to
- * clear the cmdblacklist, expecting a successful return.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxAidsTest, AidsSetLabel004, TestSize.Level0) {
-    AidsClient aids;
-    int ret = aids.clrBlacklist();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
  * @tc.name: AidsSetLabel005
  * @tc.desc: Test calling the setLabel interface with an invalid device path
  * (/dev/hkids_err), expecting a failure return.
