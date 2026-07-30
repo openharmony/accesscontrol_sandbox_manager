@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <sys/types.h>
 
 #include "accesstoken_kit.h"
 
@@ -173,6 +174,15 @@ struct DecConfig {
     size_t size;
 };
 
+struct AgentLockPolicyDeleter {
+    void operator()(struct AgentLockAddPolicyArg *p) const
+    {
+        if (p) {
+            std::free(p);
+        }
+    }
+};
+
 /**
  * @brief Sandbox configuration parsed from --config JSON
  */
@@ -187,7 +197,7 @@ struct SandboxConfig {
     };
 
     uint64_t callerTokenId = 0;
-    uint32_t callerPid = 0;
+    pid_t callerPid = 0;
     uint32_t uid = 0;
     uint32_t gid = 0;
     std::string challenge;
@@ -204,7 +214,7 @@ struct SandboxConfig {
     std::string subCliName;                // Sub-CLI name (required)
     OHOS::Security::AccessToken::AccessTokenIDEx tokenIdEx;             // Temporary tokenId
     std::vector<OHOS::Security::AccessToken::PermissionWithValue> kernelPermList;  // Kernel Permission List
-    struct AgentLockAddPolicyArg *policyArg = nullptr; // AgentLock policy argument
+    std::unique_ptr<struct AgentLockAddPolicyArg, AgentLockPolicyDeleter> policyArg; // AgentLock policy argument
 };
 
 /**

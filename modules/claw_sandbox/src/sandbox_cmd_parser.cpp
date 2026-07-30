@@ -105,6 +105,9 @@ constexpr size_t MAX_TYPE_LENGTH = 10;
 constexpr size_t MAX_NS_FLAGS_COUNT = 10;
 constexpr size_t MAX_NS_FLAG_STRING_LENGTH = 24;
 
+// Maximum count and length limits for collection fields
+constexpr int MAX_POLICY_MOUNTS_COUNT = 1024;      // Maximum number of policy mount points
+
 // Maximum constraints for agentlock policy
 constexpr size_t MAX_POLICY_COUNT = 8;
 constexpr size_t MAX_ACTION_STR_LENGTH = 6;
@@ -141,6 +144,38 @@ static inline int CleanupParsedObjectAndReturn(cJSON *parsedObject, int ret)
     return ret;
 }
 
+static int ExtractFieldString(cJSON *object, const char *key, std::string &outStr, bool &isNative)
+{
+    if (cJSON_IsObject(object)) {
+        char *printedObj = cJSON_PrintUnformatted(object);
+        if (printedObj != nullptr) {
+            outStr = printedObj;
+            cJSON_free(printedObj);
+        }
+        isNative = true;
+        return SANDBOX_SUCCESS;
+    }
+    if (cJSON_IsString(object) && object->valuestring != nullptr) {
+        outStr = object->valuestring;
+        isNative = false;
+        return SANDBOX_SUCCESS;
+    }
+    std::cerr << "Error: Config field '" << key <<
+        "' type mismatch: expected object or JSON object string" << std::endl;
+    SANDBOX_LOGE("Config field '%{public}s' type mismatch", key);
+    return SANDBOX_ERR_CONFIG_INVALID;
+}
+
+static int ValidateJsonConstraints(const std::string &jsonStr, const char *key, size_t maxLen)
+{
+    if (jsonStr.length() > maxLen) {
+        std::cerr << "Error: Config field '" << key << "' exceeds max length (" << maxLen << ")" << std::endl;
+        SANDBOX_LOGE("Config field '%{public}s' exceeds max length (%{public}zu)", key, maxLen);
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    return CheckJsonDepth(jsonStr);
+}
+
 static int GetOptionalObjectField(cJSON *root, const char *key, cJSON *&object, cJSON *&parsedObject, size_t maxLen)
 {
     object = cJSON_GetObjectItem(root, key);
@@ -148,39 +183,37 @@ static int GetOptionalObjectField(cJSON *root, const char *key, cJSON *&object, 
     if (object == nullptr) {
         return SANDBOX_SUCCESS;
     }
-    if (cJSON_IsObject(object)) {
+
+    std::string objectStr;
+    bool isNativeObject = false;
+
+    int ret = ExtractFieldString(object, key, objectStr, isNativeObject);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    if (!isNativeObject && objectStr.empty()) {
+        object = nullptr;
         return SANDBOX_SUCCESS;
     }
-    if (cJSON_IsString(object) && object->valuestring != nullptr) {
-        if (object->valuestring[0] == '\0') {
-            object = nullptr;
-            return SANDBOX_SUCCESS;
-        }
-        std::string objectStr = object->valuestring;
-        if (objectStr.length() > maxLen) {
-            std::cerr << "Error: Config field '" << key << "' exceeds max length (" <<
-                maxLen << ")" << std::endl;
-            SANDBOX_LOGE("Config field '%{public}s' exceeds max length (%{public}zu)", key, maxLen);
-            return SANDBOX_ERR_CONFIG_INVALID;
-        }
-        int depthRet = CheckJsonDepth(objectStr);
-        if (depthRet != SANDBOX_SUCCESS) {
-            return depthRet;
-        }
-        parsedObject = cJSON_Parse(objectStr.c_str());
-        if (!cJSON_IsObject(parsedObject)) {
-            std::cerr << "Error: Config field '" << key <<
-                "' type mismatch: expected object or JSON object string" << std::endl;
-            SANDBOX_LOGE("Config field '%{public}s' type mismatch: expected object or JSON object string", key);
-            return CleanupParsedObjectAndReturn(parsedObject, SANDBOX_ERR_CONFIG_INVALID);
-        }
-        object = parsedObject;
+
+    ret = ValidateJsonConstraints(objectStr, key, maxLen);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    if (isNativeObject) {
         return SANDBOX_SUCCESS;
     }
-    std::cerr << "Error: Config field '" << key <<
-        "' type mismatch: expected object or JSON object string" << std::endl;
-    SANDBOX_LOGE("Config field '%{public}s' type mismatch: expected object or JSON object string", key);
-    return SANDBOX_ERR_CONFIG_INVALID;
+
+    parsedObject = cJSON_Parse(objectStr.c_str());
+    if (!cJSON_IsObject(parsedObject)) {
+        std::cerr << "Error: Config field '" << key << "' parsed result is not an object" << std::endl;
+        SANDBOX_LOGE("Config field '%{public}s' parsed result is not an object", key);
+        return CleanupParsedObjectAndReturn(parsedObject, SANDBOX_ERR_CONFIG_INVALID);
+    }
+    object = parsedObject;
+    return SANDBOX_SUCCESS;
 }
 
 // Helper: parse a required uint64 field
@@ -200,7 +233,9 @@ static int ParseUint64Field(cJSON *root, const char *key, uint64_t &out)
         out = static_cast<uint64_t>(d);
     } else {
         // For values exceeding 2^53, parse from the raw JSON string to avoid precision loss
-        out = static_cast<uint64_t>(item->valuedouble);
+        std::cerr << "Error: Config field '" << key << "' value out of range for uint64: " << d << std::endl;
+        SANDBOX_LOGE("Config field '%{public}s' value out of range for uint64: %{public}f", key, d);
+        return SANDBOX_ERR_CONFIG_INVALID;
     }
     return SANDBOX_SUCCESS;
 }
@@ -223,6 +258,25 @@ static int ParseUint32Field(cJSON *root, const char *key, uint32_t &out)
         return SANDBOX_ERR_CONFIG_INVALID;
     }
     out = static_cast<uint32_t>(d);
+    return SANDBOX_SUCCESS;
+}
+
+// Helper: parse a required int32 field (signed, e.g. pid_t)
+static int ParseInt32Field(cJSON *root, const char *key, int32_t &out)
+{
+    cJSON *item = cJSON_GetObjectItem(root, key);
+    if (!cJSON_IsNumber(item)) {
+        std::cerr << "Error: Config field '" << key << "' missing or not a number" << std::endl;
+        SANDBOX_LOGE("Config field '%{public}s' missing or not a number (expected int32)", key);
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    double d = cJSON_GetNumberValue(item);
+    if (d < INT32_MIN || d > INT32_MAX) {
+        std::cerr << "Error: Config field '" << key << "' value out of range for int32: " << d << std::endl;
+        SANDBOX_LOGE("Config field '%{public}s' value out of range for int32: %{public}f", key, d);
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    out = static_cast<int32_t>(d);
     return SANDBOX_SUCCESS;
 }
 
@@ -429,7 +483,6 @@ static int ParseAgentLockAddPolicyArg(cJSON *root, struct AgentLockAddPolicyArg*
     policyArg->policyCnt = static_cast<uint32_t>(policyCnt);
     return CleanupParsedObjectAndReturn(ownedPolicyObj, SANDBOX_SUCCESS);
 }
-
 // Helper: parse optional hex name field (max 64 chars)
 static int ParseNameField(cJSON *root, std::string &out)
 {
@@ -570,7 +623,15 @@ static int ParsePolicyMounts(cJSON *policy, SandboxConfig::Policy &out)
         SANDBOX_LOGE("Config field 'policy.mounts' type mismatch: expected array");
         return SANDBOX_ERR_CONFIG_INVALID;
     }
+
     int size = cJSON_GetArraySize(mounts);
+    if (size > MAX_POLICY_MOUNTS_COUNT) {
+        std::cerr << "Error: 'policy.mounts' array size (" << size <<
+                     ") exceeds limit (" << MAX_POLICY_MOUNTS_COUNT << ")" << std::endl;
+        SANDBOX_LOGE("'policy.mounts' array size exceeds limit");
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+
     for (int i = 0; i < size; i++) {
         int ret = ParsePolicyMountItem(cJSON_GetArrayItem(mounts, i), out);
         if (ret != SANDBOX_SUCCESS) {
@@ -659,7 +720,7 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
 
     std::function<int()> parseSteps[] = {
         [&]() -> int { return ParseUint64Field(root, "callerTokenId", config.callerTokenId); },
-        [&]() -> int { return ParseUint32Field(root, "callerPid", config.callerPid); },
+        [&]() -> int { return ParseInt32Field(root, "callerPid", config.callerPid); },
         [&]() -> int { return ParseUint32Field(root, "uid", config.uid); },
         [&]() -> int { return ParseUint32Field(root, "gid", config.gid); },
         [&]() -> int {
@@ -699,16 +760,20 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
         [&]() -> int { return ParseEnvField(root, config.env); },
         [&]() -> int { return ParsePolicyField(root, config.policy); },
         [&]() -> int { return ParseNsFlagsField(root, config.nsFlags); },
-        [&]() -> int { return ParseAgentLockAddPolicyArg(root, config.policyArg); },
+        [&]() -> int {
+            struct AgentLockAddPolicyArg *rawArg = nullptr;
+            int ret = ParseAgentLockAddPolicyArg(root, rawArg);
+            if (ret == SANDBOX_SUCCESS && rawArg != nullptr) {
+                config.policyArg.reset(rawArg);
+            }
+            return ret;
+        },
     };
 
     for (const auto& step : parseSteps) {
         int ret = step();
         if (ret != SANDBOX_SUCCESS) {
-            if (config.policyArg != nullptr) {
-                std::free(config.policyArg);
-                config.policyArg = nullptr;
-            }
+            config.policyArg.reset();
             return CleanupAndReturn(root, ret);
         }
     }

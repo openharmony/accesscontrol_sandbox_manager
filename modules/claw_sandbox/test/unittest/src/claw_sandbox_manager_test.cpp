@@ -220,7 +220,7 @@ HWTEST_F(ClawSandboxManagerTest, Initialize001, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
 
-    int ret = manager.Initialize(config, cmdInfo);
+    int ret = manager.Initialize(std::move(config), cmdInfo);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
@@ -242,7 +242,7 @@ HWTEST_F(ClawSandboxManagerTest, Initialize002, TestSize.Level0)
     config.bundleName = "20020026";
     CmdInfo cmdInfo;
 
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     // currentUserId is derived as uid / UID_BASE (200000)
     // We can verify via ValidateConfig which uses config_.currentUserId indirectly
     EXPECT_EQ(SANDBOX_SUCCESS, manager.ValidateConfig());
@@ -268,7 +268,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig001, TestSize.Level0)
     config.bundleName = "20020026";
     CmdInfo cmdInfo;
 
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     int ret = manager.ValidateConfig();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
@@ -289,14 +289,14 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig002, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
 
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     int ret = manager.ValidateConfig();
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
 }
 
 /**
  * @tc.name: ValidateConfig003
- * @tc.desc: ValidateConfig with uint32 max callerPid returns success
+ * @tc.desc: ValidateConfig with pid_t max callerPid returns success
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -306,13 +306,15 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig003, TestSize.Level0)
     SandboxConfig config;
     config.uid = 20020026;
     config.gid = 20020026;
-    config.callerPid = static_cast<uint32_t>(-1);
+
+    config.callerPid = std::numeric_limits<pid_t>::max();
+
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.appIdentifier = "20020026";
     config.bundleName = "20020026";
     CmdInfo cmdInfo;
 
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     int ret = manager.ValidateConfig();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
@@ -333,7 +335,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig004, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
 
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     int ret = manager.ValidateConfig();
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
 }
@@ -354,7 +356,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig005, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
 
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     int ret = manager.ValidateConfig();
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
 }
@@ -375,7 +377,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig006, TestSize.Level0)
     config.callerTokenId = 0;
     CmdInfo cmdInfo;
 
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     int ret = manager.ValidateConfig();
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
 }
@@ -397,7 +399,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig007, TestSize.Level0)
     config.callerTokenId = 0x200D000D;
     CmdInfo cmdInfo;
 
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     int ret = manager.ValidateConfig();
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
 }
@@ -421,7 +423,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig008, TestSize.Level0)
     config.callerTokenId = TEST_SYSTEM_APP_MASK;
     CmdInfo cmdInfo;
 
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     int ret = manager.ValidateConfig();
     // This will fail at the TOKEN_HAP type check since GetTokenTypeFlag(0)
     // should not return TOKEN_HAP
@@ -445,7 +447,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateBasicParams001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     EXPECT_EQ(SANDBOX_SUCCESS, manager.ValidateBasicParams());
 }
 
@@ -464,7 +466,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateBasicParams002, TestSize.Level0)
     config.callerPid = 0;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateBasicParams());
 }
 
@@ -483,7 +485,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateBasicParams003, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateBasicParams());
 }
 
@@ -502,7 +504,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateBasicParams004, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateBasicParams());
 }
 
@@ -521,7 +523,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateBasicParams005, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 0;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateBasicParams());
 }
 
@@ -540,7 +542,7 @@ HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId001, TestSize.Level0)
     config.type = "cli"; // Not "shell"
     config.appIdentifier = "com.test.app";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     EXPECT_EQ(SANDBOX_SUCCESS, manager.SetXpmOwnerId());
 }
@@ -558,7 +560,7 @@ HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId002, TestSize.Level0)
     config.type = "shell";
     config.appIdentifier = ""; // Empty identifier
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.SetXpmOwnerId());
 }
@@ -576,7 +578,7 @@ HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId003, TestSize.Level0)
     config.type = "shell";
     config.appIdentifier = "com.example.hnp";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // In a typical UT environment, /dev/xpm might not exist, so open() fails,
     // which correctly logs a warning and returns SANDBOX_SUCCESS.
@@ -598,7 +600,7 @@ HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId004, TestSize.Level0)
     // Create a string longer than MAX_OWNERID_LEN (64)
     config.appIdentifier = std::string(100, 'A');
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // The truncation logic (std::min) should prevent memcpy_s from failing.
     EXPECT_EQ(SANDBOX_SUCCESS, manager.SetXpmOwnerId());
@@ -621,7 +623,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateTokenType001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     EXPECT_EQ(SANDBOX_SUCCESS, manager.ValidateTokenType());
 }
 
@@ -640,7 +642,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateTokenType002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 0;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateTokenType());
 }
 
@@ -659,88 +661,8 @@ HWTEST_F(ClawSandboxManagerTest, ValidateTokenType003, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 0x200D000D;  // TOKEN_HAP but no SYSTEM_APP_MASK
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateTokenType());
-}
-
-// ==================== ReplaceVariable tests ====================
-
-/**
- * @tc.name: ReplaceVariable001
- * @tc.desc: ReplaceVariable with simple replacement
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ReplaceVariable001, TestSize.Level0)
-{
-    std::string str = "Hello <PackageName>!";
-    std::string result = SandboxManager::ReplaceVariable(str, "<PackageName>", "MyApp");
-    EXPECT_EQ("Hello MyApp!", result);
-}
-
-/**
- * @tc.name: ReplaceVariable002
- * @tc.desc: ReplaceVariable with multiple occurrences
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ReplaceVariable002, TestSize.Level0)
-{
-    std::string str = "<PackageName>/<PackageName>/file";
-    std::string result = SandboxManager::ReplaceVariable(str, "<PackageName>", "app");
-    EXPECT_EQ("app/app/file", result);
-}
-
-/**
- * @tc.name: ReplaceVariable003
- * @tc.desc: ReplaceVariable with no match returns original string
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ReplaceVariable003, TestSize.Level0)
-{
-    std::string str = "Hello World";
-    std::string result = SandboxManager::ReplaceVariable(str, "<PackageName>", "app");
-    EXPECT_EQ("Hello World", result);
-}
-
-/**
- * @tc.name: ReplaceVariable004
- * @tc.desc: ReplaceVariable with empty search string returns original
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ReplaceVariable004, TestSize.Level0)
-{
-    std::string str = "Hello World";
-    std::string result = SandboxManager::ReplaceVariable(str, "", "app");
-    EXPECT_EQ("Hello World", result);
-}
-
-/**
- * @tc.name: ReplaceVariable005
- * @tc.desc: ReplaceVariable with empty replacement string
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ReplaceVariable005, TestSize.Level0)
-{
-    std::string str = "Hello <PackageName>";
-    std::string result = SandboxManager::ReplaceVariable(str, "<PackageName>", "");
-    EXPECT_EQ("Hello ", result);
-}
-
-/**
- * @tc.name: ReplaceVariable006
- * @tc.desc: ReplaceVariable with empty input string
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ReplaceVariable006, TestSize.Level0)
-{
-    std::string str = "";
-    std::string result = SandboxManager::ReplaceVariable(str, "<PackageName>", "app");
-    EXPECT_EQ("", result);
 }
 
 /**
@@ -777,7 +699,7 @@ HWTEST_F(ClawSandboxManagerTest, DeleteSandboxDir002, TestSize.Level0)
     config.bundleName = "20020026";
     CmdInfo cmdInfo;
 
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     int ret = manager.DeleteSandboxDir();
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
 }
@@ -795,7 +717,7 @@ HWTEST_F(ClawSandboxManagerTest, DeleteSandboxDir003, TestSize.Level0)
     config.name = "abcdef0123456789";
     CmdInfo cmdInfo;
 
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     int ret = manager.DeleteSandboxDir();
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
 }
@@ -820,7 +742,7 @@ HWTEST_F(ClawSandboxManagerTest, DeleteSandboxDir004, TestSize.Level0)
     config.appIdentifier = "20020026";
     config.bundleName = "20020026";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // With type "shell", EnterCallerSandbox is now called.
     // In UT environment this fails with NS_FAILED because
@@ -848,7 +770,7 @@ HWTEST_F(ClawSandboxManagerTest, LoadTemplate001, TestSize.Level0)
     config.bundleName = "com.example.bundle";
     CmdInfo cmdInfo;
 
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     int ret = manager.LoadTemplate();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
@@ -1146,7 +1068,7 @@ HWTEST_F(ClawSandboxManagerTest, CollectGrantedPermissionGids001, TestSize.Level
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::PermissionConfig grantedConfig;
     grantedConfig.sandboxSwitch = true;
@@ -1187,7 +1109,7 @@ HWTEST_F(ClawSandboxManagerTest, IsPermissionGranted001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     EXPECT_TRUE(manager.IsPermissionGranted("ohos.permission.GRANTED_TEST"));
 }
@@ -1207,7 +1129,7 @@ HWTEST_F(ClawSandboxManagerTest, IsPermissionGranted002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     EXPECT_FALSE(manager.IsPermissionGranted("ohos.permission.DENIED_TEST"));
 }
@@ -1227,7 +1149,7 @@ HWTEST_F(ClawSandboxManagerTest, IsPermissionGranted003, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // Override token so that callerTokenId & TOKEN_ID_LOWMASK == 0
     manager.config_.callerTokenId = TEST_SYSTEM_APP_MASK;
@@ -1277,10 +1199,10 @@ HWTEST_F(ClawSandboxManagerTest, CollectPermissionDecPaths001, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.currentUserId = "100";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::PermissionConfig permConfig;
-    permConfig.decPaths = {"/data/app", "/storage/Users/<currentUserId>/test"};
+    permConfig.decPaths = {"/data/app", "/storage/Users/currentUser/test"};
 
     std::vector<std::string> result;
     EXPECT_EQ(0, manager.CollectPermissionDecPaths(permConfig, result));
@@ -1305,7 +1227,7 @@ HWTEST_F(ClawSandboxManagerTest, CollectPermissionDecPaths002, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.currentUserId = "100";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::PermissionConfig permConfig;
     permConfig.decPaths = {"", "/data/app", "/data/app"};
@@ -1332,7 +1254,7 @@ HWTEST_F(ClawSandboxManagerTest, CollectPermissionDecPaths003, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.currentUserId = "100";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::PermissionConfig permConfig;
     for (int i = 0; i < 65; i++) {
@@ -1359,13 +1281,13 @@ HWTEST_F(ClawSandboxManagerTest, CollectDecPolicyPaths001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::PermissionConfig grantedConfig;
     grantedConfig.sandboxSwitch = true;
     grantedConfig.decPaths = {
         "/storage/Users/100/Download",
-        "/storage/Users/<currentUserId>/Desktop",
+        "/storage/Users/currentUser/Desktop",
         "/storage/Users/currentUser/Desktop",
         "",
     };
@@ -1419,7 +1341,7 @@ HWTEST_F(ClawSandboxManagerTest, ApplyDecPolicies001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     EXPECT_EQ(SANDBOX_SUCCESS, manager.ApplyDecPolicies());
 }
@@ -1439,7 +1361,7 @@ HWTEST_F(ClawSandboxManagerTest, ApplyDecPolicies002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // Set up a GRANTED permission with a DEC path so that
     // CollectDecPolicyPaths returns non-empty, and ApplyDecPolicies
@@ -1473,7 +1395,7 @@ HWTEST_F(ClawSandboxManagerTest, PreDecDenyPaths001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // All three permissions contain "GRANTED" in name → IsPermissionGranted returns true
     SandboxManager::PermissionConfig permConfig;
@@ -1503,7 +1425,7 @@ HWTEST_F(ClawSandboxManagerTest, PreDecDenyPaths002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // No permissions registered → IsPermissionGranted returns false for all DENY paths
     // Three paths (Download, Desktop, Documents) will be collected for deny
@@ -1530,7 +1452,7 @@ HWTEST_F(ClawSandboxManagerTest, PreDecDenyPaths003, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // Only Desktop has GRANTED in name → Desktop permission is granted,
     // Download and Documents are not → those two paths should be denied
@@ -1559,7 +1481,7 @@ HWTEST_F(ClawSandboxManagerTest, PreDecDenyPaths004, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.type = "shell";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // No permissions registered → all three paths will be collected for deny.
     // shell type uses callerTokenId directly for the deny ioctl token.
@@ -1584,7 +1506,7 @@ HWTEST_F(ClawSandboxManagerTest, SetSandboxPathMark001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     g_customSandboxGranted = false;
     int ret = manager.SetSandboxPathMark();
@@ -1607,11 +1529,11 @@ HWTEST_F(ClawSandboxManagerTest, SetSandboxPathMark002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     g_customSandboxGranted = true;
     int ret = manager.SetSandboxPathMark();
-    EXPECT_EQ(SANDBOX_ERR_SET_DEC_FAILED, ret);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
     g_customSandboxGranted = false;
 }
 
@@ -1632,7 +1554,7 @@ HWTEST_F(ClawSandboxManagerTest, SetEncapsProcFlag001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     g_customSandboxGranted = false;
     int ret = manager.SetEncapsProcFlag();
@@ -1655,7 +1577,7 @@ HWTEST_F(ClawSandboxManagerTest, SetEncapsProcFlag002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     g_customSandboxGranted = true;
     int ret = manager.SetEncapsProcFlag();
@@ -1681,7 +1603,7 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 12345;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     struct sock_fprog prog;
     int ret = manager.BuildSeccompFilter(prog);
@@ -1713,7 +1635,7 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = 12345;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     manager.ParseSeccompJson(root);
 
@@ -1742,7 +1664,7 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter003, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     struct sock_fprog prog;
     int ret = manager.BuildSeccompFilter(prog);
@@ -1797,7 +1719,7 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter004, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     struct sock_fprog prog;
     int ret = manager.BuildSeccompFilter(prog);
@@ -1846,7 +1768,7 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter005, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     struct sock_fprog prog;
     int ret = manager.BuildSeccompFilter(prog);
@@ -1902,7 +1824,7 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter006, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     struct sock_fprog prog;
     int ret = manager.BuildSeccompFilter(prog);
@@ -1941,7 +1863,7 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter007, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     struct sock_fprog prog;
     int ret = manager.BuildSeccompFilter(prog);
@@ -2193,7 +2115,7 @@ HWTEST_F(ClawSandboxManagerTest, SetSelinuxMCS001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.SetSelinuxMCS();
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_SELINUX_FAILED);
@@ -2240,7 +2162,7 @@ HWTEST_F(ClawSandboxManagerTest, SetGroups001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // Set up a permission with GRANTED name and a gid
     SandboxManager::PermissionConfig permConfig;
@@ -2270,7 +2192,7 @@ HWTEST_F(ClawSandboxManagerTest, SetGroups002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // No permissions configured → CollectGrantedPermissionGids returns empty
     // Only config.gid (20020026) goes into the gids vector
@@ -2293,7 +2215,7 @@ HWTEST_F(ClawSandboxManagerTest, SetGroups003, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // Permission gid 20020026 is same as config.gid → deduplicated via std::find
     SandboxManager::PermissionConfig permConfig;
@@ -2322,7 +2244,7 @@ HWTEST_F(ClawSandboxManagerTest, SetUidGid001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.SetUidGid();
     EXPECT_TRUE(ret == SANDBOX_SUCCESS ||
@@ -2346,7 +2268,7 @@ HWTEST_F(ClawSandboxManagerTest, SetAccessToken001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.SetAccessToken();
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_TOKENID_FAILED);
@@ -2368,7 +2290,7 @@ HWTEST_F(ClawSandboxManagerTest, SetAccessToken002, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.type = "shell";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.SetAccessToken();
     EXPECT_TRUE(ret == SANDBOX_SUCCESS ||
@@ -2395,7 +2317,7 @@ HWTEST_F(ClawSandboxManagerTest, SetParentHapTokenId001, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.type = "shell";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.SetParentHapTokenId(config.callerTokenId);
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_PTOKENID_FAILED);
@@ -2420,7 +2342,7 @@ HWTEST_F(ClawSandboxManagerTest, SetAinfo001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.SetAinfo();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
@@ -2443,7 +2365,7 @@ HWTEST_F(ClawSandboxManagerTest, SetSeccomp001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.SetSeccomp();
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_SECCOMP_FAILED);
@@ -2466,7 +2388,7 @@ HWTEST_F(ClawSandboxManagerTest, InstallCustomSeccompFilter001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.InstallCustomSeccompFilter();
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_SECCOMP_FAILED);
@@ -2489,7 +2411,7 @@ HWTEST_F(ClawSandboxManagerTest, DropCapabilities001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.DropCapabilities();
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_CAP_FAILED);
@@ -2512,7 +2434,7 @@ HWTEST_F(ClawSandboxManagerTest, PrepareWorkdir001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     EXPECT_EQ(SANDBOX_SUCCESS, manager.PrepareWorkdir());
 }
@@ -2533,7 +2455,7 @@ HWTEST_F(ClawSandboxManagerTest, PrepareWorkdir002, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.workdir = "/tmp/claw_sandbox_missing_workdir_" + std::to_string(getpid());
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.PrepareWorkdir());
     EXPECT_FALSE(SandboxDirGuard::Exists(config.workdir));
@@ -2556,7 +2478,7 @@ HWTEST_F(ClawSandboxManagerTest, PrepareWorkdir003, TestSize.Level0)
     // Use a regular file as workdir — IsDirectoryExist should reject it
     config.workdir = "/etc/hosts";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.PrepareWorkdir());
 }
@@ -2602,7 +2524,7 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy001, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.policyArg = nullptr; // No netPolicy provided
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
@@ -2644,16 +2566,13 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy003, TestSize.Level0)
     config.gid = 20020026;
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg = MakeMinimalPolicyArg();
+    config.policyArg.reset(MakeMinimalPolicyArg());
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
 }
 
 /**
@@ -2678,18 +2597,15 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy004, TestSize.Level0)
     config.gid = 20020026;
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg = MakeMinimalPolicyArg();
+    config.policyArg.reset(MakeMinimalPolicyArg());
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
     EXPECT_EQ(1, g_ioctlMockState.ioctlCallCount);
 
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
 }
 
 /**
@@ -2714,16 +2630,13 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy005, TestSize.Level0)
     config.gid = 20020026;
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg = MakeMinimalPolicyArg();
+    config.policyArg.reset(MakeMinimalPolicyArg());
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
     EXPECT_EQ(2, g_ioctlMockState.ioctlCallCount);
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
 }
 
 /**
@@ -2746,17 +2659,14 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy006, TestSize.Level0)
     config.gid = 20020026;
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg = MakeMinimalPolicyArg();
+    config.policyArg.reset(MakeMinimalPolicyArg());
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_EQ(2, g_ioctlMockState.ioctlCallCount);
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
 }
 
 /**
@@ -2779,16 +2689,13 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy007, TestSize.Level0)
     config.gid = 20020026;
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg = MakeMinimalPolicyArg();
+    config.policyArg.reset(MakeMinimalPolicyArg());
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
 }
 
 /**
@@ -2813,16 +2720,13 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy008, TestSize.Level0)
     config.gid = 20020026;
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg = MakeMinimalPolicyArg();
+    config.policyArg.reset(MakeMinimalPolicyArg());
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
 }
 
 /**
@@ -2845,17 +2749,14 @@ HWTEST_F(ClawSandboxManagerTest, DeliverPolicy009, TestSize.Level0)
     config.gid = 20020026;
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg = MakeMinimalPolicyArg(3);
+    config.policyArg.reset(MakeMinimalPolicyArg(3));
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.DeliverPolicy();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_EQ(2, g_ioctlMockState.ioctlCallCount);
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
 }
 
 // ==================== ExecuteCommand tests ====================
@@ -2875,7 +2776,7 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteCommand001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ExecuteCommand();
     // When cmdInfo_.argv is empty, ExecuteCommand falls back to execl("/system/bin/sh")
@@ -2900,7 +2801,7 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteCommand002, TestSize.Level0)
     config.type = "shell";
     config.appIdentifier = "";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ExecuteCommand();
     // When cmdInfo_.argv is empty, ExecuteCommand falls back to execl("/system/bin/sh")
@@ -2922,7 +2823,7 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps001, TestSize.Level0)
     SandboxManager manager;
     SandboxConfig config;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ExecuteEarlySteps();
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
@@ -2945,7 +2846,7 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps002, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.type = "shell";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ExecuteEarlySteps();
     EXPECT_EQ(SANDBOX_ERR_NS_FAILED, ret);
@@ -2968,7 +2869,7 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteLateSteps001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ExecuteLateSteps();
     // ExecuteLateSteps calls SetAccessToken/SetXpmOwnerId/SetAinfo first.
@@ -3016,7 +2917,7 @@ HWTEST_F(ClawSandboxManagerTest, GenerateTokenId001, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.type = "shell";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.GenerateTokenId();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);

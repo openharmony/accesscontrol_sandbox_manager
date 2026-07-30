@@ -34,7 +34,7 @@ constexpr uint32_t DEC_KERNEL_BATCH_SIZE = 8;
 constexpr uint32_t DEC_POLICY_HEADER_RESERVED = 64;
 
 struct DecPathInfo {
-    char *path;
+    const char *path;
     uint32_t pathLen;
     uint32_t mode;
     bool flag;
@@ -67,7 +67,7 @@ public:
      * @param cmdInfo Command info
      * @return SANDBOX_SUCCESS on successful initialization
      */
-    int Initialize(const SandboxConfig &config, const CmdInfo &cmdInfo);
+    int Initialize(const SandboxConfig config, const CmdInfo &cmdInfo);
 
     /**
      * @brief Execute the sandbox workflow
@@ -184,6 +184,7 @@ private:
     int SetEncapsProcFlag();
     int SetSandboxPathMark();
 #endif
+    bool IsAllowedExecContext(const char *path);
     int ExecuteCommand();
 
     // Helper methods
@@ -197,6 +198,8 @@ private:
     int MountSystemEntry(const MountEntry &entry, const std::string &targetPrefix);
 
     // symlink a signle entry
+    int DoMountSequence(const std::string &source, const std::string &target,
+                        unsigned long allFlags);
     int SymlinkSingleEntry(const SymLinkEntry &entry, const std::string &targetPrefix);
 
     // Mount a single entry (extracted from MountAppDirs for 50-line limit)
@@ -244,8 +247,6 @@ public:
     int LoadDefaultConfig();
     static void ParseMountEntry(cJSON *entry, MountEntry &me);
     static void ParseSymLinkEntry(cJSON *entry, SymLinkEntry &me);
-    static std::string ReplaceVariable(std::string str,
-        const std::string &from, const std::string &to);
 
     // ParsePermissionJson sub-helpers (extracted to reduce nesting depth)
     int ParseSinglePermissionItem(cJSON *permItem);

@@ -33,7 +33,7 @@ namespace AccessControl {
 namespace SANDBOX {
 SandboxManager::SandboxManager() {}
 SandboxManager::~SandboxManager() {}
-int SandboxManager::Initialize(const SandboxConfig &config, const CmdInfo &cmdInfo)
+int SandboxManager::Initialize(SandboxConfig config, const CmdInfo &cmdInfo)
 {
     (void)config;
     (void)cmdInfo;

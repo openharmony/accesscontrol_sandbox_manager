@@ -386,7 +386,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig010, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
 /**
@@ -634,8 +634,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig021, TestSize.Level0)
     int ret = CmdParser::ParseConfig(
         BuildConfigJsonWithValue("callerTokenId", "9007199254740994"), config);
 
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-    EXPECT_EQ(9007199254740994ULL, config.callerTokenId);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
 
 /**
@@ -941,7 +940,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig034, TestSize.Level0)
     // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS
     EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
 }
- 
+
 /**
  * @tc.name: ParseConfig035
  * @tc.desc: Verify ParseConfig ignores cliName and subCliName when type is "shell".
@@ -970,7 +969,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig035, TestSize.Level0)
     EXPECT_EQ("", config.cliName);
     EXPECT_EQ("", config.subCliName);
 }
- 
+
 /**
  * @tc.name: ParseConfig036
  * @tc.desc: ParseConfig with valid JSON containing all required fields when type explicitly is "cli"
@@ -1007,7 +1006,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig036, TestSize.Level0)
     // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS
     EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
 }
- 
+
 /**
  * @tc.name: ParseConfig037
  * @tc.desc: Verify ParseConfig returns SANDBOX_ERR_CONFIG_INVALID
@@ -1061,10 +1060,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig038, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
@@ -1097,10 +1093,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig039, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
 
@@ -1132,10 +1125,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig040, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
@@ -1167,10 +1157,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig041, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
 
@@ -1203,10 +1190,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig042, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
 
@@ -1239,10 +1223,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig043, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
 
@@ -1275,10 +1256,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig044, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    if (config.policyArg != nullptr) {
-        std::free(config.policyArg);
-        config.policyArg = nullptr;
-    }
+    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
 
@@ -1383,6 +1361,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig049, TestSize.Level0)
  */
 HWTEST_F(ClawSandboxCmdParserTest, ParseConfig050, TestSize.Level0)
 {
+    // 将 "{}" 修改为 "\"{}\""
     std::string json = AddConfigJsonField(
         BuildConfigJsonWithValue("", ""), "env", "{}");
     SandboxConfig config;
@@ -1628,7 +1607,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ExecuteCommand001, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
     cmdInfo.argv = {"echo", "hello"};
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ExecuteCommand();
     // execvp_mock_stub.cpp returns -1 with errno=EACCES, so ExecuteCommand
@@ -1651,7 +1630,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ExecuteCommand002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ExecuteCommand();
     EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);

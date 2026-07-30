@@ -294,7 +294,7 @@ HWTEST_F(ClawSandboxMountTest, CreateNewRoot001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.CreateNewRoot();
     if (ret == SANDBOX_SUCCESS) {
@@ -324,7 +324,7 @@ HWTEST_F(ClawSandboxMountTest, CreateNewRoot002, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.name = guard.Name();
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.CreateNewRoot();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
@@ -349,7 +349,7 @@ HWTEST_F(ClawSandboxMountTest, UnshareNamespaces002, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.nsFlags = CLONE_NEWNS;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.UnshareNamespaces();
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_NS_FAILED);
@@ -371,7 +371,7 @@ HWTEST_F(ClawSandboxMountTest, ForkAfterUnshare001, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.nsFlags = CLONE_NEWNS | CLONE_NEWUTS;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ForkAfterUnshare();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
@@ -393,7 +393,7 @@ HWTEST_F(ClawSandboxMountTest, ForkAfterUnshare002, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.nsFlags = 0;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ForkAfterUnshare();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
@@ -414,7 +414,7 @@ HWTEST_F(ClawSandboxMountTest, MountNewRoot001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.MountNewRoot();
     EXPECT_EQ(ret, SANDBOX_ERR_MOUNT_FAILED);
@@ -436,7 +436,7 @@ HWTEST_F(ClawSandboxMountTest, MountProcFs001, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.nsFlags = CLONE_NEWNS;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.MountProcFs();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
@@ -458,7 +458,7 @@ HWTEST_F(ClawSandboxMountTest, MountProcFs002, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.nsFlags = CLONE_NEWPID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.MountProcFs();
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_MOUNT_FAILED);
@@ -500,7 +500,7 @@ HWTEST_F(ClawSandboxMountTest, MountSystemEntry001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::MountEntry entry;
     entry.source = "/nonexistent_source_path_xyz";
@@ -526,7 +526,7 @@ HWTEST_F(ClawSandboxMountTest, MountSystemEntry002, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.nsFlags = CLONE_NEWPID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::MountEntry entry;
     entry.source = "/proc";
@@ -552,7 +552,7 @@ HWTEST_F(ClawSandboxMountTest, MountSystemEntry003, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.nsFlags = 0;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::MountEntry entry;
     entry.source = "/proc";
@@ -579,7 +579,7 @@ HWTEST_F(ClawSandboxMountTest, SymlinkSingleEntry001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::SymLinkEntry entry;
     entry.source = "/nonexistent_source_path_xyz";
@@ -604,7 +604,7 @@ HWTEST_F(ClawSandboxMountTest, MountSingleEntry001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::MountEntry entry;
     entry.source = "/nonexistent_source_xyz";
@@ -631,7 +631,7 @@ HWTEST_F(ClawSandboxMountTest, MountSingleEntry002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::MountEntry entry;
     entry.source = "/nonexistent_source_xyz";
@@ -657,7 +657,7 @@ HWTEST_F(ClawSandboxMountTest, MountSystemDirs001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     manager.newRootPath_ = "/mnt/sandbox/claw/test";
     int ret = manager.MountSystemDirs();
@@ -679,7 +679,7 @@ HWTEST_F(ClawSandboxMountTest, MountSymLinks001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     manager.newRootPath_ = "/mnt/sandbox/claw/test";
     int ret = manager.MountSymLinks();
@@ -747,7 +747,7 @@ HWTEST_F(ClawSandboxMountTest, MountDir001, TestSize.Level0)
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.type = "cli";
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     std::vector<std::string> flags = {"bind"};
     int ret = manager.MountDir("/nonexistent_source_xyz", "/test_target", flags);
@@ -769,7 +769,7 @@ HWTEST_F(ClawSandboxMountTest, MountAppDirs001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     manager.newRootPath_ = "/mnt/sandbox/claw/test";
     int ret = manager.MountAppDirs();
@@ -791,7 +791,7 @@ HWTEST_F(ClawSandboxMountTest, EnterCallerSandbox001, TestSize.Level0)
     config.callerPid = getpid();
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.EnterCallerSandbox();
     // EnterCallerSandbox requires:
@@ -816,7 +816,7 @@ HWTEST_F(ClawSandboxMountTest, EnterCallerSandbox002, TestSize.Level0)
     // callerPid defaults to 0, which is an invalid PID
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.EnterCallerSandbox();
     EXPECT_EQ(SANDBOX_ERR_NS_FAILED, ret);
@@ -839,7 +839,7 @@ HWTEST_F(ClawSandboxMountTest, EnterCallerSandbox003, TestSize.Level0)
     config.callerPid = 1;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.EnterCallerSandbox();
     // If SetReadProcGroup succeeds, this covers the uid/gid mismatch branch
@@ -865,7 +865,7 @@ HWTEST_F(ClawSandboxMountTest, MatchConditionalSource001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     std::string physicalSource;
     EXPECT_EQ(manager.MatchConditionalSource("/any/path", physicalSource),
@@ -889,7 +889,7 @@ HWTEST_F(ClawSandboxMountTest, MatchConditionalSource002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::ConditionalRule rule;
     rule.source = "/mnt/user/123/nosharefs/docs";
@@ -921,7 +921,7 @@ HWTEST_F(ClawSandboxMountTest, MatchConditionalSource003, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::ConditionalRule rule;
     rule.source = "/mnt/user/123/nosharefs";
@@ -949,7 +949,7 @@ HWTEST_F(ClawSandboxMountTest, MatchConditionalSource004, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::ConditionalRule rule;
     rule.source = "/mnt/user/123/nosharefs/docs";
@@ -977,7 +977,7 @@ HWTEST_F(ClawSandboxMountTest, MatchConditionalSource005, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::ConditionalRule rule;
     rule.source = "/host/public";
@@ -1006,7 +1006,7 @@ HWTEST_F(ClawSandboxMountTest, MatchConditionalSource006, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxManager::ConditionalRule rule1;
     rule1.source = "/host/blocked";
@@ -1045,7 +1045,7 @@ HWTEST_F(ClawSandboxMountTest, BindMountConditionalPath001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     manager.newRootPath_ = "/tmp/claw_sandbox_ut_nonexistent";
 
@@ -1073,7 +1073,7 @@ HWTEST_F(ClawSandboxMountTest, BindMountConditionalPath002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // Create a temporary physical source directory
     std::string tmpDir = "/tmp/claw_sandbox_ut_bindmount_" + std::to_string(getpid());
@@ -1115,7 +1115,7 @@ HWTEST_F(ClawSandboxMountTest, RemountPolicyMount001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxConfig::PolicyMount policyMount;
     policyMount.readOnly = true;
@@ -1140,7 +1140,7 @@ HWTEST_F(ClawSandboxMountTest, RemountPolicyMount002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxConfig::PolicyMount policyMount;
     policyMount.readOnly = false;
@@ -1166,7 +1166,7 @@ HWTEST_F(ClawSandboxMountTest, RemountPolicyMount003, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     SandboxConfig::PolicyMount policyMount;
     policyMount.readOnly = false;
@@ -1193,7 +1193,7 @@ HWTEST_F(ClawSandboxMountTest, MountPolicyPath001, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     manager.newRootPath_ = "/tmp/claw_test_nomatch";
     SandboxConfig::PolicyMount policyMount;
@@ -1220,7 +1220,7 @@ HWTEST_F(ClawSandboxMountTest, MountPolicyPath002, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     manager.newRootPath_ = "/tmp/claw_test_blocked";
     SandboxManager::ConditionalRule rule;
@@ -1253,7 +1253,7 @@ HWTEST_F(ClawSandboxMountTest, MountPolicyPath003, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     // Create a physical source directory
     std::string tmpSource = "/tmp/claw_test_mpp_source_" + std::to_string(getpid());
@@ -1298,7 +1298,7 @@ HWTEST_F(ClawSandboxMountTest, MountPolicyPath004, TestSize.Level0)
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     CmdInfo cmdInfo;
-    manager.Initialize(config, cmdInfo);
+    manager.Initialize(std::move(config), cmdInfo);
 
     manager.newRootPath_ = "";
     SandboxConfig::PolicyMount policyMount;
