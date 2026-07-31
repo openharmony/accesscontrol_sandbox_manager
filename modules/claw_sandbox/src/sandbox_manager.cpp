@@ -166,13 +166,6 @@ constexpr EnvVar PRESET_ENV_VARS[] = {
 #endif
 };
 
-// Default blocked syscalls: setpgid and setsid
-// (prevents descendant processes from escaping the process group)
-constexpr std::array<int, 2> BLOCKED_SYSCALLS = {
-    __NR_setpgid,
-    __NR_setsid
-};
-
 #ifdef CONFIG_PC_PLATFORM
 // Path mark constants (matching appspawn appspawn_isolate.c)
 constexpr int HM_ADD_PATH_MARK = 11;
@@ -1384,18 +1377,6 @@ __attribute__((unused)) static void AppendKillFilter(std::vector<struct sock_fil
 }
 
 /**
- * @brief Append a BPF rule that returns an error (EACCES) for a given syscall number.
- *        Used for blocked syscalls like setpgid/setsid, so the calling process
- *        receives an error instead of being killed (avoids SIGSYS for shell job control).
- */
-static void AppendErrnoFilter(std::vector<struct sock_filter> &filter,
-                              size_t &idx, int nr)
-{
-    filter[idx++] = BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, nr, 0, 1);
-    filter[idx++] = BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EACCES);
-}
-
-/**
  * @brief Append a BPF rule that checks whether the first argument (args[0])
  *        of a single-argument uid-related syscall (setuid, setfsuid) is
  *        >= UID_MIN_LIMIT.
@@ -1557,18 +1538,6 @@ static void AppendAllowList(std::vector<struct sock_filter> &filter, size_t &idx
     }
 }
 
-static void AppendBlockedSyscalls(std::vector<struct sock_filter> &filter,
-                                  size_t &idx)
-{
-    // Use SECCOMP_RET_ERRNO | EACCES instead of SECCOMP_RET_KILL,
-    // so the calling process receives an error instead of being killed.
-    // This allows shells (e.g. sh -c) to continue running even if they
-    // attempt job control via setpgid/setsid.
-    for (int nr : BLOCKED_SYSCALLS) {
-        AppendErrnoFilter(filter, idx, nr);
-    }
-}
-
 static void AppendUidRangeSyscalls(std::vector<struct sock_filter> &filter,
                                    size_t &idx)
 {
@@ -1638,7 +1607,6 @@ int SandboxManager::BuildSeccompFilter(struct sock_fprog &prog)
     //   setfsuid:   BPF_PER_UID_SYSCALL_1ARG (4 insns)
     size_t totalLen = ARCH_CHECK_BPF_CNT
                       + templateConfig_.seccompAllowList.size() * BPF_PER_SYSCALL
-                      + BLOCKED_SYSCALLS.size() * BPF_PER_SYSCALL
                       + BPF_PER_UID_SYSCALL_1ARG  // setuid
                       + BPF_PER_UID_SYSCALL_2ARG  // setreuid
                       + BPF_PER_UID_SYSCALL_3ARG  // setresuid
@@ -1653,13 +1621,10 @@ int SandboxManager::BuildSeccompFilter(struct sock_fprog &prog)
     // Step 2: Apply allow list from template config (seccompAllowList)
     AppendAllowList(seccompFilter_, idx, templateConfig_.seccompAllowList);
 
-    // Step 3: Apply blocked syscalls (setpgid, setsid)
-    AppendBlockedSyscalls(seccompFilter_, idx);
-
-    // Step 4: Apply UID range check for setuid/setreuid/setresuid/setfsuid
+    // Step 3: Apply UID range check for setuid/setreuid/setresuid/setfsuid
     AppendUidRangeSyscalls(seccompFilter_, idx);
 
-    // Step 5: Default action
+    // Step 4: Default action
     seccompFilter_[idx++] = BPF_STMT(BPF_RET | BPF_K, defaultAction);
 
     prog.len = static_cast<unsigned short>(idx);
