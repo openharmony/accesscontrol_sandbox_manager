@@ -336,7 +336,7 @@ struct XpmRegionInfo {
 
 constexpr int HM_XPM_REGION_IOCTL_BASE = 'x';
 constexpr int HM_SET_XPM_OWNERID_ID = 2;
-constexpr uint32_t XPM_ID_TYPE_APPID = 3;
+constexpr uint32_t PROCESS_OWNERID_APP = 2;
 constexpr unsigned long SET_XPM_OWNERID_CMD = _IOW(HM_XPM_REGION_IOCTL_BASE,
     HM_SET_XPM_OWNERID_ID, struct XpmRegionInfo);
 
@@ -597,7 +597,7 @@ int SandboxManager::SetXpmOwnerId()
     }
 
     struct XpmRegionInfo info = { 0 };
-    info.idType = XPM_ID_TYPE_APPID;
+    info.idType = PROCESS_OWNERID_APP;
     size_t copyLen = std::min(ownerId.size(), static_cast<size_t>(MAX_OWNERID_LEN - 1));
     int ret = memcpy_s(info.ownerid, MAX_OWNERID_LEN, ownerId.c_str(), copyLen);
     if (ret != 0) {
@@ -1148,7 +1148,7 @@ static int SetSelinuxContext(uint32_t uid)
         return SANDBOX_ERR_SET_SELINUX_FAILED;
     }
 
-    SANDBOX_LOGI("SetSelinuxMCS: context set to %{public}s", newContext);
+    SANDBOX_LOGD("SetSelinuxMCS: context set to %{public}s", newContext);
     context_free(con);
     return SANDBOX_SUCCESS;
 }
