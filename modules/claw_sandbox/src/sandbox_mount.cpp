@@ -681,26 +681,21 @@ int SandboxManager::MountSingleEntry(const MountEntry &entry, const std::string 
         return SANDBOX_ERR_MOUNT_FAILED;
     }
 
-    struct ScopedFd {
-        int fd;
-        ~ScopedFd()
-        {
-            if (fd >= 0) close(fd);
-        }
-    } fdGuard{srcFd};
-
     int ret = CreateDir(target);
     if (ret != SANDBOX_SUCCESS) {
+        close(srcFd);
         return ret;
     }
 
     unsigned long allFlags = ConvertMountFlags(entry.mountFlags);
     ret = DoMountSequence(entry.source, target, allFlags);
     if (ret != SANDBOX_SUCCESS) {
+        close(srcFd);
         return ret;
     }
 
     mountedDirs_.push_back(target);
+    close(srcFd);
     return SANDBOX_SUCCESS;
 }
 
