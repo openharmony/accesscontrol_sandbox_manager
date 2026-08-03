@@ -295,9 +295,6 @@ constexpr uint8_t BPF_JEQ_SKIP_1ARG = BPF_PER_UID_SYSCALL_1ARG - 1;  // 3
 constexpr uint8_t BPF_JEQ_SKIP_2ARG = BPF_PER_UID_SYSCALL_2ARG - 1;  // 6
 constexpr uint8_t BPF_JEQ_SKIP_3ARG = BPF_PER_UID_SYSCALL_3ARG - 1;  // 9
 
-// Number of default blocked syscalls (setpgid, setsid)
-constexpr size_t BLOCKED_SYSCALL_COUNT = 2;
-
 // System app mask: bit 32 of AccessTokenIDEx indicates system app
 constexpr uint64_t SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32);
 
@@ -319,7 +316,7 @@ struct XpmRegionInfo {
 
 constexpr int HM_XPM_REGION_IOCTL_BASE = 'x';
 constexpr int HM_SET_XPM_OWNERID_ID = 2;
-constexpr uint32_t XPM_ID_TYPE_APPID = 3;
+constexpr uint32_t PROCESS_OWNERID_APP = 2;
 constexpr unsigned long SET_XPM_OWNERID_CMD = _IOW(HM_XPM_REGION_IOCTL_BASE,
     HM_SET_XPM_OWNERID_ID, struct XpmRegionInfo);
 
@@ -606,7 +603,7 @@ int SandboxManager::SetXpmOwnerId()
     }
 
     struct XpmRegionInfo info = { 0 };
-    info.idType = XPM_ID_TYPE_APPID;
+    info.idType = PROCESS_OWNERID_APP;
     size_t copyLen = std::min(ownerId.size(), static_cast<size_t>(MAX_OWNERID_LEN - 1));
     int ret = memcpy_s(info.ownerid, MAX_OWNERID_LEN, ownerId.c_str(), copyLen);
     if (ret != SANDBOX_SUCCESS) {
@@ -1057,7 +1054,7 @@ static int SetSelinuxContext(uint32_t uid)
         return SANDBOX_ERR_SET_SELINUX_FAILED;
     }
 
-    SANDBOX_LOGI("SetSelinuxMCS: context set to %{public}s", newContext);
+    SANDBOX_LOGD("SetSelinuxMCS: context set to %{public}s", newContext);
     context_free(con);
     return SANDBOX_SUCCESS;
 }
@@ -1286,18 +1283,6 @@ __attribute__((unused)) static void AppendKillFilter(std::vector<struct sock_fil
 }
 
 /**
- * @brief Append a BPF rule that returns an error (EACCES) for a given syscall number.
- *        Used for blocked syscalls like setpgid/setsid, so the calling process
- *        receives an error instead of being killed (avoids SIGSYS for shell job control).
- */
-static void AppendErrnoFilter(std::vector<struct sock_filter> &filter,
-                              size_t &idx, int nr)
-{
-    filter[idx++] = BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, nr, 0, 1);
-    filter[idx++] = BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EACCES);
-}
-
-/**
  * @brief Append a BPF rule that checks whether the first argument (args[0])
  *        of a single-argument uid-related syscall (setuid, setfsuid) is
  *        >= UID_MIN_LIMIT.
@@ -1459,24 +1444,6 @@ static void AppendAllowList(std::vector<struct sock_filter> &filter, size_t &idx
     }
 }
 
-static void AppendBlockedSyscalls(std::vector<struct sock_filter> &filter,
-                                  size_t &idx)
-{
-    // Default blocked syscalls: setpgid and setsid
-    // (prevents descendant processes from escaping the process group)
-    static const std::vector<int> blockedSyscalls = {
-        __NR_setpgid, __NR_setsid,
-    };
-
-    // Use SECCOMP_RET_ERRNO | EACCES instead of SECCOMP_RET_KILL,
-    // so the calling process receives an error instead of being killed.
-    // This allows shells (e.g. sh -c) to continue running even if they
-    // attempt job control via setpgid/setsid.
-    for (int nr : blockedSyscalls) {
-        AppendErrnoFilter(filter, idx, nr);
-    }
-}
-
 static void AppendUidRangeSyscalls(std::vector<struct sock_filter> &filter,
                                    size_t &idx)
 {
@@ -1546,7 +1513,6 @@ int SandboxManager::BuildSeccompFilter(struct sock_fprog &prog)
     //   setfsuid:   BPF_PER_UID_SYSCALL_1ARG (4 insns)
     size_t totalLen = ARCH_CHECK_BPF_CNT
                       + templateConfig_.seccompAllowList.size() * BPF_PER_SYSCALL
-                      + BLOCKED_SYSCALL_COUNT * BPF_PER_SYSCALL
                       + BPF_PER_UID_SYSCALL_1ARG  // setuid
                       + BPF_PER_UID_SYSCALL_2ARG  // setreuid
                       + BPF_PER_UID_SYSCALL_3ARG  // setresuid
@@ -1561,13 +1527,10 @@ int SandboxManager::BuildSeccompFilter(struct sock_fprog &prog)
     // Step 2: Apply allow list from template config (seccompAllowList)
     AppendAllowList(seccompFilter_, idx, templateConfig_.seccompAllowList);
 
-    // Step 3: Apply blocked syscalls (setpgid, setsid)
-    AppendBlockedSyscalls(seccompFilter_, idx);
-
-    // Step 4: Apply UID range check for setuid/setreuid/setresuid/setfsuid
+    // Step 3: Apply UID range check for setuid/setreuid/setresuid/setfsuid
     AppendUidRangeSyscalls(seccompFilter_, idx);
 
-    // Step 5: Default action
+    // Step 4: Default action
     seccompFilter_[idx++] = BPF_STMT(BPF_RET | BPF_K, defaultAction);
 
     prog.len = static_cast<unsigned short>(idx);
