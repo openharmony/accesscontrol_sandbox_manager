@@ -1558,6 +1558,83 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyCoverage003, Tes
     EXPECT_FALSE(result[0]);
 }
 
+struct PathRuleCase {
+    std::string path;
+    uint32_t expectedStartResult;
+    bool expectedCheckResult;
+};
+
+void VerifyPathRules(uint64_t tokenId, const std::vector<PathRuleCase> &cases)
+{
+    std::vector<PolicyInfo> policies;
+    for (const auto &tc : cases) {
+        policies.push_back({.path = tc.path, .mode = OperateMode::READ_MODE});
+    }
+
+    std::vector<uint32_t> startResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(policies, startResult));
+    ASSERT_EQ(policies.size(), startResult.size());
+    for (size_t i = 0; i < startResult.size(); i++) {
+        EXPECT_EQ(cases[i].expectedStartResult, startResult[i]) << "index " << i << " path: " << cases[i].path;
+    }
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPersistPolicy(tokenId, policies, checkResult));
+    ASSERT_EQ(policies.size(), checkResult.size());
+    for (size_t i = 0; i < checkResult.size(); i++) {
+        EXPECT_EQ(cases[i].expectedCheckResult, checkResult[i]) << "index " << i << " path: " << cases[i].path;
+    }
+}
+
+/**
+ * @tc.name: StartAccessingPolicy_ValidateBasicPathRules_001
+ * @tc.desc: Activating shallow paths under /storage/Users fails ValidateBasicPathRules and
+ *           returns INVALID_PATH even though a deeper path is persisted.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicy_ValidateBasicPathRules_001, TestSize.Level0)
+{
+    // Set then persist a deep path under /storage/Users/currentUser
+    std::vector<PolicyInfo> persistPolicy = {
+        {.path = "/storage/Users/currentUser/test.txt", .mode = OperateMode::READ_MODE}
+    };
+    std::vector<uint32_t> setResult;
+    int32_t ret = SandboxManagerKit::SetPolicy(g_mockToken, persistPolicy, 1, setResult);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(1, setResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, setResult[0]);
+
+    std::vector<uint32_t> persistResult;
+    ret = SandboxManagerKit::PersistPolicy(persistPolicy, persistResult);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(1, persistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, persistResult[0]);
+
+    // Activating shallow paths fails ValidateBasicPathRules -> INVALID_PATH
+    const std::vector<PathRuleCase> blockCases = {
+        {"/storage/", POLICY_HAS_NOT_BEEN_PERSISTED, false},
+        {"/storage/Users", POLICY_HAS_NOT_BEEN_PERSISTED, false},
+        {"/storage/Users/tmp", POLICY_HAS_NOT_BEEN_PERSISTED, false},
+        {"/storage/Users/currentUser/appdata", POLICY_HAS_NOT_BEEN_PERSISTED, false},
+        {"/storage/Users/currentUser/AppData", POLICY_HAS_NOT_BEEN_PERSISTED, false},
+        {"/storage/Users/currentUser/AppData/el2", POLICY_HAS_NOT_BEEN_PERSISTED, false},
+        {"/storage/Users/currentUser/AppData/el2/base", POLICY_HAS_NOT_BEEN_PERSISTED, false},
+        // Persisted deep path succeeds
+        {"/storage/Users/currentUser/test.txt", OPERATE_SUCCESSFULLY, true},
+        // Valid deep path not persisted
+        {"/storage/Users/currentUser/test2.txt", POLICY_HAS_NOT_BEEN_PERSISTED, false},
+    };
+    VerifyPathRules(g_mockToken, blockCases);
+
+    // Clean up persisted policy
+    std::vector<uint32_t> unPersistResult;
+    ret = SandboxManagerKit::UnPersistPolicy(persistPolicy, unPersistResult);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(1, unPersistResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
+}
+
 #ifdef DEC_SUPPORT_DENY_RW
 /**
  * @tc.name: StartAccessingPolicyNullByte001

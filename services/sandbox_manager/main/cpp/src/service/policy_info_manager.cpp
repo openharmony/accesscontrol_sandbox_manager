@@ -576,13 +576,6 @@ void PolicyInfoManager::ProcessPolicyMatches(const std::vector<PolicyInfo> &poli
             continue;
         }
 
-        // Use ValidateBasicPathRules to block shallow appdata paths (depth 4-6) and other
-        // invalid storage paths (e.g. non-currentUser, segment count violations).
-        if (SandboxParamValidator::ValidateBasicPathRules(policy[i].path) != SANDBOX_MANAGER_OK) {
-            result[i] = static_cast<uint32_t>(SandboxRetType::INVALID_PATH);
-            continue;
-        }
-
         bool retFlag = trieTree.CheckPath(policy[i].path, policy[i].mode);
         bool retFlagNew = trieTreeNew.CheckPathNew(policy[i].path, policy[i].mode);
         if (retFlag != retFlagNew) {
