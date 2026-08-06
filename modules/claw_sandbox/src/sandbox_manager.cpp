@@ -370,6 +370,48 @@ int SandboxManager::Initialize(SandboxConfig config, const CmdInfo &cmdInfo)
     return SANDBOX_SUCCESS;
 }
 
+static int RemoveSandboxDirTree(const std::string &sandboxPath)
+{
+    struct stat st;
+    if (lstat(sandboxPath.c_str(), &st) != 0) {
+        if (errno == ENOENT) {
+            std::cerr << "Error: Sandbox directory does not exist: " << sandboxPath << std::endl;
+            SANDBOX_LOGE("Sandbox directory does not exist: %{public}s", sandboxPath.c_str());
+            return SANDBOX_ERR_PATH_INVALID;
+        }
+        std::cerr << "Error: Failed to stat sandbox directory " << sandboxPath <<
+                  ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to stat sandbox directory %{public}s: %{public}s",
+            sandboxPath.c_str(), strerror(errno));
+        return SANDBOX_ERR_GENERIC;
+    }
+
+    if (!S_ISDIR(st.st_mode)) {
+        std::cerr << "Error: Sandbox path is not a directory: " << sandboxPath << std::endl;
+        SANDBOX_LOGE("Sandbox path is not a directory: %{public}s", sandboxPath.c_str());
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+
+    // Unlink all symlinks under the sandbox directory before remove_all.
+    std::error_code ec;
+    for (std::filesystem::recursive_directory_iterator it(sandboxPath,
+             std::filesystem::directory_options::skip_permission_denied, ec), end;
+         !ec && it != end; it.increment(ec)) {
+        if (it->is_symlink(ec) && !ec) {
+            unlink(it->path().c_str());
+        }
+    }
+    std::filesystem::remove_all(sandboxPath, ec);
+    if (ec) {
+        std::cerr << "Error: remove_all " << sandboxPath << " failed: " << ec.message() << std::endl;
+        SANDBOX_LOGE("remove_all %{public}s failed: %{public}s", sandboxPath.c_str(), ec.message().c_str());
+        return SANDBOX_ERR_GENERIC;
+    }
+
+    SANDBOX_LOGD("Deleted sandbox directory %{public}s", sandboxPath.c_str());
+    return SANDBOX_SUCCESS;
+}
+
 int SandboxManager::DeleteSandboxDir()
 {
     if (!initialized_) {
@@ -395,36 +437,7 @@ int SandboxManager::DeleteSandboxDir()
     }
 
     std::string sandboxPath = std::string(SANDBOX_BASE_DIR) + "/" + config_.name;
-    struct stat st;
-    if (lstat(sandboxPath.c_str(), &st) != 0) {
-        if (errno == ENOENT) {
-            std::cerr << "Error: Sandbox directory does not exist: " << sandboxPath << std::endl;
-            SANDBOX_LOGE("Sandbox directory does not exist: %{public}s", sandboxPath.c_str());
-            return SANDBOX_ERR_PATH_INVALID;
-        }
-        std::cerr << "Error: Failed to stat sandbox directory " << sandboxPath
-                  << ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to stat sandbox directory %{public}s: %{public}s",
-            sandboxPath.c_str(), strerror(errno));
-        return SANDBOX_ERR_GENERIC;
-    }
-
-    if (!S_ISDIR(st.st_mode)) {
-        std::cerr << "Error: Sandbox path is not a directory: " << sandboxPath << std::endl;
-        SANDBOX_LOGE("Sandbox path is not a directory: %{public}s", sandboxPath.c_str());
-        return SANDBOX_ERR_PATH_INVALID;
-    }
-
-    std::error_code ec;
-    std::filesystem::remove_all(sandboxPath, ec);
-    if (ec) {
-        std::cerr << "Error: remove_all " << sandboxPath << " failed: " << ec.message() << std::endl;
-        SANDBOX_LOGE("remove_all %{public}s failed: %{public}s", sandboxPath.c_str(), ec.message().c_str());
-        return SANDBOX_ERR_GENERIC;
-    }
-
-    SANDBOX_LOGD("Deleted sandbox directory %{public}s", sandboxPath.c_str());
-    return SANDBOX_SUCCESS;
+    return RemoveSandboxDirTree(sandboxPath);
 }
 
 int SandboxManager::Execute()
