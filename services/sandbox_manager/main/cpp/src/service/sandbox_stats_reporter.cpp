@@ -39,7 +39,22 @@ SandboxStatsReporter::SandboxStatsReporter()
     macAdapter_.Init(false);
 }
 
-SandboxStatsReporter::~SandboxStatsReporter() = default;
+SandboxStatsReporter::~SandboxStatsReporter()
+{
+    // std::thread 仍 joinable 时析构会 std::terminate —— 兜底 join
+    std::lock_guard<std::mutex> lock(threadMutex_);
+    if (reportThread_.joinable()) {
+        reportThread_.join();
+    }
+}
+
+void SandboxStatsReporter::WaitForReport()
+{
+    std::lock_guard<std::mutex> lock(threadMutex_);
+    if (reportThread_.joinable()) {
+        reportThread_.join();
+    }
+}
 
 int32_t SandboxStatsReporter::GetAppWithMostTempAuth(std::string &bundleName, uint32_t &tokenId, int32_t &count)
 {
@@ -185,8 +200,11 @@ void SandboxStatsReporter::Report()
         return;
     }
 
-    // Async call: start a new thread to avoid blocking the caller
-    std::thread(&SandboxStatsReporter::ReportInternal, this).detach();
+    std::lock_guard<std::mutex> tlock(threadMutex_);
+    if (reportThread_.joinable()) {
+        reportThread_.join();
+    }
+    reportThread_ = std::thread(&SandboxStatsReporter::ReportInternal, this);
 }
 
 bool SandboxStatsReporter::IsTargetField(const std::string &name) const
