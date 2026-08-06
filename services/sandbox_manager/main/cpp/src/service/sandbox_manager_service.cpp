@@ -83,6 +83,7 @@ SandboxManagerService::SandboxManagerService()
 SandboxManagerService::~SandboxManagerService()
 {
     SANDBOXMANAGER_LOG_INFO(LABEL, "~SandboxManagerService()");
+    statsReporter_.WaitForReport();
 }
 
 // CallbackEnter, if "option_stub_hooks on", is called per IPC call at entrance of OnRemoteRequest
@@ -502,7 +503,7 @@ int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const PolicyVecRawDat
     }
     resultRawData.Marshalling(result);
 
-    DelayedSingleton<SandboxStatsReporter>::GetInstance()->Report();
+    statsReporter_.Report();
     return SANDBOX_MANAGER_OK;
 }
 

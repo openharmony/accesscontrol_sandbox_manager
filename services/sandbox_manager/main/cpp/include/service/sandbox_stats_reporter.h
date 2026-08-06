@@ -43,10 +43,12 @@ struct SandboxStatsData {
 };
 
 class SandboxStatsReporter {
-    DECLARE_DELAYED_SINGLETON(SandboxStatsReporter);
-
 public:
+    SandboxStatsReporter();
+    ~SandboxStatsReporter();
+
     void Report();
+    void WaitForReport();
     int32_t GetAppWithMostTempAuth(std::string &bundleName, uint32_t &tokenId, int32_t &count);
 
 private:
@@ -71,6 +73,8 @@ private:
 
     std::chrono::steady_clock::time_point lastReportTime_;
     std::mutex reportMutex_;
+    std::thread reportThread_;
+    std::mutex threadMutex_;
     MacAdapter macAdapter_;
 };
 

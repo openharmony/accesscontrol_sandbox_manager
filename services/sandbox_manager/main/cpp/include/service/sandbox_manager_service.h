@@ -24,6 +24,7 @@
 #include "nocopyable.h"
 #include "policy_info_manager_interface.h"
 #include "sandbox_manager_stub.h"
+#include "sandbox_stats_reporter.h"
 #include "singleton.h"
 #include "system_ability.h"
 
@@ -104,6 +105,7 @@ private:
     static std::shared_ptr<EventHandler> unloadHandler_;
     static std::shared_ptr<EventRunner> unloadRunner_;
     uint32_t tokenFileManagerId_ = 0;
+    SandboxStatsReporter statsReporter_;
 };
 } // namespace SandboxManager
 } // namespace AccessControl
