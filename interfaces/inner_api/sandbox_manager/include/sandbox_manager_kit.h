@@ -216,6 +216,19 @@ public:
      */
     static int32_t StartAccessingByTokenId(uint32_t tokenId, uint64_t timestamp);
     /**
+     * @brief unset all policy of a given tokenid async
+     * @param tokenId a given tokenId
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t UnSetAllPolicyByTokenAsync(uint32_t tokenId);
+    /**
+     * @brief unset all policy of a given tokenid async
+     * @param tokenId a given tokenId
+     * @param timestamp timestamp to unset policy
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t UnSetAllPolicyByTokenAsync(uint32_t tokenId, uint64_t timestamp);
+    /**
      * @brief unset all policy of a given tokenid
      * @param tokenId a given tokenId
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h

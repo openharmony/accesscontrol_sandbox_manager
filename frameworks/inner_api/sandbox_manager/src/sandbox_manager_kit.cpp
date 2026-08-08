@@ -297,6 +297,21 @@ int32_t SandboxManagerKit::StartAccessingByTokenId(uint32_t tokenId, uint64_t ti
     return SandboxManagerClient::GetInstance().StartAccessingByTokenId(tokenId, timestamp);
 }
 
+int32_t SandboxManagerKit::UnSetAllPolicyByTokenAsync(uint32_t tokenId)
+{
+    return UnSetAllPolicyByTokenAsync(tokenId, 0);
+}
+
+int32_t SandboxManagerKit::UnSetAllPolicyByTokenAsync(uint32_t tokenId, uint64_t timestamp)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Input tokenId = %{public}u.", tokenId);
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid input token.");
+        return SandboxManagerErrCode::INVALID_PARAMTER;
+    }
+    return SandboxManagerClient::GetInstance().UnSetAllPolicyByTokenAsync(tokenId, timestamp);
+}
+
 int32_t SandboxManagerKit::UnSetAllPolicyByToken(uint32_t tokenId)
 {
     return UnSetAllPolicyByToken(tokenId, 0);
