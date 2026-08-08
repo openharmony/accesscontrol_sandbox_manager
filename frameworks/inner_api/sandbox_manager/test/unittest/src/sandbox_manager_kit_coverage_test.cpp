@@ -272,6 +272,18 @@ HWTEST_F(SandboxManagerKitCoverageTest, UnSetAllPolicyByTokenTest001, TestSize.L
 }
 
 /**
+ * @tc.name: UnSetAllPolicyByTokenAsyncTest001
+ * @tc.desc: UnSetAllPolicyByTokenAsync with invalid input token
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitCoverageTest, UnSetAllPolicyByTokenAsyncTest001, TestSize.Level0)
+{
+    uint32_t invalidToken = 0;
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::UnSetAllPolicyByTokenAsync(invalidToken));
+}
+
+/**
  * @tc.name: UnSetPolicyTest001
  * @tc.desc: UnSetPolicy with invalid input policy
  * @tc.type: FUNC

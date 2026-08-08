@@ -23,6 +23,9 @@
 #include "sandbox_manager_log.h"
 #include "sys_binder.h"
 #include "system_ability_definition.h"
+#include "if_system_ability_manager.h"
+#include "isystem_ability_load_callback.h"
+#include "system_ability_load_callback_stub.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -39,6 +42,42 @@ static const int32_t SENDREQ_FAIL_ERR = 32;
 static const std::vector<int32_t> RETRY_CODE_LIST = {
     BR_DEAD_REPLY, BR_FAILED_REPLY, SENDREQ_FAIL_ERR };
 }
+
+class UnSetAllPolicyAsyncCallback : public SystemAbilityLoadCallbackStub {
+public:
+    explicit UnSetAllPolicyAsyncCallback(uint32_t tokenId, uint64_t timestamp)
+        : tokenId_(tokenId), timestamp_(timestamp) {}
+    ~UnSetAllPolicyAsyncCallback() override = default;
+
+    void OnLoadSystemAbilitySuccess(int32_t systemAbilityId, const sptr<IRemoteObject>& remoteObject) override
+    {
+        if (remoteObject == nullptr) {
+            LOGE_WITH_REPORT(LABEL, "UnSetAllPolicyByTokenAsync remoteObject is null");
+            return;
+        }
+        auto proxy = iface_cast<ISandboxManager>(remoteObject);
+        if (proxy == nullptr) {
+            LOGE_WITH_REPORT(LABEL, "UnSetAllPolicyByTokenAsync iface_cast failed");
+            return;
+        }
+        int32_t ret = proxy->UnSetAllPolicyByToken(tokenId_, timestamp_);
+        if (ret != SANDBOX_MANAGER_OK) {
+            LOGE_WITH_REPORT(LABEL, "UnSetAllPolicyByTokenAsync call failed, ret=%{public}d", ret);
+            return;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "UnSetAllPolicyByTokenAsync success, tokenId=%{public}u", tokenId_);
+    }
+
+    void OnLoadSystemAbilityFail(int32_t systemAbilityId) override
+    {
+        LOGE_WITH_REPORT(LABEL, "OnLoadSystemAbilityFail, systemAbilityId=%{public}d, tokenId=%{public}u",
+            systemAbilityId, tokenId_);
+    }
+
+private:
+    uint32_t tokenId_;
+    uint64_t timestamp_;
+};
 
 SandboxManagerClient& SandboxManagerClient::GetInstance()
 {
@@ -305,6 +344,24 @@ int32_t SandboxManagerClient::StartAccessingByTokenId(uint32_t tokenId, uint64_t
         return proxy->StartAccessingByTokenId(tokenId, timestamp);
     };
     return CallProxyWithRetry(func, __FUNCTION__);
+}
+
+int32_t SandboxManagerClient::UnSetAllPolicyByTokenAsync(uint32_t tokenId, uint64_t timestamp)
+{
+    auto samgr = OHOS::SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
+    if (samgr == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSystemAbilityManager return null");
+        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+    }
+
+    sptr<UnSetAllPolicyAsyncCallback> callback = new UnSetAllPolicyAsyncCallback(tokenId, timestamp);
+    int32_t ret = samgr->LoadSystemAbility(SANDBOX_MANAGER_SERVICE_ID, callback);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "LoadSystemAbility failed, ret=%{public}d", ret);
+        return SANDBOX_MANAGER_SERVICE_REMOTE_ERR;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "LoadSystemAbility async initiated, tokenId=%{public}u", tokenId);
+    return SANDBOX_MANAGER_OK;
 }
 
 int32_t SandboxManagerClient::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp)
