@@ -1676,20 +1676,18 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter003, TestSize.Level0)
     //   [1] JEQ AUDIT_ARCH_AARCH64
     //   [2] RET KILL
     //   [3] LD nr
-    //   [4-5] setpgid errno filter
-    //   [6-7] setsid errno filter
-    //   [8-11] setuid uid range filter (4 insns)
-    //   [12-18] setreuid uid range filter (7 insns)
-    //   [19-28] setresuid uid range filter (10 insns)
-    //   [29-32] setfsuid uid range filter (4 insns)
-    //   [33] default action
+    //   [4-7] setuid uid range filter (4 insns)
+    //   [8-14] setreuid uid range filter (7 insns)
+    //   [15-24] setresuid uid range filter (10 insns)
+    //   [25-28] setfsuid uid range filter (4 insns)
+    //   [29] default action
     //
-    // setuid uid range filter (indices 8-11):
-    //   [8]  JEQ __NR_setuid, jt=0, jf=3
-    //   [9]  LD args[0]
-    //   [10] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- KEY: >= limit -> skip KILL
-    //   [11] RET KILL
-    constexpr size_t SETUID_FILTER_IDX = 8;
+    // setuid uid range filter (indices 4-7):
+    //   [4]  JEQ __NR_setuid, jt=0, jf=3
+    //   [5]  LD args[0]
+    //   [6] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- KEY: >= limit -> skip KILL
+    //   [7] RET KILL
+    constexpr size_t SETUID_FILTER_IDX = 4;
     constexpr size_t SETUID_JGE_IDX = SETUID_FILTER_IDX + 2;  // idx 10
 
     // Verify JGE instruction: BPF_JMP | BPF_JGE | BPF_K
@@ -1726,16 +1724,16 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter004, TestSize.Level0)
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     ASSERT_NE(prog.filter, nullptr);
 
-    // setreuid uid range filter (indices 12-18):
-    //   [12] JEQ __NR_setreuid, jt=0, jf=6
-    //   [13] LD args[0] (ruid)
-    //   [14] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- ruid >= limit?
-    //   [15] RET KILL
-    //   [16] LD args[1] (euid)
-    //   [17] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- euid >= limit?
-    //   [18] RET KILL
-    constexpr size_t SETREUID_RUID_JGE_IDX = 14;
-    constexpr size_t SETREUID_EUID_JGE_IDX = 17;
+    // setreuid uid range filter (indices 8-14):
+    //   [8] JEQ __NR_setreuid, jt=0, jf=6
+    //   [9] LD args[0] (ruid)
+    //   [10] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- ruid >= limit?
+    //   [11] RET KILL
+    //   [12] LD args[1] (euid)
+    //   [13] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- euid >= limit?
+    //   [14] RET KILL
+    constexpr size_t SETREUID_RUID_JGE_IDX = 10;
+    constexpr size_t SETREUID_EUID_JGE_IDX = 13;
 
     // Verify args[0] (ruid) JGE: jt=1, jf=0
     EXPECT_EQ(prog.filter[SETREUID_RUID_JGE_IDX].code,
@@ -1775,20 +1773,20 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter005, TestSize.Level0)
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     ASSERT_NE(prog.filter, nullptr);
 
-    // setresuid uid range filter (indices 19-28):
-    //   [19] JEQ __NR_setresuid, jt=0, jf=9
-    //   [20] LD args[0] (ruid)
-    //   [21] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- ruid >= limit?
-    //   [22] RET KILL
-    //   [23] LD args[1] (euid)
-    //   [24] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- euid >= limit?
-    //   [25] RET KILL
-    //   [26] LD args[2] (suid)
-    //   [27] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- suid >= limit?
-    //   [28] RET KILL
-    constexpr size_t SETRESUID_RUID_JGE_IDX = 21;
-    constexpr size_t SETRESUID_EUID_JGE_IDX = 24;
-    constexpr size_t SETRESUID_SUID_JGE_IDX = 27;
+    // setresuid uid range filter (indices 15-24):
+    //   [15] JEQ __NR_setresuid, jt=0, jf=9
+    //   [16] LD args[0] (ruid)
+    //   [17] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- ruid >= limit?
+    //   [18] RET KILL
+    //   [19] LD args[1] (euid)
+    //   [20] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- euid >= limit?
+    //   [21] RET KILL
+    //   [22] LD args[2] (suid)
+    //   [23] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- suid >= limit?
+    //   [24] RET KILL
+    constexpr size_t SETRESUID_RUID_JGE_IDX = 17;
+    constexpr size_t SETRESUID_EUID_JGE_IDX = 20;
+    constexpr size_t SETRESUID_SUID_JGE_IDX = 23;
 
     EXPECT_EQ(prog.filter[SETRESUID_RUID_JGE_IDX].code,
               static_cast<uint16_t>(BPF_JMP | BPF_JGE | BPF_K));
@@ -1831,12 +1829,12 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter006, TestSize.Level0)
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     ASSERT_NE(prog.filter, nullptr);
 
-    // setfsuid uid range filter (indices 29-32):
-    //   [29] JEQ __NR_setfsuid, jt=0, jf=3
-    //   [30] LD args[0]
-    //   [31] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- KEY: >= limit -> skip KILL
-    //   [32] RET KILL
-    constexpr size_t SETFSUID_JGE_IDX = 31;
+    // setfsuid uid range filter (indices 25-28):
+    //   [25] JEQ __NR_setfsuid, jt=0, jf=3
+    //   [26] LD args[0]
+    //   [27] JGE UID_MIN_LIMIT, jt=1, jf=0  <-- KEY: >= limit -> skip KILL
+    //   [28] RET KILL
+    constexpr size_t SETFSUID_JGE_IDX = 27;
 
     // Verify JGE instruction: jt=1, jf=0
     EXPECT_EQ(prog.filter[SETFSUID_JGE_IDX].code,
@@ -1872,14 +1870,13 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter007, TestSize.Level0)
 
     // Expected instruction count:
     //   ARCH_CHECK_BPF_CNT = 4
-    //   blockedSyscalls * BPF_PER_SYSCALL = 2 * 2 = 4
     //   BPF_PER_UID_SYSCALL_1ARG (setuid) = 4
     //   BPF_PER_UID_SYSCALL_2ARG (setreuid) = 7
     //   BPF_PER_UID_SYSCALL_3ARG (setresuid) = 10
     //   BPF_PER_UID_SYSCALL_1ARG (setfsuid) = 4
     //   default action = 1
-    //   Total = 4 + 4 + 4 + 7 + 10 + 4 + 1 = 34
-    constexpr size_t EXPECTED_TOTAL_LEN = 34;
+    //   Total = 4 + 4 + 7 + 10 + 4 + 1 = 30
+    constexpr size_t EXPECTED_TOTAL_LEN = 30;
     EXPECT_EQ(prog.len, EXPECTED_TOTAL_LEN);
     EXPECT_EQ(SECCOMP_RET_ALLOW, prog.filter[prog.len - 1].k);
 }
@@ -1903,79 +1900,8 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter008, TestSize.Level0)
     int ret = manager.BuildSeccompFilter(prog);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     ASSERT_NE(prog.filter, nullptr);
-    EXPECT_EQ(36U, prog.len);
+    EXPECT_EQ(32U, prog.len);
     EXPECT_EQ(SECCOMP_RET_KILL, prog.filter[prog.len - 1].k);
-
-    cJSON_Delete(root);
-}
-
-/**
- * @tc.name: BuildSeccompFilter009
- * @tc.desc: BuildSeccompFilter emits EACCES errno rules for blocked process-group syscalls
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter009, TestSize.Level0)
-{
-    SandboxManager manager;
-    struct sock_fprog prog;
-    int ret = manager.BuildSeccompFilter(prog);
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-    ASSERT_NE(prog.filter, nullptr);
-    ASSERT_GT(prog.len, 7U);
-
-    constexpr size_t SETPGID_JUMP_IDX = 4;
-    constexpr size_t SETPGID_RET_IDX = 5;
-    constexpr size_t SETSID_JUMP_IDX = 6;
-    constexpr size_t SETSID_RET_IDX = 7;
-
-    EXPECT_EQ(static_cast<uint16_t>(BPF_JMP | BPF_JEQ | BPF_K),
-        prog.filter[SETPGID_JUMP_IDX].code);
-    EXPECT_EQ(static_cast<uint32_t>(__NR_setpgid), prog.filter[SETPGID_JUMP_IDX].k);
-    EXPECT_EQ(static_cast<uint16_t>(BPF_RET | BPF_K), prog.filter[SETPGID_RET_IDX].code);
-    EXPECT_EQ(static_cast<uint32_t>(SECCOMP_RET_ERRNO | EACCES),
-        prog.filter[SETPGID_RET_IDX].k);
-
-    EXPECT_EQ(static_cast<uint16_t>(BPF_JMP | BPF_JEQ | BPF_K),
-        prog.filter[SETSID_JUMP_IDX].code);
-    EXPECT_EQ(static_cast<uint32_t>(__NR_setsid), prog.filter[SETSID_JUMP_IDX].k);
-    EXPECT_EQ(static_cast<uint16_t>(BPF_RET | BPF_K), prog.filter[SETSID_RET_IDX].code);
-    EXPECT_EQ(static_cast<uint32_t>(SECCOMP_RET_ERRNO | EACCES),
-        prog.filter[SETSID_RET_IDX].k);
-}
-
-/**
- * @tc.name: BuildSeccompFilter010
- * @tc.desc: BuildSeccompFilter emits allow-list rules before blocked syscall rules
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter010, TestSize.Level0)
-{
-    const char *json = R"({"seccomp": {"allow-list": ["execve"]}})";
-    cJSON *root = cJSON_Parse(json);
-    ASSERT_NE(root, nullptr);
-
-    SandboxManager manager;
-    manager.ParseSeccompJson(root);
-
-    struct sock_fprog prog;
-    int ret = manager.BuildSeccompFilter(prog);
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-    ASSERT_NE(prog.filter, nullptr);
-    ASSERT_GT(prog.len, 9U);
-
-    constexpr size_t EXECVE_JUMP_IDX = 4;
-    constexpr size_t EXECVE_RET_IDX = 5;
-    constexpr size_t SETPGID_JUMP_IDX = 6;
-
-    EXPECT_EQ(static_cast<uint16_t>(BPF_JMP | BPF_JEQ | BPF_K),
-        prog.filter[EXECVE_JUMP_IDX].code);
-    EXPECT_EQ(static_cast<uint32_t>(__NR_execve), prog.filter[EXECVE_JUMP_IDX].k);
-    EXPECT_EQ(static_cast<uint16_t>(BPF_RET | BPF_K), prog.filter[EXECVE_RET_IDX].code);
-    EXPECT_EQ(static_cast<uint32_t>(SECCOMP_RET_ALLOW), prog.filter[EXECVE_RET_IDX].k);
-    EXPECT_EQ(static_cast<uint32_t>(__NR_setpgid), prog.filter[SETPGID_JUMP_IDX].k);
-    EXPECT_EQ(static_cast<uint32_t>(SECCOMP_RET_KILL), prog.filter[prog.len - 1].k);
 
     cJSON_Delete(root);
 }
