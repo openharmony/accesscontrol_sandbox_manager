@@ -32,6 +32,7 @@ ohos_source_set("sandbox_manager_proxy") {
   deps = [ ":sandbox_manager_interface" ]
   branch_protector_ret = "pac_ret"
   external_deps = [
+    "bounds_checking_function:libsec_shared",
     "c_utils:utils",
     "hilog:libhilog",
     "ipc:ipc_single",
@@ -54,6 +55,7 @@ ohos_source_set("sandbox_manager_stub") {
   deps = [ ":sandbox_manager_interface" ]
   branch_protector_ret = "pac_ret"
   external_deps = [
+    "bounds_checking_function:libsec_shared",
     "c_utils:utils",
     "hilog:libhilog",
     "ipc:ipc_single",
@@ -106,6 +108,7 @@ ohos_shared_library("sandbox_manager_communication_adapter_cxx") {
 
   external_deps = [
     "access_token:libaccesstoken_sdk",
+    "bounds_checking_function:libsec_shared",
     "c_utils:utils",
     "cJSON:cjson",
     "hilog:libhilog",
