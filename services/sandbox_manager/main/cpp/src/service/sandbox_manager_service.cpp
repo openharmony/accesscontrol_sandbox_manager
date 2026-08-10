@@ -16,12 +16,9 @@
 #include "sandbox_manager_service.h"
 
 #include <cctype>
-#include <cerrno>
 #include <cinttypes>
-#include <climits>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <chrono>
 #include "accesstoken_kit.h"
 #include "common_event_support.h"
@@ -208,7 +205,7 @@ int32_t SandboxManagerService::CleanPersistPolicyByPath(const std::vector<std::s
         SANDBOXMANAGER_LOG_ERROR(LABEL, "clean persist failed, get user id failed error=%{public}d", ret);
         return INVALID_PARAMTER;
     }
-    return PolicyInfoManagerInterface::GetInstance().CleanPolicyByUserId(userId, filePathList);
+    return PolicyInfoManager::GetInstance().CleanPolicyByUserId(userId, filePathList);
 }
 
 int32_t SandboxManagerService::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
@@ -224,7 +221,7 @@ int32_t SandboxManagerService::CleanPolicyByUserId(uint32_t userId, const std::v
         LOGE_WITH_REPORT(LABEL, "FilePath vector empty");
         return INVALID_PARAMTER;
     }
-    return PolicyInfoManagerInterface::GetInstance().CleanPolicyByUserId(userId, filePathList);
+    return PolicyInfoManager::GetInstance().CleanPolicyByUserId(userId, filePathList);
 }
 
 int32_t SandboxManagerService::SetPolicyByBundleName(const std::string &bundleName, int32_t appCloneIndex,
@@ -266,7 +263,7 @@ int32_t SandboxManagerService::SetPolicyByBundleName(const std::string &bundleNa
     setInfo.bundleName = bundleName;
     setInfo.userId = userId;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    ret = PolicyInfoManagerInterface::GetInstance().SetPolicy(tokenId, policyRawData, policyFlag, result, setInfo);
+    ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policyRawData, policyFlag, result, setInfo);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -289,7 +286,7 @@ int32_t SandboxManagerService::PersistPolicy(const PolicyVecRawData &policyRawDa
 
     std::vector<uint32_t> result;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    int32_t ret = PolicyInfoManagerInterface::GetInstance().AddPolicy(callingTokenId, policyRawData, result, flag);
+    int32_t ret = PolicyInfoManager::GetInstance().AddPolicy(callingTokenId, policyRawData, result, flag);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -308,7 +305,7 @@ int32_t SandboxManagerService::UnPersistPolicy(
 
     std::vector<uint32_t> result;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    int32_t ret = PolicyInfoManagerInterface::GetInstance().RemovePolicy(callingTokenId, policyRawData, result);
+    int32_t ret = PolicyInfoManager::GetInstance().RemovePolicy(callingTokenId, policyRawData, result);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -342,13 +339,13 @@ int32_t SandboxManagerService::UnPersistPolicy(uint32_t tokenId)
     }
 
     // Remove all policies associated with the token ID
-    if (!PolicyInfoManagerInterface::GetInstance().RemoveBundlePolicy(tokenId)) {
+    if (!PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId)) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "UnPersistPolicy failed for tokenId=%{public}u", tokenId);
         return SANDBOX_MANAGER_DB_ERR;
     }
 
     // Also unset all policies by token
-    int32_t ret = PolicyInfoManagerInterface::GetInstance().UnSetAllPolicyByToken(tokenId);
+    int32_t ret = PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(tokenId);
     if (ret != 0) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "UnSetAllPolicyByToken failed for tokenId=%{public}u, error=%{public}d",
             tokenId, ret);
@@ -395,7 +392,7 @@ int32_t SandboxManagerService::PersistPolicyByTokenId(
 
     std::vector<uint32_t> result;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    int32_t ret = PolicyInfoManagerInterface::GetInstance().AddPolicy(tokenId, policyRawData, result, flag);
+    int32_t ret = PolicyInfoManager::GetInstance().AddPolicy(tokenId, policyRawData, result, flag);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -447,7 +444,7 @@ int32_t SandboxManagerService::UnPersistPolicyByTokenId(
 
     std::vector<uint32_t> result;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    int32_t ret = PolicyInfoManagerInterface::GetInstance().RemovePolicy(tokenId, policyRawData, result);
+    int32_t ret = PolicyInfoManager::GetInstance().RemovePolicy(tokenId, policyRawData, result);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -496,7 +493,7 @@ int32_t SandboxManagerService::SetPolicy(uint32_t tokenId, const PolicyVecRawDat
 
     std::vector<uint32_t> result;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    int32_t ret = PolicyInfoManagerInterface::GetInstance().SetPolicy(tokenId, policyRawData, policyFlag,
+    int32_t ret = PolicyInfoManager::GetInstance().SetPolicy(tokenId, policyRawData, policyFlag,
         result, setInfo);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
@@ -528,7 +525,7 @@ int32_t SandboxManagerService::SetDenyPolicy(uint32_t tokenId, const PolicyVecRa
 
     std::vector<uint32_t> result;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    ret = PolicyInfoManagerInterface::GetInstance().SetDenyPolicy(tokenId, policyRawData, result, userId);
+    ret = PolicyInfoManager::GetInstance().SetDenyPolicy(tokenId, policyRawData, result, userId);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -553,7 +550,7 @@ int32_t SandboxManagerService::UnSetPolicy(uint32_t tokenId, const PolicyInfoPar
         return INVALID_PARAMTER;
     }
 
-    return PolicyInfoManagerInterface::GetInstance().UnSetPolicy(tokenId, policyParcel.policyInfo);
+    return PolicyInfoManager::GetInstance().UnSetPolicy(tokenId, policyParcel.policyInfo);
 }
 
 int32_t SandboxManagerService::UnSetDenyPolicy(uint32_t tokenId, const PolicyInfoParcel &policyParcel)
@@ -573,7 +570,7 @@ int32_t SandboxManagerService::UnSetDenyPolicy(uint32_t tokenId, const PolicyInf
         return INVALID_PARAMTER;
     }
 
-    return PolicyInfoManagerInterface::GetInstance().UnSetDenyPolicy(tokenId, policyParcel.policyInfo);
+    return PolicyInfoManager::GetInstance().UnSetDenyPolicy(tokenId, policyParcel.policyInfo);
 }
 
 int32_t SandboxManagerService::SetPolicyAsync(uint32_t tokenId, const PolicyVecRawData &policyRawData,
@@ -606,7 +603,7 @@ int32_t SandboxManagerService::CheckPolicy(uint32_t tokenId, const PolicyVecRawD
 
     std::vector<bool> result;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    int32_t ret = PolicyInfoManagerInterface::GetInstance().CheckPolicy(tokenId, policyRawData, result);
+    int32_t ret = PolicyInfoManager::GetInstance().CheckPolicy(tokenId, policyRawData, result);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -638,7 +635,7 @@ int32_t SandboxManagerService::StartAccessingPolicy(const PolicyVecRawData &poli
 
     std::vector<uint32_t> result;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    ret = PolicyInfoManagerInterface::GetInstance().StartAccessingPolicy(callingTokenId,
+    ret = PolicyInfoManager::GetInstance().StartAccessingPolicy(callingTokenId,
         policyRawData, result, userId, timestamp);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
@@ -658,7 +655,7 @@ int32_t SandboxManagerService::StopAccessingPolicy(
 
     std::vector<uint32_t> result;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    int32_t ret = PolicyInfoManagerInterface::GetInstance().StopAccessingPolicy(callingTokenId, policyRawData, result);
+    int32_t ret = PolicyInfoManager::GetInstance().StopAccessingPolicy(callingTokenId, policyRawData, result);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -682,7 +679,7 @@ int32_t SandboxManagerService::CheckPersistPolicy(
 
     std::vector<uint32_t> matchResult;
     // Use batch-processing version - pass PolicyVecRawData directly without full unmarshalling
-    int32_t ret = PolicyInfoManagerInterface::GetInstance().MatchPolicy(tokenId, policyRawData, matchResult);
+    int32_t ret = PolicyInfoManager::GetInstance().MatchPolicy(tokenId, policyRawData, matchResult);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -711,7 +708,7 @@ int32_t SandboxManagerService::StartAccessingByTokenId(uint32_t tokenId, uint64_
         LOGE_WITH_REPORT(LABEL, "start accessing by token failed, get user id failed error=%{public}d", ret);
         return INVALID_PARAMTER;
     }
-    return PolicyInfoManagerInterface::GetInstance().StartAccessingByTokenId(tokenId, userId, timestamp);
+    return PolicyInfoManager::GetInstance().StartAccessingByTokenId(tokenId, userId, timestamp);
 }
 
 int32_t SandboxManagerService::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t timestamp)
@@ -725,7 +722,7 @@ int32_t SandboxManagerService::UnSetAllPolicyByToken(uint32_t tokenId, uint64_t 
         LOGE_WITH_REPORT(LABEL, "Invalid Tokenid.");
         return INVALID_PARAMTER;
     }
-    return PolicyInfoManagerInterface::GetInstance().UnSetAllPolicyByToken(tokenId, timestamp);
+    return PolicyInfoManager::GetInstance().UnSetAllPolicyByToken(tokenId, timestamp);
 }
 
 int32_t SandboxManagerService::GetPersistPolicy(uint32_t tokenId, PolicyVecRawData &policyRawData)
@@ -753,7 +750,7 @@ int32_t SandboxManagerService::GetPersistPolicy(uint32_t tokenId, PolicyVecRawDa
         return INVALID_PARAMTER;
     }
 
-    return PolicyInfoManagerInterface::GetInstance().GetPersistPolicy(tokenId, policyRawData);
+    return PolicyInfoManager::GetInstance().GetPersistPolicy(tokenId, policyRawData);
 }
 
 bool SandboxManagerService::Initialize()
@@ -982,7 +979,7 @@ bool SandboxManagerService::PackageChangedEventAction(const SystemAbilityOnDeman
     }
     SANDBOXMANAGER_LOG_INFO(LABEL, "PackageChangedEventAction bundleName = %{public}s.%{public}d.%{public}u",
         bundleName.c_str(), userId, tokenId);
-    ret = PolicyInfoManagerInterface::GetInstance().CleanPolicyByPackageChanged(bundleName, userId);
+    ret = PolicyInfoManager::GetInstance().CleanPolicyByPackageChanged(bundleName, userId);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "%{public}s clean policy failed", bundleName.c_str());
         return false;
@@ -1064,7 +1061,7 @@ bool SandboxManagerService::PackageRemoveEventAction(const SystemAbilityOnDemand
     }
 
     // Remove bundle policy
-    if (PolicyInfoManagerInterface::GetInstance().RemoveBundlePolicy(tokenId) == false) {
+    if (PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId) == false) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "RemoveBundlePolicy failed, tokenID = %{public}u.", tokenId);
         return false;
     }
@@ -1172,7 +1169,7 @@ int32_t SandboxManagerService::GetSharedDirectoryInfo(SharedDirectoryInfoVecRawD
     int32_t userId = GetOsAccountLocalIdFromUid(IPCSkeleton::GetCallingUid());
 
     std::vector<SharedDirectoryInfo> result;
-    int32_t ret = PolicyInfoManagerInterface::GetInstance().GetSharedDirectoryInfo(result, userId);
+    int32_t ret = PolicyInfoManager::GetInstance().GetSharedDirectoryInfo(result, userId);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "GetSharedDirectoryInfo failed, ret=%{public}d", ret);
         return ret;
@@ -1198,7 +1195,7 @@ int32_t SandboxManagerService::GrantSharedDirectoryPermission()
     }
     int32_t userId = GetOsAccountLocalIdFromUid(IPCSkeleton::GetCallingUid());
 
-    return PolicyInfoManagerInterface::GetInstance().GrantSharedDirectoryPermission(callingTokenId, userId);
+    return PolicyInfoManager::GetInstance().GrantSharedDirectoryPermission(callingTokenId, userId);
 }
 
 int32_t SandboxManagerService::RevokeSharedDirectoryPermission()
@@ -1216,7 +1213,7 @@ int32_t SandboxManagerService::RevokeSharedDirectoryPermission()
     }
     int32_t userId = GetOsAccountLocalIdFromUid(IPCSkeleton::GetCallingUid());
 
-    return PolicyInfoManagerInterface::GetInstance().RevokeSharedDirectoryPermission(callingTokenId, userId);
+    return PolicyInfoManager::GetInstance().RevokeSharedDirectoryPermission(callingTokenId, userId);
 }
 
 int32_t SandboxManagerService::KillProcessForPermissionUpdate(uint32_t accessTokenId)

@@ -22,7 +22,6 @@
 #include "iremote_object.h"
 #include <mutex>
 #include "nocopyable.h"
-#include "policy_info_manager_interface.h"
 #include "sandbox_manager_stub.h"
 #include "sandbox_stats_reporter.h"
 #include "singleton.h"
