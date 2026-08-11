@@ -14,6 +14,7 @@
  */
 
 #include "sandbox_manager_kit_supplemental_test.h"
+#include "sandbox_test_utils.h"
 
 #include <cstdint>
 #include <dirent.h>
@@ -147,9 +148,42 @@ static int SetDeny(const std::string& path)
     close(fd);
     return ret;
 }
+
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
+static bool WaitForTokenNum(uint32_t tokenId, int32_t expectNum, int32_t expectDenyNum)
+{
+    constexpr int32_t maxWaitTimeMs = 5000;
+    constexpr int32_t pollIntervalMs = 200;
+    constexpr int32_t msToUs = 1000;
+    int32_t elapsedMs = 0;
+    int32_t num = 0;
+    int32_t denyNum = 0;
+    while (elapsedMs < maxWaitTimeMs) {
+        if (GetTokenNum(tokenId, num, denyNum) == 0 && num == expectNum && denyNum == expectDenyNum) {
+            return true;
+        }
+        usleep(pollIntervalMs * msToUs);
+        elapsedMs += pollIntervalMs;
+    }
+    return false;
+}
+
+static std::vector<PolicyInfo> MakePolicies(int32_t count, const std::string &pathA, const std::string &pathB,
+    OperateMode mode)
+{
+    std::vector<PolicyInfo> policies;
+    for (int32_t i = 0; i < count; ++i) {
+        std::string path = (i % 2 == 0) ? pathA + std::to_string(i) : pathB + std::to_string(i);
+        policies.push_back({.path = path, .mode = mode});
+    }
+    return policies;
+}
+#endif
+
 void SandboxManagerKitSupplementalTest::SetUpTestCase()
 {
     g_selfTokenId = GetSelfTokenID();
+    fileManagerPresent_ = (GetTokenIdFromProcess("file_manager_service") != 0);
     SetDeny("/A");
     SetDeny("/C/D");
     SetDeny("/data/temp");
@@ -161,6 +195,7 @@ void SandboxManagerKitSupplementalTest::TearDownTestCase()
 }
 
 static int32_t g_uid;
+bool SandboxManagerKitSupplementalTest::fileManagerPresent_ = false;
 void SandboxManagerKitSupplementalTest::SetUp()
 {
     EXPECT_TRUE(MockTokenId("foundation"));
@@ -171,7 +206,6 @@ void SandboxManagerKitSupplementalTest::SetUp()
     EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
     g_uid = getuid();
     setuid(FOUNDATION_UID);
-    fileManagerPresent_ = (GetTokenIdFromProcess("file_manager_service") != 0);
 }
 
 void SandboxManagerKitSupplementalTest::TearDown()
@@ -274,6 +308,65 @@ HWTEST_F(SandboxManagerKitSupplementalTest, PhysicalPathDenyTest001, TestSize.Le
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(tokenId, policy, policyResult));
     dir = opendir(DISTRIBUTE_PATH);
     ASSERT_EQ(dir, nullptr);
+    setuid(uid);
+}
+
+static void UnSetDenyPolicyBatch(uint32_t tokenId, const std::vector<PolicyInfo> &policies)
+{
+    for (const auto &policy : policies) {
+        EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetDenyPolicy(tokenId, policy));
+    }
+}
+
+/**
+ * @tc.name: UnSetDenyPolicyBatchPartialUnset001
+ * @tc.desc: test UnSetDenyPolicy batch — partial unset, remaining deny still active
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, UnSetDenyPolicyBatchPartialUnset001, TestSize.Level1)
+{
+    struct TestEntry { PolicyInfo policy; const char *testPath; };
+    TestEntry entries[] = {
+        { { .path = "/data/service/el1/100/", .mode = OperateMode::DENY_READ_MODE },
+            "/data/service/el1/100/distributeddata" },
+        { { .path = "/data/service/el1/public/", .mode = OperateMode::DENY_READ_MODE },
+            "/data/service/el1/public/sandbox_manager" },
+        { { .path = "/data/service/el1/0/", .mode = OperateMode::DENY_READ_MODE },
+            "/data/service/el1/0/distributeddata" },
+    };
+    constexpr size_t ENTRY_COUNT = sizeof(entries) / sizeof(entries[0]);
+    const uint32_t tokenId = g_mockToken;
+    auto verifyAccess = [](const char *path, bool expectBlocked) {
+        DIR *dir = opendir(path);
+        if (expectBlocked) { ASSERT_EQ(dir, nullptr); } else { ASSERT_NE(dir, nullptr); closedir(dir); }
+    };
+    for (size_t i = 0; i < ENTRY_COUNT; ++i) {
+        verifyAccess(entries[i].testPath, false);
+    }
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+    std::vector<PolicyInfo> allPolicies;
+    std::vector<uint32_t> policyResult;
+    for (size_t i = 0; i < ENTRY_COUNT; ++i) {
+        allPolicies.emplace_back(entries[i].policy);
+    }
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(tokenId, allPolicies, policyResult));
+    ASSERT_EQ(ENTRY_COUNT, policyResult.size());
+    for (size_t i = 0; i < ENTRY_COUNT; ++i) {
+        EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[i]);
+    }
+    for (size_t i = 0; i < ENTRY_COUNT; ++i) {
+        verifyAccess(entries[i].testPath, true);
+    }
+    std::vector<PolicyInfo> partialUnset = {entries[0].policy, entries[1].policy};
+    UnSetDenyPolicyBatch(tokenId, partialUnset);
+    verifyAccess(entries[0].testPath, false);
+    verifyAccess(entries[1].testPath, false);
+    verifyAccess(entries[2].testPath, true);
+    std::vector<PolicyInfo> lastUnset = {entries[2].policy};
+    UnSetDenyPolicyBatch(tokenId, lastUnset);
+    verifyAccess(entries[2].testPath, false);
     setuid(uid);
 }
 #endif
@@ -1605,6 +1698,462 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StartAccessingPolicyNullByte001, Tes
     EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::StartAccessingPolicy(nullBytePolicy, startResult));
     ASSERT_EQ(1, startResult.size());
     EXPECT_EQ(POLICY_HAS_NOT_BEEN_PERSISTED, startResult[0]);
+}
+#endif
+
+#ifdef DEC_SUPPORT_DENY_DELETE_RENAME
+/**
+ * @tc.name: TokenNumAfterSetDenyPolicy001
+ * @tc.desc: SetDenyPolicy increases both num and deny_num by 1
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, DenyPolicyNumInc, TestSize.Level0)
+{
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+    int32_t numBefore = 0;
+    int32_t denyNumBefore = 0;
+    int32_t ret = GetTokenNum(g_mockToken, numBefore, denyNumBefore);
+    if (ret != 0) {
+        setuid(uid);
+        GTEST_SKIP() << "GetTokenNum failed, skip test";
+        return;
+    }
+
+    std::vector<PolicyInfo> policy = {{.path = "/data/test/token_num_deny", .mode = OperateMode::DENY_READ_MODE}};
+    std::vector<uint32_t> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(g_mockToken, policy, result));
+
+    int32_t numAfter = 0;
+    int32_t denyNumAfter = 0;
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, numAfter, denyNumAfter));
+    EXPECT_EQ(numBefore + 1, numAfter);
+    EXPECT_EQ(denyNumBefore + 1, denyNumAfter);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetDenyPolicy(g_mockToken, policy[0]));
+    setuid(uid);
+}
+
+/**
+ * @tc.name: TokenNumAfterUnSetDenyPolicy001
+ * @tc.desc: UnSetDenyPolicy decreases both num and deny_num by 1
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, UnSetDenyPolicyNumDec, TestSize.Level0)
+{
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+    std::vector<PolicyInfo> policy = {{.path = "/data/test/token_num_unset_deny",
+        .mode = OperateMode::DENY_READ_MODE}};
+    std::vector<uint32_t> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(g_mockToken, policy, result));
+
+    int32_t numBefore = 0;
+    int32_t denyNumBefore = 0;
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, numBefore, denyNumBefore));
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetDenyPolicy(g_mockToken, policy[0]));
+
+    int32_t numAfter = 0;
+    int32_t denyNumAfter = 0;
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, numAfter, denyNumAfter));
+    EXPECT_EQ(numBefore - 1, numAfter);
+    EXPECT_EQ(denyNumBefore - 1, denyNumAfter);
+    setuid(uid);
+}
+
+/**
+ * @tc.name: TokenNumAfterSetPolicy001
+ * @tc.desc: SetPolicy increases num by 1, deny_num unchanged
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, SetPolicyNumOnly, TestSize.Level0)
+{
+    int32_t numBefore = 0;
+    int32_t denyNumBefore = 0;
+    int32_t ret = GetTokenNum(g_mockToken, numBefore, denyNumBefore);
+    if (ret != 0) {
+        GTEST_SKIP() << "GetTokenNum failed, skip test";
+        return;
+    }
+
+    std::vector<PolicyInfo> policy = {{.path = "/data/test/token_num_set", .mode = OperateMode::READ_MODE}};
+    std::vector<uint32_t> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, 0, result));
+
+    int32_t numAfter = 0;
+    int32_t denyNumAfter = 0;
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, numAfter, denyNumAfter));
+    EXPECT_EQ(numBefore + 1, numAfter);
+    EXPECT_EQ(denyNumBefore, denyNumAfter);
+
+    // Cleanup
+    PolicyInfo info = policy[0];
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, info));
+}
+
+/**
+ * @tc.name: UnSetPolicyNumDec
+ * @tc.desc: UnSetPolicy decreases num by 1, deny_num unchanged
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, UnSetPolicyNumDec, TestSize.Level0)
+{
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+    std::vector<PolicyInfo> policy = {{.path = "/data/test/token_num_unset", .mode = OperateMode::READ_MODE}};
+    std::vector<uint32_t> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, 0, result));
+
+    int32_t numBefore = 0;
+    int32_t denyNumBefore = 0;
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, numBefore, denyNumBefore));
+
+    PolicyInfo info = policy[0];
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, info));
+
+    int32_t numAfter = 0;
+    int32_t denyNumAfter = 0;
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, numAfter, denyNumAfter));
+    EXPECT_EQ(numBefore - 1, numAfter);
+    EXPECT_EQ(denyNumBefore, denyNumAfter);
+    setuid(uid);
+}
+
+/**
+ * @tc.name: MixedPolicyDenyNum
+ * @tc.desc: Interleaved SetPolicy and SetDenyPolicy — SetPolicy only bumps num,
+ *           SetDenyPolicy bumps both num and deny_num
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, MixedPolicyDenyNum, TestSize.Level0)
+{
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+
+    int32_t numBase = 0;
+    int32_t denyNumBase = 0;
+    int32_t ret = GetTokenNum(g_mockToken, numBase, denyNumBase);
+    if (ret != 0) {
+        setuid(uid);
+        GTEST_SKIP() << "GetTokenNum failed, skip test";
+        return;
+    }
+
+    // SetPolicy: num+1, deny_num unchanged
+    std::vector<PolicyInfo> normalPolicy = {{.path = "/data/test/mixed_normal", .mode = OperateMode::READ_MODE}};
+    std::vector<uint32_t> normalResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, normalPolicy, 0, normalResult));
+
+    int32_t num = 0;
+    int32_t denyNum = 0;
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, num, denyNum));
+    EXPECT_EQ(numBase + 1, num);
+    EXPECT_EQ(denyNumBase, denyNum);
+
+    // SetDenyPolicy: num+1, deny_num+1
+    std::vector<PolicyInfo> denyPolicy = {{.path = "/data/test/mixed_deny", .mode = OperateMode::DENY_READ_MODE}};
+    std::vector<uint32_t> denyResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(g_mockToken, denyPolicy, denyResult));
+
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, num, denyNum));
+    EXPECT_EQ(numBase + 2, num);
+    EXPECT_EQ(denyNumBase + 1, denyNum);
+
+    // UnSetDenyPolicy: num-1, deny_num-1
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetDenyPolicy(g_mockToken, denyPolicy[0]));
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, num, denyNum));
+    EXPECT_EQ(numBase + 1, num);
+    EXPECT_EQ(denyNumBase, denyNum);
+
+    // UnSetPolicy: num-1, deny_num unchanged
+    PolicyInfo info = normalPolicy[0];
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetPolicy(g_mockToken, info));
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, num, denyNum));
+    EXPECT_EQ(numBase, num);
+    EXPECT_EQ(denyNumBase, denyNum);
+
+    setuid(uid);
+}
+
+
+/**
+ * @tc.name: UnSetAllPolicyByTokenNum
+ * @tc.desc: UnSetAllPolicyByToken clears both normal and deny policies,
+ *           resetting num and deny_num to baseline
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, UnSetAllPolicyByTokenNum, TestSize.Level0)
+{
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+
+    int32_t numBase = 0;
+    int32_t denyNumBase = 0;
+    int32_t ret = GetTokenNum(g_mockToken, numBase, denyNumBase);
+    if (ret != 0) {
+        setuid(uid);
+        GTEST_SKIP() << "GetTokenNum failed, skip test";
+        return;
+    }
+
+    std::vector<PolicyInfo> normalPolicy = {{.path = "/data/test/unset_all_normal", .mode = OperateMode::READ_MODE}};
+    std::vector<uint32_t> normalResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, normalPolicy, 0, normalResult));
+
+    std::vector<PolicyInfo> denyPolicy = {{.path = "/data/test/unset_all_deny", .mode = OperateMode::DENY_READ_MODE}};
+    std::vector<uint32_t> denyResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(g_mockToken, denyPolicy, denyResult));
+
+    int32_t num = 0;
+    int32_t denyNum = 0;
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, num, denyNum));
+    EXPECT_EQ(numBase + 2, num);
+    EXPECT_EQ(denyNumBase + 1, denyNum);
+
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnSetAllPolicyByToken(g_mockToken));
+
+    ASSERT_TRUE(WaitForTokenNum(g_mockToken, numBase, denyNumBase));
+
+    setuid(uid);
+}
+
+/**
+ * @tc.name: CleanPersistPolicyByPathNum
+ * @tc.desc: CleanPersistPolicyByPath clears the authorized persist policy,
+ *           resetting num to baseline
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, CleanPersistPolicyByPathNum, TestSize.Level0)
+{
+    if (!fileManagerPresent_) {
+        return;
+    }
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+
+    int32_t numBase = 0;
+    int32_t denyNumBase = 0;
+    int32_t ret = GetTokenNum(g_mockToken, numBase, denyNumBase);
+    if (ret != 0) {
+        setuid(uid);
+        GTEST_SKIP() << "GetTokenNum failed, skip test";
+        return;
+    }
+
+    std::vector<PolicyInfo> policy = {{.path = "/data/test/clean_persist_path", .mode = OperateMode::READ_MODE}};
+    std::vector<uint32_t> policyResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, 1, policyResult));
+    ASSERT_EQ(1, policyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+
+    std::vector<PolicyInfo> denyPolicy = {{.path = "/data/test/clean_persist_deny",
+        .mode = OperateMode::DENY_READ_MODE}};
+    std::vector<uint32_t> denyResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(g_mockToken, denyPolicy, denyResult));
+
+    int32_t num = 0;
+    int32_t denyNum = 0;
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, num, denyNum));
+    EXPECT_EQ(numBase + 2, num);
+    EXPECT_EQ(denyNumBase + 1, denyNum);
+
+    std::vector<std::string> filePaths;
+    filePaths.emplace_back("/data/test");
+    ASSERT_EQ(0, CleanPolicyByPathByUser(0, filePaths));
+
+    setuid(g_uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+
+    setuid(SPACE_MGR_SERVICE_UID);
+    ASSERT_TRUE(WaitForTokenNum(g_mockToken, numBase, denyNumBase));
+
+    setuid(uid);
+}
+
+/**
+ * @tc.name: CleanPersistPolicyByPathParentDir
+ * @tc.desc: CleanPersistPolicyByPath with parent dir /data/test cleans
+ *           all child policies (normal + deny) under that path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, CleanPersistPolicyByPathParentDir, TestSize.Level0)
+{
+    if (!fileManagerPresent_) {
+        return;
+    }
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+
+    int32_t numBase = 0;
+    int32_t denyNumBase = 0;
+    int32_t ret = GetTokenNum(g_mockToken, numBase, denyNumBase);
+    if (ret != 0) {
+        setuid(uid);
+        GTEST_SKIP() << "GetTokenNum failed, skip test";
+        return;
+    }
+
+    std::vector<PolicyInfo> policyA = {{.path = "/data/tmp/clean_sub", .mode = OperateMode::READ_MODE}};
+    std::vector<uint32_t> resultA;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyA, 1, resultA));
+
+    std::vector<PolicyInfo> policyB = {{.path = "/data/test/clean_sub_e", .mode = OperateMode::WRITE_MODE}};
+    std::vector<uint32_t> resultB;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policyB, 1, resultB));
+
+    std::vector<PolicyInfo> denyPolicy = {{.path = "/data/test/clean_sub_deny", .mode = OperateMode::DENY_READ_MODE}};
+    std::vector<uint32_t> denyResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(g_mockToken, denyPolicy, denyResult));
+
+    int32_t num = 0;
+    int32_t denyNum = 0;
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, num, denyNum));
+    EXPECT_EQ(numBase + 3, num);
+    EXPECT_EQ(denyNumBase + 1, denyNum);
+
+    std::vector<std::string> filePaths;
+    filePaths.emplace_back("/data/test");
+    ASSERT_EQ(0, CleanPolicyByPathByUser(0, filePaths));
+
+    setuid(g_uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+
+    setuid(SPACE_MGR_SERVICE_UID);
+    ASSERT_TRUE(WaitForTokenNum(g_mockToken, numBase + 1, denyNumBase));
+
+    setuid(uid);
+}
+
+/**
+ * @tc.name: CleanPersistPolicyByPathMassive
+ * @tc.desc: CleanPersistPolicyByPath with parent dir /data/test cleans only
+ *           child policies under /data/test, policies under other parent
+ *           dirs (/data/storage) remain
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, CleanPersistPolicyByPathMassive, TestSize.Level0)
+{
+    if (!fileManagerPresent_) {
+        return;
+    }
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+
+    constexpr int32_t NORMAL_COUNT = 30;
+    constexpr int32_t DENY_COUNT = 10;
+    int32_t numBase = 0;
+    int32_t denyNumBase = 0;
+    if (GetTokenNum(g_mockToken, numBase, denyNumBase) != 0) {
+        setuid(uid);
+        GTEST_SKIP() << "GetTokenNum failed, skip test";
+        return;
+    }
+
+    std::vector<PolicyInfo> normalPolicies = MakePolicies(NORMAL_COUNT, "/data/test/massive_normal_",
+        "/data/storage/massive_normal_", OperateMode::READ_MODE);
+    std::vector<uint32_t> normalResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, normalPolicies, 1, normalResult));
+    ASSERT_EQ(NORMAL_COUNT, static_cast<int32_t>(normalResult.size()));
+
+    std::vector<PolicyInfo> denyPolicies = MakePolicies(DENY_COUNT, "/data/test/massive_deny_",
+        "/data/storage/massive_deny_", OperateMode::DENY_READ_MODE);
+    std::vector<uint32_t> denyResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(g_mockToken, denyPolicies, denyResult));
+    ASSERT_EQ(DENY_COUNT, static_cast<int32_t>(denyResult.size()));
+
+    int32_t num = 0;
+    int32_t denyNum = 0;
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, num, denyNum));
+    EXPECT_EQ(numBase + NORMAL_COUNT + DENY_COUNT, num);
+    EXPECT_EQ(denyNumBase + DENY_COUNT, denyNum);
+
+    std::vector<std::string> filePaths = {"/data/test"};
+    ASSERT_EQ(0, CleanPolicyByPathByUser(0, filePaths));
+    setuid(g_uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    setuid(SPACE_MGR_SERVICE_UID);
+    ASSERT_TRUE(WaitForTokenNum(g_mockToken, numBase + NORMAL_COUNT / 2 + DENY_COUNT / 2,
+        denyNumBase + DENY_COUNT / 2));
+
+    setuid(uid);
+}
+
+/**
+ * @tc.name: CleanPersistPolicyByPathMultiTokenMultiPath
+ * @tc.desc: CleanPersistPolicyByPath with multiple parent dirs cleans child
+ *           policies across multiple tokens, resetting counts to baseline
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitSupplementalTest, CleanPersistPolicyByPathMultiTokenMultiPath, TestSize.Level0)
+{
+    if (!fileManagerPresent_) {
+        return;
+    }
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+    uint32_t mockToken2 = g_mockToken + 1;
+    int32_t numBase = 0;
+    int32_t denyNumBase = 0;
+    int32_t numBase2 = 0;
+    int32_t denyNumBase2 = 0;
+    if (GetTokenNum(g_mockToken, numBase, denyNumBase) != 0 ||
+        GetTokenNum(mockToken2, numBase2, denyNumBase2) != 0) {
+        setuid(uid);
+        GTEST_SKIP() << "GetTokenNum failed, skip test";
+        return;
+    }
+    std::vector<uint32_t> result;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken,
+        {{.path = "/data/test/multi_normal", .mode = OperateMode::READ_MODE}}, 1, result));
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(mockToken2,
+        {{.path = "/data/storage/multi_normal_b", .mode = OperateMode::WRITE_MODE}}, 1, result));
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(g_mockToken,
+        {{.path = "/data/tmp/multi_deny", .mode = OperateMode::DENY_READ_MODE}}, result));
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetDenyPolicy(mockToken2,
+        {{.path = "/data/app/multi_deny_b", .mode = OperateMode::DENY_WRITE_MODE}}, result));
+    int32_t num = 0;
+    int32_t denyNum = 0;
+    ASSERT_EQ(0, GetTokenNum(g_mockToken, num, denyNum));
+    EXPECT_EQ(numBase + 2, num);
+    EXPECT_EQ(denyNumBase + 1, denyNum);
+    ASSERT_EQ(0, GetTokenNum(mockToken2, num, denyNum));
+    EXPECT_EQ(numBase2 + 2, num);
+    EXPECT_EQ(denyNumBase2 + 1, denyNum);
+    std::vector<std::string> filePaths = {"/data/test", "/data/storage", "/data/tmp", "/data/app"};
+    ASSERT_EQ(0, CleanPolicyByPathByUser(0, filePaths));
+    setuid(g_uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CleanPersistPolicyByPath(filePaths));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    setuid(SPACE_MGR_SERVICE_UID);
+    ASSERT_TRUE(WaitForTokenNum(g_mockToken, numBase, denyNumBase));
+    ASSERT_TRUE(WaitForTokenNum(mockToken2, numBase2, denyNumBase2));
+    setuid(uid);
 }
 #endif
 } // SandboxManager
