@@ -233,7 +233,11 @@ int32_t PersistentPreserve::HandleDuplicateBundleRecords(const std::string &appI
             deleteConditions.Put(PolicyFiledConst::FIELD_USERID, userId);
             deleteConditions.Put(PolicyFiledConst::FIELD_ORIGINAL_TOKENID,
                 bundleRecords[i].GetInt(PolicyFiledConst::FIELD_ORIGINAL_TOKENID));
-            SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, deleteConditions);
+            int32_t ret = SandboxManagerRdb::GetInstance().Remove(
+                SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, deleteConditions);
+            if (ret != SandboxManagerRdb::SUCCESS) {
+                LOGE_WITH_REPORT(LABEL, "HandleDuplicateBundleRecords remove error");
+            }
         }
     }
 
