@@ -199,7 +199,10 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEvent(const EventFwk::CommonE
             SANDBOXMANAGER_LOG_ERROR(LABEL, "OnReceive Package changed failed by error input.");
             return;
         }
-        (void)PolicyInfoManager::GetInstance().CleanPolicyByPackageChanged(bundleName, userID);
+        int32_t ret = PolicyInfoManager::GetInstance().CleanPolicyByPackageChanged(bundleName, userID);
+        if (ret != SANDBOX_MANAGER_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "OnReceive Package changed %{public}s clean failed", bundleName.c_str());
+        }
 #ifdef NOT_RESIDENT
         SANDBOXMANAGER_LOG_INFO(LABEL, "OnReceive Package changed %{public}s, %{public}d", bundleName.c_str(), userID);
         SandboxManagerShare::GetInstance().Refresh(bundleName, userID);

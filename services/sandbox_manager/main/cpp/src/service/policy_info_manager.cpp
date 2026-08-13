@@ -631,7 +631,6 @@ int32_t PolicyInfoManager::RemoveNormalPolicy(const uint32_t tokenId, const std:
         }
 
         for (const std::string &matchedPath : matchingPaths) {
-            SANDBOXMANAGER_LOG_DEBUG(LABEL, "Processing matched path: %{public}s", matchedPath.c_str());
             PolicyInfo matchedPolicy = policy[i];
             matchedPolicy.path = matchedPath;
 
@@ -1643,19 +1642,21 @@ int32_t PolicyInfoManager::CheckPathIsBlocked(int32_t userID, const PolicyInfo &
     const char *cStr = policy.path.c_str();
     uint32_t cStrLength = strlen(cStr);
     if (length != cStrLength) {
+        std::string maskedPath = SandboxManagerLog::MaskRealPath(policy.path);
         LOGE_WITH_REPORT(LABEL, "path have a terminator: %{public}s, pathLen:%{public}u, cstrLen:%{public}u",
-            policy.path.c_str(), length, cStrLength);
+            maskedPath.c_str(), length, cStrLength);
         (void)SandboxManagerDfxHelper::ReportPolicyViolate(0, "path have a terminator",
-            policy.path, bundleName, SG_REPORT_SECURITY_CONTROL);
+            maskedPath, bundleName, SG_REPORT_SECURITY_CONTROL);
         return SandboxRetType::INVALID_PATH;
     }
 
     std::string pathTmp = AdjustPath(policy.path);
     bool ret = CheckPathWithinRule(userID, pathTmp, policy, bundleName, index);
     if (ret != true) {
-        LOGE_WITH_REPORT(LABEL, "path not allowed to set policy: %{public}s", policy.path.c_str());
+        std::string maskedPath = SandboxManagerLog::MaskRealPath(policy.path);
+        LOGE_WITH_REPORT(LABEL, "path not allowed to set policy: %{public}s", maskedPath.c_str());
         (void)SandboxManagerDfxHelper::ReportPolicyViolate(0, "path not allowed to set",
-            policy.path, bundleName, SG_REPORT_SECURITY_CONTROL);
+            maskedPath, bundleName, SG_REPORT_SECURITY_CONTROL);
         return SandboxRetType::INVALID_PATH;
     }
     return SANDBOX_MANAGER_OK;
