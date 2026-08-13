@@ -32,7 +32,6 @@
 #include "policy_field_const.h"
 #include "policy_info.h"
 #include "policy_trie.h"
-#include "sandbox_param_validator.h"
 #include "sandbox_manager_const.h"
 #include "sandbox_manager_rdb.h"
 #include "sandbox_manager_dfx_helper.h"
