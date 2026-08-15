@@ -70,6 +70,7 @@ if (is_standard_system) {
       "main/cpp/src/share/share_files.cpp",
       "main/cpp/src/preserve/persistent_preserve.cpp",
       "main/cpp/src/utils/data_size_report_adapter.cpp",
+      "main/cpp/src/utils/sandbox_param_validator.cpp",
     ]
 
     cflags_cc = [ "-DHILOG_ENABLE" ]

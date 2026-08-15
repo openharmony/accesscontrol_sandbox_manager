@@ -32,6 +32,7 @@
 #include "policy_field_const.h"
 #include "policy_info.h"
 #include "policy_trie.h"
+#include "sandbox_param_validator.h"
 #include "sandbox_manager_const.h"
 #include "sandbox_manager_rdb.h"
 #include "sandbox_manager_dfx_helper.h"
@@ -149,6 +150,14 @@ void PolicyInfoManager::RemoveResultByUserIdAndPrefix(std::vector<GenericValues>
 
 int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vector<std::string> &filePathList)
 {
+    // [Restored validation check] Report invalid paths before proceeding (report-only, no short-circuit).
+    for (size_t i = 0; i < filePathList.size(); ++i) {
+        int32_t validRet = SandboxParamValidator::ValidateGenericPath(filePathList[i]);
+        if (validRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("CleanPolicyByUserId", 0, validRet,
+                filePathList[i], 0);
+        }
+    }
     SANDBOXMANAGER_LOG_INFO(LABEL, "clean policy by userId:%{public}d", userId);
     std::vector<std::string> filePathListTmp;
     PolicyTrie trieTree;
@@ -662,6 +671,19 @@ int32_t PolicyInfoManager::RemoveNormalPolicy(const uint32_t tokenId, const std:
 int32_t PolicyInfoManager::RemovePolicy(
     const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result)
 {
+    // [Restored validation check] Report invalid persist policies before proceeding (report-only, no short-circuit).
+    for (size_t i = 0; i < policy.size(); ++i) {
+        int32_t pathRet = SandboxParamValidator::ValidateGenericPath(policy[i].path);
+        if (pathRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("RemovePolicy", tokenId, pathRet,
+                policy[i].path, policy[i].mode);
+        }
+        int32_t modeRet = SandboxParamValidator::ValidateTempMode(policy[i].mode);
+        if (modeRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("RemovePolicy", tokenId, modeRet,
+                policy[i].path, policy[i].mode);
+        }
+    }
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
         result.resize(policy.size(), SandboxRetType::OPERATE_SUCCESSFULLY);
@@ -779,6 +801,14 @@ int32_t PolicyInfoManager::SetPolicyInner(std::vector<PolicyInfo> &validPolicies
 int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, uint64_t policyFlag,
                                      std::vector<uint32_t> &result, const SetInfo &setInfo)
 {
+    // [Restored validation check] Report invalid temp policies before proceeding (report-only, no short-circuit).
+    for (size_t i = 0; i < policy.size(); ++i) {
+        int32_t validRet = SandboxParamValidator::ValidateTempPolicy(policy[i], setInfo);
+        if (validRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("SetPolicy", tokenId, validRet,
+                policy[i].path, policy[i].mode);
+        }
+    }
     int32_t userId = setInfo.userId;
     size_t policySize = policy.size();
     if (!macAdapter_.IsMacSupport()) {
@@ -977,6 +1007,19 @@ int32_t PolicyInfoManager::StopAccessingPolicy(const uint32_t tokenId, const Pol
 int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
     std::vector<uint32_t> &result, int32_t userId)
 {
+    // [Restored validation check] Report invalid deny policies before proceeding (report-only, no short-circuit).
+    for (size_t i = 0; i < policy.size(); ++i) {
+        int32_t pathRet = SandboxParamValidator::ValidateGenericPath(policy[i].path);
+        if (pathRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("SetDenyPolicy", tokenId, pathRet,
+                policy[i].path, policy[i].mode);
+        }
+        int32_t modeRet = SandboxParamValidator::ValidateDenyMode(policy[i].mode);
+        if (modeRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("SetDenyPolicy", tokenId, modeRet,
+                policy[i].path, policy[i].mode);
+        }
+    }
     size_t policySize = policy.size();
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
@@ -1012,6 +1055,12 @@ int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const std::vector<Pol
 
 int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const PolicyInfo &policy)
 {
+    // [Restored validation check] Report invalid temp mode before proceeding (report-only, no short-circuit).
+    int32_t validRet = SandboxParamValidator::ValidateTempMode(policy.mode);
+    if (validRet != SANDBOX_MANAGER_OK) {
+        SandboxManagerDfxHelper::WriteValidationFailure("UnSetPolicy", tokenId, validRet,
+            policy.path, policy.mode);
+    }
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
         return SANDBOX_MANAGER_OK;
@@ -1035,6 +1084,14 @@ int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const PolicyInfo &polic
 int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policies,
     std::vector<uint32_t> &result)
 {
+    // [Restored validation check] Report invalid temp modes before proceeding (report-only, no short-circuit).
+    for (size_t i = 0; i < policies.size(); ++i) {
+        int32_t validRet = SandboxParamValidator::ValidateTempMode(policies[i].mode);
+        if (validRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("UnSetPolicyBatch", tokenId, validRet,
+                policies[i].path, policies[i].mode);
+        }
+    }
     size_t policySize = policies.size();
 
     if (!macAdapter_.IsMacSupport()) {
@@ -1093,6 +1150,12 @@ int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const std::vector<Polic
 
 int32_t PolicyInfoManager::UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &policy)
 {
+    // [Restored validation check] Report invalid deny mode before proceeding (report-only, no short-circuit).
+    int32_t validRet = SandboxParamValidator::ValidateDenyMode(policy.mode);
+    if (validRet != SANDBOX_MANAGER_OK) {
+        SandboxManagerDfxHelper::WriteValidationFailure("UnSetDenyPolicy", tokenId, validRet,
+            policy.path, policy.mode);
+    }
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
         return SANDBOX_MANAGER_OK;
@@ -1117,6 +1180,19 @@ int32_t PolicyInfoManager::UnSetDenyPolicy(uint32_t tokenId, const PolicyInfo &p
 int32_t PolicyInfoManager::CheckPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy,
                                        std::vector<bool> &result)
 {
+    // [Restored validation check] Report invalid policies before proceeding (report-only, no short-circuit).
+    for (size_t i = 0; i < policy.size(); ++i) {
+        int32_t pathRet = SandboxParamValidator::ValidateGenericPath(policy[i].path);
+        if (pathRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("CheckPolicy", tokenId, pathRet,
+                policy[i].path, policy[i].mode);
+        }
+        int32_t modeRet = SandboxParamValidator::ValidateTempMode(policy[i].mode);
+        if (modeRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("CheckPolicy", tokenId, modeRet,
+                policy[i].path, policy[i].mode);
+        }
+    }
     if (!macAdapter_.IsMacSupport()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Mac not enable, default success.");
         result.resize(policy.size(), true);
@@ -1826,6 +1902,19 @@ int32_t PolicyInfoManager::CheckPathIsBlocked(int32_t userID, const PolicyInfo &
 int32_t PolicyInfoManager::AddPolicy(const uint32_t tokenId, const std::vector<PolicyInfo> &policy,
     std::vector<uint32_t> &results, const uint32_t flag)
 {
+    // [Restored validation check] Report invalid persist policies before proceeding (report-only, no short-circuit).
+    for (size_t i = 0; i < policy.size(); ++i) {
+        int32_t pathRet = SandboxParamValidator::ValidateGenericPath(policy[i].path);
+        if (pathRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("AddPolicy", tokenId, pathRet,
+                policy[i].path, policy[i].mode);
+        }
+        int32_t modeRet = SandboxParamValidator::ValidateTempMode(policy[i].mode);
+        if (modeRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("AddPolicy", tokenId, modeRet,
+                policy[i].path, policy[i].mode);
+        }
+    }
     size_t policySize = policy.size();
     results.resize(policySize);
     // check validity
@@ -1908,6 +1997,15 @@ int32_t PolicyInfoManager::StartAccessingPolicy(
     const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results, int32_t userId,
     uint64_t timestamp)
 {
+    // [Restored validation check] Report invalid activation policies before proceeding (report-only, no short-circuit).
+    for (size_t i = 0; i < policy.size(); ++i) {
+        bool isMediaPath = false;
+        int32_t validRet = SandboxParamValidator::ValidateActivationPolicy(policy[i], isMediaPath);
+        if (validRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("StartAccessingPolicy", tokenId, validRet,
+                policy[i].path, policy[i].mode);
+        }
+    }
     size_t policySize = policy.size();
     results.resize(policySize);
 
@@ -1939,6 +2037,15 @@ int32_t PolicyInfoManager::StartAccessingPolicy(
 int32_t PolicyInfoManager::StopAccessingPolicy(
     const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results)
 {
+    // [Restored validation check] Report invalid activation policies before proceeding (report-only, no short-circuit).
+    for (size_t i = 0; i < policy.size(); ++i) {
+        bool isMediaPath = false;
+        int32_t validRet = SandboxParamValidator::ValidateActivationPolicy(policy[i], isMediaPath);
+        if (validRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("StopAccessingPolicy", tokenId, validRet,
+                policy[i].path, policy[i].mode);
+        }
+    }
     size_t policySize = policy.size();
     results.resize(policySize);
 
@@ -1971,6 +2078,19 @@ int32_t PolicyInfoManager::StopAccessingPolicy(
 int32_t PolicyInfoManager::MatchPolicy(
     const uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &results)
 {
+    // [Restored validation check] Report invalid policies before proceeding (report-only, no short-circuit).
+    for (size_t i = 0; i < policy.size(); ++i) {
+        int32_t pathRet = SandboxParamValidator::ValidateGenericPath(policy[i].path);
+        if (pathRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("MatchPolicy", tokenId, pathRet,
+                policy[i].path, policy[i].mode);
+        }
+        int32_t modeRet = SandboxParamValidator::ValidateTempMode(policy[i].mode);
+        if (modeRet != SANDBOX_MANAGER_OK) {
+            SandboxManagerDfxHelper::WriteValidationFailure("MatchPolicy", tokenId, modeRet,
+                policy[i].path, policy[i].mode);
+        }
+    }
     size_t policySize = policy.size();
     if (results.size() != policySize) {
         results.resize(policySize);
