@@ -46,6 +46,7 @@ ohos_unittest("claw_sandbox_test") {
     "unittest/src/sandbox_manager_mock_stub.cpp",
     "unittest/src/execvp_mock_stub.cpp",
     "unittest/src/ioctl_mock_stub.cpp",
+    "unittest/src/selinux_mock_stub.cpp",
   ]
 
   sources += [
@@ -60,6 +61,11 @@ ohos_unittest("claw_sandbox_test") {
   cflags_cc = [
     "-DHILOG_ENABLE",
     "-DMCS_ENABLE",
+    "-Dgetcon=WrapGetcon",
+    "-Dgetpidcon=WrapGetpidcon",
+    "-Dis_selinux_enabled=WrapIsSelinuxEnabled",
+    "-Dsecurity_check_context=WrapSecurityCheckContext",
+    "-Dsetcon=WrapSetcon",
   ]
 
   deps = []

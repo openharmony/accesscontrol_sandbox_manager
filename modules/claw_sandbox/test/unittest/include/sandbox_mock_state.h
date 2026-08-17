@@ -16,8 +16,10 @@
 #ifndef SANDBOX_MOCK_STATE_H
 #define SANDBOX_MOCK_STATE_H
 
+#include <cerrno>
 #include <cstdint>
 #include <string>
+#include <sys/types.h>
 
 namespace OHOS {
 namespace AccessControl {
@@ -43,6 +45,29 @@ struct IoctlMockState {
 };
 
 extern IoctlMockState g_ioctlMockState;
+
+// Mock state for the SELinux APIs used by SandboxManager::SetSelinuxMCS.
+// The linker wrappers forward to libselinux unless mockEnabled is true.
+struct SelinuxMockState {
+    bool mockEnabled = false;
+    int32_t selinuxEnabled = 1;
+    int32_t getconRet = 0;
+    int32_t getpidconRet = 0;
+    int32_t securityCheckRet = 0;
+    int32_t setconRet = 0;
+    int32_t errorNumber = EACCES;
+    std::string currentContext = "u:r:claw_sandbox:s0:x1,x2";
+    std::string targetContext = "u:r:normal_hap:s0:x58,x334,x512,x868,x1024";
+    pid_t capturedPid = -1;
+    std::string checkedContext;
+    std::string setconContext;
+    int32_t getconCallCount = 0;
+    int32_t getpidconCallCount = 0;
+    int32_t securityCheckCallCount = 0;
+    int32_t setconCallCount = 0;
+};
+
+extern SelinuxMockState g_selinuxMockState;
 
 // Mock state for permission checks. When true, AccessTokenKit::VerifyAccessToken
 // returns PERMISSION_GRANTED for "ohos.permission.CUSTOM_SANDBOX".
