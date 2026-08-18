@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "setpolicy_checkpolicy_appdata_fuzzer.h"
+#include "setpolicycheckpolicyappdata_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
@@ -29,7 +29,7 @@ using namespace OHOS::AccessControl::SandboxManager;
 
 namespace OHOS {
     // Call SetPolicy via OnRemoteRequest with appdata variants
-    static bool SetPolicyAppDataStub(const std::vector<PolicyInfo>& policyVec, uint32_t tokenId,
+    static bool SetPolicyAppdataStub(const std::vector<PolicyInfo>& policyVec, uint32_t tokenId,
         uint64_t policyFlag)
     {
         MessageParcel datas;
@@ -66,7 +66,7 @@ namespace OHOS {
     }
 
     // Call CheckPolicy via OnRemoteRequest for a single policy and return the bool result
-    static bool CheckPolicyAppDataStub(const PolicyInfo& policy, uint32_t tokenId)
+    static bool CheckPolicyAppdataStub(const PolicyInfo& policy, uint32_t tokenId)
     {
         MessageParcel datas;
         if (!datas.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
@@ -118,7 +118,7 @@ namespace OHOS {
         return results[0];
     }
 
-    bool SetPolicyCheckPolicyAppDataFuzzTest(const uint8_t *data, size_t size)
+    bool SetPolicyCheckPolicyAppdataFuzzTest(const uint8_t *data, size_t size)
     {
         if ((data == nullptr) || (size == 0)) {
             return false;
@@ -143,13 +143,13 @@ namespace OHOS {
 
         policyVec.push_back(policy);
 
-        SetPolicyAppDataStub(policyVec, tokenId, policyFlag);
+        SetPolicyAppdataStub(policyVec, tokenId, policyFlag);
 
         // appdata must never gain permission regardless of authorized path
         PolicyInfo appdataPolicy;
         appdataPolicy.path = "/storage/Users/currentUser/appdata";
         appdataPolicy.mode = OperateMode::READ_MODE;
-        bool isSet = CheckPolicyAppDataStub(appdataPolicy, tokenId);
+        bool isSet = CheckPolicyAppdataStub(appdataPolicy, tokenId);
         if (isSet) {
             return false;
         }
@@ -162,6 +162,6 @@ namespace OHOS {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     /* Run your code on data */
-    OHOS::AllocTokenWithFuzz(data, size, OHOS::SetPolicyCheckPolicyAppDataFuzzTest);
+    OHOS::AllocTokenWithFuzz(data, size, OHOS::SetPolicyCheckPolicyAppdataFuzzTest);
     return 0;
 }

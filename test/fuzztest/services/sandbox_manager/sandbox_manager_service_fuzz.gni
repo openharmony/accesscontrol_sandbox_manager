@@ -48,6 +48,7 @@ sandbox_manager_sources = [
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/share/share_files.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/preserve/persistent_preserve.cpp",
   "${sandbox_manager_path}/services/sandbox_manager/main/cpp/src/utils/sandbox_param_validator.cpp",
+  "${sandbox_manager_path}/frameworks/sandbox_manager/src/sandbox_manager_dfx_helper.cpp",
   "${sandbox_manager_path}/test/fuzztest/common/alloc_token.cpp",
   "${sandbox_manager_path}/test/fuzztest/common/fuzz_common.cpp",
 ]
@@ -85,6 +86,7 @@ sandbox_manager_external_deps = [
   "samgr:samgr_proxy",
   "ability_runtime:dataobs_manager",
   "kv_store:distributeddata_inner",
+  "security_guard:libsg_collect_sdk",
 ]
 
 sandbox_manager_flag_cc = [ "-DHILOG_ENABLE" ]
