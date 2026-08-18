@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "persist_activate_appdata_fuzzer.h"
+#include "persistactivateappdata_fuzzer.h"
 
 #include <vector>
 #include <cstdint>
@@ -108,7 +108,7 @@ static bool StartAccessingAppdataPath(const std::string &activatePath, uint32_t 
     return true;
 }
 
-static bool CheckPolicyAppDataStub(const PolicyInfo &policy, uint32_t tokenId)
+static bool CheckPolicyAppdataStub(const PolicyInfo &policy, uint32_t tokenId)
 {
     MessageParcel datas;
     if (!datas.WriteInterfaceToken(ISandboxManager::GetDescriptor())) {
@@ -184,7 +184,7 @@ bool PersistActivateAppdataFuzzTest(const uint8_t *data, size_t size)
     PolicyInfo appdataPolicy;
     appdataPolicy.path = "/storage/Users/currentUser/appdata";
     appdataPolicy.mode = PERSIST_PARENT_MODE;
-    bool appdataHasPermission = CheckPolicyAppDataStub(appdataPolicy, tokenId);
+    bool appdataHasPermission = CheckPolicyAppdataStub(appdataPolicy, tokenId);
     if (appdataHasPermission) {
         return false;
     }

@@ -16,14 +16,14 @@ import("//build/test.gni")
 import("../../../../../sandbox_manager.gni")
 import("../sandbox_manager_service_fuzz.gni")
 
-ohos_fuzztest("setpolicy_checkpolicy_appdata_fuzzer") {
+ohos_fuzztest("PersistActivateAppdataFuzzTest") {
   module_out_path = module_output_path_service_sandbox
   fuzz_config_file = "."
 
   include_dirs = [ "../../../common" ]
   include_dirs += sandbox_manager_include_dirs
 
-  sources = [ "setpolicy_checkpolicy_appdata_fuzzer.cpp" ]
+  sources = [ "persistactivateappdata_fuzzer.cpp" ]
   sources += sandbox_manager_sources
 
   deps = []
