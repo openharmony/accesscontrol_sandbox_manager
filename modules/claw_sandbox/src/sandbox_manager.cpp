@@ -85,26 +85,6 @@ constexpr const char *SANDBOX_BASE_DIR = "/mnt/sandbox/claw";
 
 constexpr int UID_BASE = 200000;
 
-#ifdef MCS_ENABLE
-// User ID base for MCS level calculation (same as UID_BASE in hap_restorecon.cpp)
-constexpr uint32_t MCS_UID_BASE = 200000;
-
-// Minimum user ID threshold for MCS level calculation
-constexpr uint32_t MCS_USER_BASE = 100;
-
-// MCS category segment offsets (matching hap_restorecon.cpp)
-constexpr int CATEGORY_SEG0_OFFSET = 0;
-constexpr int CATEGORY_SEG1_OFFSET = 256;
-constexpr int CATEGORY_SEG2_OFFSET = 512;
-constexpr int CATEGORY_SEG3_OFFSET = 768;
-constexpr int CATEGORY_SEG4_OFFSET = 1024;
-
-// MCS category mask and shift values
-constexpr int CATEGORY_MASK = 0xff;
-constexpr int SHIFT_8 = 8;
-constexpr int SHIFT_16 = 16;
-#endif
-
 // Minimum UID allowed by seccomp filter (20000000 = 20 million).
 // Any attempt to setuid/setreuid/setresuid/setfsuid to a UID below this
 // value will be blocked by the seccomp filter, returning EACCES.
@@ -1059,47 +1039,42 @@ int SandboxManager::SetAinfo()
 }
 
 #ifdef MCS_ENABLE
-/**
- * @brief Build MCS level string from uid and apply it to the given context.
- *        Logic matches UserAndMCSRangeSet in hap_restorecon.cpp.
- * @param uid User ID from sandbox config
- * @param con Context to apply the MCS range to
- * @return SANDBOX_SUCCESS on success, error code on failure
- */
-static int ApplyMcsLevel(uint32_t uid, context_t con)
+static int ApplyMcsLevelFromPid(pid_t targetPid, context_t con)
 {
-    if (uid < MCS_UID_BASE) {
-        return SANDBOX_SUCCESS;
-    }
-    uint32_t userId = uid / MCS_UID_BASE;
-    uint32_t appId = uid % MCS_UID_BASE;
-    if (userId < MCS_USER_BASE) {
-        return SANDBOX_SUCCESS;
-    }
-
-    // Build MCS level string: "s0:x<seg0>,x<seg1>,x<seg2>,x<seg3>,x<seg4>"
-    std::string level = "s0:x" +
-        std::to_string(CATEGORY_SEG0_OFFSET + (appId & CATEGORY_MASK)) +
-        ",x" + std::to_string(CATEGORY_SEG1_OFFSET + ((appId >> SHIFT_8) & CATEGORY_MASK)) +
-        ",x" + std::to_string(CATEGORY_SEG2_OFFSET + ((appId >> SHIFT_16) & CATEGORY_MASK)) +
-        ",x" + std::to_string(CATEGORY_SEG3_OFFSET + (userId & CATEGORY_MASK)) +
-        ",x" + std::to_string(CATEGORY_SEG4_OFFSET + ((userId >> SHIFT_8) & CATEGORY_MASK));
-    int ret = context_range_set(con, level.c_str());
-    if (ret != 0) {
-        SANDBOX_LOGE("ApplyMcsLevel: context_range_set failed, level=%{public}s",
-                     level.c_str());
+    char *targetContext = nullptr;
+    if (getpidcon(targetPid, &targetContext) < 0) {
+        SANDBOX_LOGE("SetSelinuxMCS: getpidcon failed, pid=%{public}d, ret=%{public}s",
+                     targetPid, strerror(errno));
         return SANDBOX_ERR_SET_SELINUX_FAILED;
     }
+
+    context_t targetCon = context_new(targetContext);
+    freecon(targetContext);
+    targetContext = nullptr;
+    if (targetCon == nullptr) {
+        SANDBOX_LOGE("SetSelinuxMCS: context_new for target failed, pid=%{public}d", targetPid);
+        return SANDBOX_ERR_SET_SELINUX_FAILED;
+    }
+
+    const char *targetRange = context_range_get(targetCon);
+    if (targetRange == nullptr) {
+        SANDBOX_LOGE("SetSelinuxMCS: context_range_get failed, pid=%{public}d", targetPid);
+        context_free(targetCon);
+        return SANDBOX_ERR_SET_SELINUX_FAILED;
+    }
+
+    int ret = context_range_set(con, targetRange);
+    if (ret != 0) {
+        SANDBOX_LOGE("SetSelinuxMCS: context_range_set failed, range=%{public}s", targetRange);
+        context_free(targetCon);
+        return SANDBOX_ERR_SET_SELINUX_FAILED;
+    }
+
+    context_free(targetCon);
     return SANDBOX_SUCCESS;
 }
 
-/**
- * @brief Get the current SELinux context, apply MCS level based on uid,
- *        validate, and set the new process context.
- * @param uid User ID for MCS level calculation
- * @return SANDBOX_SUCCESS on success, error code on failure
- */
-static int SetSelinuxContext(uint32_t uid)
+static int SetSelinuxContext(pid_t targetPid)
 {
     // Get the current SELinux context
     char *curContext = nullptr;
@@ -1117,8 +1092,7 @@ static int SetSelinuxContext(uint32_t uid)
         return SANDBOX_ERR_SET_SELINUX_FAILED;
     }
 
-    // Apply MCS level based on uid
-    int ret = ApplyMcsLevel(uid, con);
+    int ret = ApplyMcsLevelFromPid(targetPid, con);
     if (ret != SANDBOX_SUCCESS) {
         context_free(con);
         return ret;
@@ -1161,9 +1135,7 @@ int SandboxManager::SetSelinuxMCS()
         return SANDBOX_SUCCESS;
     }
 
-    // Get the current SELinux context, apply MCS level based on uid,
-    // validate, and set it as the new process context.
-    return SetSelinuxContext(config_.uid);
+    return SetSelinuxContext(config_.callerPid);
 }
 #endif
 

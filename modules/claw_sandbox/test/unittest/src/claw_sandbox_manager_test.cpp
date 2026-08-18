@@ -26,6 +26,8 @@
 #include <fstream>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
+#include <selinux/context.h>
+#include <selinux/selinux.h>
 #include <string>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -51,6 +53,7 @@ static constexpr uint64_t TEST_SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32
 static constexpr uint64_t TEST_HAP_TOKEN_ID = TEST_SYSTEM_APP_MASK | 0x200D000D;
 
 static constexpr int32_t TEST_IOCTL_FD = 100;
+static constexpr uint32_t TEST_MCS_UID = 20020026;
 
 class SandboxDirGuard {
 public:
@@ -196,6 +199,36 @@ public:
 private:
     IoctlMockState saved_;
 };
+
+// RAII guard that enables deterministic SELinux mocks for a single test.
+class SelinuxMockGuard {
+public:
+    SelinuxMockGuard()
+    {
+        saved_ = g_selinuxMockState;
+        g_selinuxMockState = SelinuxMockState {};
+        g_selinuxMockState.mockEnabled = true;
+    }
+
+    ~SelinuxMockGuard()
+    {
+        g_selinuxMockState = saved_;
+    }
+
+private:
+    SelinuxMockState saved_;
+};
+
+static void InitializeMcsManager(SandboxManager &manager, pid_t callerPid)
+{
+    SandboxConfig config;
+    config.uid = TEST_MCS_UID;
+    config.gid = TEST_MCS_UID;
+    config.callerPid = callerPid;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(std::move(config), cmdInfo);
+}
 
 void ClawSandboxManagerTest::SetUpTestCase() {}
 void ClawSandboxManagerTest::TearDownTestCase() {}
@@ -1910,141 +1943,255 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter008, TestSize.Level0)
 
 /**
  * @tc.name: ApplyMcsLevel001
- * @tc.desc: Verify MCS level constants and segment offset calculations for uid=20020026
+ * @tc.desc: Verify MCS range can be copied from target context to self context
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxManagerTest, ApplyMcsLevel001, TestSize.Level0)
 {
-    // Verify the MCS category segment offsets
-    constexpr int CATEGORY_SEG0_OFFSET = 0;
-    constexpr int CATEGORY_SEG1_OFFSET = 256;
-    constexpr int CATEGORY_SEG2_OFFSET = 512;
-    constexpr int CATEGORY_SEG3_OFFSET = 768;
-    constexpr int CATEGORY_SEG4_OFFSET = 1024;
-    constexpr int CATEGORY_MASK = 0xff;
-    constexpr int SHIFT_8 = 8;
-    constexpr int SHIFT_16 = 16;
+    const char *selfContext = "u:r:claw_sandbox:s0";
+    const char *targetContext = "u:r:hap:s0:x58,x334,x512,x868,x1024";
 
-    // uid = 20020026
-    // userId = 20020026 / 200000 = 100
-    // appId = 20020026 % 200000 = 20026
-    //
-    // seg0 = 0 + (20026 & 0xff) = 0 + 58 = 58
-    // seg1 = 256 + ((20026 >> 8) & 0xff) = 256 + 78 = 334
-    // seg2 = 512 + ((20026 >> 16) & 0xff) = 512 + 0 = 512
-    // seg3 = 768 + (100 & 0xff) = 768 + 100 = 868
-    // seg4 = 1024 + ((100 >> 8) & 0xff) = 1024 + 0 = 1024
-    uint32_t uid = 20020026;
-    uint32_t userId = uid / 200000;
-    uint32_t appId = uid % 200000;
+    context_t selfCon = context_new(selfContext);
+    ASSERT_NE(selfCon, nullptr);
 
-    EXPECT_EQ(userId, 100U);
-    EXPECT_EQ(appId, 20026U);
+    context_t targetCon = context_new(targetContext);
+    ASSERT_NE(targetCon, nullptr);
 
-    int seg0 = CATEGORY_SEG0_OFFSET + static_cast<int>(appId & CATEGORY_MASK);
-    int seg1 = CATEGORY_SEG1_OFFSET + static_cast<int>((appId >> SHIFT_8) & CATEGORY_MASK);
-    int seg2 = CATEGORY_SEG2_OFFSET + static_cast<int>((appId >> SHIFT_16) & CATEGORY_MASK);
-    int seg3 = CATEGORY_SEG3_OFFSET + static_cast<int>(userId & CATEGORY_MASK);
-    int seg4 = CATEGORY_SEG4_OFFSET + static_cast<int>((userId >> SHIFT_8) & CATEGORY_MASK);
+    const char *targetRange = context_range_get(targetCon);
+    ASSERT_NE(targetRange, nullptr);
+    EXPECT_STREQ(targetRange, "s0:x58,x334,x512,x868,x1024");
 
-    EXPECT_EQ(seg0, 58);
-    EXPECT_EQ(seg1, 334);
-    EXPECT_EQ(seg2, 512);
-    EXPECT_EQ(seg3, 868);
-    EXPECT_EQ(seg4, 1024);
+    int ret = context_range_set(selfCon, targetRange);
+    EXPECT_EQ(ret, 0);
 
-    std::string expectedLevel = "s0:x" + std::to_string(seg0)
-        + ",x" + std::to_string(seg1)
-        + ",x" + std::to_string(seg2)
-        + ",x" + std::to_string(seg3)
-        + ",x" + std::to_string(seg4);
-    EXPECT_EQ(expectedLevel, "s0:x58,x334,x512,x868,x1024");
+    const char *newContext = context_str(selfCon);
+    ASSERT_NE(newContext, nullptr);
+    EXPECT_STREQ(newContext, "u:r:claw_sandbox:s0:x58,x334,x512,x868,x1024");
+
+    context_free(targetCon);
+    context_free(selfCon);
 }
 
 /**
  * @tc.name: ApplyMcsLevel002
- * @tc.desc: Verify MCS level string for uid with non-zero appId high bytes
+ * @tc.desc: Verify copying MCS range does not change user, role or type
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxManagerTest, ApplyMcsLevel002, TestSize.Level0)
 {
-    constexpr int CATEGORY_MASK = 0xff;
-    constexpr int SHIFT_8 = 8;
-    constexpr int SHIFT_16 = 16;
+    const char *selfContext = "u:r:claw_sandbox:s0:x1,x2";
+    const char *targetContext = "u:r:hap:s0:x100,x300,x500";
 
-    // uid = 20020026 + 0x11D = 20020311
-    // appId = 20020311 % 200000 = 20311 = 0x4F57
-    // appId & 0xff = 0x57 = 87
-    // (appId >> 8) & 0xff = 0x4F = 79
-    // (appId >> 16) & 0xff = 0x00 = 0
-    uint32_t uid = 20020026 + 0x11D;
-    uint32_t userId = uid / 200000;
-    uint32_t appId = uid % 200000;
+    context_t selfCon = context_new(selfContext);
+    ASSERT_NE(selfCon, nullptr);
 
-    EXPECT_EQ(userId, 100U);
-    EXPECT_EQ(appId, 20311U);
+    context_t targetCon = context_new(targetContext);
+    ASSERT_NE(targetCon, nullptr);
 
-    int seg0 = 0 + static_cast<int>(appId & CATEGORY_MASK);
-    int seg1 = 256 + static_cast<int>((appId >> SHIFT_8) & CATEGORY_MASK);
-    int seg2 = 512 + static_cast<int>((appId >> SHIFT_16) & CATEGORY_MASK);
+    const char *targetRange = context_range_get(targetCon);
+    ASSERT_NE(targetRange, nullptr);
 
-    EXPECT_EQ(seg0, 87);
-    EXPECT_EQ(seg1, 335);
-    EXPECT_EQ(seg2, 512);
+    int ret = context_range_set(selfCon, targetRange);
+    EXPECT_EQ(ret, 0);
+
+    const char *user = context_user_get(selfCon);
+    const char *role = context_role_get(selfCon);
+    const char *type = context_type_get(selfCon);
+    const char *range = context_range_get(selfCon);
+
+    ASSERT_NE(user, nullptr);
+    ASSERT_NE(role, nullptr);
+    ASSERT_NE(type, nullptr);
+    ASSERT_NE(range, nullptr);
+
+    EXPECT_STREQ(user, "u");
+    EXPECT_STREQ(role, "r");
+    EXPECT_STREQ(type, "claw_sandbox");
+    EXPECT_STREQ(range, "s0:x100,x300,x500");
+
+    context_free(targetCon);
+    context_free(selfCon);
 }
 
 /**
  * @tc.name: ApplyMcsLevel003
- * @tc.desc: Verify MCS level string for uid with non-zero userId high bytes
+ * @tc.desc: Verify MCS range without categories can replace existing range
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxManagerTest, ApplyMcsLevel003, TestSize.Level0)
 {
-    constexpr int CATEGORY_MASK = 0xff;
-    constexpr int SHIFT_8 = 8;
+    const char *selfContext = "u:r:claw_sandbox:s0:x1,x2";
+    const char *targetContext = "u:r:hap:s0";
 
-    // uid = 200000 * 300 + 42 = 60000042
-    // userId = 300 = 0x12C
-    // userId & 0xff = 0x2C = 44
-    // (userId >> 8) & 0xff = 0x01 = 1
-    uint32_t uid = 200000 * 300 + 42;
-    uint32_t userId = uid / 200000;
-    uint32_t appId = uid % 200000;
+    context_t selfCon = context_new(selfContext);
+    ASSERT_NE(selfCon, nullptr);
 
-    EXPECT_EQ(userId, 300U);
-    EXPECT_EQ(appId, 42U);
+    context_t targetCon = context_new(targetContext);
+    ASSERT_NE(targetCon, nullptr);
 
-    int seg3 = 768 + static_cast<int>(userId & CATEGORY_MASK);
-    int seg4 = 1024 + static_cast<int>((userId >> SHIFT_8) & CATEGORY_MASK);
+    const char *targetRange = context_range_get(targetCon);
+    ASSERT_NE(targetRange, nullptr);
+    EXPECT_STREQ(targetRange, "s0");
 
-    EXPECT_EQ(seg3, 812);
-    EXPECT_EQ(seg4, 1025);
+    int ret = context_range_set(selfCon, targetRange);
+    EXPECT_EQ(ret, 0);
+
+    const char *newContext = context_str(selfCon);
+    ASSERT_NE(newContext, nullptr);
+    EXPECT_STREQ(newContext, "u:r:claw_sandbox:s0");
+
+    context_free(targetCon);
+    context_free(selfCon);
 }
 
 // ==================== SetSelinuxMCS tests ====================
 
 /**
  * @tc.name: SetSelinuxMCS001
- * @tc.desc: SetSelinuxMCS checks is_selinux_enabled first
+ * @tc.desc: Verify SetSelinuxMCS copies the caller MCS range and preserves the current domain
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxManagerTest, SetSelinuxMCS001, TestSize.Level0)
 {
+    SelinuxMockGuard guard;
+    constexpr pid_t callerPid = 12345;
     SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
+    InitializeMcsManager(manager, callerPid);
 
     int ret = manager.SetSelinuxMCS();
-    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_SELINUX_FAILED);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(callerPid, g_selinuxMockState.capturedPid);
+    EXPECT_EQ(1, g_selinuxMockState.getconCallCount);
+    EXPECT_EQ(1, g_selinuxMockState.getpidconCallCount);
+    EXPECT_EQ(1, g_selinuxMockState.securityCheckCallCount);
+    EXPECT_EQ(1, g_selinuxMockState.setconCallCount);
+    const std::string expectedContext = "u:r:claw_sandbox:s0:x58,x334,x512,x868,x1024";
+    EXPECT_EQ(expectedContext, g_selinuxMockState.checkedContext);
+    EXPECT_EQ(expectedContext, g_selinuxMockState.setconContext);
+}
+
+/**
+ * @tc.name: SetSelinuxMCS002
+ * @tc.desc: Verify SetSelinuxMCS skips all context operations when SELinux is disabled
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetSelinuxMCS002, TestSize.Level0)
+{
+    SelinuxMockGuard guard;
+    g_selinuxMockState.selinuxEnabled = 0;
+    SandboxManager manager;
+    InitializeMcsManager(manager, 12345);
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetSelinuxMCS());
+    EXPECT_EQ(0, g_selinuxMockState.getconCallCount);
+    EXPECT_EQ(0, g_selinuxMockState.getpidconCallCount);
+    EXPECT_EQ(0, g_selinuxMockState.securityCheckCallCount);
+    EXPECT_EQ(0, g_selinuxMockState.setconCallCount);
+}
+
+/**
+ * @tc.name: SetSelinuxMCS003
+ * @tc.desc: Verify SetSelinuxMCS returns an error when the current context cannot be read
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetSelinuxMCS003, TestSize.Level0)
+{
+    SelinuxMockGuard guard;
+    g_selinuxMockState.getconRet = -1;
+    SandboxManager manager;
+    InitializeMcsManager(manager, 12345);
+
+    EXPECT_EQ(SANDBOX_ERR_SET_SELINUX_FAILED, manager.SetSelinuxMCS());
+    EXPECT_EQ(1, g_selinuxMockState.getconCallCount);
+    EXPECT_EQ(0, g_selinuxMockState.getpidconCallCount);
+    EXPECT_EQ(0, g_selinuxMockState.securityCheckCallCount);
+    EXPECT_EQ(0, g_selinuxMockState.setconCallCount);
+}
+
+/**
+ * @tc.name: SetSelinuxMCS004
+ * @tc.desc: Verify SetSelinuxMCS returns an error when the caller context cannot be read
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetSelinuxMCS004, TestSize.Level0)
+{
+    SelinuxMockGuard guard;
+    constexpr pid_t callerPid = 54321;
+    g_selinuxMockState.getpidconRet = -1;
+    SandboxManager manager;
+    InitializeMcsManager(manager, callerPid);
+
+    EXPECT_EQ(SANDBOX_ERR_SET_SELINUX_FAILED, manager.SetSelinuxMCS());
+    EXPECT_EQ(callerPid, g_selinuxMockState.capturedPid);
+    EXPECT_EQ(1, g_selinuxMockState.getconCallCount);
+    EXPECT_EQ(1, g_selinuxMockState.getpidconCallCount);
+    EXPECT_EQ(0, g_selinuxMockState.securityCheckCallCount);
+    EXPECT_EQ(0, g_selinuxMockState.setconCallCount);
+}
+
+/**
+ * @tc.name: SetSelinuxMCS005
+ * @tc.desc: Verify SetSelinuxMCS rejects a malformed caller context
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetSelinuxMCS005, TestSize.Level0)
+{
+    SelinuxMockGuard guard;
+    g_selinuxMockState.targetContext = "invalid_context";
+    SandboxManager manager;
+    InitializeMcsManager(manager, 12345);
+
+    EXPECT_EQ(SANDBOX_ERR_SET_SELINUX_FAILED, manager.SetSelinuxMCS());
+    EXPECT_EQ(1, g_selinuxMockState.getconCallCount);
+    EXPECT_EQ(1, g_selinuxMockState.getpidconCallCount);
+    EXPECT_EQ(0, g_selinuxMockState.securityCheckCallCount);
+    EXPECT_EQ(0, g_selinuxMockState.setconCallCount);
+}
+
+/**
+ * @tc.name: SetSelinuxMCS006
+ * @tc.desc: Verify SetSelinuxMCS stops when the composed context fails validation
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetSelinuxMCS006, TestSize.Level0)
+{
+    SelinuxMockGuard guard;
+    g_selinuxMockState.securityCheckRet = -1;
+    SandboxManager manager;
+    InitializeMcsManager(manager, 12345);
+
+    EXPECT_EQ(SANDBOX_ERR_SET_SELINUX_FAILED, manager.SetSelinuxMCS());
+    EXPECT_EQ("u:r:claw_sandbox:s0:x58,x334,x512,x868,x1024", g_selinuxMockState.checkedContext);
+    EXPECT_EQ(1, g_selinuxMockState.securityCheckCallCount);
+    EXPECT_EQ(0, g_selinuxMockState.setconCallCount);
+}
+
+/**
+ * @tc.name: SetSelinuxMCS007
+ * @tc.desc: Verify SetSelinuxMCS propagates setcon failure after composing the expected context
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetSelinuxMCS007, TestSize.Level0)
+{
+    SelinuxMockGuard guard;
+    g_selinuxMockState.setconRet = -1;
+    SandboxManager manager;
+    InitializeMcsManager(manager, 12345);
+
+    EXPECT_EQ(SANDBOX_ERR_SET_SELINUX_FAILED, manager.SetSelinuxMCS());
+    EXPECT_EQ("u:r:claw_sandbox:s0:x58,x334,x512,x868,x1024", g_selinuxMockState.setconContext);
+    EXPECT_EQ(1, g_selinuxMockState.securityCheckCallCount);
+    EXPECT_EQ(1, g_selinuxMockState.setconCallCount);
 }
 
 // ==================== GenerateSandboxName tests ====================
@@ -2775,7 +2922,7 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps002, TestSize.Level0)
     manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ExecuteEarlySteps();
-    EXPECT_EQ(SANDBOX_ERR_NS_FAILED, ret);
+    EXPECT_EQ(SANDBOX_ERR_SET_SELINUX_FAILED, ret);
 }
 
 // ==================== ExecuteLateSteps tests ====================
