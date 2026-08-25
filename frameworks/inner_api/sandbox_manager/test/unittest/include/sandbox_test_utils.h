@@ -17,8 +17,25 @@
 #define SANDBOX_TEST_UTILS_H
 
 #include "sandbox_test_common.h"
+#include <cstdint>
+#include <string>
+#include <sys/ioctl.h>
+#include <vector>
+
+struct dec_token_num_arg {
+    uint64_t tokenid;
+    int32_t num;
+    int32_t denyNum;
+    int32_t reserved[2];
+};
+
+#define HM_DEC_IOCTL_BASE 's'
+#define HM_GET_TOKEN_NUM_ID 14
+#define GET_TOKEN_NUM_CMD _IOWR(HM_DEC_IOCTL_BASE, HM_GET_TOKEN_NUM_ID, struct dec_token_num_arg)
 
 bool IsDenyPolicyForPath(const char *targetPath);
 bool IsDenyPolicyFileExists();
+int GetTokenNum(uint64_t tokenid, int32_t &num, int32_t &denyNum);
+int CleanPolicyByPathByUser(int32_t userId, const std::vector<std::string> &filePathList);
 
 #endif // SANDBOX_TEST_UTILS_H

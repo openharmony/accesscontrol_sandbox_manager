@@ -29,7 +29,7 @@ public:
     void SetUp();
     void TearDown();
 
-    bool fileManagerPresent_ = false;
+    static bool fileManagerPresent_;
 };
 } //SandboxManager
 } //AccessControl
