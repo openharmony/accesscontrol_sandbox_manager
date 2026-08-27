@@ -97,6 +97,7 @@ private:
     bool PackageChangedEventAction(const SystemAbilityOnDemandReason &startReason);
     bool PackageAddEventAction(const SystemAbilityOnDemandReason &startReason);
     bool PackageRemoveEventAction(const SystemAbilityOnDemandReason &startReason);
+    int32_t GetUserIdByToken(uint32_t tokenId, int32_t &userId);
     int32_t KillProcessForPermissionUpdate(uint32_t accessTokenId);
     std::mutex stateMutex_;
     ServiceRunningState state_;

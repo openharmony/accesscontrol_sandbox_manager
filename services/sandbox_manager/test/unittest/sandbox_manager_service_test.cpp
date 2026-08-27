@@ -297,7 +297,11 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest003, TestSize.Level
     PolicyVecRawData policyRawData1;
     policyRawData1.Marshalling(policy);
     std::vector<uint32_t> result1;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->StartAccessingPolicy(policyRawData1, resultRawData));
+    int32_t uid = getuid();
+    setuid(FOUNDATION_UID);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->StartAccessingPolicy(policyRawData1, resultRawData,
+        false, static_cast<uint32_t>(sysGrantToken_), 0));
+    setuid(uid);
     resultRawData.Unmarshalling(result1);
     sizeLimit = POLICY_VECTOR_SIZE + 1;
     EXPECT_EQ(sizeLimit, result1.size());
@@ -501,7 +505,11 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest009, TestSize.Level
     PolicyVecRawData policyRawData;
     policyRawData.Marshalling(policy);
     Uint32VecRawData resultRawData;
-    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->StartAccessingPolicy(policyRawData, resultRawData));
+    int32_t uid = getuid();
+    setuid(FOUNDATION_UID);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->StartAccessingPolicy(policyRawData, resultRawData,
+        false, static_cast<uint32_t>(sysGrantToken_), 0));
+    setuid(uid);
     Uint32VecRawData resultRawData1;
     EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->StopAccessingPolicy(policyRawData, resultRawData1));
 
@@ -593,7 +601,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest011A, TestSize.Leve
 {
     uint32_t selfUid = getuid();
     setuid(FOUNDATION_UID);
-    int result = sandboxManagerService_->StartAccessingByTokenId(selfTokenId_, 1);
+    int result = sandboxManagerService_->StartAccessingByTokenId(sysGrantToken_, 1);
     bool pass = (result == SANDBOX_MANAGER_OK || result == SANDBOX_MANAGER_DB_RETURN_EMPTY);
     EXPECT_TRUE(pass);
     setuid(selfUid);
@@ -904,8 +912,11 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceRawDataTest003, TestSiz
         sandboxManagerService_->CheckPolicy(selfTokenId_, policyRawData1, resultRawData2));
     EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
         sandboxManagerService_->CheckPersistPolicy(selfTokenId_, policyRawData1, resultRawData2));
+    setuid(FOUNDATION_UID);
     EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
-        sandboxManagerService_->StartAccessingPolicy(policyRawData1, resultRawData1));
+        sandboxManagerService_->StartAccessingPolicy(policyRawData1, resultRawData1,
+            false, static_cast<uint32_t>(sysGrantToken_), 0));
+    setuid(uid);
     EXPECT_EQ(SANDBOX_MANAGER_SERVICE_PARCEL_ERR,
         sandboxManagerService_->StopAccessingPolicy(policyRawData1, resultRawData1));
 }
