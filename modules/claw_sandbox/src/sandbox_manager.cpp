@@ -2130,7 +2130,8 @@ bool SandboxManager::IsAllowedExecContext(const char *path) {
     if (type) {
         if (config_.type == "shell" && (strcmp(type, "sh_exec") == 0)) {
             isAllowed = true;
-        } else if (config_.type == "cli" && (strcmp(type, "sa_aimgr_climgr_exec_file") == 0)) {
+        } else if (config_.type == "cli" && (strcmp(type, "sa_aimgr_climgr_exec_file") == 0
+            || strcmp(type, "print_aimgr_climgr_exec_file") == 0)) {
             isAllowed = true;
         } else {
             std::cerr << "Error: Sandbox Blocked: Executable type '" << type << "' is not allowed." << std::endl;
