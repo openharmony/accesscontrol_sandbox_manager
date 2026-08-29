@@ -608,6 +608,49 @@ HWTEST_F(SandboxManagerServiceCoverageTest, Coverage_GetPersistPolicy_TokenInval
     SetSelfTokenID(selfTokenId_);
 }
 
+/**
+ * @tc.name: Coverage_StartAccessingByTokenId_InvalidToken_001
+ * @tc.desc: Cover StartAccessingByTokenId with non-zero invalid tokenId - GetUserIdByToken failure
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceCoverageTest, Coverage_StartAccessingByTokenId_InvalidToken_001, TestSize.Level0)
+{
+    uint32_t invalidTokenId = 0xFFFFFFFE;
+    uint32_t selfUid = getuid();
+    setuid(FOUNDATION_UID);
+    EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->StartAccessingByTokenId(invalidTokenId, 1));
+    setuid(selfUid);
+}
+
+/**
+ * @tc.name: Coverage_StartAccessingPolicy_UseCallerTokenFalse_InvalidToken_001
+ * @tc.desc: Cover StartAccessingPolicy with useCallerToken=false and invalid tokenId - GetUserIdByToken failure
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceCoverageTest, Coverage_StartAccessingPolicy_UseCallerTokenFalse_InvalidToken_001,
+    TestSize.Level0)
+{
+    uint32_t invalidTokenId = 0xFFFFFFFE;
+    std::vector<PolicyInfo> policies;
+    PolicyInfo info;
+    info.path = "/data/coverage/startaccessing_invalid_token";
+    info.mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE;
+    policies.emplace_back(info);
+    PolicyVecRawData policyRawData = BuildPolicyRawData(policies);
+    Uint32VecRawData resultRawData;
+
+    SetSelfTokenID(sysGrantToken_);
+    int32_t selfUid = getuid();
+    setuid(FOUNDATION_UID);
+    EXPECT_EQ(INVALID_PARAMTER,
+        sandboxManagerService_->StartAccessingPolicy(policyRawData, resultRawData,
+            false, invalidTokenId, 0));
+    setuid(selfUid);
+    SetSelfTokenID(selfTokenId_);
+}
+
 } // namespace SandboxManager
 } // namespace AccessControl
 } // namespace OHOS

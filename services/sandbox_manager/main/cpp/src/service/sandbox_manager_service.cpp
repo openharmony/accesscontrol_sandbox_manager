@@ -186,6 +186,22 @@ void SandboxManagerService::OnStart(const SystemAbilityOnDemandReason& startReas
     SANDBOXMANAGER_LOG_INFO(LABEL, "SandboxManagerService start successful.");
 }
 
+int32_t SandboxManagerService::GetUserIdByToken(uint32_t tokenId, int32_t &userId)
+{
+    Security::AccessToken::HapTokenInfo hapTokenInfoRes;
+    int ret = Security::AccessToken::AccessTokenKit::GetHapTokenInfo(tokenId, hapTokenInfoRes);
+    if (ret != 0) {
+        LOGE_WITH_REPORT(LABEL, "GetHapTokenInfo failed, tokenID=%{public}u, ret=%{public}d", tokenId, ret);
+        return INVALID_PARAMTER;
+    }
+
+    userId = hapTokenInfoRes.userID;
+    if (userId == 0) {
+        LOGE_WITH_REPORT(LABEL, "GetUserIdByToken need check, tokenID=%{public}u", tokenId);
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
 int32_t SandboxManagerService::CleanPersistPolicyByPath(const std::vector<std::string> &filePathList)
 {
     DelayUnloadService();
@@ -627,9 +643,8 @@ int32_t SandboxManagerService::StartAccessingPolicy(const PolicyVecRawData &poli
         callingTokenId = tokenId;
     }
     int32_t userId = 0;
-    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    int32_t ret = GetUserIdByToken(callingTokenId, userId);
     if (ret != 0) {
-        LOGE_WITH_REPORT(LABEL, "start accessing policy failed, get user id failed error=%{public}d", ret);
         return INVALID_PARAMTER;
     }
 
@@ -703,9 +718,8 @@ int32_t SandboxManagerService::StartAccessingByTokenId(uint32_t tokenId, uint64_
         return INVALID_PARAMTER;
     }
     int32_t userId = 0;
-    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    int32_t ret = GetUserIdByToken(tokenId, userId);
     if (ret != 0) {
-        LOGE_WITH_REPORT(LABEL, "start accessing by token failed, get user id failed error=%{public}d", ret);
         return INVALID_PARAMTER;
     }
     return PolicyInfoManager::GetInstance().StartAccessingByTokenId(tokenId, userId, timestamp);
