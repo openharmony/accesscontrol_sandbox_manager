@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <chrono>
+#include <charconv>
 #include "accesstoken_kit.h"
 #include "common_event_support.h"
 #include "ipc_skeleton.h"
@@ -832,7 +833,6 @@ void SandboxManagerService::DelayUnloadService()
 #endif
 }
 
-constexpr int DECIMAL_BASE = 10;
 template <typename T>
 static int32_t GetDemandReasonValue(std::string value, T &data)
 {
@@ -841,29 +841,19 @@ static int32_t GetDemandReasonValue(std::string value, T &data)
         return INVALID_PARAMTER;
     }
 
-    errno = 0;
-    char *endPtr = nullptr;
-    if constexpr (std::is_same_v<T, uint32_t>) {
-        unsigned long result = strtoul(value.c_str(), &endPtr, DECIMAL_BASE);
-        if (errno == ERANGE) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Value out of range: %{public}s", value.c_str());
-            return INVALID_PARAMTER;
-        }
-        data = static_cast<T>(result);
-    } else {
-        long result = strtol(value.c_str(), &endPtr, DECIMAL_BASE);
-        if (errno == ERANGE) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "Value out of range: %{public}s", value.c_str());
-            return INVALID_PARAMTER;
-        }
-        data = static_cast<T>(result);
+    T result{};
+    const char *first = value.data();
+    const char *last = first + value.size();
+    auto [ptr, ec] = std::from_chars(first, last, result);
+    if (ec == std::errc::result_out_of_range) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Value out of range: %{public}s", value.c_str());
+        return INVALID_PARAMTER;
     }
-
-    if (endPtr == nullptr || *endPtr != '\0') {
+    if (ec != std::errc{} || ptr != last) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Convert failed, %{public}s.", value.c_str());
         return INVALID_PARAMTER;
     }
-
+    data = result;
     return SANDBOX_MANAGER_OK;
 }
 
