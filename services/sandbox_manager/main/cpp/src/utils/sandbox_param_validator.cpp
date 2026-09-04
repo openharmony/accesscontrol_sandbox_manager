@@ -174,7 +174,9 @@ int32_t SandboxParamValidator::ValidateTempMode(uint64_t mode)
 
 int32_t SandboxParamValidator::ValidateDenyMode(uint64_t mode)
 {
-    constexpr uint64_t denyBits = OperateMode::DENY_READ_MODE | OperateMode::DENY_WRITE_MODE;
+    constexpr uint64_t denyBits = OperateMode::DENY_READ_MODE | OperateMode::DENY_WRITE_MODE |
+        OperateMode::DENY_RENAME_MODE | OperateMode::DENY_REMOVE_MODE |
+        OperateMode::DENY_INHERIT_MODE | OperateMode::DENY_SET_MODE | OperateMode::DENY_SET_ALL_MODE;
     if ((mode & denyBits) == 0 || (mode & ~denyBits) != 0) {
         return SandboxRetType::INVALID_MODE;
     }

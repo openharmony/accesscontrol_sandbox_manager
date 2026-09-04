@@ -62,9 +62,15 @@ typedef enum OperateMode {
     CREATE_MODE = 1 << 2,
     DELETE_MODE = 1 << 3,
     RENAME_MODE = 1 << 4,
+    MAX_MODE = 1 << 5,
     DENY_READ_MODE = 1 << 5,
     DENY_WRITE_MODE = 1 << 6,
-    MAX_MODE = 1 << 7,
+    DENY_RENAME_MODE = 1 << 7,
+    DENY_REMOVE_MODE = 1 << 8,
+    DENY_INHERIT_MODE = 1 << 9,
+    DENY_SET_MODE = 1 << 10,
+    DENY_SET_ALL_MODE = 1 << 11,
+    MAX_DENY_MODE = 1 << 12,
 } OperateMode;
 
 struct SharedDirectoryInfo final {

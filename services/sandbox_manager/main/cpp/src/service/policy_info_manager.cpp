@@ -332,14 +332,9 @@ uint32_t PolicyInfoManager::FilterValidPolicyInBatch(const std::vector<PolicyInf
 {
     size_t policySize = policies.size();
     for (size_t i = 0; i < policySize; ++i) {
-        int32_t checkPolicyRet = CheckPolicyValidity(policies[i]);
+        int32_t checkPolicyRet = CheckPolicyValidity(policies[i], SetPolicyType::NORMAL_POLICY);
         if (checkPolicyRet != SANDBOX_MANAGER_OK) {
             results[i] = static_cast<uint32_t>(checkPolicyRet);
-            continue;
-        }
-
-        if (IsModeMatchPolicyType(policies[i].mode, SetPolicyType::TEMP_POLICY) != true) {
-            results[i] = SandboxRetType::INVALID_MODE;
             continue;
         }
 
@@ -467,14 +462,10 @@ void PolicyInfoManager::ValidatePolicyAtIndex(size_t i, const std::vector<Policy
     std::vector<uint32_t> &result, uint32_t &invalidNum, std::vector<PolicyInfo> &mediaPolicy,
     std::vector<size_t> &validMediaIndex)
 {
-    int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
+    int32_t checkPolicyRet = CheckPolicyValidity(policy[i], SetPolicyType::NORMAL_POLICY);
     if (checkPolicyRet != SANDBOX_MANAGER_OK) {
         result[i] = static_cast<uint32_t>(checkPolicyRet);
         ++invalidNum;
-        return;
-    }
-    if (IsModeMatchPolicyType(policy[i].mode, SetPolicyType::TEMP_POLICY) != true) {
-        result[i] = SandboxRetType::INVALID_MODE;
         return;
     }
     if (SandboxManagerMedia::GetInstance().IsMediaPolicy(policy[i].path)) {
@@ -578,7 +569,7 @@ void PolicyInfoManager::ProcessPolicyMatches(const std::vector<PolicyInfo> &poli
     uint32_t tokenId, PolicyTrie &trieTree, PolicyTrie &trieTreeNew, std::vector<uint32_t> &result)
 {
     for (size_t i = 0; i < policySize; i++) {
-        int32_t checkPolicyRet = CheckPolicyValidity(policy[i]);
+        int32_t checkPolicyRet = CheckPolicyValidity(policy[i], SetPolicyType::NORMAL_POLICY);
         if (checkPolicyRet != SANDBOX_MANAGER_OK) {
             result[i] = static_cast<uint32_t>(checkPolicyRet);
             continue;
@@ -736,26 +727,10 @@ int32_t PolicyInfoManager::UnsetSandboxPolicyAndRecord(const uint32_t tokenId, c
 
 bool PolicyInfoManager::IsModeMatchPolicyType(uint64_t mode, SetPolicyType type)
 {
-    SetPolicyType modeType = SetPolicyType::TEMP_POLICY;
-    if ((mode & (OperateMode::DENY_READ_MODE | OperateMode::DENY_WRITE_MODE)) != 0) {
-        modeType = SetPolicyType::DENY_POLICY;
-    }
-
-    return (type == modeType);
-}
-
-int32_t PolicyInfoManager::CheckSetPolicyInput(const PolicyInfo &policy, const SetInfo &setInfo, SetPolicyType type)
-{
-    int32_t res = CheckPolicyValidity(policy);
-    if (res != SANDBOX_MANAGER_OK) {
-        return res;
-    }
-
-    if (IsModeMatchPolicyType(policy.mode, type) != true) {
-        return SandboxRetType::INVALID_MODE;
-    }
-
-    return SANDBOX_MANAGER_OK;
+    // NORMAL_POLICY: [READ_MODE, MAX_MODE), DENY_POLICY: [MAX_MODE, MAX_DENY_MODE)
+    uint64_t lowerBound = (type == SetPolicyType::DENY_POLICY) ? OperateMode::MAX_MODE : OperateMode::READ_MODE;
+    uint64_t upperBound = (type == SetPolicyType::DENY_POLICY) ? OperateMode::MAX_DENY_MODE : OperateMode::MAX_MODE;
+    return (mode >= lowerBound && mode < upperBound);
 }
 
 int32_t PolicyInfoManager::SetPolicyByType(std::vector<PolicyInfo> &validPolicies, std::vector<uint32_t> &setResult,
@@ -821,7 +796,7 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
     std::vector<PolicyInfo> validPolicies;
     uint32_t invalidNum = 0;
     for (size_t index = 0; index < policySize; ++index) {
-        int32_t res = CheckSetPolicyInput(policy[index], setInfo, SetPolicyType::TEMP_POLICY);
+        int32_t res = CheckPolicyValidity(policy[index], SetPolicyType::NORMAL_POLICY);
         if (res != SANDBOX_MANAGER_OK) {
             result[index] = static_cast<uint32_t>(res);
             ++invalidNum;
@@ -838,7 +813,7 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
         validPolicies.emplace_back(policy[index]);
     }
     MacParams macParams = {tokenId, policyFlag, setInfo.timestamp, userId};
-    PolicyInfoInner info = {invalidNum, policySize, SetPolicyType::TEMP_POLICY};
+    PolicyInfoInner info = {invalidNum, policySize, SetPolicyType::NORMAL_POLICY};
     return SetPolicyInner(validPolicies, validIndex, macParams, result, info);
 }
 
@@ -1032,7 +1007,7 @@ int32_t PolicyInfoManager::SetDenyPolicy(uint32_t tokenId, const std::vector<Pol
     uint32_t invalidNum = 0;
     SetInfo setInfo;
     for (size_t index = 0; index < policySize; ++index) {
-        int32_t res = CheckSetPolicyInput(policy[index], setInfo, SetPolicyType::DENY_POLICY);
+        int32_t res = CheckPolicyValidity(policy[index], SetPolicyType::DENY_POLICY);
         if (res != SANDBOX_MANAGER_OK) {
             result[index] = static_cast<uint32_t>(res);
             ++invalidNum;
@@ -1066,7 +1041,7 @@ int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const PolicyInfo &polic
         return SANDBOX_MANAGER_OK;
     }
 
-    if (IsModeMatchPolicyType(policy.mode, SetPolicyType::TEMP_POLICY) != true) {
+    if (IsModeMatchPolicyType(policy.mode, SetPolicyType::NORMAL_POLICY) != true) {
         return INVALID_PARAMTER;
     }
 
@@ -1108,7 +1083,7 @@ int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const std::vector<Polic
     uint32_t invalidNum = 0;
 
     for (size_t index = 0; index < policySize; ++index) {
-        if (IsModeMatchPolicyType(policies[index].mode, SetPolicyType::TEMP_POLICY) != true) {
+        if (IsModeMatchPolicyType(policies[index].mode, SetPolicyType::NORMAL_POLICY) != true) {
             result[index] = static_cast<uint32_t>(SandboxRetType::INVALID_MODE);
             ++invalidNum;
             SANDBOXMANAGER_LOG_WARN(LABEL, "Invalid policy mode: %{public}" PRIu64, policies[index].mode);
@@ -1202,7 +1177,7 @@ int32_t PolicyInfoManager::CheckPolicy(uint32_t tokenId, const std::vector<Polic
     std::vector<size_t> validIndex;
     std::vector<PolicyInfo> validPolicies;
     for (size_t index = 0; index < policy.size(); ++index) {
-        int32_t res = CheckPolicyValidity(policy[index]);
+        int32_t res = CheckPolicyValidity(policy[index], SetPolicyType::NORMAL_POLICY);
         if (res == SANDBOX_MANAGER_OK) {
             validIndex.emplace_back(index);
             validPolicies.emplace_back(policy[index]);
@@ -1622,9 +1597,9 @@ std::string PolicyInfoManager::AdjustPath(const std::string &path)
     return retPath;
 }
 
-int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
+int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy, SetPolicyType type)
 {
-    // path not empty and lenth < POLICY_PATH_LIMIT
+    // path not empty and length < POLICY_PATH_LIMIT
     uint32_t length = policy.path.length();
     if (length == 0 || length > POLICY_PATH_LIMIT) {
         LOGE_WITH_REPORT(LABEL, "Policy path check fail, length = %{public}zu", policy.path.length());
@@ -1638,8 +1613,9 @@ int32_t PolicyInfoManager::CheckPolicyValidity(const PolicyInfo &policy)
             return SandboxRetType::INVALID_MODE;
         }
     }
-    // mode between 0 and 0b11(READ_MODE+WRITE_MODE)
-    if (policy.mode < OperateMode::READ_MODE || policy.mode >= OperateMode::MAX_MODE) {
+    // mode range check by type (reuse IsModeMatchPolicyType):
+    // NORMAL_POLICY: [READ_MODE, MAX_MODE), DENY_POLICY: [MAX_MODE, MAX_DENY_MODE)
+    if (!IsModeMatchPolicyType(policy.mode, type)) {
         LOGE_WITH_REPORT(LABEL, "Policy mode check fail: %{public}" PRIu64, policy.mode);
         return SandboxRetType::INVALID_MODE;
     }

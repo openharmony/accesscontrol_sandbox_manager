@@ -566,16 +566,52 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest011, TestSize.Level0)
     };
     PolicyInfo err3 {
         .path = "test",
-        .mode = 0xff,
+        .mode = OperateMode::MAX_DENY_MODE,
     };
     PolicyInfo err4 {
         .path = "test",
         .mode = 0b00,
     };
-    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().CheckPolicyValidity(err1));
-    EXPECT_EQ(SandboxRetType::INVALID_PATH, PolicyInfoManager::GetInstance().CheckPolicyValidity(err2));
-    EXPECT_EQ(SandboxRetType::INVALID_MODE, PolicyInfoManager::GetInstance().CheckPolicyValidity(err3));
-    EXPECT_EQ(SandboxRetType::INVALID_MODE, PolicyInfoManager::GetInstance().CheckPolicyValidity(err4));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH,
+        PolicyInfoManager::GetInstance().CheckPolicyValidity(err1, SetPolicyType::NORMAL_POLICY));
+    EXPECT_EQ(SandboxRetType::INVALID_PATH,
+        PolicyInfoManager::GetInstance().CheckPolicyValidity(err2, SetPolicyType::NORMAL_POLICY));
+    EXPECT_EQ(SandboxRetType::INVALID_MODE,
+        PolicyInfoManager::GetInstance().CheckPolicyValidity(err3, SetPolicyType::NORMAL_POLICY));
+    EXPECT_EQ(SandboxRetType::INVALID_MODE,
+        PolicyInfoManager::GetInstance().CheckPolicyValidity(err4, SetPolicyType::NORMAL_POLICY));
+
+    // NORMAL_POLICY upper bound: MAX_MODE (= DENY_READ_MODE) rejected
+    PolicyInfo errNormal {
+        .path = "/data/test",
+        .mode = OperateMode::MAX_MODE,
+    };
+    EXPECT_EQ(SandboxRetType::INVALID_MODE,
+        PolicyInfoManager::GetInstance().CheckPolicyValidity(errNormal, SetPolicyType::NORMAL_POLICY));
+    // NORMAL_POLICY valid: RENAME_MODE (highest normal bit)
+    PolicyInfo okNormal {
+        .path = "/data/test",
+        .mode = OperateMode::RENAME_MODE,
+    };
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().CheckPolicyValidity(okNormal, SetPolicyType::NORMAL_POLICY));
+
+    // DENY_POLICY lower bound: MAX_MODE (= DENY_READ_MODE) accepted
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().CheckPolicyValidity(errNormal, SetPolicyType::DENY_POLICY));
+    // DENY_POLICY upper bound: MAX_DENY_MODE rejected
+    EXPECT_EQ(SandboxRetType::INVALID_MODE,
+        PolicyInfoManager::GetInstance().CheckPolicyValidity(err3, SetPolicyType::DENY_POLICY));
+    // DENY_POLICY rejects normal mode
+    EXPECT_EQ(SandboxRetType::INVALID_MODE,
+        PolicyInfoManager::GetInstance().CheckPolicyValidity(okNormal, SetPolicyType::DENY_POLICY));
+    // DENY_POLICY valid: DENY_SET_ALL_MODE (highest deny bit)
+    PolicyInfo okDeny {
+        .path = "/data/test",
+        .mode = OperateMode::DENY_SET_ALL_MODE,
+    };
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        PolicyInfoManager::GetInstance().CheckPolicyValidity(okDeny, SetPolicyType::DENY_POLICY));
 }
 
 /**
@@ -675,7 +711,7 @@ HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest015, TestSize.Level0)
 HWTEST_F(PolicyInfoManagerTest, PolicyInfoManagerTest016, TestSize.Level0) {
     std::vector<OperateMode> invalidModes = {
         static_cast<OperateMode>(0),
-        static_cast<OperateMode>(MAX_MODE * 2),
+        static_cast<OperateMode>(MAX_DENY_MODE),
         static_cast<OperateMode>(~0ULL),
         static_cast<OperateMode>(OperateMode::READ_MODE | (1 << 20)),
     };
@@ -1685,6 +1721,160 @@ HWTEST_F(PolicyInfoManagerTest, DenyTest013, TestSize.Level0)
     EXPECT_EQ(false, boolRes[0]);
 
     UnSetDeny(testPathChild);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CheckPolicy(token, policy2, boolRes));
+    ASSERT_EQ(1, boolRes.size());
+    EXPECT_EQ(true, boolRes[0]);
+
+    ASSERT_EQ(0, rmdir(testPathChild));
+    ASSERT_EQ(0, umount2(target, MNT_DETACH));
+    rmdir(testPathParent);
+    rmdir(target);
+    rmdir(source);
+}
+#endif
+
+#ifdef DEC_SUPPORT_DENY_SET
+/**
+ * @tc.name: DenyTest014
+ * @tc.desc: Test Deny rename via SetDenyPolicy API (instead of SetDenyCfg)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, DenyTest014, TestSize.Level0)
+{
+    mkdir(source, 0777);
+    mkdir(target, 0777);
+    ASSERT_EQ(0, mount(source, target, fsType, MS_MGC_VAL, mountData));
+    ConstraintPath(target);
+
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParent = {
+        .path = target,
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    uint32_t token = GetSelfTokenID();
+    policy.emplace_back(infoParent);
+    SetInfo setInfo;
+    setInfo.userId = 0;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(token, policy, 1, policyResult, setInfo));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    mkdir(testPathParent, 0777);
+    mkdir(testPathChild, 0777);
+
+    std::vector<PolicyInfo> denyPolicy;
+    denyPolicy.emplace_back(PolicyInfo{.path = testPathChild, .mode = OperateMode::DENY_RENAME_MODE});
+    std::vector<uint32_t> denyResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetDenyPolicy(0, denyPolicy, denyResult, 0));
+    ASSERT_EQ(1, denyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, denyResult[0]);
+
+    ASSERT_NE(0, rename(testPathChild, testPathChildNew));
+
+    PolicyInfo denyInfo = {.path = testPathChild, .mode = OperateMode::DENY_RENAME_MODE};
+    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().UnSetDenyPolicy(0, denyInfo));
+    ASSERT_EQ(0, rename(testPathChild, testPathChildNew));
+    ASSERT_EQ(0, rmdir(testPathChildNew));
+    ASSERT_EQ(0, umount2(target, MNT_DETACH));
+    rmdir(testPathParent);
+    rmdir(target);
+    rmdir(source);
+}
+
+/**
+ * @tc.name: DenyTest015
+ * @tc.desc: Test Deny delete via SetDenyPolicy API (instead of SetDenyCfg)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, DenyTest015, TestSize.Level0)
+{
+    mkdir(source, 0777);
+    mkdir(target, 0777);
+    ASSERT_EQ(0, mount(source, target, fsType, MS_MGC_VAL, mountData));
+    ConstraintPath(target);
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParent = {
+        .path = target,
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    uint32_t token = GetSelfTokenID();
+    policy.emplace_back(infoParent);
+    SetInfo setInfo;
+    setInfo.userId = 0;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(token, policy, 1, policyResult, setInfo));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    mkdir(testPathParent, 0777);
+    mkdir(testPathChild, 0777);
+
+    std::vector<PolicyInfo> denyPolicy;
+    denyPolicy.emplace_back(PolicyInfo{.path = testPathChild, .mode = OperateMode::DENY_REMOVE_MODE});
+    std::vector<uint32_t> denyResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetDenyPolicy(0, denyPolicy, denyResult, 0));
+    ASSERT_EQ(1, denyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, denyResult[0]);
+
+    ASSERT_NE(0, rmdir(testPathChild));
+
+    PolicyInfo denyInfo = {.path = testPathChild, .mode = OperateMode::DENY_REMOVE_MODE};
+    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().UnSetDenyPolicy(0, denyInfo));
+    ASSERT_EQ(0, rmdir(testPathChild));
+    ASSERT_EQ(0, umount2(target, MNT_DETACH));
+    rmdir(testPathParent);
+    rmdir(target);
+    rmdir(source);
+}
+
+/**
+ * @tc.name: DenyTest016
+ * @tc.desc: Test Deny inherit via SetDenyPolicy API (instead of SetDenyCfg)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(PolicyInfoManagerTest, DenyTest016, TestSize.Level0)
+{
+    mkdir(source, 0777);
+    mkdir(target, 0777);
+    ASSERT_EQ(0, mount(source, target, fsType, MS_MGC_VAL, mountData));
+    ConstraintPath(target);
+    std::vector<PolicyInfo> policy;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo infoParent = {
+        .path = target,
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+
+    uint32_t token = GetSelfTokenID();
+    policy.emplace_back(infoParent);
+    SetInfo setInfo;
+    setInfo.userId = 0;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetPolicy(token, policy, 1, policyResult, setInfo));
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, policyResult[0]);
+    mkdir(testPathParent, 0777);
+    mkdir(testPathChild, 0777);
+
+    std::vector<PolicyInfo> denyPolicy;
+    denyPolicy.emplace_back(PolicyInfo{.path = testPathChild, .mode = OperateMode::DENY_INHERIT_MODE});
+    std::vector<uint32_t> denyResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().SetDenyPolicy(0, denyPolicy, denyResult, 0));
+    ASSERT_EQ(1, denyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, denyResult[0]);
+
+    std::vector<PolicyInfo> policy2;
+    PolicyInfo infochild = {
+        .path = testPathChild,
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policy2.emplace_back(infochild);
+    std::vector<bool> boolRes;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CheckPolicy(token, policy2, boolRes));
+    ASSERT_EQ(1, boolRes.size());
+    EXPECT_EQ(false, boolRes[0]);
+
+    PolicyInfo denyInfo = {.path = testPathChild, .mode = OperateMode::DENY_INHERIT_MODE};
+    ASSERT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().UnSetDenyPolicy(0, denyInfo));
     EXPECT_EQ(SANDBOX_MANAGER_OK, PolicyInfoManager::GetInstance().CheckPolicy(token, policy2, boolRes));
     ASSERT_EQ(1, boolRes.size());
     EXPECT_EQ(true, boolRes[0]);
@@ -3552,7 +3742,7 @@ HWTEST_F(PolicyInfoManagerTest, ArrayOutOfBoundsTest001, TestSize.Level0)
     // Add 2 invalid policies and 1 pass policy
     for (int i = 0; i < 2; ++i) {
         info.path = "/data/log";
-        info.mode = OperateMode::MAX_MODE;
+        info.mode = OperateMode::MAX_DENY_MODE;
         policies.push_back(info);
     }
 
