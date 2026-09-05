@@ -15,6 +15,7 @@
 
 #include "mac_adapter.h"
 #include <cstdint>
+#include <cerrno>
 #include <fcntl.h>
 #include <cinttypes>
 #include <string>
@@ -277,29 +278,31 @@ void MacAdapter::DenyInit()
     std::string inputString;
     ret = ReadDenyFile(DENY_CONFIG_FILE.c_str(), inputString);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Json read error");
+        LOGE_WITH_REPORT(LABEL, "Json read error");
         return;
     }
 
     ret = SetDenyCfg(inputString);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Json set error");
+        LOGE_WITH_REPORT(LABEL, "Json set error");
     }
     return;
 }
 
 void MacAdapter::Init(bool initDeny)
 {
-    if (access(DEV_NODE, F_OK) == 0) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "Node exists, mac is support.");
-        isMacSupport_ = true;
+    if (access(DEV_NODE, F_OK) != 0) {
+        LOGE_WITH_REPORT(LABEL, "Node does not exist, mac not supported.");
+        return;
     }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Node exists, mac is support.");
+    isMacSupport_ = true;
     if (fd_ > 0) {
         return;
     }
     fd_ = open(DEV_NODE, O_RDWR);
     if (fd_ < 0) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Open node failed, errno=%{public}d.", errno);
+        LOGE_WITH_REPORT(LABEL, "Open node failed, errno=%{public}d.", errno);
         return;
     }
     FDSAN_MARK(fd_);

@@ -66,7 +66,10 @@ PolicyInfoManager &PolicyInfoManager::GetInstance()
 
 void PolicyInfoManager::Init()
 {
-    SandboxManagerRdb::GetInstance().Init();
+    int32_t ret = SandboxManagerRdb::GetInstance().Init();
+    if (ret != SandboxManagerRdb::SUCCESS) {
+        LOGE_WITH_REPORT(LABEL, "SandboxManagerRdb init failed, ret=%{public}d", ret);
+    }
     macAdapter_.Init();
     InitUserGrantMap();
     InitCaseSensitivity();
@@ -78,8 +81,24 @@ void PolicyInfoManager::Init()
 
 void PolicyInfoManager::InitCaseSensitivity()
 {
+    caseInsensitivePaths_.clear();
+    caseSensitivePaths_.clear();
+
+    std::map<std::string, int> caseDirs = {
+        {"/storage/Users/currentUser", CASE_INSENSITIVE},
+        {"/storage/Users/currentUser/appdata", CASE_SENSITIVE},
+    };
+
     std::vector<std::pair<std::string, int>> dirs = GetIgnoreCaseDirs();
-    for (const auto & [dir, mode] : dirs) {
+    if (dirs.empty()) {
+        LOGE_WITH_REPORT(LABEL, "GetIgnoreCaseDirs returned empty, use fallback case sensitivity config");
+    } else {
+        for (const auto & [dir, mode] : dirs) {
+            caseDirs[dir] = mode;
+        }
+    }
+
+    for (const auto & [dir, mode] : caseDirs) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "Get ignore case dir=%{public}s mode=%{public}d", dir.c_str(), mode);
         if (mode == CASE_INSENSITIVE) {
             caseInsensitivePaths_.emplace_back(dir);
@@ -216,12 +235,16 @@ int32_t PolicyInfoManager::CleanPolicyByUserId(uint32_t userId, const std::vecto
 void PolicyInfoManager::InitUserGrantMap()
 {
     std::map<std::string, std::vector<std::string>> decPathMap = GetDecPathMap();
+    if (decPathMap.empty()) {
+        LOGE_WITH_REPORT(LABEL, "GetDecPathMap returned empty, DEC config may not be loaded");
+        return;
+    }
     for (auto &[permission, pathList] : decPathMap) {
         Security::AccessToken::PermissionDef permissionDefResult;
         int ret = Security::AccessToken::AccessTokenKit::GetDefPermission(permission, permissionDefResult);
         if ((ret == 0) && (permissionDefResult.grantMode == Security::AccessToken::GrantMode::USER_GRANT)) {
             SANDBOXMANAGER_LOG_INFO(LABEL, "need add %{public}s permission", permission.c_str());
-            (void)AddToUserGrantMap(permission, pathList);
+            AddToUserGrantMap(permission, pathList);
         }
     }
 }

@@ -132,11 +132,12 @@ void SandboxManagerService::OnStart()
         SandboxMemoryManager::GetInstance().SetIsDelayedToUnload(false);
 #endif
         SANDBOXMANAGER_LOG_INFO(LABEL, "SandboxManagerService is starting.");
-    }
-    bool ret = Publish(DelayedSingleton<SandboxManagerService>::GetInstance().get());
-    if (!ret) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to publish service! ");
-        return;
+        bool ret = Publish(DelayedSingleton<SandboxManagerService>::GetInstance().get());
+        if (!ret) {
+            LOGE_WITH_REPORT(LABEL, "Failed to publish service! ");
+            state_ = ServiceRunningState::STATE_NOT_START;
+            return;
+        }
     }
     DelayUnloadService();
     SANDBOXMANAGER_LOG_INFO(LABEL, "SandboxManagerService start successful.");
@@ -176,11 +177,12 @@ void SandboxManagerService::OnStart(const SystemAbilityOnDemandReason& startReas
         // If service is running, event action is completed by CommonEventSubscriber
         // Process event action
         StartByEventAction(startReason);
-    }
-    bool ret = Publish(DelayedSingleton<SandboxManagerService>::GetInstance().get());
-    if (!ret) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to publish service.");
-        return;
+        bool ret = Publish(DelayedSingleton<SandboxManagerService>::GetInstance().get());
+        if (!ret) {
+            LOGE_WITH_REPORT(LABEL, "Failed to publish service.");
+            state_ = ServiceRunningState::STATE_NOT_START;
+            return;
+        }
     }
     DelayUnloadService();
     SANDBOXMANAGER_LOG_INFO(LABEL, "SandboxManagerService start successful.");

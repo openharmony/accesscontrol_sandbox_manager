@@ -54,7 +54,7 @@ bool SandboxManagerCommonEventSubscriber::RegisterEvent()
     auto info = std::make_shared<EventFwk::CommonEventSubscribeInfo>(*skill);
     g_subscriber = std::make_shared<SandboxManagerCommonEventSubscriber>(*info);
     if (!EventFwk::CommonEventManager::SubscribeCommonEvent(g_subscriber)) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Regist common event failed.");
+        LOGE_WITH_REPORT(LABEL, "Regist common event failed.");
         return false;
     }
     g_isRegistered = true;
