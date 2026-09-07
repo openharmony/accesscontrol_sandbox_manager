@@ -54,8 +54,8 @@ ohos_unittest("claw_sandbox_test") {
   ]
 
   defines = []
-  if (sandbox_manager_pc_platform) {
-    defines += [ "CONFIG_PC_PLATFORM" ]
+  if (sandbox_manager_shell_sandbox) {
+    defines += [ "CONFIG_SHELL_SANDBOX" ]
   }
 
   cflags_cc = [

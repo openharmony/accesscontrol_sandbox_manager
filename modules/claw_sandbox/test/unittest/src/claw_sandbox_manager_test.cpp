@@ -935,7 +935,7 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv001, TestSize.Level0)
     size_t rejectedInvalid = 0;
     manager.SanitizeOverrideEnv(result, accepted, rejectedBlocked, rejectedInvalid);
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
     EXPECT_EQ(8U, result.size());
 #else
     EXPECT_EQ(1U, result.size());
@@ -960,7 +960,7 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv002, TestSize.Level0)
     size_t rejectedBlocked = 0;
     size_t rejectedInvalid = 0;
     manager.SanitizeOverrideEnv(result, accepted, rejectedBlocked, rejectedInvalid);
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
     EXPECT_EQ(8U, result.size());
 #else
     EXPECT_EQ(1U, result.size());
@@ -1019,7 +1019,7 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv004, TestSize.Level0)
     EXPECT_EQ(0U, rejectedBlocked);
     EXPECT_EQ(0U, rejectedInvalid);
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
     EXPECT_EQ("/storage/Users/currentUser", sanitizedEnv["HOME"]);
     EXPECT_EQ("/bin/sh", sanitizedEnv["SHELL"]);
     EXPECT_EQ("100", sanitizedEnv["USER"]);
@@ -1048,7 +1048,7 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv005, TestSize.Level0)
 
     manager.SanitizeOverrideEnv(sanitizedEnv, accepted, rejectedBlocked, rejectedInvalid);
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
     EXPECT_EQ("/usr/local/bin:/data/app/bin:/data/service/hnp/bin:/usr/bin:"
         "/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
 #else
@@ -1077,7 +1077,7 @@ HWTEST_F(ClawSandboxManagerTest, SanitizeOverrideEnv006, TestSize.Level0)
     EXPECT_EQ(0U, rejectedBlocked);
     EXPECT_EQ(0U, rejectedInvalid);
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
     EXPECT_EQ("/config/bin:/usr/local/bin:/data/app/bin:/data/service/hnp/bin:/usr/bin:"
         "/bin:/system/bin:/system/bin/cli_tool/executable:/vendor/bin", sanitizedEnv["PATH"]);
 #else
@@ -1213,7 +1213,7 @@ HWTEST_F(ClawSandboxManagerTest, ParsePermissionDecPaths001, TestSize.Level0)
     cJSON_Delete(nonObj);
 }
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
 // ==================== CollectPermissionDecPaths tests ====================
 
 /**
@@ -1342,7 +1342,7 @@ HWTEST_F(ClawSandboxManagerTest, CollectDecPolicyPaths001, TestSize.Level0)
 }
 #endif
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
 /**
  * @tc.name: SetDecPolicyBatch001
  * @tc.desc: SetDecPolicyBatch rejects invalid batch ranges before ioctl
@@ -1523,7 +1523,7 @@ HWTEST_F(ClawSandboxManagerTest, PreDecDenyPaths004, TestSize.Level0)
 }
 #endif
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
 /**
  * @tc.name: SetSandboxPathMark001
  * @tc.desc: SetSandboxPathMark skips when CUSTOM_SANDBOX not granted
@@ -2373,7 +2373,7 @@ HWTEST_F(ClawSandboxManagerTest, SetAccessToken002, TestSize.Level0)
 
 // ==================== SetParentHapTokenId tests ====================
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
 /**
  * @tc.name: SetParentHapTokenId001
  * @tc.desc: SetParentHapTokenId attempts to set parrent hap token IDs
@@ -3044,7 +3044,7 @@ HWTEST_F(ClawSandboxManagerTest, EnvPolicyEdge005, TestSize.Level0)
     manager.SanitizeOverrideEnv(result, accepted, rejectedBlocked, rejectedInvalid);
 
     // Only _valid should be accepted; bad-key and 123abc rejected as invalid
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
     EXPECT_EQ(9U, result.size());
 #else
     EXPECT_EQ(2U, result.size());

@@ -19,7 +19,8 @@
       "sandbox_manager_with_dec",
       "sandbox_manager_dec_ext",
       "sandbox_manager_enable_aids",
-      "sandbox_manager_pc_platform"
+      "sandbox_manager_shell_sandbox",
+      "sandbox_manager_enable_mcs"
     ],
     "adapted_system_type": [ "standard" ],
     "rom": "10000KB",
