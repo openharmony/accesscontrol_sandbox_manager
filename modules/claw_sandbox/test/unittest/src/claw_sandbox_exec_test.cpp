@@ -18,6 +18,7 @@
 #include "sandbox_exec.h"
 #undef private
 #include "sandbox_error.h"
+#include "scoped_pc_mode.h"
 #include <cstring>
 #include <string>
 
@@ -557,6 +558,8 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments025, TestSize.Level0)
  */
 HWTEST_F(ClawSandboxExecTest, ParseArguments026, TestSize.Level0)
 {
+    // The config below asks for type "shell", which ParseConfig only grants in PC mode.
+    ScopedPcMode pcMode("true");
     SandboxExec exec;
     char arg0[] = "claw_sandbox";
     char arg1[] = "--config";
@@ -568,7 +571,11 @@ HWTEST_F(ClawSandboxExecTest, ParseArguments026, TestSize.Level0)
     char arg5[] = "--help";
     char *argv[] = {arg0, arg1, arg2, arg3, arg4, arg5, nullptr};
     int ret = exec.ParseArguments(6, argv);
+#ifdef CONFIG_SHELL_SANDBOX
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
+#else
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+#endif
 }
 
 /**

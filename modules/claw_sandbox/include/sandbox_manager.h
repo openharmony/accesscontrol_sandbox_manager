@@ -29,7 +29,7 @@ namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
 constexpr uint32_t DEC_KERNEL_BATCH_SIZE = 8;
 constexpr uint32_t DEC_POLICY_HEADER_RESERVED = 64;
 
@@ -152,7 +152,7 @@ private:
     int MountAppDirs();
     int ApplyPolicyMounts();
     int PivotRoot();
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
     void CollectDenyPaths(DecPolicyInfo& decPolicyInfo);
     bool FillPolicyMetadata(DecPolicyInfo& decPolicyInfo);
     int SendDecPolicyIoctl(const DecPolicyInfo& decPolicyInfo);
@@ -163,7 +163,7 @@ private:
     int ForkAfterUnshare();
     int MountProcFs();
     int SetAccessToken();
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
     int SetParentHapTokenId(uint64_t tokenId);
 #endif
     int SetAinfo();
@@ -180,7 +180,7 @@ private:
     int ApplyEnvironment();
     int DeliverPolicy();
     int DeliverNetPolicy(int fd);
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
     int SetEncapsProcFlag();
     int SetSandboxPathMark();
 #endif

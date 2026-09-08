@@ -96,10 +96,10 @@ if(!defined(ohos_lite)) {
     defines = [
       "SANDBOX_STUB_MAINTHREAD",
     ]
-    if (sandbox_manager_pc_platform) {
-      defines += [ "CONFIG_PC_PLATFORM" ]
+    if (sandbox_manager_shell_sandbox) {
+      defines += [ "CONFIG_SHELL_SANDBOX" ]
     }
-    if (claw_sandbox_mcs_enable) {
+    if (sandbox_manager_enable_mcs) {
       defines += [ "MCS_ENABLE" ]
     }
     if (build_seccomp && !is_emulator && claw_sandbox_need_set_seccomp) {

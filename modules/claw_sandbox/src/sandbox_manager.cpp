@@ -60,7 +60,7 @@
 #include "securec.h"
 #include "token_setproc.h"
 #include "accesstoken_kit.h"
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
 #include "tokenid_kit.h"
 #endif
 #include "permission_list_state.h"
@@ -95,7 +95,7 @@ constexpr const char *DEC_DEVICE_PATH = "/dev/dec";
 constexpr int HM_DEC_IOCTL_BASE = 's';
 
 // DEC policy IOCTL constants and structs, only used on PC platform
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
 constexpr int HM_SET_POLICY_ID = 1;
 constexpr size_t DEC_MAX_POLICY_NUM = 64;
 constexpr uint32_t DEC_SANDBOX_MODE_READ = 0x00000001;
@@ -131,7 +131,7 @@ constexpr std::string_view DELETE_ENV_VARS[] = {
 // Note: All environment variable keys defined here MUST be in UPPERCASE.
 // This avoids redundant case conversions during subsequent traversals and lookups.
 constexpr EnvVar PRESET_ENV_VARS[] = {
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
     {"HOME", "/storage/Users/currentUser"},
     {"SHELL", "/bin/sh"},
     {"TMPDIR", "/storage/Users/currentUser"},
@@ -146,7 +146,7 @@ constexpr EnvVar PRESET_ENV_VARS[] = {
 #endif
 };
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
 // Path mark constants (matching appspawn appspawn_isolate.c)
 constexpr int HM_ADD_PATH_MARK = 11;
 constexpr uint32_t SEC_UGC_PATH_TYPE = (1 << 0);
@@ -320,7 +320,7 @@ constexpr uint32_t PROCESS_OWNERID_APP = 2;
 constexpr unsigned long SET_XPM_OWNERID_CMD = _IOW(HM_XPM_REGION_IOCTL_BASE,
     HM_SET_XPM_OWNERID_ID, struct XpmRegionInfo);
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
 // access token
 constexpr const char *DEV_ACCESS_TOKEN_PATH = "/dev/access_token_id";
 constexpr int HM_ACCESS_TOKENID_IOCTL_BASE = 'A';
@@ -344,7 +344,7 @@ int SandboxManager::Initialize(SandboxConfig config, const CmdInfo &cmdInfo)
     config_.currentUserId = std::to_string(config_.uid / UID_BASE);
     initialized_ = true;
     config_.nsFlags |= config_.type == "cli" ? CLONE_NEWNET : 0;
-#ifndef CONFIG_PC_PLATFORM
+#ifndef CONFIG_SHELL_SANDBOX
     config_.nsFlags |= CLONE_NEWNET;
 #endif
     return SANDBOX_SUCCESS;
@@ -532,7 +532,7 @@ int SandboxManager::ExecuteLateSteps()
         &SandboxManager::SetXpmOwnerId,
         &SandboxManager::SetAinfo,
         &SandboxManager::SetUidGid,
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
         // Pre-deny DEC for paths without permission (before DEC authorization).
         &SandboxManager::PreDecDenyPaths,
         // Apply DEC policies after UID/GID and supplementary groups are set.
@@ -549,7 +549,7 @@ int SandboxManager::ExecuteLateSteps()
         // Drop capabilities after seccomp; capset() is not blocked in block mode
         // and is expected to be allowlisted in whitelist mode.
         &SandboxManager::DropCapabilities,
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
         // Mark root path as sandbox path type (for kernel sandbox isolation).
         &SandboxManager::SetSandboxPathMark,
         // Set encaps proc flag (custom sandbox marker for kernel).
@@ -733,7 +733,7 @@ std::vector<int> SandboxManager::CollectGrantedPermissionGids() const
     return permissionGids;
 }
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
 int SandboxManager::CollectPermissionDecPaths(const PermissionConfig &config,
                                               std::vector<std::string> &decPaths) const
 {
@@ -999,7 +999,7 @@ int SandboxManager::GenerateTokenId()
     return SANDBOX_SUCCESS;
 }
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
 int SandboxManager::SetParentHapTokenId(uint64_t tokenId)
 {
     auto atmTokenId = TokenIdKit::AddCliBinaryInvokerTokenFlag(tokenId);
@@ -1031,7 +1031,7 @@ int SandboxManager::SetAccessToken()
         return SANDBOX_ERR_SET_TOKENID_FAILED;
     }
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
     if (config_.type == "shell") {
         return SetParentHapTokenId(callerId);
     }
@@ -1952,7 +1952,7 @@ void SandboxManager::SanitizeOverrideEnv(std::map<std::string, std::string> &san
             sanitizedEnv[std::string(key)] = std::string(value);
         }
     }
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
     sanitizedEnv["USER"] = config_.currentUserId;
 #endif
 
@@ -2015,7 +2015,7 @@ int SandboxManager::ApplyEnvironment()
     return ApplySanitizedEnv(sanitizedEnv);
 }
 
-#ifdef CONFIG_PC_PLATFORM
+#ifdef CONFIG_SHELL_SANDBOX
 int SandboxManager::SetSandboxPathMark()
 {
     if (config_.type != "shell") {

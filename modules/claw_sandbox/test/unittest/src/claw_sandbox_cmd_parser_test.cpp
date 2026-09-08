@@ -19,6 +19,7 @@
 #include <sched.h>
 #include <cstdint>
 #include <unistd.h>
+#include "scoped_pc_mode.h"
 
 /*
  * NOTE: execvp() and execl() are mocked via linker interposition in
@@ -913,6 +914,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig033, TestSize.Level0)
  */
 HWTEST_F(ClawSandboxCmdParserTest, ParseConfig034, TestSize.Level0)
 {
+    ScopedPcMode pcMode("true");
     const std::string json = R"({
         "callerTokenId": 123456789,
         "callerPid": 1000,
@@ -925,6 +927,11 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig034, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
+#ifndef CONFIG_SHELL_SANDBOX
+    // Without the shell sandbox built in, the type is refused before PC mode is consulted.
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+    return;
+#endif
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_EQ(123456789ULL, config.callerTokenId);
     EXPECT_EQ(1000U, config.callerPid);
@@ -949,6 +956,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig034, TestSize.Level0)
  */
 HWTEST_F(ClawSandboxCmdParserTest, ParseConfig035, TestSize.Level0)
 {
+    ScopedPcMode pcMode("true");
     const std::string json = R"({
         "callerTokenId": 9007199254740990,
         "callerPid": 1,
@@ -963,11 +971,65 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig035, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
+#ifndef CONFIG_SHELL_SANDBOX
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+    return;
+#endif
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_EQ(9007199254740990ULL, config.callerTokenId);
     // Even if provided in JSON, they should be parsed as empty strings when type is "shell"
     EXPECT_EQ("", config.cliName);
     EXPECT_EQ("", config.subCliName);
+}
+
+/**
+ * @tc.name: ParseConfigPcModeOff001
+ * @tc.desc: With PC mode off, the shell type is refused by the config parser.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfigPcModeOff001, TestSize.Level0)
+{
+    ScopedPcMode pcMode("false");
+    const std::string json = R"({
+        "callerTokenId": 123456789,
+        "callerPid": 1000,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "test-challenge",
+        "appIdentifier": "com.example.app",
+        "bundleName": "com.example.bundle",
+        "type": "shell"
+    })";
+    SandboxConfig config;
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ParseConfig(json, config));
+}
+
+/**
+ * @tc.name: ParseConfigPcModeOff002
+ * @tc.desc: The gate is scoped to the shell type - cli still parses with PC mode off.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfigPcModeOff002, TestSize.Level0)
+{
+    ScopedPcMode pcMode("false");
+    const std::string json = R"({
+        "callerTokenId": 123456789,
+        "callerPid": 1000,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "test-challenge",
+        "appIdentifier": "com.example.app",
+        "bundleName": "com.example.bundle",
+        "type": "cli",
+        "cliName": "cli",
+        "subCliName": "sub"
+    })";
+    SandboxConfig config;
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ParseConfig(json, config));
+    EXPECT_EQ("cli", config.cliName);
+    EXPECT_EQ("sub", config.subCliName);
 }
 
 /**

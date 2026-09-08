@@ -37,6 +37,7 @@ ohos_fuzztest("ClawSandboxConfigFuzzTest") {
     "bounds_checking_function:libsec_shared",
     "cJSON:cjson",
     "hilog:libhilog",
+    "init:libbegetutil",
   ]
 
   cflags = [

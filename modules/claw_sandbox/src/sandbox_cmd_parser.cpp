@@ -23,6 +23,7 @@
 #include <sched.h>
 #include <functional>
 #include <securec.h>
+#include "parameters.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -30,6 +31,29 @@ namespace SANDBOX {
 
 // Maximum allowed JSON nesting depth (prevents stack overflow in recursive cJSON parser)
 constexpr uint32_t MAX_JSON_DEPTH = 10;
+
+#ifdef CONFIG_SHELL_SANDBOX
+// Runtime gate for the shell sandbox. Shell is only meaningful in PC mode, which
+// sceneboard publishes through this parameter; outside PC mode "cli" is the only
+// type a caller may ask for.
+constexpr const char *PC_MODE_PARAM = "persist.sceneboard.ispcmode";
+#endif
+
+// Entry gate for the "shell" type: refused outright unless the shell sandbox is built in.
+static int CheckShellTypeAllowed()
+{
+#ifdef CONFIG_SHELL_SANDBOX
+    if (OHOS::system::GetBoolParameter(PC_MODE_PARAM, true)) {
+        return SANDBOX_SUCCESS;
+    }
+    std::cerr << "Error: Config field 'type' value 'shell' requires PC mode" << std::endl;
+    SANDBOX_LOGE("Config field 'type' value 'shell' requires PC mode");
+#else
+    std::cerr << "Error: Config field 'type' value 'shell' is not supported by this build" << std::endl;
+    SANDBOX_LOGE("Config field 'type' value 'shell' is not supported by this build");
+#endif
+    return SANDBOX_ERR_CONFIG_INVALID;
+}
 
 // Check that a JSON string does not exceed the maximum nesting depth.
 // Scans the raw string character-by-character, tracking bracket depth.
@@ -744,6 +768,10 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
                 }
                 return ParseStringFieldWithMaxLen(root, "subCliName", config.subCliName, MAX_SUB_CLI_NAME_LENGTH);
             } else if (config.type == "shell") {
+                ret = CheckShellTypeAllowed();
+                if (ret != SANDBOX_SUCCESS) {
+                    return ret;
+                }
                 config.cliName = "";
                 config.subCliName = "";
                 return SANDBOX_SUCCESS;
