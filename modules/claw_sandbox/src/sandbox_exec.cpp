@@ -28,12 +28,6 @@ namespace SANDBOX {
 // Minimum argv count for subCliName validation: argv[0] is the command, argv[1] is the potential subCliName
 constexpr size_t MIN_ARGV_FOR_SUBCLI_NAME = 2;
 
-// Clean up any allocated resources, e.g. policyArg
-SandboxExec::~SandboxExec()
-{
-    config_.policyArg.reset();
-}
-
 int SandboxExec::ParseArguments(int argc, char *argv[])
 {
     // Check claw_sandbox options only before --cmd/-m; everything after belongs to the command.
@@ -178,10 +172,13 @@ int SandboxExec::Run()
 
     // Create sandbox manager and execute
     SandboxManager manager;
-    if (manager.Initialize(std::move(config_), cmdInfo_) != SANDBOX_SUCCESS) {
+    // Propagate the real code: Initialize can reject the config, and folding
+    // that into a generic failure would hide the reason from the caller.
+    int initRet = manager.Initialize(std::move(config_), cmdInfo_);
+    if (initRet != SANDBOX_SUCCESS) {
         std::cerr << "Error: Failed to initialize SandboxManager" << std::endl;
-        SANDBOX_LOGE("Failed to initialize SandboxManager");
-        return SANDBOX_ERR_GENERIC;
+        SANDBOX_LOGE("Failed to initialize SandboxManager, ret=%{public}d", initRet);
+        return initRet;
     }
     if (deleteRequested_) {
         return manager.DeleteSandboxDir();
@@ -214,13 +211,13 @@ void SandboxExec::PrintUsage()
     printf("Example:\n");
     printf("  claw_sandbox --config '{\"callerTokenId\":1234,"
            "\"uid\":20020026,\"gid\":20020026,\"callerPid\":1234,"
-           "\"appIdentifier\":\"com.example\",\"nsFlags\":[\"net\",\"mnt\"],"
+           "\"appIdentifier\":\"20020026\",\"nsFlags\":[\"net\",\"mnt\"],"
            "\"challenge\":\"challenge_value\",\"bundleName\":\"com.example.bundle\","
            "\"cliName\":\"ohos-timer\",\"subCliName\":\"\"}' "
            " --cmd ls -la /tmp\n");
     printf("  claw_sandbox -d --config '{\"callerTokenId\":1234,"
            "\"uid\":20020026,\"gid\":20020026,\"callerPid\":1234,"
-           "\"challenge\":\"c\",\"appIdentifier\":\"com.example\",\"bundleName\":\"com.example.app\","
+           "\"challenge\":\"c\",\"appIdentifier\":\"20020026\",\"bundleName\":\"com.example.app\","
            "\"cliName\":\"cli\",\"subCliName\":\"sub\",\"name\":\"abcdef0123456789\"}'\n");
 }
 

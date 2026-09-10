@@ -28,16 +28,16 @@ namespace SANDBOX {
  * duration and puts it back afterwards, so it neither depends on nor disturbs the
  * mode the device happens to be booted in.
  *
- * A parameter that was unset is restored to "false" rather than removed - the
- * parameter system has no delete, and false is what an unset parameter already
- * means to the gate (it fails closed).
+ * The parameter system has no delete, so one that was unset is restored to the
+ * gate's own default instead. Restoring "false" would leave a persist. parameter
+ * refusing every shell sandbox on a device that allowed them before.
  */
 class ScopedPcMode {
 public:
     explicit ScopedPcMode(const char *value) : saved_(OHOS::system::GetParameter(PC_MODE_PARAM_KEY, ""))
     {
         if (saved_.empty()) {
-            saved_ = "false";
+            saved_ = GATE_DEFAULT;
         }
         OHOS::system::SetParameter(PC_MODE_PARAM_KEY, value);
     }
@@ -51,6 +51,9 @@ public:
 
 private:
     static constexpr const char *PC_MODE_PARAM_KEY = "persist.sceneboard.ispcmode";
+    // Mirrors the default in CheckShellTypeAllowed's GetBoolParameter call
+    // (sandbox_cmd_parser.cpp). Keep the two in step.
+    static constexpr const char *GATE_DEFAULT = "true";
     std::string saved_;
 };
 } // SANDBOX

@@ -14,50 +14,44 @@
  */
 
 #include "sandbox_aids.h"
-#include "sandbox_log.h"
-#include <cerrno>
-#include <cstring>
-#include <fcntl.h>
-#include <cstdlib>
-#include <sys/types.h>
-#include <unistd.h>
 
 namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
-AidsClient::AidsClient(const std::string& device_path): fd_(-1)
+AidsClient::AidsClient(const std::string &devicePath): fd_(-1)
 {
-    (void) device_path;
+    (void)devicePath;
 }
 
 AidsClient::~AidsClient()
 {
 }
 
-int AidsClient::setLabel(const uint32_t appid)
+int AidsClient::SetLabel(uint32_t userid, uint64_t appIdentifier)
 {
-    (void) appid;
+    (void)userid;
+    (void)appIdentifier;
     return 0;
 }
 
-int AidsClient::addBlacklist(const std::string& cmd, const std::string& subcmd, const uint32_t appid)
+int AidsClient::AddBlacklist(const std::string &cmd, const std::string &subcmd, uint32_t appid)
 {
-    (void) cmd;
-    (void) subcmd;
-    (void) appid;
+    (void)cmd;
+    (void)subcmd;
+    (void)appid;
     return 0;
 }
 
-int AidsClient::delBlacklist(const std::string& cmd, const std::string& subcmd, const uint32_t appid)
+int AidsClient::DelBlacklist(const std::string &cmd, const std::string &subcmd, uint32_t appid)
 {
-    (void) cmd;
-    (void) subcmd;
-    (void) appid;
+    (void)cmd;
+    (void)subcmd;
+    (void)appid;
     return 0;
 }
 
-int AidsClient::clrBlacklist(void)
+int AidsClient::ClearBlacklist()
 {
     return 0;
 }

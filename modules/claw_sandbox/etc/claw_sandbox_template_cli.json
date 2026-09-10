@@ -138,5 +138,6 @@
       "mount-flags": ["bind", "rec"],
       "check-exists": true
     }
-  ]
+  ],
+  "exec-selinux-types": ["sa_aimgr_climgr_exec_file", "print_aimgr_climgr_exec_file"]
 }

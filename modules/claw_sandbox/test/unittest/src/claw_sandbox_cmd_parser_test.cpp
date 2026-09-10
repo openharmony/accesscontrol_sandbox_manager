@@ -18,6 +18,7 @@
 #include "sandbox_error.h"
 #include <sched.h>
 #include <cstdint>
+#include <cstdlib>
 #include <unistd.h>
 #include "scoped_pc_mode.h"
 
@@ -32,6 +33,15 @@
 #define private public
 #include "sandbox_manager.h"
 #undef private
+
+/*
+ * Last on purpose. sandbox_log.h #undefs LOG_TAG and LOG_DOMAIN and redefines
+ * them, and those are plain macros read where SANDBOX_LOGx is written, not
+ * settings applied once. Any header included after this one that defines its own
+ * LOG_TAG silently takes over, and the log lines go out under someone else's tag
+ * and domain - which looks exactly like logging being broken.
+ */
+#include "sandbox_log.h"
 
 using namespace testing::ext;
 
@@ -56,7 +66,7 @@ static const ConfigJsonField BASE_CONFIG_FIELDS[] = {
     {"uid", "20020026"},
     {"gid", "20020026"},
     {"challenge", R"("ch")"},
-    {"appIdentifier", R"("app")"},
+    {"appIdentifier", R"("20020026")"},
     {"bundleName", R"("bundle")"},
     {"cliName", R"("cli")"},
     {"subCliName", R"("sub")"},
@@ -153,7 +163,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig001, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "test-challenge",
-        "appIdentifier": "com.example.app",
+        "appIdentifier": "20020026",
         "bundleName": "com.example.bundle",
         "cliName": "testCli",
         "subCliName": "testSubCli"
@@ -166,13 +176,104 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig001, TestSize.Level0)
     EXPECT_EQ(20020026U, config.uid);
     EXPECT_EQ(20020026U, config.gid);
     EXPECT_EQ("test-challenge", config.challenge);
-    EXPECT_EQ("com.example.app", config.appIdentifier);
+    EXPECT_EQ("20020026", config.appIdentifier);
     EXPECT_EQ("com.example.bundle", config.bundleName);
     EXPECT_EQ("testCli", config.cliName);
     EXPECT_EQ("testSubCli", config.subCliName);
     EXPECT_TRUE(config.name.empty());
     // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS
-    EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
+    EXPECT_EQ(CLONE_NEWNS, config.nsFlags);
+}
+
+/**
+ * @tc.name: ParseConfigAppIdentifierU64
+ * @tc.desc: A numeric appIdentifier is stored both as the string and as the
+ *           parsed u64 in appIdentifierU64.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfigAppIdentifierU64, TestSize.Level0)
+{
+    const std::string json = BuildConfigJsonWithValue("appIdentifier", R"("20020026")");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ("20020026", config.appIdentifier);
+    EXPECT_EQ(20020026ULL, config.appIdentifierU64);
+}
+
+/**
+ * @tc.name: ParseConfigAppIdentifierHex
+ * @tc.desc: A 0x-prefixed hex appIdentifier parses into appIdentifierU64.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfigAppIdentifierHex, TestSize.Level0)
+{
+    const std::string json = BuildConfigJsonWithValue("appIdentifier", R"("0xDEC00001")");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(0xDEC00001ULL, config.appIdentifierU64);
+}
+
+/**
+ * @tc.name: ParseConfigAppIdentifierNonNumeric
+ * @tc.desc: A non-integer appIdentifier (e.g. a dotted bundle id) rejects the
+ *           whole config with SANDBOX_ERR_CONFIG_INVALID.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfigAppIdentifierNonNumeric, TestSize.Level0)
+{
+    const std::string json = BuildConfigJsonWithValue("appIdentifier", R"("com.example.app")");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfigAppIdentifierOverflow
+ * @tc.desc: An appIdentifier overflowing u64 rejects the config.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfigAppIdentifierOverflow, TestSize.Level0)
+{
+    const std::string json = BuildConfigJsonWithValue("appIdentifier", R"("99999999999999999999999999")");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfigAppIdentifierTrailingGarbage
+ * @tc.desc: An appIdentifier with trailing non-numeric characters rejects.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfigAppIdentifierTrailingGarbage, TestSize.Level0)
+{
+    const std::string json = BuildConfigJsonWithValue("appIdentifier", R"("123abc")");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfigAppIdentifierMax
+ * @tc.desc: Both forms survive at the top of the range: XPM consumes the string,
+ *           AIDS and DEC the number.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfigAppIdentifierMax, TestSize.Level0)
+{
+    const std::string json = BuildConfigJsonWithValue("appIdentifier", R"("18446744073709551615")");
+    SandboxConfig config;
+    ASSERT_EQ(SANDBOX_SUCCESS, CmdParser::ParseConfig(json, config));
+    EXPECT_EQ("18446744073709551615", config.appIdentifier);
+    EXPECT_EQ(UINT64_MAX, config.appIdentifierU64);
 }
 
 /**
@@ -202,7 +303,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig003, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub"
@@ -226,7 +327,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig004, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -252,7 +353,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig005, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -278,7 +379,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig006, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -303,7 +404,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig007, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -312,7 +413,10 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig007, TestSize.Level0)
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
-    int expectedFlags = CLONE_NEWNS | CLONE_NEWNET | CLONE_NEWPID | CLONE_NEWUTS;
+    uint32_t expectedFlags = CLONE_NEWNS;
+    expectedFlags |= CLONE_NEWNET;
+    expectedFlags |= CLONE_NEWPID;
+    expectedFlags |= CLONE_NEWUTS;
     EXPECT_EQ(expectedFlags, config.nsFlags);
 }
 
@@ -330,7 +434,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig008, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -355,7 +459,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig009, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -380,7 +484,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig010, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub"
@@ -404,7 +508,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig011, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub"
@@ -444,7 +548,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig013, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": ")" + longStr + R"(",
         "subCliName": "sub"
@@ -469,7 +573,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig014, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -494,7 +598,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig015, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -509,7 +613,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig015, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -683,7 +787,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig023, TestSize.Level0)
     int ret = CmdParser::ParseConfig(json, config);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_TRUE(config.name.empty());
-    EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
+    EXPECT_EQ(CLONE_NEWNS, config.nsFlags);
 }
 
 /**
@@ -906,6 +1010,13 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig033, TestSize.Level0)
     }
 }
 
+/*
+ * Shell sandboxes are PC only, so the same JSON has two correct answers. Both
+ * are asserted rather than skipping one platform: "shell is refused off PC" is
+ * behaviour that can regress, not an absence of behaviour.
+ */
+#ifdef CONFIG_SHELL_SANDBOX
+
 /**
  * @tc.name: ParseConfig034
  * @tc.desc: ParseConfig with valid JSON containing all required fields when type is "shell"
@@ -921,7 +1032,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig034, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "test-challenge",
-        "appIdentifier": "com.example.app",
+        "appIdentifier": "20020026",
         "bundleName": "com.example.bundle",
         "type": "shell"
     })";
@@ -938,14 +1049,14 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig034, TestSize.Level0)
     EXPECT_EQ(20020026U, config.uid);
     EXPECT_EQ(20020026U, config.gid);
     EXPECT_EQ("test-challenge", config.challenge);
-    EXPECT_EQ("com.example.app", config.appIdentifier);
+    EXPECT_EQ("20020026", config.appIdentifier);
     EXPECT_EQ("com.example.bundle", config.bundleName);
     // cliName and subCliName to default to empty strings when type is "shell"
     EXPECT_EQ("", config.cliName);
     EXPECT_EQ("", config.subCliName);
     EXPECT_TRUE(config.name.empty());
     // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS
-    EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
+    EXPECT_EQ(CLONE_NEWNS, config.nsFlags);
 }
 
 /**
@@ -963,7 +1074,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig035, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "type": "shell",
         "cliName": "cli",
@@ -982,6 +1093,33 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig035, TestSize.Level0)
     EXPECT_EQ("", config.subCliName);
 }
 
+#else
+
+/**
+ * @tc.name: ParseConfig034
+ * @tc.desc: Off PC the shell type is refused at the config parser, before any
+ *           template lookup can turn it into a missing-file error
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig034, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 123456789,
+        "callerPid": 1000,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "test-challenge",
+        "appIdentifier": "20020026",
+        "bundleName": "com.example.bundle",
+        "type": "shell"
+    })";
+    SandboxConfig config;
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ParseConfig(json, config));
+}
+
+#endif // CONFIG_SHELL_SANDBOX
+
 /**
  * @tc.name: ParseConfigPcModeOff001
  * @tc.desc: With PC mode off, the shell type is refused by the config parser.
@@ -997,7 +1135,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfigPcModeOff001, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "test-challenge",
-        "appIdentifier": "com.example.app",
+        "appIdentifier": "20020026",
         "bundleName": "com.example.bundle",
         "type": "shell"
     })";
@@ -1020,7 +1158,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfigPcModeOff002, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "test-challenge",
-        "appIdentifier": "com.example.app",
+        "appIdentifier": "20020026",
         "bundleName": "com.example.bundle",
         "type": "cli",
         "cliName": "cli",
@@ -1046,7 +1184,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig036, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "test-challenge",
-        "appIdentifier": "com.example.app",
+        "appIdentifier": "20020026",
         "bundleName": "com.example.bundle",
         "type": "cli",
         "cliName": "testCli",
@@ -1060,13 +1198,13 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig036, TestSize.Level0)
     EXPECT_EQ(20020026U, config.uid);
     EXPECT_EQ(20020026U, config.gid);
     EXPECT_EQ("test-challenge", config.challenge);
-    EXPECT_EQ("com.example.app", config.appIdentifier);
+    EXPECT_EQ("20020026", config.appIdentifier);
     EXPECT_EQ("com.example.bundle", config.bundleName);
     EXPECT_EQ("testCli", config.cliName);
     EXPECT_EQ("testSubCli", config.subCliName);
     EXPECT_TRUE(config.name.empty());
     // When nsFlags is not specified in JSON, it defaults to CLONE_NEWNS
-    EXPECT_EQ(static_cast<int>(CLONE_NEWNS), config.nsFlags);
+    EXPECT_EQ(CLONE_NEWNS, config.nsFlags);
 }
 
 /**
@@ -1084,7 +1222,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig037, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "type": "others"
     })";
@@ -1095,7 +1233,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig037, TestSize.Level0)
 
 /**
  * @tc.name: ParseConfig038
- * @tc.desc: ParseConfig accepts valid policy with AddOperationControlRuleGroups and current_task scope
+ * @tc.desc: ParseConfig accepts valid policy with AddOperationControlRuleGroups and self_session scope
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -1107,14 +1245,14 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig038, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
         "policy": "{
             \"AddOperationControlRuleGroups\": [
                 {
-                    \"Scope\": { \"Type\": \"current_task\" },
+                    \"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" },
                     \"Network\": { \"DefaultAction\": \"deny\" }
                 }
             ]
@@ -1122,16 +1260,17 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig038, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
 /**
  * @tc.name: ParseConfig039
- * @tc.desc: ParseConfig accepts invalid policy without DefaultAction in Network
+ * @tc.desc: A configured Network object must carry a DefaultAction: "Network": {} is
+ *           rejected (DefaultAction is required whenever Network is present)
  * @tc.type: FUNC
  * @tc.require:
  */
+#ifdef CONFIG_SHELL_SANDBOX
 HWTEST_F(ClawSandboxCmdParserTest, ParseConfig039, TestSize.Level0)
 {
     const std::string json = R"({
@@ -1140,14 +1279,14 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig039, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
         "policy": "{
             \"AddOperationControlRuleGroups\": [
                 {
-                    \"Scope\": { \"Type\": \"current_task\" },
+                    \"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" },
                     \"Network\": {}
                 }
             ]
@@ -1155,9 +1294,9 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig039, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
+#endif // CONFIG_SHELL_SANDBOX
 
 /**
  * @tc.name: ParseConfig040
@@ -1173,24 +1312,28 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig040, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
         "policy": "{
             \"AddOperationControlRuleGroups\": [
                 {
-                    \"Scope\": { \"Type\": \"current_task\" }
+                    \"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" }
                 }
             ]
         }"
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
+// ParseConfig041-044 assert op-driven CONFIG_INVALID results. Their rejection comes from
+// ParseOperationControlRuleGroups, which is only compiled under CONFIG_SHELL_SANDBOX (the
+// AddOperationControlRuleGroups payload is skipped in non-shell builds and the otherwise
+// valid config would parse SUCCESS). Gate them like ParseConfig039 above.
+#ifdef CONFIG_SHELL_SANDBOX
 /**
  * @tc.name: ParseConfig041
  * @tc.desc: ParseConfig accepts invalid policy without Scope field
@@ -1205,7 +1348,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig041, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -1219,7 +1362,6 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig041, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
 
@@ -1237,7 +1379,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig042, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -1252,7 +1394,6 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig042, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
 
@@ -1270,14 +1411,14 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig043, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
         "policy": "{
             \"AddOperationControlRuleGroups\": [
                 {
-                    \"Scope\": { \"Type\": \"current_task\" },
+                    \"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" },
                     \"Network\": { \"DefaultAction\": \"ask\" }
                 }
             ]
@@ -1285,7 +1426,6 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig043, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
 
@@ -1303,7 +1443,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig044, TestSize.Level0)
         "uid": 20020026,
         "gid": 20020026,
         "challenge": "ch",
-        "appIdentifier": "app",
+        "appIdentifier": "20020026",
         "bundleName": "bundle",
         "cliName": "cli",
         "subCliName": "sub",
@@ -1318,9 +1458,9 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig044, TestSize.Level0)
     })";
     SandboxConfig config;
     int ret = CmdParser::ParseConfig(json, config);
-    config.policyArg.reset();
     EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
 }
+#endif // CONFIG_SHELL_SANDBOX
 
 /**
  * @tc.name: ParseConfig045
@@ -1546,7 +1686,8 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseCommandFromArgv005, TestSize.Level0)
 HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags001, TestSize.Level0)
 {
     std::vector<std::string> flags;
-    int result = CmdParser::ConvertNsFlags(flags);
+    uint32_t result = 0;
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ConvertNsFlags(flags, result));
     EXPECT_EQ(CLONE_NEWNS, result);
 }
 
@@ -1559,7 +1700,8 @@ HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags001, TestSize.Level0)
 HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags002, TestSize.Level0)
 {
     std::vector<std::string> flags = {"pid"};
-    int result = CmdParser::ConvertNsFlags(flags);
+    uint32_t result = 0;
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ConvertNsFlags(flags, result));
     EXPECT_TRUE(result & CLONE_NEWPID);
     EXPECT_TRUE(result & CLONE_NEWNS);
 }
@@ -1573,7 +1715,8 @@ HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags002, TestSize.Level0)
 HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags003, TestSize.Level0)
 {
     std::vector<std::string> flags = {"uts"};
-    int result = CmdParser::ConvertNsFlags(flags);
+    uint32_t result = 0;
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ConvertNsFlags(flags, result));
     EXPECT_TRUE(result & CLONE_NEWUTS);
 }
 
@@ -1586,7 +1729,8 @@ HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags003, TestSize.Level0)
 HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags004, TestSize.Level0)
 {
     std::vector<std::string> flags = {"ipc"};
-    int result = CmdParser::ConvertNsFlags(flags);
+    uint32_t result = 0;
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ConvertNsFlags(flags, result));
     EXPECT_TRUE(result & CLONE_NEWIPC);
 }
 
@@ -1599,7 +1743,8 @@ HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags004, TestSize.Level0)
 HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags005, TestSize.Level0)
 {
     std::vector<std::string> flags = {"user"};
-    int result = CmdParser::ConvertNsFlags(flags);
+    uint32_t result = 0;
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ConvertNsFlags(flags, result));
     EXPECT_TRUE(result & CLONE_NEWUSER);
 }
 
@@ -1612,7 +1757,8 @@ HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags005, TestSize.Level0)
 HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags006, TestSize.Level0)
 {
     std::vector<std::string> flags = {"pid", "uts", "ipc", "user", "net"};
-    int result = CmdParser::ConvertNsFlags(flags);
+    uint32_t result = 0;
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ConvertNsFlags(flags, result));
     EXPECT_TRUE(result & CLONE_NEWPID);
     EXPECT_TRUE(result & CLONE_NEWUTS);
     EXPECT_TRUE(result & CLONE_NEWIPC);
@@ -1623,16 +1769,17 @@ HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags006, TestSize.Level0)
 
 /**
  * @tc.name: ConvertNsFlags007
- * @tc.desc: ConvertNsFlags with unknown flag name is silently ignored
+ * @tc.desc: An unknown namespace name is rejected, not skipped: it would leave a
+ *           sandbox weaker than the config asked for
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags007, TestSize.Level0)
 {
     std::vector<std::string> flags = {"unknown", "bogus"};
-    int result = CmdParser::ConvertNsFlags(flags);
-    // Only base flags should be present
-    EXPECT_EQ(CLONE_NEWNS, result);
+    uint32_t result = 0;
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ConvertNsFlags(flags, result));
+    EXPECT_EQ(0, result);  // left alone on failure
 }
 
 /**
@@ -1644,18 +1791,68 @@ HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags007, TestSize.Level0)
 HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags008, TestSize.Level0)
 {
     std::vector<std::string> flags = {"mnt"};
-    int result = CmdParser::ConvertNsFlags(flags);
+    uint32_t result = 0;
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ConvertNsFlags(flags, result));
     // CLONE_NEWNS is already in the base flags
     EXPECT_TRUE(result & CLONE_NEWNS);
+}
+
+/**
+ * @tc.name: ConvertNsFlags009
+ * @tc.desc: One bad name among good ones fails the whole array; a partially
+ *           applied set is exactly what must not reach the sandbox
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags009, TestSize.Level0)
+{
+    // "nte" is the typo this rejection exists for.
+    std::vector<std::string> flags = {"pid", "nte", "ipc"};
+    uint32_t result = 0;
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ConvertNsFlags(flags, result));
+    EXPECT_EQ(0, result);
+}
+
+/**
+ * @tc.name: ConvertNsFlags010
+ * @tc.desc: The rejection reaches ParseConfig, so a misspelled nsFlags fails the
+ *           launch instead of quietly starting a less isolated sandbox
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags010, TestSize.Level0)
+{
+    std::string json = BuildConfigJsonWithValue("", "");
+    json = AddConfigJsonField(json, "nsFlags", R"(["net","nte"])");
+
+    SandboxConfig config;
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ParseConfig(json, config));
+}
+
+/**
+ * @tc.name: ConvertNsFlags011
+ * @tc.desc: The same config with the name spelled right still parses, so the
+ *           rejection above is about the bad name and nothing else
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ConvertNsFlags011, TestSize.Level0)
+{
+    std::string json = BuildConfigJsonWithValue("", "");
+    json = AddConfigJsonField(json, "nsFlags", R"(["net","pid"])");
+
+    SandboxConfig config;
+    ASSERT_EQ(SANDBOX_SUCCESS, CmdParser::ParseConfig(json, config));
+    EXPECT_TRUE(config.nsFlags & CLONE_NEWNET);
+    EXPECT_TRUE(config.nsFlags & CLONE_NEWPID);
+    EXPECT_TRUE(config.nsFlags & CLONE_NEWNS);
 }
 
 // ==================== ExecuteCommand tests ====================
 
 /**
  * @tc.name: ExecuteCommand001
- * @tc.desc: ExecuteCommand with valid command - execvp is mocked via linker
- *           interposition (execvp_mock_stub.cpp) to return -1 with errno=EACCES,
- *           so ExecuteCommand returns SANDBOX_ERR_CMD_INVALID
+ * @tc.desc: A bare command name is not resolved, because PATH is no longer searched
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -1671,10 +1868,35 @@ HWTEST_F(ClawSandboxCmdParserTest, ExecuteCommand001, TestSize.Level0)
     cmdInfo.argv = {"echo", "hello"};
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.ExecuteCommand();
-    // execvp_mock_stub.cpp returns -1 with errno=EACCES, so ExecuteCommand
-    // should return SANDBOX_ERR_CMD_INVALID
-    EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
+    // The executable is opened by the exact name given, so that the file being
+    // vetted is the file being run. "echo" therefore has to exist relative to
+    // the working directory - it is not looked up in PATH.
+    EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, manager.ExecuteCommand());
+}
+
+/**
+ * @tc.name: ExecuteCommand003
+ * @tc.desc: A template that declares no exec types denies every executable
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ExecuteCommand003, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    // An absolute path that exists, so the refusal can only come from the check.
+    cmdInfo.argv = {"/proc/self/exe"};
+    manager.Initialize(std::move(config), cmdInfo);
+
+    ASSERT_TRUE(manager.templateConfig_.execSelinuxTypes.empty());
+    // Empty means "nothing may exec", not "anything may exec": a template that
+    // forgets exec-selinux-types must not silently disable the check.
+    EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, manager.ExecuteCommand());
 }
 
 /**
@@ -1697,6 +1919,596 @@ HWTEST_F(ClawSandboxCmdParserTest, ExecuteCommand002, TestSize.Level0)
     int ret = manager.ExecuteCommand();
     EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
 }
+
+#ifdef CONFIG_SHELL_SANDBOX
+// The op-control (AddOperationControlRuleGroups) parse tests below exercise the
+// DEC/AgentLock model + parser TU, which only exist in shell-sandbox builds. The
+// whole helper + case block is gated so non-shell builds still compile.
+
+namespace {
+
+// Build a ParseConfig JSON whose policy carries a single rule group described by
+// groupBody (raw JSON without the outer braces). Reuses the base config fields.
+static std::string BuildRuleGroupConfigJson(const std::string &groupBody)
+{
+    std::string policyJson = "{ \"AddOperationControlRuleGroups\": [ { " +
+        groupBody + " } ] }";
+    return AddConfigJsonField(BuildConfigJsonWithValue("", ""), "policy",
+        ToJsonString(policyJson));
+}
+
+// Build a cJSON policy object whose AddOperationControlRuleGroups holds one group
+// described by groupBody (raw JSON without the outer braces). Drives
+// ParseOperationControlRuleGroups directly (with an explicit phase); the caller must
+// cJSON_Delete() the result. cJSON is already visible via sandbox_manager.h above.
+static cJSON *BuildRuleGroupPolicyCjson(const std::string &groupBody)
+{
+    const std::string json = "{ \"AddOperationControlRuleGroups\": [ { " +
+        groupBody + " } ] }";
+    return cJSON_Parse(json.c_str());
+}
+}  // namespace
+
+// ==================== ParseConfig: DefaultAction rules ====================
+// File/Process.DefaultAction are optional (default NONE); Network.DefaultAction is
+// REQUIRED when a Network object is present and admits only "deny"/"allow".
+
+/**
+ * @tc.name: ParseConfig051
+ * @tc.desc: File.DefaultAction is accepted (optional field)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig051, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" }, "
+        "\"File\": { \"DefaultAction\": \"deny\", \"DenyDelete\": [\"/a\"] }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(1u, config.policy.addOperationControlRuleGroups.size());
+    EXPECT_EQ(DEC_POLICY_ACTION_DENY,
+        config.policy.addOperationControlRuleGroups[0].fileRules.defaultAction);
+}
+
+/**
+ * @tc.name: ParseConfig052
+ * @tc.desc: File without DefaultAction defaults to NONE
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig052, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" }, "
+        "\"File\": { \"DenyDelete\": [\"/a\"] }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(1u, config.policy.addOperationControlRuleGroups.size());
+    EXPECT_EQ(DEC_POLICY_ACTION_NONE,
+        config.policy.addOperationControlRuleGroups[0].fileRules.defaultAction);
+}
+
+/**
+ * @tc.name: ParseConfig053
+ * @tc.desc: File with an invalid DefaultAction value is rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig053, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" }, "
+        "\"File\": { \"DefaultAction\": \"forbid\" }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig054
+ * @tc.desc: Process without DefaultAction defaults to NONE
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig054, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" }, "
+        "\"Process\": { \"DenyExecCmd\": [\"sh\"] }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(1u, config.policy.addOperationControlRuleGroups.size());
+    const SandboxPolicyProcessConfig &processRules =
+        config.policy.addOperationControlRuleGroups[0].processRules;
+    EXPECT_EQ(DEC_POLICY_ACTION_NONE, processRules.defaultAction);
+    ASSERT_EQ(1u, processRules.denyExecCmd.size());
+    EXPECT_EQ("sh", processRules.denyExecCmd[0]);
+}
+
+/**
+ * @tc.name: ParseConfig055
+ * @tc.desc: Process accepts an explicit DefaultAction of "none"
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig055, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" }, "
+        "\"Process\": { \"DefaultAction\": \"none\" }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(1u, config.policy.addOperationControlRuleGroups.size());
+    EXPECT_EQ(DEC_POLICY_ACTION_NONE,
+        config.policy.addOperationControlRuleGroups[0].processRules.defaultAction);
+}
+
+/**
+ * @tc.name: ParseConfig056
+ * @tc.desc: Process with an invalid DefaultAction value is rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig056, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" }, "
+        "\"Process\": { \"DefaultAction\": \"maybe\" }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig057
+ * @tc.desc: Network DefaultAction admits only "deny"/"allow": an explicit "none"
+ *           is rejected just like "ask"
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig057, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" }, "
+        "\"Network\": { \"DefaultAction\": \"none\" }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig058
+ * @tc.desc: All three modules in one group with mixed DefaultAction values parse
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig058, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" }, "
+        "\"Network\": { \"DefaultAction\": \"deny\" }, "
+        "\"File\": { \"DefaultAction\": \"ask\" }, "
+        "\"Process\": { \"DefaultAction\": \"allow\" }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(1u, config.policy.addOperationControlRuleGroups.size());
+    const SandboxPolicyRuleGroup &group = config.policy.addOperationControlRuleGroups[0];
+    EXPECT_EQ(DEC_POLICY_ACTION_DENY, group.networkRules.defaultAction);
+    EXPECT_EQ(DEC_POLICY_ACTION_ASK, group.fileRules.defaultAction);
+    EXPECT_EQ(DEC_POLICY_ACTION_ALLOW, group.processRules.defaultAction);
+}
+
+/**
+ * @tc.name: ParseConfig059
+ * @tc.desc: Scope needs only Type ("self_session"); priority is not parsed this
+ *           version, so its absence is accepted and the parsed type is filled in
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig059, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\" }, "
+        "\"Network\": { \"DefaultAction\": \"deny\" }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(1u, config.policy.addOperationControlRuleGroups.size());
+    EXPECT_EQ(DEC_POLICY_SCOPE_TYPE_SELF_SESSION,
+        config.policy.addOperationControlRuleGroups[0].scope.type);
+}
+
+/**
+ * @tc.name: ParseConfig060
+ * @tc.desc: Scope.Type other than "self_session" is rejected this version
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig060, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"global\" }, "
+        "\"Network\": { \"DefaultAction\": \"deny\" }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig061
+ * @tc.desc: Process DenyExecCmd with a path ("/bin/ls") is rejected: exec cmds
+ *           must be bare command names without '/'
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig061, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" }, "
+        "\"Process\": { \"DenyExecCmd\": [\"/bin/ls\"] }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig062
+ * @tc.desc: Process AskExecCmd with a path is rejected too ("/bin/sh")
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig062, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" }, "
+        "\"Process\": { \"AskExecCmd\": [\"/bin/sh\"] }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig063
+ * @tc.desc: ParseConfig rejects rule groups carrying duplicate Scope.Type (the array
+ *           exists for several DISTINCT scope types; with only self_session allowed,
+ *           a second group duplicates it)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig063, TestSize.Level0)
+{
+    const std::string json = R"({
+        "callerTokenId": 1,
+        "callerPid": 1,
+        "uid": 20020026,
+        "gid": 20020026,
+        "challenge": "ch",
+        "appIdentifier": "20020026",
+        "bundleName": "bundle",
+        "cliName": "cli",
+        "subCliName": "sub",
+        "policy": "{
+            \"AddOperationControlRuleGroups\": [
+                {
+                    \"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" },
+                    \"Network\": { \"DefaultAction\": \"deny\" }
+                },
+                {
+                    \"Scope\": { \"Type\": \"self_session\", \"priority\": \"absolute\" },
+                    \"Network\": { \"DefaultAction\": \"deny\" }
+                }
+            ]
+        }"
+    })";
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig064
+ * @tc.desc: File allow/ask and Process allow/ask arrays parse into their vectors
+ *           (bare exec cmds pass the validator)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig064, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\" }, "
+        "\"File\": { \"AllowDelete\": [\"/data/allow\"], \"AskDelete\": [\"/data/ask\"] }, "
+        "\"Process\": { \"AllowExecCmd\": [\"cat\"], \"AskExecCmd\": [\"top\"] }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(1u, config.policy.addOperationControlRuleGroups.size());
+    const SandboxPolicyRuleGroup &group = config.policy.addOperationControlRuleGroups[0];
+    ASSERT_EQ(1u, group.fileRules.allowDelete.size());
+    EXPECT_EQ("/data/allow", group.fileRules.allowDelete[0]);
+    ASSERT_EQ(1u, group.fileRules.askDelete.size());
+    EXPECT_EQ("/data/ask", group.fileRules.askDelete[0]);
+    ASSERT_EQ(1u, group.processRules.allowExecCmd.size());
+    EXPECT_EQ("cat", group.processRules.allowExecCmd[0]);
+    ASSERT_EQ(1u, group.processRules.askExecCmd.size());
+    EXPECT_EQ("top", group.processRules.askExecCmd[0]);
+}
+
+/**
+ * @tc.name: ParseConfig065
+ * @tc.desc: Network rejects an explicit DefaultAction of "ask"
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig065, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\" }, "
+        "\"Network\": { \"DefaultAction\": \"ask\" }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig066
+ * @tc.desc: A module field that is not an object ("File": 7) is rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig066, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\" }, \"File\": 7");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig067
+ * @tc.desc: A File array field that is not an array (DenyDelete as a string) is
+ *           rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig067, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\" }, "
+        "\"File\": { \"DenyDelete\": \"/a\" }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig068
+ * @tc.desc: A File array field holding a non-string item (DenyDelete: ["/a", 7])
+ *           is rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig068, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\" }, "
+        "\"File\": { \"DenyDelete\": [\"/a\", 7] }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig069
+ * @tc.desc: A rule group with no Scope object is rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig069, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Network\": { \"DefaultAction\": \"deny\" }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig070
+ * @tc.desc: AddOperationControlRuleGroups that is not an array is rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig070, TestSize.Level0)
+{
+    const std::string policyJson =
+        "{ \"AddOperationControlRuleGroups\": { \"Scope\": { \"Type\": \"self_session\" } } }";
+    const std::string json =
+        AddConfigJsonField(BuildConfigJsonWithValue("", ""), "policy", ToJsonString(policyJson));
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig071
+ * @tc.desc: AddOperationControlRuleGroups holding a non-object item is rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig071, TestSize.Level0)
+{
+    const std::string policyJson =
+        "{ \"AddOperationControlRuleGroups\": [ { \"Scope\": { \"Type\": \"self_session\" } }, 7 ] }";
+    const std::string json =
+        AddConfigJsonField(BuildConfigJsonWithValue("", ""), "policy", ToJsonString(policyJson));
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig072
+ * @tc.desc: A Network field that is not an object ("Network": 7) is rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig072, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\" }, \"Network\": 7");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig073
+ * @tc.desc: A Process field that is not an object ("Process": 7) is rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig073, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\" }, \"Process\": 7");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig074
+ * @tc.desc: Scope.Type with an unrecognized word is rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig074, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"no_such_scope\" }, "
+        "\"Network\": { \"DefaultAction\": \"deny\" }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig075
+ * @tc.desc: A DefaultAction that is not a string ("DefaultAction": 5) is rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig075, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\" }, "
+        "\"File\": { \"DefaultAction\": 5 }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+}
+
+/**
+ * @tc.name: ParseConfig076
+ * @tc.desc: Network accepts a DefaultAction of "allow" (one of the two allowed
+ *           values), which lands on the network rules' default action
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig076, TestSize.Level0)
+{
+    const std::string json = BuildRuleGroupConfigJson(
+        "\"Scope\": { \"Type\": \"self_session\" }, "
+        "\"Network\": { \"DefaultAction\": \"allow\" }");
+    SandboxConfig config;
+    int ret = CmdParser::ParseConfig(json, config);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(1u, config.policy.addOperationControlRuleGroups.size());
+    EXPECT_EQ(DEC_POLICY_ACTION_ALLOW,
+        config.policy.addOperationControlRuleGroups[0].networkRules.defaultAction);
+}
+
+// ==================== ParseConfig: parse phase (STARTUP vs DYNAMIC) ====================
+// STARTUP and DYNAMIC share one schema; a DYNAMIC policy may not carry a Network module
+// (the network default is fixed at sandbox boot). ParseOperationControlRuleGroups is
+// called directly here with an explicit phase because ParseConfig is always STARTUP.
+
+/**
+ * @tc.name: ParseConfig077
+ * @tc.desc: A DYNAMIC (post-start) policy must not carry a Network module -- a group that
+ *           does is rejected even when the Network object itself is well-formed
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig077, TestSize.Level0)
+{
+    cJSON *policy = BuildRuleGroupPolicyCjson(
+        "\"Scope\": { \"Type\": \"self_session\" }, "
+        "\"Network\": { \"DefaultAction\": \"allow\" }");
+    ASSERT_NE(policy, nullptr);
+    std::vector<SandboxPolicyRuleGroup> groups;
+    int ret = CmdParser::ParseOperationControlRuleGroups(policy, groups,
+        SANDBOX_POLICY_PARSE_DYNAMIC);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+    cJSON_Delete(policy);
+}
+
+/**
+ * @tc.name: ParseConfig078
+ * @tc.desc: A DYNAMIC policy without a Network module parses normally -- File groups are
+ *           admitted and no Network flag is raised
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig078, TestSize.Level0)
+{
+    cJSON *policy = BuildRuleGroupPolicyCjson(
+        "\"Scope\": { \"Type\": \"self_session\" }, "
+        "\"File\": { \"DenyDelete\": [\"/a\"] }");
+    ASSERT_NE(policy, nullptr);
+    std::vector<SandboxPolicyRuleGroup> groups;
+    int ret = CmdParser::ParseOperationControlRuleGroups(policy, groups,
+        SANDBOX_POLICY_PARSE_DYNAMIC);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(1u, groups.size());
+    EXPECT_TRUE(groups[0].hasFile);
+    EXPECT_FALSE(groups[0].hasNetwork);
+    ASSERT_EQ(1u, groups[0].fileRules.denyDelete.size());
+    EXPECT_EQ("/a", groups[0].fileRules.denyDelete[0]);
+    cJSON_Delete(policy);
+}
+
+/**
+ * @tc.name: ParseConfig079
+ * @tc.desc: The STARTUP phase still admits a Network module -- guards that the DYNAMIC
+ *           Network ban did not leak into the boot-time profile
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig079, TestSize.Level0)
+{
+    cJSON *policy = BuildRuleGroupPolicyCjson(
+        "\"Scope\": { \"Type\": \"self_session\" }, "
+        "\"Network\": { \"DefaultAction\": \"allow\" }");
+    ASSERT_NE(policy, nullptr);
+    std::vector<SandboxPolicyRuleGroup> groups;
+    int ret = CmdParser::ParseOperationControlRuleGroups(policy, groups,
+        SANDBOX_POLICY_PARSE_STARTUP);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(1u, groups.size());
+    EXPECT_TRUE(groups[0].hasNetwork);
+    EXPECT_EQ(DEC_POLICY_ACTION_ALLOW, groups[0].networkRules.defaultAction);
+    cJSON_Delete(policy);
+}
+
+#endif // CONFIG_SHELL_SANDBOX
 
 } // namespace SANDBOX
 } // namespace AccessControl

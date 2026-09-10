@@ -23,33 +23,18 @@
 #include <linux/filter.h>
 #include "cJSON.h"
 #include "sandbox_cmd_parser.h"
+#include "sandbox_device_ioctl.h"
 #include "sandbox_error.h"
 
 namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
-#ifdef CONFIG_SHELL_SANDBOX
-constexpr uint32_t DEC_KERNEL_BATCH_SIZE = 8;
-constexpr uint32_t DEC_POLICY_HEADER_RESERVED = 64;
-
-struct DecPathInfo {
-    const char *path;
-    uint32_t pathLen;
-    uint32_t mode;
-    bool flag;
-};
-
-struct DecPolicyInfo {
-    uint64_t tokenId;
-    uint64_t timestamp;
-    DecPathInfo path[DEC_KERNEL_BATCH_SIZE];
-    uint32_t pathNum;
-    int32_t userId;
-    uint64_t reserved[DEC_POLICY_HEADER_RESERVED];
-    bool flag;
-};
-#endif
+// Offsets a sandbox user id (config_.uid / UID_BASE). Shared between the
+// op-control delivery chain (sandbox_op_control_deliver.cpp) and the remaining
+// DEC ioctl code in sandbox_manager.cpp; the ioctl vocabulary itself lives in
+// sandbox_device_ioctl.h.
+constexpr int UID_BASE = 200000;
 
 /**
  * @brief Sandbox manager, responsible for executing the 15-step sandbox creation workflow
@@ -123,6 +108,7 @@ private:
     };
 
     struct TemplateConfig {
+        std::vector<std::string> execSelinuxTypes;
         std::vector<MountEntry> systemMounts;
         std::vector<SymLinkEntry> symLinks;
         std::vector<MountEntry> appMounts;
@@ -161,6 +147,53 @@ private:
     int PreDecDenyPaths();
 #endif
     int ForkAfterUnshare();
+    /*
+     * Whether the fork happens at all. It is what puts the sandboxed program
+     * into a new pid namespace - unshare(CLONE_NEWPID) leaves the caller in the
+     * old one and only its children join the new one - so without that flag a
+     * cli sandbox has nothing to fork for and execs in place. A shell sandbox
+     * always forks: the parent stays behind as its monitor.
+     */
+    bool NeedsForkAfterUnshare() const;
+    // The two sides of ForkAfterUnshare. ParentAfterFork never returns; the code
+    // it would leave with is ParentAfterForkExitCode's, which is where the work
+    // actually happens and the only half a test can reach.
+    int ParentAfterForkExitCode(pid_t pid);
+    void ParentAfterFork(pid_t pid);
+    int ChildAfterFork();
+
+    /*
+     * The start gate: a socketpair the child blocks on straight after the fork,
+     * so that no sandboxed program begins running before the parent knows
+     * whether it can watch it.
+     *
+     * ConnectMonitorSocket is the last step that can fail the launch before the
+     * fork; everything that can still go wrong afterwards - SandboxMonitor::Init
+     * - happens with a child already running. The gate closes that window
+     * without a signal: the parent either releases it or drops it, and the child
+     * sees a byte or an EOF.
+     *
+     * NeedsStartGate is the same condition RunMonitorForChild uses to decide
+     * whether to build a monitor. Both sides of the fork ask it rather than
+     * inspecting the fds, so they cannot disagree about whether a gate exists: a
+     * cli sandbox has no monitor to wait for and is never held up by one.
+     */
+    bool NeedsStartGate() const;
+    int CreateStartGate();
+    // Parent, monitor ready: let the child through.
+    void ReleaseStartGate();
+    // Parent, monitor wanted but unavailable: drop the write end so the child's
+    // read returns EOF. Also the no-op that covers an already released gate.
+    void CloseStartGate();
+    // Child, only when NeedsStartGate(): block until released, or
+    // _exit(EXIT_MONITOR_UNAVAILABLE) on EOF.
+    void WaitForStartGate();
+    // Child exit code, or negative when this sandbox has no monitor or the
+    // monitor never took over - both mean the caller falls back to waitpid.
+    int RunMonitorForChild(pid_t pid);
+#ifdef CONFIG_SHELL_SANDBOX
+    int OpenDecDeviceBeforeFork();
+#endif
     int MountProcFs();
     int SetAccessToken();
 #ifdef CONFIG_SHELL_SANDBOX
@@ -178,13 +211,16 @@ private:
     int DropCapabilities();
     int PrepareWorkdir();
     int ApplyEnvironment();
-    int DeliverPolicy();
-    int DeliverNetPolicy(int fd);
 #ifdef CONFIG_SHELL_SANDBOX
+    int DeliverDaemonSidePolicies();
+    int DeliverExecuterInit();
     int SetEncapsProcFlag();
     int SetSandboxPathMark();
 #endif
-    bool IsAllowedExecContext(const char *path);
+    // Open the executable and vet its SELinux type, returning the fd so that the
+    // file checked is the file executed. Returns -1 when it must not run.
+    int OpenAllowedExecutable(const char *path);
+    int ParseExecSelinuxTypesJson(cJSON *root);
     int ExecuteCommand();
 
     // Helper methods
@@ -232,8 +268,8 @@ public:
     int ParseSystemMountsJson(cJSON *root);
     int ParseSymLinkJson(cJSON *root);
     int ParseAppMountsJson(cJSON *root);
-    void ParseEnvPolicyJson(cJSON *root);
-    void ParseSeccompJson(cJSON *root);
+    int ParseEnvPolicyJson(cJSON *root);
+    int ParseSeccompJson(cJSON *root);
     int ParsePermissionJson(cJSON *root);
     int ParsePermissionSectionJson(cJSON *perm);
     int ParsePermissionObjectJson(cJSON *perm);
@@ -242,8 +278,8 @@ public:
     void ParsePermissionSwitch(cJSON *obj, PermissionConfig &pc, bool defaultSwitch);
     void ParsePermissionGids(cJSON *obj, PermissionConfig &pc);
     void ParsePermissionDecPaths(cJSON *obj, PermissionConfig &pc);
-    void ParseConditionalJson(cJSON *root);
-    void ParseConditionalRule(cJSON *item, ConditionalRule &rule);
+    int ParseConditionalJson(cJSON *root);
+    int ParseConditionalRule(cJSON *item, ConditionalRule &rule, const std::string &path);
     int LoadDefaultConfig();
     static void ParseMountEntry(cJSON *entry, MountEntry &me);
     static void ParseSymLinkEntry(cJSON *entry, SymLinkEntry &me);
@@ -284,6 +320,17 @@ public:
 
     std::string NormalizeDecPath(const std::string &decPath) const;
 
+    // Move the "SANDBOX_SOCKET_PATH" entry out of config_.env into monitorSocketPath_,
+    int ExtractMonitorSocketPath();
+
+#ifdef CONFIG_SHELL_SANDBOX
+    // Connect to the app's monitor socket before the fork, so that a bad path or
+    // a refused connection still fails the sandbox launch. A caller that passed
+    // no path at all opted out and is not an error.
+    int ConnectMonitorSocket();
+    bool IsMonitorSocketPathAllowed() const;
+#endif
+
     SandboxConfig config_;
     CmdInfo cmdInfo_;
     TemplateConfig templateConfig_;
@@ -291,6 +338,27 @@ public:
     std::string putOldPath_;
     std::vector<std::string> mountedDirs_;
     std::vector<struct sock_filter> seccompFilter_;  // Persists filter data for PR_SET_SECCOMP
+    // UDS path the calling app listens on, taken from the "SANDBOX_SOCKET_PATH" policy
+    // env entry in Initialize. Empty when the caller supplied none, which leaves
+    // SandboxMonitor unable to forward DEC events.
+    std::string monitorSocketPath_;
+    /*
+     * Connected monitor socket, opened before the fork by ConnectMonitorSocket
+     * and handed to SandboxMonitor in the parent. -1 when the caller passed no
+     * path, and always -1 off PC where nothing ever connects.
+     */
+    int monitorSocketFd_ = -1;
+    // Parent's daemon-initialized /dev/dec fd, opened with O_CLOEXEC by
+    // DeliverDaemonSidePolicies and held across the fork. Ownership passes to
+    // SandboxMonitor, which closes it; the monitor never reopens an
+    // uninitialized fallback fd. The child closes its own inherited copy in
+    // ForkAfterUnshare and reopens its own in DeliverExecuterInit.
+    int decFd_ = -1;
+    // Start gate ends: the child keeps the read end, the parent the write end,
+    // and each closes the other's copy right after the fork. Both stay -1 for a
+    // sandbox that NeedsStartGate() says needs none.
+    int startGateReadFd_ = -1;
+    int startGateWriteFd_ = -1;
     bool initialized_ = false;
     bool pivotRootDone_ = false;
 };

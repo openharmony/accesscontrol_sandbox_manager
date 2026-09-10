@@ -24,6 +24,15 @@
 #include "sandbox_manager.h"
 #undef private
 
+/*
+ * Last on purpose. sandbox_log.h #undefs LOG_TAG and LOG_DOMAIN and redefines
+ * them, and those are plain macros read where SANDBOX_LOGx is written, not
+ * settings applied once. Any header included after this one that defines its own
+ * LOG_TAG silently takes over, and the log lines go out under someone else's tag
+ * and domain - which looks exactly like logging being broken.
+ */
+#include "sandbox_log.h"
+
 using namespace testing::ext;
 
 namespace OHOS {
@@ -638,6 +647,90 @@ HWTEST_F(ClawSandboxConfigParserTest, ParsePermissionGids005, TestSize.Level0)
     cJSON_Delete(root);
 }
 
+// ==================== ParseExecSelinuxTypesJson tests ====================
+
+/**
+ * @tc.name: ParseExecSelinuxTypesJson001
+ * @tc.desc: The allowed exec types come from the template, verbatim
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseExecSelinuxTypesJson001, TestSize.Level0)
+{
+    const char *json = R"({
+        "exec-selinux-types": ["sh_exec", "sa_aimgr_climgr_exec_file"]
+    })";
+    cJSON *root = cJSON_Parse(json);
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = 12345;
+    CmdInfo cmdInfo;
+    manager.Initialize(std::move(config), cmdInfo);
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseExecSelinuxTypesJson(root));
+    ASSERT_EQ(2U, manager.templateConfig_.execSelinuxTypes.size());
+    // SELinux types are matched verbatim: no trimming, no case folding.
+    EXPECT_EQ("sh_exec", manager.templateConfig_.execSelinuxTypes[0]);
+    EXPECT_EQ("sa_aimgr_climgr_exec_file", manager.templateConfig_.execSelinuxTypes[1]);
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: ParseExecSelinuxTypesJson002
+ * @tc.desc: A template without the field parses fine and leaves the list empty,
+ *           which denies exec
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseExecSelinuxTypesJson002, TestSize.Level0)
+{
+    cJSON *root = cJSON_Parse(R"({"system-mounts": []})");
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager manager;
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseExecSelinuxTypesJson(root));
+    // Empty means "nothing may exec", not "anything may exec" - a template that
+    // omits the field must fail closed.
+    EXPECT_TRUE(manager.templateConfig_.execSelinuxTypes.empty());
+
+    cJSON_Delete(root);
+}
+
+/**
+ * @tc.name: ParseExecSelinuxTypesJson003
+ * @tc.desc: A field that is present but malformed fails the template rather than
+ *           quietly contributing nothing
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseExecSelinuxTypesJson003, TestSize.Level0)
+{
+    const char *cases[] = {
+        R"({"exec-selinux-types": "sh_exec"})",      // not an array
+        R"({"exec-selinux-types": [123]})",          // element not a string
+        R"({"exec-selinux-types": [null]})",
+        R"({"exec-selinux-types": ["sh_exec", ""]})",  // empty type matches nothing
+    };
+
+    for (const char *json : cases) {
+        cJSON *root = cJSON_Parse(json);
+        ASSERT_NE(root, nullptr) << json;
+
+        SandboxManager manager;
+        EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.ParseExecSelinuxTypesJson(root)) << json;
+        // Nothing is committed on the way out.
+        EXPECT_TRUE(manager.templateConfig_.execSelinuxTypes.empty()) << json;
+
+        cJSON_Delete(root);
+    }
+}
+
 // ==================== ParseSeccompJson tests ====================
 
 /**
@@ -665,7 +758,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSeccompJson001, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    manager.ParseSeccompJson(root);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseSeccompJson(root));
     ASSERT_EQ(3U, manager.templateConfig_.seccompAllowList.size());
     EXPECT_EQ("execve", manager.templateConfig_.seccompAllowList[0]);
     EXPECT_EQ("read", manager.templateConfig_.seccompAllowList[1]);
@@ -695,15 +788,15 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSeccompJson002, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    // Should not crash
-    manager.ParseSeccompJson(root);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseSeccompJson(root));
 
     cJSON_Delete(root);
 }
 
 /**
  * @tc.name: ParseSeccompJson003
- * @tc.desc: ParseSeccompJson ignores non-string allow-list elements
+ * @tc.desc: A non-string allow-list element fails the template: a syscall the
+ *           filter silently drops would be killed at run time with no clue why
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -718,17 +811,15 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSeccompJson003, TestSize.Level0)
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    manager.ParseSeccompJson(root);
-    ASSERT_EQ(2U, manager.templateConfig_.seccompAllowList.size());
-    EXPECT_EQ("read", manager.templateConfig_.seccompAllowList[0]);
-    EXPECT_EQ("write", manager.templateConfig_.seccompAllowList[1]);
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.ParseSeccompJson(root));
+    EXPECT_TRUE(manager.templateConfig_.seccompAllowList.empty());
 
     cJSON_Delete(root);
 }
 
 /**
  * @tc.name: ParseSeccompJson004
- * @tc.desc: ParseSeccompJson ignores wrong seccomp object shape
+ * @tc.desc: allow-list of the wrong type fails the template
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -739,7 +830,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSeccompJson004, TestSize.Level0)
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    manager.ParseSeccompJson(root);
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.ParseSeccompJson(root));
     EXPECT_TRUE(manager.templateConfig_.seccompAllowList.empty());
 
     cJSON_Delete(root);
@@ -747,7 +838,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSeccompJson004, TestSize.Level0)
 
 /**
  * @tc.name: ParseSeccompJson005
- * @tc.desc: ParseSeccompJson ignores non-object seccomp field
+ * @tc.desc: a seccomp section of the wrong type fails the template
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -758,7 +849,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSeccompJson005, TestSize.Level0)
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    manager.ParseSeccompJson(root);
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.ParseSeccompJson(root));
     EXPECT_TRUE(manager.templateConfig_.seccompAllowList.empty());
 
     cJSON_Delete(root);
@@ -777,7 +868,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSeccompJson006, TestSize.Level0)
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    manager.ParseSeccompJson(root);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseSeccompJson(root));
     EXPECT_TRUE(manager.templateConfig_.seccompAllowList.empty());
 
     cJSON_Delete(root);
@@ -787,7 +878,10 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseSeccompJson006, TestSize.Level0)
 
 /**
  * @tc.name: ParseEnvPolicyJson001
- * @tc.desc: ParseEnvPolicyJson parses env-policy arrays with trim and uppercase normalization
+ * @tc.desc: env-policy keys are trimmed and upper-cased, and an entry that is
+ *           empty once trimmed is dropped rather than stored as a key that
+ *           matches nothing. A non-string entry is refused outright, which is
+ *           ParseEnvPolicyJson002's subject.
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -795,7 +889,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseEnvPolicyJson001, TestSize.Level0)
 {
     const char *json = R"({
         "env-policy": {
-            "blocked-everywhere-keys": [" path ", 123, ""],
+            "blocked-everywhere-keys": [" path ", "", "   "],
             "blocked-override-only-keys": ["home"],
             "allowed-inherited-override-only-keys": [" Home "],
             "blocked-prefixes": ["dyld_"],
@@ -806,7 +900,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseEnvPolicyJson001, TestSize.Level0)
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    manager.ParseEnvPolicyJson(root);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseEnvPolicyJson(root));
 
     ASSERT_EQ(1U, manager.templateConfig_.envPolicy.blockedEverywhereKeys.size());
     EXPECT_EQ("PATH", manager.templateConfig_.envPolicy.blockedEverywhereKeys[0]);
@@ -824,22 +918,51 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseEnvPolicyJson001, TestSize.Level0)
 
 /**
  * @tc.name: ParseEnvPolicyJson002
- * @tc.desc: ParseEnvPolicyJson ignores missing or invalid env-policy fields
+ * @tc.desc: An env-policy section of the wrong type fails the template, and an
+ *           absent one is fine
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxConfigParserTest, ParseEnvPolicyJson002, TestSize.Level0)
 {
-    const char *json = R"({"env-policy": "bad"})";
-    cJSON *root = cJSON_Parse(json);
+    // env-policy is what strips LD_PRELOAD and friends. A typo that leaves it
+    // unparsed must not read as "nothing to block".
+    const char *cases[] = {
+        R"({"env-policy": "bad"})",
+        R"({"env-policy": {"blocked-everywhere-keys": "PATH"}})",
+        R"({"env-policy": {"blocked-prefixes": ["DYLD_", 7]}})",
+    };
+
+    for (const char *json : cases) {
+        cJSON *root = cJSON_Parse(json);
+        ASSERT_NE(root, nullptr) << json;
+
+        SandboxManager manager;
+        manager.templateConfig_.envPolicy.blockedEverywhereKeys = {"KEEP"};
+        EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.ParseEnvPolicyJson(root)) << json;
+
+        // Nothing was committed, so what was there before is still there.
+        ASSERT_EQ(1U, manager.templateConfig_.envPolicy.blockedEverywhereKeys.size()) << json;
+        EXPECT_EQ("KEEP", manager.templateConfig_.envPolicy.blockedEverywhereKeys[0]) << json;
+
+        cJSON_Delete(root);
+    }
+}
+
+/**
+ * @tc.name: ParseEnvPolicyJson003
+ * @tc.desc: A template without an env-policy section parses fine
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseEnvPolicyJson003, TestSize.Level0)
+{
+    cJSON *root = cJSON_Parse(R"({"system-mounts": []})");
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    manager.templateConfig_.envPolicy.blockedEverywhereKeys = {"KEEP"};
-    manager.ParseEnvPolicyJson(root);
-
-    ASSERT_EQ(1U, manager.templateConfig_.envPolicy.blockedEverywhereKeys.size());
-    EXPECT_EQ("KEEP", manager.templateConfig_.envPolicy.blockedEverywhereKeys[0]);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseEnvPolicyJson(root));
+    EXPECT_TRUE(manager.templateConfig_.envPolicy.blockedEverywhereKeys.empty());
 
     cJSON_Delete(root);
 }
@@ -1619,7 +1742,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson001, TestSize.Level0)
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    manager.ParseConditionalJson(root);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseConditionalJson(root));
     ASSERT_EQ(2U, manager.templateConfig_.conditionalRules.size());
 
     // First rule
@@ -1661,7 +1784,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson002, TestSize.Level0)
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    manager.ParseConditionalJson(root);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseConditionalJson(root));
     EXPECT_TRUE(manager.templateConfig_.conditionalRules.empty());
 
     cJSON_Delete(root);
@@ -1669,7 +1792,8 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson002, TestSize.Level0)
 
 /**
  * @tc.name: ParseConditionalJson003
- * @tc.desc: ParseConditionalJson ignores non-array conditional field
+ * @tc.desc: A conditional section of the wrong type fails the template and
+ *           leaves what was already parsed untouched
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -1683,7 +1807,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson003, TestSize.Level0)
     manager.templateConfig_.conditionalRules.push_back({});
     ASSERT_EQ(1U, manager.templateConfig_.conditionalRules.size());
 
-    manager.ParseConditionalJson(root);
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.ParseConditionalJson(root));
     EXPECT_EQ(1U, manager.templateConfig_.conditionalRules.size());
 
     cJSON_Delete(root);
@@ -1691,27 +1815,35 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson003, TestSize.Level0)
 
 /**
  * @tc.name: ParseConditionalJson004
- * @tc.desc: ParseConditionalJson keeps entries even if target is missing, skips non-object items
+ * @tc.desc: A missing optional field is fine; a non-object entry is not
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson004, TestSize.Level0)
 {
-    const char *json = R"({
+    // Every field of a rule is optional, so the second entry is legal.
+    cJSON *root = cJSON_Parse(R"({
         "conditional": [
             {"source": "/src", "target": "/tgt", "permissions": []},
-            {"source": "/src2"},
-            "bad-item"
+            {"source": "/src2"}
         ]
-    })";
-    cJSON *root = cJSON_Parse(json);
+    })");
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    manager.ParseConditionalJson(root);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseConditionalJson(root));
     ASSERT_EQ(2U, manager.templateConfig_.conditionalRules.size());
     EXPECT_EQ("/tgt", manager.templateConfig_.conditionalRules[0].target);
     EXPECT_TRUE(manager.templateConfig_.conditionalRules[1].target.empty());
+    cJSON_Delete(root);
+
+    // An entry that is not an object is a template mistake, not an entry to skip.
+    root = cJSON_Parse(R"({"conditional": [{"source": "/src"}, "bad-item"]})");
+    ASSERT_NE(root, nullptr);
+
+    SandboxManager strict;
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, strict.ParseConditionalJson(root));
+    EXPECT_TRUE(strict.templateConfig_.conditionalRules.empty());
 
     cJSON_Delete(root);
 }
@@ -1737,7 +1869,7 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson005, TestSize.Level0)
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    manager.ParseConditionalJson(root);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseConditionalJson(root));
     ASSERT_EQ(1U, manager.templateConfig_.conditionalRules.size());
     EXPECT_TRUE(manager.templateConfig_.conditionalRules[0].permissions.empty());
 
@@ -1746,19 +1878,18 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson005, TestSize.Level0)
 
 /**
  * @tc.name: ParseConditionalJson006
- * @tc.desc: ParseConditionalJson exits early when root is not an object
+ * @tc.desc: A root that is not an object fails rather than parsing as empty
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson006, TestSize.Level0)
 {
-    // Pass a JSON array (not object) → early return without crash
     const char *json = R"(["item1", "item2"])";
     cJSON *root = cJSON_Parse(json);
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    manager.ParseConditionalJson(root);
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.ParseConditionalJson(root));
     EXPECT_TRUE(manager.templateConfig_.conditionalRules.empty());
 
     cJSON_Delete(root);
@@ -1766,48 +1897,51 @@ HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson006, TestSize.Level0)
 
 /**
  * @tc.name: ParseConditionalJson007
- * @tc.desc: ParseConditionalRule handles non-string source, mount-flags, check-exists, permissions
+ * @tc.desc: Each wrong-typed field inside a rule fails the template on its own
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson007, TestSize.Level0)
 {
-    // Covers: non-string source, non-string mount-flags item,
-    // non-bool check-exists, non-string permissions item, missing source field
-    const char *json = R"({
-        "conditional": [
-            {
-                "target": "/tgt",
-                "source": 123,
-                "mount-flags": [true, 456],
-                "check-exists": "not-a-bool",
-                "permissions": [789, false]
-            },
-            {
-                "target": "/tgt2"
-            }
-        ]
-    })";
-    cJSON *root = cJSON_Parse(json);
+    const char *cases[] = {
+        R"({"conditional": [{"source": 123}]})",
+        R"({"conditional": [{"target": null}]})",
+        R"({"conditional": [{"mount-flags": "bind"}]})",
+        R"({"conditional": [{"mount-flags": ["bind", 456]}]})",
+        R"({"conditional": [{"check-exists": "not-a-bool"}]})",
+        R"({"conditional": [{"permissions": [789]}]})",
+    };
+
+    for (const char *json : cases) {
+        cJSON *root = cJSON_Parse(json);
+        ASSERT_NE(root, nullptr) << json;
+
+        SandboxManager manager;
+        EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.ParseConditionalJson(root)) << json;
+        EXPECT_TRUE(manager.templateConfig_.conditionalRules.empty()) << json;
+
+        cJSON_Delete(root);
+    }
+}
+
+/**
+ * @tc.name: ParseConditionalJson008
+ * @tc.desc: A rule may carry only some of the fields; absence is not an error
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxConfigParserTest, ParseConditionalJson008, TestSize.Level0)
+{
+    cJSON *root = cJSON_Parse(R"({"conditional": [{"target": "/tgt2"}]})");
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    manager.ParseConditionalJson(root);
-    ASSERT_EQ(2U, manager.templateConfig_.conditionalRules.size());
-
-    // Rule 1: source=123 is not string → source stays empty
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseConditionalJson(root));
+    ASSERT_EQ(1U, manager.templateConfig_.conditionalRules.size());
+    EXPECT_EQ("/tgt2", manager.templateConfig_.conditionalRules[0].target);
     EXPECT_TRUE(manager.templateConfig_.conditionalRules[0].source.empty());
-    EXPECT_EQ("/tgt", manager.templateConfig_.conditionalRules[0].target);
-    // mount-flags items true/456 are not strings → skipped
-    EXPECT_TRUE(manager.templateConfig_.conditionalRules[0].mountFlags.empty());
-    // check-exists "not-a-bool" → not cJSON_IsBool → skips, keeps default true
+    // check-exists was not given, so it keeps its default.
     EXPECT_TRUE(manager.templateConfig_.conditionalRules[0].checkExists);
-    // permissions items 789/false are not strings → skipped
-    EXPECT_TRUE(manager.templateConfig_.conditionalRules[0].permissions.empty());
-
-    // Rule 2: only target, no source/other fields → all remain empty/default
-    EXPECT_EQ("/tgt2", manager.templateConfig_.conditionalRules[1].target);
-    EXPECT_TRUE(manager.templateConfig_.conditionalRules[1].source.empty());
 
     cJSON_Delete(root);
 }

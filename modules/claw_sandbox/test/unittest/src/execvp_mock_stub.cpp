@@ -39,6 +39,16 @@
 #include <cerrno>
 #include <unistd.h>
 
+#include "sandbox_mock_state.h"
+
+namespace OHOS {
+namespace AccessControl {
+namespace SANDBOX {
+ExecMockState g_execMockState;
+}  // namespace SANDBOX
+}  // namespace AccessControl
+}  // namespace OHOS
+
 extern "C" {
 /*
  * Mock execve() -- the common backend for execl(), execv(), execle(), execve(),
@@ -50,6 +60,23 @@ int execve(const char *path, char *const argv[], char *const envp[])
     (void)path;
     (void)argv;
     (void)envp;
+    errno = EACCES;
+    return -1;
+}
+
+/*
+ * Mock fexecve() -- what ExecuteCommand actually calls.
+ *
+ * Not optional: fexecve reaches the kernel through execveat rather than
+ * execve on modern glibc, so the execve mock above does not cover it. Left
+ * unmocked, a call that got as far as here would replace the test process.
+ */
+int fexecve(int fd, char *const argv[], char *const envp[])
+{
+    (void)argv;
+    (void)envp;
+    OHOS::AccessControl::SANDBOX::g_execMockState.fexecveCalls++;
+    OHOS::AccessControl::SANDBOX::g_execMockState.lastFexecveFd = fd;
     errno = EACCES;
     return -1;
 }

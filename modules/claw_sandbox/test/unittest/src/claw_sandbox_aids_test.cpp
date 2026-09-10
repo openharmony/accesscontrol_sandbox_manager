@@ -21,6 +21,15 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+/*
+ * Last on purpose. sandbox_log.h #undefs LOG_TAG and LOG_DOMAIN and redefines
+ * them, and those are plain macros read where SANDBOX_LOGx is written, not
+ * settings applied once. Any header included after this one that defines its own
+ * LOG_TAG silently takes over, and the log lines go out under someone else's tag
+ * and domain - which looks exactly like logging being broken.
+ */
+#include "sandbox_log.h"
+
 using namespace testing::ext;
 
 namespace OHOS {
@@ -32,115 +41,118 @@ void ClawSandboxAidsTest::TearDownTestCase() {}
 void ClawSandboxAidsTest::SetUp() {}
 void ClawSandboxAidsTest::TearDown() {}
 
+// Any appIdentifier will do: the kernel only echoes it back into the label.
+static constexpr uint64_t TEST_APP_IDENTIFIER = 1001;
+
 /**
  * @tc.name: AidsSetLabel001
- * @tc.desc: Test calling the setLabel interface with the default valid device path, expecting a successful return.
+ * @tc.desc: Test calling the SetLabel interface with the default valid device path, expecting a successful return.
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel001, TestSize.Level0) {
     AidsClient aids;
-    int ret = aids.setLabel();
+    int ret = aids.SetLabel(0, TEST_APP_IDENTIFIER);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel002
- * @tc.desc: Test calling the addBlacklist interface with the default valid device path to
+ * @tc.desc: Test calling the AddBlacklist interface with the default valid device path to
  * add a cmdblacklist entry, expecting a successful return.
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel002, TestSize.Level0) {
     AidsClient aids;
-    int ret = aids.addBlacklist("date", "", 0);
+    int ret = aids.AddBlacklist("date", "", 0);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel003
- * @tc.desc: Test calling the delBlacklist interface with the default valid device path to
+ * @tc.desc: Test calling the DelBlacklist interface with the default valid device path to
  * delete an added cmdblacklist entry, expecting a successful return.
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel003, TestSize.Level0) {
     AidsClient aids;
-    int ret = aids.addBlacklist("date", "", 0);
+    int ret = aids.AddBlacklist("date", "", 0);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
-    ret = aids.delBlacklist("date", "", 0);
+    ret = aids.DelBlacklist("date", "", 0);
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel004
- * @tc.desc: Test calling the clrBlacklist interface with the default valid device path to
+ * @tc.desc: Test calling the ClearBlacklist interface with the default valid device path to
  * clear the cmdblacklist, expecting a successful return.
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel004, TestSize.Level0) {
     AidsClient aids;
-    int ret = aids.clrBlacklist();
+    int ret = aids.ClearBlacklist();
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel005
- * @tc.desc: Test calling the setLabel interface with an invalid device path
+ * @tc.desc: Test calling the SetLabel interface with an invalid device path
  * (/dev/hkids_err), expecting a failure return.
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel005, TestSize.Level0) {
     AidsClient aids("/dev/hkids_err");
-    int ret = aids.setLabel();
+    int ret = aids.SetLabel(0, TEST_APP_IDENTIFIER);
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel006
- * @tc.desc: Test calling the addBlacklist interface with an invalid device path
+ * @tc.desc: Test calling the AddBlacklist interface with an invalid device path
  * (/dev/hkids_err), expecting a failure return.
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel006, TestSize.Level0) {
     AidsClient aids("/dev/hkids_err");
-    int ret = aids.addBlacklist("date", "", 0);
+    int ret = aids.AddBlacklist("date", "", 0);
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel007
- * @tc.desc: Test calling the delBlacklist interface with an invalid device path
+ * @tc.desc: Test calling the DelBlacklist interface with an invalid device path
  * (/dev/hkids_err), expecting a failure return.
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel007, TestSize.Level0) {
     AidsClient aids("/dev/hkids_err");
-    int ret = aids.delBlacklist("date", "", 0);
+    int ret = aids.DelBlacklist("date", "", 0);
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel008
- * @tc.desc: Test calling the clrBlacklist interface with an invalid device path
+ * @tc.desc: Test calling the ClearBlacklist interface with an invalid device path
  * (/dev/hkids_err), expecting a failure return.
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel008, TestSize.Level0) {
     AidsClient aids("/dev/hkids_err");
-    int ret = aids.clrBlacklist();
+    int ret = aids.ClearBlacklist();
     EXPECT_EQ(-1, ret);
 }
 
 
 /**
  * @tc.name: AidsSetLabel009
- * @tc.desc: Test calling delBlacklist with an oversized 'cmd' parameter, expecting it to
+ * @tc.desc: Test calling DelBlacklist with an oversized 'cmd' parameter, expecting it to
  * be intercepted by parameter validation and return a failure.
  * @tc.type: FUNC
  * @tc.require:
@@ -148,13 +160,13 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel008, TestSize.Level0) {
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel009, TestSize.Level0) {
     AidsClient aids;
     std::string cmd = std::string(64, 'a');
-    int ret = aids.delBlacklist(cmd, "", 0);
+    int ret = aids.DelBlacklist(cmd, "", 0);
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel010
- * @tc.desc: Test calling delBlacklist with an oversized 'subcmd' parameter, expecting
+ * @tc.desc: Test calling DelBlacklist with an oversized 'subcmd' parameter, expecting
  * it to be intercepted by parameter validation and return a failure.
  * @tc.type: FUNC
  * @tc.require:
@@ -162,13 +174,13 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel009, TestSize.Level0) {
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel010, TestSize.Level0) {
     AidsClient aids;
     std::string subcmd = std::string(64, 'a');
-    int ret = aids.delBlacklist("date", subcmd, 0);
+    int ret = aids.DelBlacklist("date", subcmd, 0);
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel011
- * @tc.desc: Test calling addBlacklist with an oversized 'cmd' parameter, expecting it to
+ * @tc.desc: Test calling AddBlacklist with an oversized 'cmd' parameter, expecting it to
  * be intercepted by parameter validation and return a failure.
  * @tc.type: FUNC
  * @tc.require:
@@ -176,13 +188,13 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel010, TestSize.Level0) {
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel011, TestSize.Level0) {
     AidsClient aids;
     std::string cmd = std::string(64, 'a');
-    int ret = aids.addBlacklist(cmd, "", 0);
+    int ret = aids.AddBlacklist(cmd, "", 0);
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel012
- * @tc.desc: Test calling addBlacklist with an oversized 'subcmd' parameter, expecting it to
+ * @tc.desc: Test calling AddBlacklist with an oversized 'subcmd' parameter, expecting it to
  * be intercepted by parameter validation and return a failure.
  * @tc.type: FUNC
  * @tc.require:
@@ -190,12 +202,12 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel011, TestSize.Level0) {
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel012, TestSize.Level0) {
     AidsClient aids;
     std::string subcmd = std::string(64, 'a');
-    int ret = aids.addBlacklist("date", subcmd, 0);
+    int ret = aids.AddBlacklist("date", subcmd, 0);
     EXPECT_EQ(-1, ret);
 }
 
-// ==================== AidsClient isOpen + ioctl path coverage ====================
-// The tests below use a mock fd (from open("/dev/null")) to bypass the isOpen() check,
+// ==================== AidsClient IsOpen + ioctl path coverage ====================
+// The tests below use a mock fd (from open("/dev/null")) to bypass the IsOpen() check,
 // so that strncpy_s overflow paths and ioctl paths are exercised regardless of
 // whether the real /dev/hkids device exists in the test environment.
 // The mock fd does not support hkids ioctls, so all ioctl() calls return -1.
@@ -203,7 +215,7 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel012, TestSize.Level0) {
 
 /**
  * @tc.name: AidsSetLabel013
- * @tc.desc: When isOpen() passes, setLabel reaches the ioctl call and returns its
+ * @tc.desc: When IsOpen() passes, SetLabel reaches the ioctl call and returns its
  *          failure result (non-zero).
  * @tc.type: FUNC
  * @tc.require:
@@ -213,13 +225,13 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel013, TestSize.Level0) {
     ASSERT_GE(mockFd, 0);
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
-    int ret = aids.setLabel();
+    int ret = aids.SetLabel(0, TEST_APP_IDENTIFIER);
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel014
- * @tc.desc: When isOpen() passes with normal-length strings, addBlacklist reaches
+ * @tc.desc: When IsOpen() passes with normal-length strings, AddBlacklist reaches
  *          the ioctl call and returns its failure result (non-zero).
  * @tc.type: FUNC
  * @tc.require:
@@ -229,13 +241,13 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel014, TestSize.Level0) {
     ASSERT_GE(mockFd, 0);
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
-    int ret = aids.addBlacklist("date", "", 0);
+    int ret = aids.AddBlacklist("date", "", 0);
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel015
- * @tc.desc: When isOpen() passes with normal-length strings, delBlacklist reaches
+ * @tc.desc: When IsOpen() passes with normal-length strings, DelBlacklist reaches
  *          the ioctl call and returns its failure result (non-zero).
  * @tc.type: FUNC
  * @tc.require:
@@ -245,13 +257,13 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel015, TestSize.Level0) {
     ASSERT_GE(mockFd, 0);
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
-    int ret = aids.delBlacklist("date", "", 0);
+    int ret = aids.DelBlacklist("date", "", 0);
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel016
- * @tc.desc: When isOpen() passes, clrBlacklist reaches the ioctl call and returns
+ * @tc.desc: When IsOpen() passes, ClearBlacklist reaches the ioctl call and returns
  *          its failure result (non-zero).
  * @tc.type: FUNC
  * @tc.require:
@@ -261,13 +273,13 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel016, TestSize.Level0) {
     ASSERT_GE(mockFd, 0);
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
-    int ret = aids.clrBlacklist();
+    int ret = aids.ClearBlacklist();
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel017
- * @tc.desc: addBlacklist with isOpen()=true and cmd >= HKIDS_CMD_MAX_SIZE triggers
+ * @tc.desc: AddBlacklist with IsOpen()=true and cmd >= HKIDS_CMD_MAX_SIZE triggers
  *          strncpy_s truncation error and returns -1 BEFORE reaching ioctl.
  * @tc.type: FUNC
  * @tc.require:
@@ -278,13 +290,13 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel017, TestSize.Level0) {
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
     std::string overflowCmd(HKIDS_CMD_MAX_SIZE, 'a');
-    int ret = aids.addBlacklist(overflowCmd, "", 0);
+    int ret = aids.AddBlacklist(overflowCmd, "", 0);
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel018
- * @tc.desc: addBlacklist with isOpen()=true and subcmd >= HKIDS_CMD_MAX_SIZE triggers
+ * @tc.desc: AddBlacklist with IsOpen()=true and subcmd >= HKIDS_CMD_MAX_SIZE triggers
  *          strncpy_s truncation error and returns -1 BEFORE reaching ioctl.
  * @tc.type: FUNC
  * @tc.require:
@@ -295,13 +307,13 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel018, TestSize.Level0) {
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
     std::string overflowSubcmd(HKIDS_CMD_MAX_SIZE, 'a');
-    int ret = aids.addBlacklist("date", overflowSubcmd, 0);
+    int ret = aids.AddBlacklist("date", overflowSubcmd, 0);
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel019
- * @tc.desc: delBlacklist with isOpen()=true and cmd >= HKIDS_CMD_MAX_SIZE triggers
+ * @tc.desc: DelBlacklist with IsOpen()=true and cmd >= HKIDS_CMD_MAX_SIZE triggers
  *          strncpy_s truncation error and returns -1 BEFORE reaching ioctl.
  * @tc.type: FUNC
  * @tc.require:
@@ -312,13 +324,13 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel019, TestSize.Level0) {
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
     std::string overflowCmd(HKIDS_CMD_MAX_SIZE, 'a');
-    int ret = aids.delBlacklist(overflowCmd, "", 0);
+    int ret = aids.DelBlacklist(overflowCmd, "", 0);
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsSetLabel020
- * @tc.desc: delBlacklist with isOpen()=true and subcmd >= HKIDS_CMD_MAX_SIZE triggers
+ * @tc.desc: DelBlacklist with IsOpen()=true and subcmd >= HKIDS_CMD_MAX_SIZE triggers
  *          strncpy_s truncation error and returns -1 BEFORE reaching ioctl.
  * @tc.type: FUNC
  * @tc.require:
@@ -329,20 +341,20 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel020, TestSize.Level0) {
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
     std::string overflowSubcmd(HKIDS_CMD_MAX_SIZE, 'a');
-    int ret = aids.delBlacklist("date", overflowSubcmd, 0);
+    int ret = aids.DelBlacklist("date", overflowSubcmd, 0);
     EXPECT_EQ(-1, ret);
 }
 
 /**
  * @tc.name: AidsIsOpenFalse001
- * @tc.desc: After constructing AidsClient without a valid device, isOpen() and fd_
+ * @tc.desc: After constructing AidsClient without a valid device, IsOpen() and fd_
  *          both confirm the device is not open.
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsIsOpenFalse001, TestSize.Level0) {
     AidsClient aids("/dev/hkids_err");
-    EXPECT_FALSE(aids.isOpen());
+    EXPECT_FALSE(aids.IsOpen());
     EXPECT_LT(aids.fd_, 0);
 }
 

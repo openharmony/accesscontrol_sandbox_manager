@@ -17,6 +17,9 @@
 #include "sandbox_aids.h"
 #include "sandbox_error.h"
 #include "sandbox_log.h"
+#ifdef CONFIG_SHELL_SANDBOX
+#include "sandbox_monitor.h"
+#endif
 #include "sandbox_utils.h"
 
 #include <algorithm>
@@ -37,6 +40,7 @@
 #include <sys/syscall.h>
 #include <sys/prctl.h>
 #include <sys/capability.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
@@ -83,32 +87,10 @@ constexpr int CAP_NUM = 2;
 // Sandbox base directory
 constexpr const char *SANDBOX_BASE_DIR = "/mnt/sandbox/claw";
 
-constexpr int UID_BASE = 200000;
-
 // Minimum UID allowed by seccomp filter (20000000 = 20 million).
 // Any attempt to setuid/setreuid/setresuid/setfsuid to a UID below this
 // value will be blocked by the seccomp filter, returning EACCES.
 constexpr unsigned int UID_MIN_LIMIT = 20000000;
-
-// DEC device policy ABI, aligned with startup_appspawn/modules/sandbox/sandbox_dec.h
-constexpr const char *DEC_DEVICE_PATH = "/dev/dec";
-constexpr int HM_DEC_IOCTL_BASE = 's';
-
-// DEC policy IOCTL constants and structs, only used on PC platform
-#ifdef CONFIG_SHELL_SANDBOX
-constexpr int HM_SET_POLICY_ID = 1;
-constexpr size_t DEC_MAX_POLICY_NUM = 64;
-constexpr uint32_t DEC_SANDBOX_MODE_READ = 0x00000001;
-constexpr uint32_t DEC_SANDBOX_MODE_WRITE = (DEC_SANDBOX_MODE_READ << 1);
-
-constexpr unsigned long SET_DEC_POLICY_CMD = _IOWR(HM_DEC_IOCTL_BASE, HM_SET_POLICY_ID, DecPolicyInfo);
-constexpr uint32_t DEC_MODE_DENY_INHERIT = (1 << 9);
-constexpr uint64_t SEC_TO_NSEC = 1000000000ULL;
-#endif
-
-// IOCTL command for delivering AgentLock policy to kernel
-constexpr int HM_POLICY_ADD_ID = 104;
-constexpr int HM_AGENTLOCK_CURRENT_EXECUTER_INIT_ID = 112;
 
 // Marker added to the final child process environment after sanitization.
 // It is only used to identify that the process was launched by claw_sandbox.
@@ -121,11 +103,21 @@ struct EnvVar {
     std::string_view value;
 };
 
+constexpr const char *MONITOR_SOCKET_PATH_ENV_KEY = "SANDBOX_SOCKET_PATH";
+
+#ifdef CONFIG_SHELL_SANDBOX
+constexpr const char *MONITOR_SOCKET_ALLOWED_DIRS[] = {
+    "/data/storage/el1/base",
+    "/data/storage/el2/base"
+};
+#endif // CONFIG_SHELL_SANDBOX
+
 // Note: All environment variable keys defined here MUST be in UPPERCASE.
 constexpr std::string_view DELETE_ENV_VARS[] = {
     "PATH",
     "OHOS_SOCKET_hdcd",
-    "TMP"
+    "TMP",
+    "SANDBOX_SOCKET_PATH"
 };
 
 // Note: All environment variable keys defined here MUST be in UPPERCASE.
@@ -147,19 +139,6 @@ constexpr EnvVar PRESET_ENV_VARS[] = {
 };
 
 #ifdef CONFIG_SHELL_SANDBOX
-// Path mark constants (matching appspawn appspawn_isolate.c)
-constexpr int HM_ADD_PATH_MARK = 11;
-constexpr uint32_t SEC_UGC_PATH_TYPE = (1 << 0);
-constexpr uint32_t SEC_SANDBOX_PATH_TYPE = (1 << 3);
-constexpr uint32_t MARK_ENABLE_RECURSIVE = 1;
-struct MarkPathInfo {
-    const char *path;
-    uint32_t flags;
-    uint32_t recursive;
-    uint32_t reserved[7];
-};
-constexpr unsigned long ADD_PATH_MARK_CMD = _IOWR(HM_DEC_IOCTL_BASE, HM_ADD_PATH_MARK, MarkPathInfo);
-
 // DEC deny path entries: paths to deny when the app lacks the corresponding permission
 struct DecDenyPathEntry {
     const char *permission;
@@ -171,17 +150,8 @@ static const DecDenyPathEntry DEC_DENY_PATH_MAP[] = {
     {"ohos.permission.READ_WRITE_DOCUMENTS_DIRECTORY", "/storage/Users/currentUser/Documents"},
 };
 
-// Encaps device constants (matching appspawn appspawn_encaps.c)
-constexpr const char *ENCAPS_DEVICE_PATH = "/dev/encaps";
-constexpr int HM_ENCAPS_PROC_FLAG_BASE = 0x1F;
-constexpr int OH_ENCAPS_MAGIC = 'E';
-constexpr uint32_t CUSTOM_SANDBOX_PROCESS_TYPE = (1U << 0);
-constexpr unsigned long SET_ENCAPS_PROC_FLAG_CMD = _IOW(OH_ENCAPS_MAGIC, HM_ENCAPS_PROC_FLAG_BASE, uint32_t);
 #endif
 
-constexpr unsigned long DEC_CMD_POLICY_ADD = _IOWR(HM_DEC_IOCTL_BASE, HM_POLICY_ADD_ID, struct AgentLockAddPolicyArg);
-constexpr unsigned long DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT =
-    _IOWR(HM_DEC_IOCTL_BASE, HM_AGENTLOCK_CURRENT_EXECUTER_INIT_ID, struct DecConfig);
 
 static std::string TrimEnvKey(const std::string &rawKey)
 {
@@ -301,34 +271,6 @@ constexpr uint64_t SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32);
 // Low 32-bit mask for extracting AccessTokenID from AccessTokenIDEx
 constexpr uint64_t TOKEN_ID_LOWMASK = 0xFFFFFFFF;
 
-// xpm setting
-constexpr uint32_t MAX_OWNERID_LEN = 64;
-constexpr const char *DEV_XPM_PATH = "/dev/xpm";
-
-struct XpmRegionInfo {
-    unsigned long addrBase;
-    unsigned long length;
-
-    uint32_t idType;
-    char ownerid[MAX_OWNERID_LEN];
-    uint32_t apiVersion;
-};
-
-constexpr int HM_XPM_REGION_IOCTL_BASE = 'x';
-constexpr int HM_SET_XPM_OWNERID_ID = 2;
-constexpr uint32_t PROCESS_OWNERID_APP = 2;
-constexpr unsigned long SET_XPM_OWNERID_CMD = _IOW(HM_XPM_REGION_IOCTL_BASE,
-    HM_SET_XPM_OWNERID_ID, struct XpmRegionInfo);
-
-#ifdef CONFIG_SHELL_SANDBOX
-// access token
-constexpr const char *DEV_ACCESS_TOKEN_PATH = "/dev/access_token_id";
-constexpr int HM_ACCESS_TOKENID_IOCTL_BASE = 'A';
-constexpr int HM_SET_HAP_PTOKENID = 0x1A;
-constexpr unsigned long ACCESS_TOKENID_SET_HAP_PTOKENID = _IOW(HM_ACCESS_TOKENID_IOCTL_BASE,
-    HM_SET_HAP_PTOKENID, uint64_t);
-#endif
-
 SandboxManager::SandboxManager() {}
 
 SandboxManager::~SandboxManager()
@@ -336,12 +278,149 @@ SandboxManager::~SandboxManager()
     Cleanup();
 }
 
+/*
+ * Take the monitor's UDS path out of the caller-supplied environment, so it
+ * never reaches ApplyEnvironment and thus never the sandboxed child.
+ *
+ * A missing or empty value means the caller opted out and is not an error;
+ */
+int SandboxManager::ExtractMonitorSocketPath()
+{
+    if (config_.type != "shell") {
+        return SANDBOX_SUCCESS;
+    }
+
+    monitorSocketPath_.clear();
+    size_t found = 0;
+
+    for (auto it = config_.env.begin(); it != config_.env.end();) {
+        if (ToUpperAscii(TrimEnvKey(it->first)) != MONITOR_SOCKET_PATH_ENV_KEY) {
+            ++it;
+            continue;
+        }
+        if (++found > 1) {
+            std::cerr << "Error: Config field 'env' sets " << MONITOR_SOCKET_PATH_ENV_KEY <<
+                         " more than once" << std::endl;
+            SANDBOX_LOGE("Config field 'env' sets %{public}s more than once",
+                MONITOR_SOCKET_PATH_ENV_KEY);
+            return SANDBOX_ERR_CONFIG_INVALID;
+        }
+        monitorSocketPath_ = it->second;
+        it = config_.env.erase(it);
+    }
+
+    if (monitorSocketPath_.empty()) {
+        SANDBOX_LOGI("No %{public}s in the caller environment; the sandbox will start without "
+            "a monitor channel", MONITOR_SOCKET_PATH_ENV_KEY);
+        return SANDBOX_SUCCESS;
+    }
+
+    SANDBOX_LOGI("Monitor socket path taken from %{public}s, length %{public}zu",
+        MONITOR_SOCKET_PATH_ENV_KEY, monitorSocketPath_.size());
+    return SANDBOX_SUCCESS;
+}
+
+#ifdef CONFIG_SHELL_SANDBOX
+
+static std::string JoinMonitorSocketAllowedDirs()
+{
+    std::string joined;
+    for (const char *dir : MONITOR_SOCKET_ALLOWED_DIRS) {
+        if (!joined.empty()) {
+            joined += ", ";
+        }
+        joined += dir;
+    }
+    return joined;
+}
+
+// Which allowed directories exist in the namespace we are in now.
+static std::string JoinVisibleMonitorSocketAllowedDirs()
+{
+    std::string joined;
+    for (const char *dir : MONITOR_SOCKET_ALLOWED_DIRS) {
+        if (GetRealPath(dir).empty()) {
+            continue;
+        }
+        if (!joined.empty()) {
+            joined += ", ";
+        }
+        joined += dir;
+    }
+    return joined;
+}
+
+bool SandboxManager::IsMonitorSocketPathAllowed() const
+{
+    for (const char *dir : MONITOR_SOCKET_ALLOWED_DIRS) {
+        if (IsPathUnder(monitorSocketPath_, dir)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+int SandboxManager::ConnectMonitorSocket()
+{
+    if (monitorSocketPath_.empty()) {
+        SANDBOX_LOGI("ConnectMonitorSocket: pid=%{public}d no %{public}s configured, "
+            "starting the sandbox without a monitor channel", getpid(), MONITOR_SOCKET_PATH_ENV_KEY);
+        return SANDBOX_SUCCESS;
+    }
+
+    // IsPathUnder canonicalises both sides, so an unresolvable path reads as "not
+    // allowed". Resolve it first; the visible-directory list is what points at a
+    // missing mount.
+    if (GetRealPath(monitorSocketPath_).empty()) {
+        const int reason = errno;
+        const std::string visible = JoinVisibleMonitorSocketAllowedDirs();
+        std::cerr << "Error: cannot access " << MONITOR_SOCKET_PATH_ENV_KEY << " " <<
+                     monitorSocketPath_ << ": " << strerror(reason) <<
+                     ". Allowed directories mounted here: " <<
+                     (visible.empty() ? "(none)" : visible) << std::endl;
+        SANDBOX_LOGE("ConnectMonitorSocket: cannot access %{public}s: %{public}s; allowed "
+            "directories mounted here: %{public}s", monitorSocketPath_.c_str(), strerror(reason),
+            visible.empty() ? "(none)" : visible.c_str());
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+
+    if (!IsMonitorSocketPathAllowed()) {
+        const std::string allowedDirs = JoinMonitorSocketAllowedDirs();
+        std::cerr << "Error: " << MONITOR_SOCKET_PATH_ENV_KEY << " must be under one of: " <<
+                     allowedDirs << std::endl;
+        SANDBOX_LOGE("ConnectMonitorSocket: pid=%{public}d rejected %{public}s, the allowed "
+            "directories are %{public}s", getpid(), monitorSocketPath_.c_str(), allowedDirs.c_str());
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+
+    int ret = SandboxMonitor::ConnectToApp(monitorSocketPath_, monitorSocketFd_);
+    if (ret != SANDBOX_SUCCESS) {
+        std::cerr << "Error: Failed to connect monitor socket " << monitorSocketPath_ <<
+                     ", ret " << ret << std::endl;
+        SANDBOX_LOGE("ConnectMonitorSocket: pid=%{public}d failed to connect %{public}s, ret=%{public}d",
+            getpid(), monitorSocketPath_.c_str(), ret);
+        return ret;
+    }
+
+    SANDBOX_LOGI("ConnectMonitorSocket: pid=%{public}d connected monitor socket fd=%{public}d",
+        getpid(), monitorSocketFd_);
+    return SANDBOX_SUCCESS;
+}
+
+#endif // CONFIG_SHELL_SANDBOX
+
 int SandboxManager::Initialize(SandboxConfig config, const CmdInfo &cmdInfo)
 {
     config_ = std::move(config);
     cmdInfo_ = cmdInfo;
     // Derive currentUserId from uid (not parsed from JSON config)
     config_.currentUserId = std::to_string(config_.uid / UID_BASE);
+
+    int ret = ExtractMonitorSocketPath();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
     initialized_ = true;
     config_.nsFlags |= config_.type == "cli" ? CLONE_NEWNET : 0;
 #ifndef CONFIG_SHELL_SANDBOX
@@ -504,6 +583,23 @@ int SandboxManager::ExecuteMountSteps()
         // because seccomp blocks setpgid/setsid to prevent process group escape,
         // and the child process must inherit the new process group to avoid being adopted by init)
         &SandboxManager::SetProcessGroup,
+
+#ifdef CONFIG_SHELL_SANDBOX
+        // Deliver the daemon-side DEC/AgentLock policy (daemon init → policy
+        // config get → add policy) in the parent, right before the fork. The fd
+        // (O_CLOEXEC) is held in decFd_ across the fork; the parent keeps its copy
+        // open, and the child closes its inherited copy and reopens its own for
+        // the executer-init in DeliverExecuterInit.
+        &SandboxManager::DeliverDaemonSidePolicies,
+#endif
+
+#ifdef CONFIG_SHELL_SANDBOX
+        // Last thing that may still fail the launch: the monitor socket must be
+        // connected before the fork, otherwise there is already a child running
+        // by the time the connection is refused.
+        &SandboxManager::ConnectMonitorSocket,
+#endif
+
         &SandboxManager::ForkAfterUnshare,
         &SandboxManager::MountProcFs,
     };
@@ -544,8 +640,10 @@ int SandboxManager::ExecuteLateSteps()
         &SandboxManager::ApplyEnvironment,
         // Set Seccomp (always applied to block setpgid/setsid for process group protection).
         &SandboxManager::SetSeccomp,
-        // Deliver AgentLock policy if specified in config.
-        &SandboxManager::DeliverPolicy,
+#ifdef CONFIG_SHELL_SANDBOX
+        // Deliver network + File/Process operation control policy (executer-init).
+        &SandboxManager::DeliverExecuterInit,
+#endif
         // Drop capabilities after seccomp; capset() is not blocked in block mode
         // and is expected to be allowlisted in whitelist mode.
         &SandboxManager::DropCapabilities,
@@ -589,7 +687,7 @@ int SandboxManager::SetXpmOwnerId()
         return SANDBOX_ERR_SET_XPM_FAILED;
     }
 
-    struct XpmRegionInfo info = { 0 };
+    XpmRegionInfo info = {};
     info.idType = PROCESS_OWNERID_APP;
     size_t copyLen = std::min(ownerId.size(), static_cast<size_t>(MAX_OWNERID_LEN - 1));
     int ret = memcpy_s(info.ownerid, MAX_OWNERID_LEN, ownerId.c_str(), copyLen);
@@ -879,7 +977,7 @@ int SandboxManager::SendDecPolicyIoctl(const DecPolicyInfo& decPolicyInfo)
         SANDBOX_LOGE("PreDecDenyPaths: SET_DEC_POLICY_CMD failed, errno=%{public}s", strerror(errno));
         ret = SANDBOX_ERR_SET_DEC_FAILED;
     } else {
-        SANDBOX_LOGI("PreDecDenyPaths: denied %{public}u paths", decPolicyInfo.pathNum);
+        SANDBOX_LOGD("PreDecDenyPaths: denied %{public}u paths", decPolicyInfo.pathNum);
     }
 
     close(fd);
@@ -1003,7 +1101,7 @@ int SandboxManager::GenerateTokenId()
 int SandboxManager::SetParentHapTokenId(uint64_t tokenId)
 {
     auto atmTokenId = TokenIdKit::AddCliBinaryInvokerTokenFlag(tokenId);
-    int32_t fd = open(DEV_ACCESS_TOKEN_PATH, O_RDWR | O_CLOEXEC);
+    int fd = open(DEV_ACCESS_TOKEN_PATH, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
         std::cerr << "Error: open " << DEV_ACCESS_TOKEN_PATH << " failed, ret: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("open %{public}s error, ret: %{public}s", DEV_ACCESS_TOKEN_PATH, strerror(errno));
@@ -1041,8 +1139,16 @@ int SandboxManager::SetAccessToken()
 
 int SandboxManager::SetAinfo()
 {
+    if (config_.type != "shell") {
+        // only shell needs an AIDS identity label
+        return SANDBOX_SUCCESS;
+    }
+
     AidsClient aids;
-    int ret = aids.setLabel();
+    // Same pair the DEC daemon context is built from, so when both interfaces
+    // are used they name the sandbox identically. DEC runs for every type; this
+    // one does not, so cli sandboxes are known to DEC but carry no AIDS label.
+    int ret = aids.SetLabel(config_.uid / UID_BASE, config_.appIdentifierU64);
     if (ret != 0) {
         std::cerr << "Error: SetAinfo failed: " << ret << std::endl;
         SANDBOX_LOGE("SetAinfo failed: %{public}d", ret);
@@ -1741,62 +1847,305 @@ int SandboxManager::DropCapabilities()
     return SANDBOX_SUCCESS;
 }
 
-static int DeliverPolicyInit(int fd)
+bool SandboxManager::NeedsStartGate() const
 {
-    int ret = ioctl(fd, DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT, NULL);
-    if (ret < 0) {
-        std::cerr << "Error: ioctl DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("ioctl DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT failed: %{public}s", strerror(errno));
-        return SANDBOX_ERR_SET_POLICY_FAILED;
-    }
-    return SANDBOX_SUCCESS;
+#ifdef CONFIG_SHELL_SANDBOX
+    // Only a shell sandbox is ever watched, so only a shell sandbox has anything
+    // to wait for. Keep this in step with the first check in RunMonitorForChild.
+    return config_.type == "shell";
+#else
+    return false;
+#endif
 }
 
-int SandboxManager::DeliverNetPolicy(int fd)
+/*
+ * A socketpair rather than a pipe, for one reason: MSG_NOSIGNAL. If the child is
+ * gone by the time the parent releases the gate, a pipe write raises SIGPIPE and
+ * takes the parent down with it, losing the child's exit status; a socket write
+ * just returns EPIPE. The close-means-EOF half of the handshake works the same
+ * on both.
+ */
+int SandboxManager::CreateStartGate()
 {
-    int ret = ioctl(fd, DEC_CMD_POLICY_ADD, config_.policyArg.get());
-    if (ret < 0) {
-        std::cerr << "Error: ioctl DEC_CMD_POLICY_ADD failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("ioctl DEC_CMD_POLICY_ADD failed: %{public}s", strerror(errno));
-        return SANDBOX_ERR_SET_POLICY_FAILED;
-    }
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::DeliverPolicy()
-{
-    if (!initialized_) {
-        std::cerr << "Error: SandboxManager not initialized" << std::endl;
-        SANDBOX_LOGE("SandboxManager not initialized");
+    int fds[2] = {-1, -1};
+    if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, fds) < 0) {
+        std::cerr << "Error: start gate socketpair failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("ForkAfterUnshare: start gate socketpair failed: %{public}s", strerror(errno));
         return SANDBOX_ERR_GENERIC;
     }
-    if (config_.policyArg == nullptr) {
-        return SANDBOX_SUCCESS;
+    startGateReadFd_ = fds[0];
+    startGateWriteFd_ = fds[1];
+    return SANDBOX_SUCCESS;
+}
+
+void SandboxManager::ReleaseStartGate()
+{
+    if (startGateWriteFd_ < 0) {
+        return;
     }
-    int fd = open(DEC_DEVICE_PATH, O_RDWR | O_CLOEXEC);
-    if (fd < 0) {
-        std::cerr << "Error: open " << DEC_DEVICE_PATH << " failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("open %s failed: %{public}s", DEC_DEVICE_PATH, strerror(errno));
-        return SANDBOX_ERR_SET_POLICY_FAILED;
+    const char token = 1;
+    ssize_t written;
+    do {
+        written = send(startGateWriteFd_, &token, sizeof(token), MSG_NOSIGNAL);
+    } while (written < 0 && errno == EINTR);
+    if (written != static_cast<ssize_t>(sizeof(token))) {
+        // The child then reads EOF from the close below and exits, which is the
+        // same answer a failed monitor gets. Nothing is left running unwatched.
+        SANDBOX_LOGE("ForkAfterUnshare: could not release the start gate: %{public}s", strerror(errno));
     }
-    int ret = DeliverPolicyInit(fd);
+    close(startGateWriteFd_);
+    startGateWriteFd_ = -1;
+}
+
+void SandboxManager::CloseStartGate()
+{
+    if (startGateWriteFd_ < 0) {
+        return;
+    }
+    close(startGateWriteFd_);
+    startGateWriteFd_ = -1;
+}
+
+void SandboxManager::WaitForStartGate()
+{
+    char token = 0;
+    ssize_t got;
+    do {
+        got = read(startGateReadFd_, &token, sizeof(token));
+    } while (got < 0 && errno == EINTR);
+
+    close(startGateReadFd_);
+    startGateReadFd_ = -1;
+
+    if (got == static_cast<ssize_t>(sizeof(token))) {
+        return;
+    }
+
+    if (got == 0) {
+        SANDBOX_LOGE("ForkAfterUnshare: child pid=%{public}d not released, the monitor could not "
+                     "start; refusing to run the command unwatched", getpid());
+    } else {
+        SANDBOX_LOGE("ForkAfterUnshare: child pid=%{public}d start gate read failed: %{public}s",
+                     getpid(), strerror(errno));
+    }
+    // Straight out: the late steps and the exec must not happen, and Cleanup is
+    // the parent's job.
+    _exit(EXIT_MONITOR_UNAVAILABLE);
+}
+
+static int WaitForChildExit(pid_t childPid)
+{
+    int status = 0;
+    pid_t waitRet;
+    do {
+        waitRet = waitpid(childPid, &status, 0);
+    } while (waitRet < 0 && errno == EINTR);
+
+    if (waitRet < 0) {
+        SANDBOX_LOGE("waitpid failed for child pid=%{public}d: %{public}s", childPid, strerror(errno));
+        return SANDBOX_ERR_CHILD_WAIT_FAILED;
+    }
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+    if (WIFSIGNALED(status)) {
+        return SIGNAL_EXIT_BASE + WTERMSIG(status);
+    }
+    SANDBOX_LOGE("Unexpected child state for pid=%{public}d", childPid);
+    return SANDBOX_ERR_CHILD_WAIT_FAILED;
+}
+
+#ifdef CONFIG_SHELL_SANDBOX
+int SandboxManager::RunMonitorForChild(pid_t pid)
+{
+    if (config_.type != "shell") {
+        // NeedsStartGate() said so too, so there is no gate holding the child.
+        return -1;
+    }
+
+    SANDBOX_LOGI("ForkAfterUnshare: parent pid=%{public}d starting monitor for child pid=%{public}d",
+        getpid(), pid);
+
+    // Ownership of both fds moves to the monitor here; the members are cleared
+    // so that nothing else can close them.
+    MonitorConfig config = {
+        .childPid = pid,
+        .socketPath = monitorSocketPath_,
+        .socketFd = monitorSocketFd_,
+        .deviceFd = decFd_
+    };
+    monitorSocketFd_ = -1;
+    decFd_ = -1;
+
+    // Scoped so the destructor closes the fds: the caller ends in _exit().
+    SandboxMonitor monitor(std::move(config));
+
+    int ret = monitor.Init();
     if (ret != SANDBOX_SUCCESS) {
-        close(fd);
+        /*
+         * Fail closed. The gate is dropped rather than released, so the child
+         * exits at it without running the command. Falling back to waitpid here
+         * would leave a sandbox that believes it is watched and is not: the
+         * kernel still enforces deny and allow, but every ASK would hang on a
+         * reply nobody is left to send.
+         */
+        SANDBOX_LOGE("SandboxMonitor could not start, ret=%{public}d; the sandboxed command "
+            "will not be run", ret);
+        CloseStartGate();
         return ret;
     }
-    using PolicyDeliverFunc = int (SandboxManager::*)(int);
-    PolicyDeliverFunc policyFuncs[] = {
-        &SandboxManager::DeliverNetPolicy,
-    };
-    for (const auto &func : policyFuncs) {
-        ret = (this->*func)(fd);
-        if (ret != SANDBOX_SUCCESS) {
-            close(fd);
-            return ret;
+
+    // Watching is in place; the command may start.
+    ReleaseStartGate();
+
+    ret = monitor.Run();
+    if (ret < 0) {
+        SANDBOX_LOGW("SandboxMonitor stopped, fall back to waitpid, ret=%{public}d", ret);
+    }
+    return ret;
+}
+#else
+int SandboxManager::RunMonitorForChild(pid_t)
+{
+    // Off PC nothing is ever watched, and NeedsStartGate() builds no gate.
+    return -1;
+}
+#endif // CONFIG_SHELL_SANDBOX
+
+/*
+ * Everything the parent does after the fork, and the code it should leave with.
+ *
+ * Split from ParentAfterFork so the waiting and the fd handover can be tested at
+ * all: its caller ends in _exit, which no unit test survives - and which also
+ * discards coverage counters, so anything left inside it stays invisible to the
+ * gate even when a test does drive it through a fork.
+ */
+int SandboxManager::ParentAfterForkExitCode(pid_t pid)
+{
+    // The child owns the read end from here on.
+    if (startGateReadFd_ >= 0) {
+        close(startGateReadFd_);
+        startGateReadFd_ = -1;
+    }
+
+    int exitCode = RunMonitorForChild(pid);
+
+    /*
+     * Every path above already decided the child's fate; this only covers one
+     * that forgot to, and it decides the safe way. It has to come before the
+     * wait: a gate nobody ever opens would otherwise deadlock the two of us.
+     */
+    CloseStartGate();
+
+    if (exitCode < 0) {
+        SANDBOX_LOGI("ForkAfterUnshare: parent pid=%{public}d waiting for child pid=%{public}d",
+            getpid(), pid);
+        exitCode = WaitForChildExit(pid);
+    }
+
+    // No-op when the monitor took ownership; it closed the fd on the way out.
+    if (decFd_ >= 0) {
+        close(decFd_);
+        decFd_ = -1;
+    }
+
+    Cleanup();
+    return exitCode;
+}
+
+void SandboxManager::ParentAfterFork(pid_t pid)
+{
+    _exit(ParentAfterForkExitCode(pid));
+}
+
+int SandboxManager::ChildAfterFork()
+{
+    /*
+     * First, and before the read below: while the child holds a write end of
+     * its own, the pipe still has a writer, and dropping the parent's end would
+     * never surface as EOF. The child would wait on itself.
+     */
+    if (startGateWriteFd_ >= 0) {
+        close(startGateWriteFd_);
+        startGateWriteFd_ = -1;
+    }
+
+    if (monitorSocketFd_ >= 0) {
+        close(monitorSocketFd_);
+        SANDBOX_LOGI("ForkAfterUnshare: child pid=%{public}d closed inherited monitor socket fd=%{public}d",
+                     getpid(), monitorSocketFd_);
+        monitorSocketFd_ = -1;
+    }
+
+    if (decFd_ >= 0) {
+        close(decFd_);
+        SANDBOX_LOGI("ForkAfterUnshare: child pid=%{public}d closed inherited dec fd=%{public}d, "
+                     "will reopen its own fd in DeliverExecuterInit", getpid(), decFd_);
+        decFd_ = -1;
+    }
+
+    // Nothing below this line runs until the parent has a monitor. Asked the
+    // same way the parent decided, so the two cannot disagree about whether
+    // there is a gate to wait at.
+    if (NeedsStartGate()) {
+        WaitForStartGate();
+    }
+
+    SANDBOX_LOGI("ForkAfterUnshare: child pid=%{public}d continues sandbox setup", getpid());
+    return SANDBOX_SUCCESS;
+}
+
+bool SandboxManager::NeedsForkAfterUnshare() const
+{
+    // Only cli can skip it, and only when the caller asked for no pid
+    // namespace. Anything else forks, which is the more isolated answer.
+    return config_.type != "cli" || (config_.nsFlags & CLONE_NEWPID) != 0;
+}
+
+int SandboxManager::ForkAfterUnshare()
+{
+    if (!NeedsForkAfterUnshare()) {
+        // Execs in place, so the caller sees the program's own exit status
+        // rather than one the parent mirrored back.
+        SANDBOX_LOGD("ForkAfterUnshare: pid=%{public}d no pid namespace requested, running the "
+                     "command in place", getpid());
+        return SANDBOX_SUCCESS;
+    }
+
+    // Before the fork, so both sides inherit an end of it. A sandbox nobody is
+    // going to watch gets none: there would be no one to open it.
+    if (NeedsStartGate()) {
+        int gateRet = CreateStartGate();
+        if (gateRet != SANDBOX_SUCCESS) {
+            return gateRet;
         }
     }
-    close(fd);
-    return ret;
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        std::cerr << "Error: fork failed after unshare: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("fork failed after unshare: %{public}s", strerror(errno));
+        if (decFd_ >= 0) {
+            close(decFd_);
+            decFd_ = -1;
+        }
+        if (monitorSocketFd_ >= 0) {
+            close(monitorSocketFd_);
+            monitorSocketFd_ = -1;
+        }
+        CloseStartGate();
+        if (startGateReadFd_ >= 0) {
+            close(startGateReadFd_);
+            startGateReadFd_ = -1;
+        }
+        return SANDBOX_ERR_GENERIC;
+    }
+
+    if (pid > 0) {
+        ParentAfterFork(pid);
+    }
+
+    return ChildAfterFork();
 }
 
 int SandboxManager::SetProcessGroup()
@@ -2102,46 +2451,68 @@ int SandboxManager::SetEncapsProcFlag()
 }
 #endif
 
-bool SandboxManager::IsAllowedExecContext(const char *path) {
-    char *con = NULL;
-    context_t ctx = NULL;
-    bool isAllowed = false;
-
-    std::string realpath = GetRealPath(path);
-    if (realpath.empty()) {
-        std::cerr << "Error: get realpath failed." << std::endl;
-        SANDBOX_LOGE("get realpath failed.");
-        return false;
+/*
+ * Open the executable and vet the fd, so the file that was checked is the file
+ * that gets executed.
+ *
+ * Resolving the path twice - once to check the label, once by execvp - could
+ * land on two different files, and execvp searches PATH where realpath does not.
+ * One fd removes both the mismatch and the swap window. PATH is deliberately not
+ * searched: an fd already names an inode.
+ *
+ * Returns a close-on-exec fd, or -1.
+ */
+int SandboxManager::OpenAllowedExecutable(const char *path)
+{
+    if (path == nullptr) {
+        return -1;
     }
 
-    if (getfilecon(realpath.c_str(), &con) == -1) {
-        std::cerr << "Error: getfilecon failed." << std::endl;
-        SANDBOX_LOGE("getfilecon failed.");
-        return false;
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        std::cerr << "Error: cannot open '" << path << "': " << strerror(errno) <<
+                     " (PATH is not searched, pass a full path)" << std::endl;
+        SANDBOX_LOGE("Cannot open executable %{public}s: %{public}s", path, strerror(errno));
+        return -1;
     }
 
-    ctx = context_new(con);
-    if (!ctx) {
+    char *con = nullptr;
+    if (fgetfilecon(fd, &con) == -1) {
+        std::cerr << "Error: fgetfilecon failed." << std::endl;
+        SANDBOX_LOGE("fgetfilecon failed for %{public}s: %{public}s", path, strerror(errno));
+        close(fd);
+        return -1;
+    }
+
+    context_t ctx = context_new(con);
+    if (ctx == nullptr) {
         freecon(con);
-        return false;
+        close(fd);
+        return -1;
     }
 
+    // Only a match allows. An unlabelled file and a template that declares no
+    // types both fail to match, which is the fail-closed answer for each.
+    const std::vector<std::string> &allowed = templateConfig_.execSelinuxTypes;
     const char *type = context_type_get(ctx);
-    if (type) {
-        if (config_.type == "shell" && (strcmp(type, "sh_exec") == 0)) {
-            isAllowed = true;
-        } else if (config_.type == "cli" && (strcmp(type, "sa_aimgr_climgr_exec_file") == 0
-            || strcmp(type, "print_aimgr_climgr_exec_file") == 0)) {
-            isAllowed = true;
-        } else {
-            std::cerr << "Error: Sandbox Blocked: Executable type '" << type << "' is not allowed." << std::endl;
-            SANDBOX_LOGE("Sandbox Blocked: Executable type '%{public}s' is not allowed.", type);
-        }
+    bool isAllowed = type != nullptr &&
+        std::find(allowed.begin(), allowed.end(), type) != allowed.end();
+    if (!isAllowed) {
+        const char *shown = (type != nullptr) ? type : "(none)";
+        std::cerr << "Error: Sandbox Blocked: SELinux type '" << shown <<
+                     "' is not allowed." << std::endl;
+        SANDBOX_LOGE("Sandbox Blocked: SELinux type '%{public}s' is not allowed", shown);
     }
 
     context_free(ctx);
     freecon(con);
-    return isAllowed;
+
+    if (!isAllowed) {
+        close(fd);
+        return -1;
+    }
+
+    return fd;
 }
 
 int SandboxManager::ExecuteCommand()
@@ -2153,20 +2524,22 @@ int SandboxManager::ExecuteCommand()
     }
     argv.push_back(nullptr);
 
-    if (argv[0] != nullptr && !IsAllowedExecContext(argv[0])) {
+    int execFd = OpenAllowedExecutable(argv[0]);
+    if (execFd < 0) {
         return SANDBOX_ERR_CMD_INVALID;
     }
 
-    // Execute the target command -- on success, the current process is replaced
-    SANDBOX_LOGI("Executing command: %{public}s", argv[0] ? argv[0] : "null");
-    execvp(argv[0], argv.data());
+    // Execute the target command -- on success, the current process is replaced.
+    // environ is what ApplyEnvironment left behind: clearenv plus setenv, so
+    // nothing the caller did not ask for survives into the target.
+    SANDBOX_LOGI("Executing command: %{public}s", argv[0]);
+    fexecve(execFd, argv.data(), environ);
 
     // Only reached if exec fails
     int execErrno = errno;
-    std::cerr << "Error: execvp(" << (argv[0] ? argv[0] : "null") <<
-              ") failed: " << strerror(execErrno) << std::endl;
-    SANDBOX_LOGE("execvp(%{public}s) failed: %{public}s",
-        argv[0] ? argv[0] : "null", strerror(execErrno));
+    close(execFd);
+    std::cerr << "Error: fexecve(" << argv[0] << ") failed: " << strerror(execErrno) << std::endl;
+    SANDBOX_LOGE("fexecve(%{public}s) failed: %{public}s", argv[0], strerror(execErrno));
     return SANDBOX_ERR_CMD_INVALID;
 }
 } // namespace SANDBOX
