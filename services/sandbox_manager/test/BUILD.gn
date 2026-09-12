@@ -91,6 +91,7 @@ ohos_unittest("libsandbox_manager_service_standard_test") {
     cflags_cc += [ "-DDEC_SUPPORT_SINGLE_FILE_OPERATIONS" ]
     cflags_cc += [ "-DDEC_SUPPORT_QUERY_WITH_ERROR_CODE" ]
     cflags_cc += [ "-DSUPPORT_MEDIA" ]
+    cflags_cc += [ "-DDEC_SUPPORT_DENY_SET" ]
   }
   if (sandbox_manager_dec_ext) {
     cflags_cc += [ "-DDEC_SUPPORT_DENY_RW" ]
@@ -213,6 +214,7 @@ ohos_unittest("libsandbox_policy_test") {
     cflags_cc += [ "-DDEC_SUPPORT_DENY_DELETE_RENAME" ]
     cflags_cc += [ "-DDEC_SUPPORT_SINGLE_FILE_OPERATIONS" ]
     cflags_cc += [ "-DDEC_SUPPORT_QUERY_WITH_ERROR_CODE" ]
+    cflags_cc += [ "-DDEC_SUPPORT_DENY_SET" ]
   }
   if (sandbox_manager_dec_ext) {
     cflags_cc += [ "-DDEC_SUPPORT_DENY_RW" ]

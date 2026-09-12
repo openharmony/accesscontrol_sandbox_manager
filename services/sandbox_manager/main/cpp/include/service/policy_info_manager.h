@@ -30,7 +30,7 @@ namespace AccessControl {
 namespace SandboxManager {
 
 typedef enum SetPolicyType {
-    TEMP_POLICY = 0,
+    NORMAL_POLICY = 0,
     DENY_POLICY = 1,
 } SetPolicyType;
 
@@ -316,11 +316,12 @@ private:
      */
     std::string AdjustPath(const std::string &path);
     /**
-     * @brief check policy validity
+     * @brief check policy validity (path + mode range + mode-type match)
      * @param policy input policy, see policy_info.h
+     * @param type expected policy type (NORMAL_POLICY / DENY_POLICY)
      * @return INVALID_PATH / INVALID_MODE / SANDBOX_MANAGER_OK
      */
-    int32_t CheckPolicyValidity(const PolicyInfo &policy);
+    int32_t CheckPolicyValidity(const PolicyInfo &policy, SetPolicyType type);
     /**
      * @brief check path is in blocklist
      * @param path input path
@@ -382,7 +383,6 @@ private:
         MacParams &macParams, SetPolicyType type);
     int32_t SetPolicyInner(std::vector<PolicyInfo> &validPolicies, std::vector<size_t> &validIndex,
         MacParams &macParams, std::vector<uint32_t> &result, PolicyInfoInner &info);
-    int32_t CheckSetPolicyInput(const PolicyInfo &policy, const SetInfo &setInfo, SetPolicyType type);
     std::vector<std::string> splitPath(const std::string &path);
     bool IsAppDataPathPrefix(const std::vector<std::string> &components);
     bool CheckPathWithinBundleName(const std::string &path, const std::string &bundleName,

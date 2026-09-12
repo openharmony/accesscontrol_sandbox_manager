@@ -525,7 +525,7 @@ HWTEST_F(SandboxParamValidatorTest, ValidateTempMode_008, TestSize.Level1)
 
 /**
  * @tc.name: ValidateTempMode_009
- * @tc.desc: MAX_MODE (128) fails
+ * @tc.desc: MAX_MODE (32) fails — MAX_MODE == DENY_READ_MODE, rejected by normalBits mask
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -606,13 +606,120 @@ HWTEST_F(SandboxParamValidatorTest, ValidateDenyMode_006, TestSize.Level1)
 
 /**
  * @tc.name: ValidateDenyMode_007
- * @tc.desc: MAX_MODE (128) fails
+ * @tc.desc: MAX_DENY_MODE (4096) fails — sentinel, not a valid deny mode
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(SandboxParamValidatorTest, ValidateDenyMode_007, TestSize.Level1)
 {
-    EXPECT_EQ(SandboxRetType::INVALID_MODE, SandboxParamValidator::ValidateDenyMode(OperateMode::MAX_MODE));
+    EXPECT_EQ(SandboxRetType::INVALID_MODE, SandboxParamValidator::ValidateDenyMode(OperateMode::MAX_DENY_MODE));
+}
+
+/* ---- ValidateDenyMode: extended deny bits (DENY_RENAME/REMOVE/INHERIT/SET/SET_ALL) ---- */
+
+/**
+ * @tc.name: ValidateDenyMode_008
+ * @tc.desc: DENY_RENAME_MODE passes validation
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxParamValidatorTest, ValidateDenyMode_008, TestSize.Level1)
+{
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxParamValidator::ValidateDenyMode(OperateMode::DENY_RENAME_MODE));
+}
+
+/**
+ * @tc.name: ValidateDenyMode_009
+ * @tc.desc: DENY_REMOVE_MODE passes validation
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxParamValidatorTest, ValidateDenyMode_009, TestSize.Level1)
+{
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxParamValidator::ValidateDenyMode(OperateMode::DENY_REMOVE_MODE));
+}
+
+/**
+ * @tc.name: ValidateDenyMode_010
+ * @tc.desc: DENY_INHERIT_MODE passes validation
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxParamValidatorTest, ValidateDenyMode_010, TestSize.Level1)
+{
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxParamValidator::ValidateDenyMode(OperateMode::DENY_INHERIT_MODE));
+}
+
+/**
+ * @tc.name: ValidateDenyMode_011
+ * @tc.desc: DENY_SET_MODE passes validation
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxParamValidatorTest, ValidateDenyMode_011, TestSize.Level1)
+{
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxParamValidator::ValidateDenyMode(OperateMode::DENY_SET_MODE));
+}
+
+/**
+ * @tc.name: ValidateDenyMode_012
+ * @tc.desc: DENY_SET_ALL_MODE passes validation
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxParamValidatorTest, ValidateDenyMode_012, TestSize.Level1)
+{
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxParamValidator::ValidateDenyMode(OperateMode::DENY_SET_ALL_MODE));
+}
+
+/**
+ * @tc.name: ValidateDenyMode_013
+ * @tc.desc: DENY_SET_MODE | DENY_SET_ALL_MODE passes validation
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxParamValidatorTest, ValidateDenyMode_013, TestSize.Level1)
+{
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        SandboxParamValidator::ValidateDenyMode(OperateMode::DENY_SET_MODE | OperateMode::DENY_SET_ALL_MODE));
+}
+
+/**
+ * @tc.name: ValidateDenyMode_014
+ * @tc.desc: DENY_READ_MODE | DENY_SET_MODE passes (multi deny bit)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxParamValidatorTest, ValidateDenyMode_014, TestSize.Level1)
+{
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        SandboxParamValidator::ValidateDenyMode(OperateMode::DENY_READ_MODE | OperateMode::DENY_SET_MODE));
+}
+
+/**
+ * @tc.name: ValidateDenyMode_015
+ * @tc.desc: READ_MODE | DENY_SET_MODE fails - mixed normal and deny bits rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxParamValidatorTest, ValidateDenyMode_015, TestSize.Level1)
+{
+    EXPECT_EQ(SandboxRetType::INVALID_MODE,
+        SandboxParamValidator::ValidateDenyMode(OperateMode::READ_MODE | OperateMode::DENY_SET_MODE));
+}
+
+/**
+ * @tc.name: ValidateDenyMode_016
+ * @tc.desc: All deny bits combined passes validation
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxParamValidatorTest, ValidateDenyMode_016, TestSize.Level1)
+{
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        SandboxParamValidator::ValidateDenyMode(OperateMode::DENY_READ_MODE | OperateMode::DENY_WRITE_MODE |
+            OperateMode::DENY_RENAME_MODE | OperateMode::DENY_REMOVE_MODE |
+            OperateMode::DENY_INHERIT_MODE | OperateMode::DENY_SET_MODE | OperateMode::DENY_SET_ALL_MODE));
 }
 
 /* ---- ValidateBasicPathRules: valid paths pass ---- */

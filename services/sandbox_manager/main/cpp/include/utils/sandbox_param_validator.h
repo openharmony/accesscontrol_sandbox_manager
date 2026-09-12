@@ -100,9 +100,9 @@ public:
     /**
      * @brief Validate mode for deny policies (SetDenyPolicy).
      *
-     * Mode must have at least one of bits 5-6 (DENY_READ|DENY_WRITE)
-     * AND no normal bits (bits 0-4). Valid values: 32, 64, 96.
-     * This fixes GAP #3: reject mixed bits (e.g. mode=33 READ+DENY_READ).
+     * Mode must have at least one deny bit (bits 5-11) AND no normal bits
+     * (bits 0-4). Valid deny bits: DENY_READ, DENY_WRITE, DENY_RENAME,
+     * DENY_REMOVE, DENY_INHERIT, DENY_SET, DENY_SET_ALL.
      *
      * @param mode OperateMode bitmask.
      * @return SANDBOX_MANAGER_OK on success, SandboxRetType::INVALID_MODE on failure.

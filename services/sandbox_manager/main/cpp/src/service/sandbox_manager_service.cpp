@@ -530,10 +530,6 @@ int32_t SandboxManagerService::SetDenyPolicy(uint32_t tokenId, const PolicyVecRa
         LOGE_WITH_REPORT(LABEL, "Not space_mgr uid, permision denied.");
         return PERMISSION_DENIED;
     }
-    if (tokenId == 0) {
-        LOGE_WITH_REPORT(LABEL, "Check tokenId failed.");
-        return INVALID_PARAMTER;
-    }
     int32_t userId = 0;
     int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
     if (ret != 0) {
@@ -577,10 +573,6 @@ int32_t SandboxManagerService::UnSetDenyPolicy(uint32_t tokenId, const PolicyInf
     if (IPCSkeleton::GetCallingUid() != SPACE_MGR_SERVICE_UID) {
         LOGE_WITH_REPORT(LABEL, "Not space_mgr uid, permision denied.");
         return PERMISSION_DENIED;
-    }
-    if (tokenId == 0) {
-        LOGE_WITH_REPORT(LABEL, "Check tokenId failed.");
-        return INVALID_PARAMTER;
     }
     uint32_t length = policyParcel.policyInfo.path.length();
     if (length == 0 || length > POLICY_PATH_LIMIT) {

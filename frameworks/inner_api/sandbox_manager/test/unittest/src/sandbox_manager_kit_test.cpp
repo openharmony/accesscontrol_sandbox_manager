@@ -3641,7 +3641,7 @@ HWTEST_F(SandboxManagerKitTest, PhysicalPathDenyTest002, TestSize.Level1)
     std::vector<uint32_t> policyResult;
     PolicyInfo info1 = {
         .path = "/data/service/el1/100/",
-        .mode = OperateMode::MAX_MODE
+        .mode = OperateMode::MAX_DENY_MODE
     };
 
     PolicyInfo info2 = {
@@ -3732,7 +3732,7 @@ HWTEST_F(SandboxManagerKitTest, SetPolicyByBundleNameTest002, TestSize.Level0)
     std::vector<uint32_t> policyResult;
     PolicyInfo info1 = {
         .path = "/A/B",
-        .mode = OperateMode::MAX_MODE
+        .mode = OperateMode::MAX_DENY_MODE
     };
 
     PolicyInfo info2 = {

@@ -1527,7 +1527,7 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceNew002, TestSize.Level0
     EXPECT_EQ(SANDBOX_MANAGER_OK,
         sandboxManagerService_->SetDenyPolicy(selfTokenId_, policyRawData2, resultRawData2));
     Uint32VecRawData resultRawData3;
-    EXPECT_EQ(INVALID_PARAMTER, sandboxManagerService_->SetDenyPolicy(0, policyRawData2, resultRawData3));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetDenyPolicy(0, policyRawData2, resultRawData3));
     setuid(uid);
     Uint32VecRawData resultRawData4;
     EXPECT_EQ(PERMISSION_DENIED, sandboxManagerService_->SetDenyPolicy(selfTokenId_, policyRawData2, resultRawData4));
@@ -1565,6 +1565,275 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceNew003, TestSize.Level0
     };
     policyInfoParcel.policyInfo = policy2;
     EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->UnSetDenyPolicy(selfTokenId_, policyInfoParcel));
+    setuid(uid);
+}
+#endif
+
+#ifdef DEC_SUPPORT_DENY_SET
+/**
+ * @tc.name: SandboxManagerServiceDenyExtend001
+ * @tc.desc: Test SetDenyPolicy/UnSetDenyPolicy with tokenId=0 and all new deny modes
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceDenyExtend001, TestSize.Level0)
+{
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+
+    struct DenyModeCase {
+        std::string path;
+        uint64_t mode;
+    };
+    const std::vector<DenyModeCase> cases = {
+        {"/data/extend_deny_set",      OperateMode::DENY_SET_MODE},
+        {"/data/extend_deny_set_all",  OperateMode::DENY_SET_ALL_MODE},
+        {"/data/extend_deny_rename",   OperateMode::DENY_RENAME_MODE},
+        {"/data/extend_deny_remove",   OperateMode::DENY_REMOVE_MODE},
+        {"/data/extend_deny_inherit",  OperateMode::DENY_INHERIT_MODE},
+    };
+
+    PolicyInfoParcel policyInfoParcel;
+    for (const auto &c : cases) {
+        std::vector<PolicyInfo> policy;
+        policy.emplace_back(PolicyInfo{.path = c.path, .mode = c.mode});
+        PolicyVecRawData policyRawData;
+        policyRawData.Marshalling(policy);
+        Uint32VecRawData resultRawData;
+        EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetDenyPolicy(0, policyRawData, resultRawData));
+
+        policyInfoParcel.policyInfo = {.path = c.path, .mode = c.mode};
+        EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->UnSetDenyPolicy(0, policyInfoParcel));
+    }
+
+    // normal token also works
+    std::vector<PolicyInfo> policy;
+    policy.emplace_back(PolicyInfo{.path = cases[0].path, .mode = cases[0].mode});
+    PolicyVecRawData policyRawData;
+    policyRawData.Marshalling(policy);
+    Uint32VecRawData resultRawData;
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        sandboxManagerService_->SetDenyPolicy(selfTokenId_, policyRawData, resultRawData));
+
+    setuid(uid);
+    Uint32VecRawData resultRawDataPerm;
+    EXPECT_EQ(PERMISSION_DENIED,
+        sandboxManagerService_->SetDenyPolicy(0, policyRawData, resultRawDataPerm));
+}
+
+/**
+ * @tc.name: SandboxManagerServiceDenyExtend002
+ * @tc.desc: SetDenyPolicy(token, pathA, DENY_SET_MODE) → token cannot SetPolicy on pathA, can SetPolicy on subdir
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceDenyExtend002, TestSize.Level0)
+{
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+
+    uint32_t tokenId = selfTokenId_;
+    std::string pathA = "/data/deny_set_test_002/A";
+    std::string pathSub = "/data/deny_set_test_002/A/sub";
+
+    std::vector<PolicyInfo> denyPolicy;
+    denyPolicy.emplace_back(PolicyInfo{.path = pathA, .mode = OperateMode::DENY_SET_MODE});
+    PolicyVecRawData denyRawData;
+    denyRawData.Marshalling(denyPolicy);
+    Uint32VecRawData denyResultRaw;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetDenyPolicy(tokenId, denyRawData, denyResultRaw));
+    std::vector<uint32_t> denyResult;
+    denyResultRaw.Unmarshalling(denyResult);
+    ASSERT_EQ(1, denyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, denyResult[0]);
+
+    std::vector<PolicyInfo> setPolicyA;
+    setPolicyA.emplace_back(PolicyInfo{.path = pathA, .mode = OperateMode::READ_MODE});
+    PolicyVecRawData setRawDataA;
+    setRawDataA.Marshalling(setPolicyA);
+    Uint32VecRawData setResultRawA;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetPolicy(tokenId, setRawDataA, 0, setResultRawA));
+    std::vector<uint32_t> setResultA;
+    setResultRawA.Unmarshalling(setResultA);
+    ASSERT_EQ(1, setResultA.size());
+    EXPECT_EQ(POLICY_MAC_FAIL, setResultA[0]);
+
+    std::vector<PolicyInfo> setPolicySub;
+    setPolicySub.emplace_back(PolicyInfo{.path = pathSub, .mode = OperateMode::READ_MODE});
+    PolicyVecRawData setRawDataSub;
+    setRawDataSub.Marshalling(setPolicySub);
+    Uint32VecRawData setResultRawSub;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetPolicy(tokenId, setRawDataSub, 0, setResultRawSub));
+    std::vector<uint32_t> setResultSub;
+    setResultRawSub.Unmarshalling(setResultSub);
+    ASSERT_EQ(1, setResultSub.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, setResultSub[0]);
+
+    PolicyInfoParcel denyParcel;
+    denyParcel.policyInfo = {.path = pathA, .mode = OperateMode::DENY_SET_MODE};
+    sandboxManagerService_->UnSetDenyPolicy(tokenId, denyParcel);
+    setuid(uid);
+}
+
+/**
+ * @tc.name: SandboxManagerServiceDenyExtend003
+ * @tc.desc: SetDenyPolicy(0, pathA, DENY_SET_MODE) → other tokens cannot SetPolicy on pathA, can SetPolicy on subdir
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceDenyExtend003, TestSize.Level0)
+{
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+
+    uint32_t tokenId = selfTokenId_;
+    std::string pathA = "/data/deny_set_test_003/A";
+    std::string pathSub = "/data/deny_set_test_003/A/sub";
+
+    std::vector<PolicyInfo> denyPolicy;
+    denyPolicy.emplace_back(PolicyInfo{.path = pathA, .mode = OperateMode::DENY_SET_MODE});
+    PolicyVecRawData denyRawData;
+    denyRawData.Marshalling(denyPolicy);
+    Uint32VecRawData denyResultRaw;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetDenyPolicy(0, denyRawData, denyResultRaw));
+    std::vector<uint32_t> denyResult;
+    denyResultRaw.Unmarshalling(denyResult);
+    ASSERT_EQ(1, denyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, denyResult[0]);
+
+    std::vector<PolicyInfo> setPolicyA;
+    setPolicyA.emplace_back(PolicyInfo{.path = pathA, .mode = OperateMode::READ_MODE});
+    PolicyVecRawData setRawDataA;
+    setRawDataA.Marshalling(setPolicyA);
+    Uint32VecRawData setResultRawA;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetPolicy(tokenId, setRawDataA, 0, setResultRawA));
+    std::vector<uint32_t> setResultA;
+    setResultRawA.Unmarshalling(setResultA);
+    ASSERT_EQ(1, setResultA.size());
+    EXPECT_EQ(POLICY_MAC_FAIL, setResultA[0]);
+
+    std::vector<PolicyInfo> setPolicySub;
+    setPolicySub.emplace_back(PolicyInfo{.path = pathSub, .mode = OperateMode::READ_MODE});
+    PolicyVecRawData setRawDataSub;
+    setRawDataSub.Marshalling(setPolicySub);
+    Uint32VecRawData setResultRawSub;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetPolicy(tokenId, setRawDataSub, 0, setResultRawSub));
+    std::vector<uint32_t> setResultSub;
+    setResultRawSub.Unmarshalling(setResultSub);
+    ASSERT_EQ(1, setResultSub.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, setResultSub[0]);
+
+    PolicyInfoParcel denyParcel;
+    denyParcel.policyInfo = {.path = pathA, .mode = OperateMode::DENY_SET_MODE};
+    sandboxManagerService_->UnSetDenyPolicy(0, denyParcel);
+    setuid(uid);
+}
+
+/**
+ * @tc.name: SandboxManagerServiceDenyExtend004
+ * @tc.desc: SetDenyPolicy(token, pathA, DENY_SET_ALL_MODE) → token cannot SetPolicy on pathA and subdir
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceDenyExtend004, TestSize.Level0)
+{
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+
+    uint32_t tokenId = selfTokenId_;
+    std::string pathA = "/data/deny_set_test_004/A";
+    std::string pathSub = "/data/deny_set_test_004/A/sub";
+
+    std::vector<PolicyInfo> denyPolicy;
+    denyPolicy.emplace_back(PolicyInfo{.path = pathA, .mode = OperateMode::DENY_SET_ALL_MODE});
+    PolicyVecRawData denyRawData;
+    denyRawData.Marshalling(denyPolicy);
+    Uint32VecRawData denyResultRaw;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetDenyPolicy(tokenId, denyRawData, denyResultRaw));
+    std::vector<uint32_t> denyResult;
+    denyResultRaw.Unmarshalling(denyResult);
+    ASSERT_EQ(1, denyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, denyResult[0]);
+
+    std::vector<PolicyInfo> setPolicyA;
+    setPolicyA.emplace_back(PolicyInfo{.path = pathA, .mode = OperateMode::READ_MODE});
+    PolicyVecRawData setRawDataA;
+    setRawDataA.Marshalling(setPolicyA);
+    Uint32VecRawData setResultRawA;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetPolicy(tokenId, setRawDataA, 0, setResultRawA));
+    std::vector<uint32_t> setResultA;
+    setResultRawA.Unmarshalling(setResultA);
+    ASSERT_EQ(1, setResultA.size());
+    EXPECT_EQ(POLICY_MAC_FAIL, setResultA[0]);
+
+    std::vector<PolicyInfo> setPolicySub;
+    setPolicySub.emplace_back(PolicyInfo{.path = pathSub, .mode = OperateMode::READ_MODE});
+    PolicyVecRawData setRawDataSub;
+    setRawDataSub.Marshalling(setPolicySub);
+    Uint32VecRawData setResultRawSub;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetPolicy(tokenId, setRawDataSub, 0, setResultRawSub));
+    std::vector<uint32_t> setResultSub;
+    setResultRawSub.Unmarshalling(setResultSub);
+    ASSERT_EQ(1, setResultSub.size());
+    EXPECT_EQ(POLICY_MAC_FAIL, setResultSub[0]);
+
+    PolicyInfoParcel denyParcel;
+    denyParcel.policyInfo = {.path = pathA, .mode = OperateMode::DENY_SET_ALL_MODE};
+    sandboxManagerService_->UnSetDenyPolicy(tokenId, denyParcel);
+    setuid(uid);
+}
+
+/**
+ * @tc.name: SandboxManagerServiceDenyExtend005
+ * @tc.desc: SetDenyPolicy(0, pathA, DENY_SET_ALL_MODE) → other tokens cannot SetPolicy on pathA and subdir
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceDenyExtend005, TestSize.Level0)
+{
+    int32_t uid = getuid();
+    setuid(SPACE_MGR_SERVICE_UID);
+
+    uint32_t tokenId = selfTokenId_;
+    std::string pathA = "/data/deny_set_test_005/A";
+    std::string pathSub = "/data/deny_set_test_005/A/sub";
+
+    std::vector<PolicyInfo> denyPolicy;
+    denyPolicy.emplace_back(PolicyInfo{.path = pathA, .mode = OperateMode::DENY_SET_ALL_MODE});
+    PolicyVecRawData denyRawData;
+    denyRawData.Marshalling(denyPolicy);
+    Uint32VecRawData denyResultRaw;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetDenyPolicy(0, denyRawData, denyResultRaw));
+    std::vector<uint32_t> denyResult;
+    denyResultRaw.Unmarshalling(denyResult);
+    ASSERT_EQ(1, denyResult.size());
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, denyResult[0]);
+
+    std::vector<PolicyInfo> setPolicyA;
+    setPolicyA.emplace_back(PolicyInfo{.path = pathA, .mode = OperateMode::READ_MODE});
+    PolicyVecRawData setRawDataA;
+    setRawDataA.Marshalling(setPolicyA);
+    Uint32VecRawData setResultRawA;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetPolicy(tokenId, setRawDataA, 0, setResultRawA));
+    std::vector<uint32_t> setResultA;
+    setResultRawA.Unmarshalling(setResultA);
+    ASSERT_EQ(1, setResultA.size());
+    EXPECT_EQ(POLICY_MAC_FAIL, setResultA[0]);
+
+    std::vector<PolicyInfo> setPolicySub;
+    setPolicySub.emplace_back(PolicyInfo{.path = pathSub, .mode = OperateMode::READ_MODE});
+    PolicyVecRawData setRawDataSub;
+    setRawDataSub.Marshalling(setPolicySub);
+    Uint32VecRawData setResultRawSub;
+    EXPECT_EQ(SANDBOX_MANAGER_OK, sandboxManagerService_->SetPolicy(tokenId, setRawDataSub, 0, setResultRawSub));
+    std::vector<uint32_t> setResultSub;
+    setResultRawSub.Unmarshalling(setResultSub);
+    ASSERT_EQ(1, setResultSub.size());
+    EXPECT_EQ(POLICY_MAC_FAIL, setResultSub[0]);
+
+    PolicyInfoParcel denyParcel;
+    denyParcel.policyInfo = {.path = pathA, .mode = OperateMode::DENY_SET_ALL_MODE};
+    sandboxManagerService_->UnSetDenyPolicy(0, denyParcel);
     setuid(uid);
 }
 #endif
