@@ -17,9 +17,13 @@
 #include "sandbox_cmd_parser.h"
 #include "sandbox_error.h"
 #include "sandbox_mock_state.h"
+#include "sandbox_test_privileged.h"
+#include "sandbox_utils.h"
 #include <sys/mount.h>
 #include <sys/syscall.h>
 #include <cerrno>
+#include <csignal>
+#include <fcntl.h>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -38,6 +42,15 @@
 #include "sandbox_manager.h"
 #undef private
 
+/*
+ * Last on purpose. sandbox_log.h #undefs LOG_TAG and LOG_DOMAIN and redefines
+ * them, and those are plain macros read where SANDBOX_LOGx is written, not
+ * settings applied once. Any header included after this one that defines its own
+ * LOG_TAG silently takes over, and the log lines go out under someone else's tag
+ * and domain - which looks exactly like logging being broken.
+ */
+#include "sandbox_log.h"
+
 using namespace testing::ext;
 
 namespace OHOS {
@@ -52,8 +65,11 @@ static constexpr uint64_t TEST_SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32
 // In the real device test environment, this requires a properly initialized token system.
 static constexpr uint64_t TEST_HAP_TOKEN_ID = TEST_SYSTEM_APP_MASK | 0x200D000D;
 
-static constexpr int32_t TEST_IOCTL_FD = 100;
 static constexpr uint32_t TEST_MCS_UID = 20020026;
+
+// A stand-in caller pid. Nothing below reads it back, so the value only has to
+// be a plausible pid rather than this process or any real one.
+static constexpr pid_t TEST_CALLER_PID = 1000;
 
 class SandboxDirGuard {
 public:
@@ -175,30 +191,6 @@ private:
     std::string path_;
 };
 
-// RAII guard that resets the global IoctlMockState to defaults on destruction.
-class IoctlMockGuard {
-public:
-    IoctlMockGuard()
-    {
-        // Save current state and reset for a clean test
-        saved_ = g_ioctlMockState;
-        g_ioctlMockState.mockEnabled = false;
-        g_ioctlMockState.openFail = true;
-        g_ioctlMockState.openErrno = ENOENT;
-        g_ioctlMockState.mockFd = TEST_IOCTL_FD;
-        g_ioctlMockState.failOnCallIndex = -1;
-        g_ioctlMockState.ioctlErrno = EINVAL;
-        g_ioctlMockState.ioctlCallCount = 0;
-    }
-
-    ~IoctlMockGuard()
-    {
-        g_ioctlMockState = saved_;
-    }
-
-private:
-    IoctlMockState saved_;
-};
 
 // RAII guard that enables deterministic SELinux mocks for a single test.
 class SelinuxMockGuard {
@@ -280,6 +272,313 @@ HWTEST_F(ClawSandboxManagerTest, Initialize002, TestSize.Level0)
     // We can verify via ValidateConfig which uses config_.currentUserId indirectly
     EXPECT_EQ(SANDBOX_SUCCESS, manager.ValidateConfig());
 }
+
+/**
+ * @tc.name: Initialize003
+ * @tc.desc: Initialize moves SANDBOX_SOCKET_PATH out of the override env for the monitor
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, Initialize003, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    // SANDBOX_SOCKET_PATH is a shell-sandbox feature; Initialize refuses it otherwise.
+    config.type = "shell";
+    config.env = {{"SANDBOX_SOCKET_PATH", "/data/local/tmp/app.socket"}, {"LANG", "C"}};
+    CmdInfo cmdInfo;
+
+    manager.Initialize(std::move(config), cmdInfo);
+
+    EXPECT_EQ("/data/local/tmp/app.socket", manager.monitorSocketPath_);
+    // The sandboxed child must never see the path: the entry is gone from the
+    // override env, and DELETE_ENV_VARS strips any host-inherited copy.
+    EXPECT_EQ(0u, manager.config_.env.count("SANDBOX_SOCKET_PATH"));
+    EXPECT_EQ("C", manager.config_.env["LANG"]);
+
+    std::map<std::string, std::string> sanitizedEnv;
+    sanitizedEnv["SANDBOX_SOCKET_PATH"] = "/inherited/from/host.socket";
+    size_t accepted = 0;
+    size_t rejectedBlocked = 0;
+    size_t rejectedInvalid = 0;
+    manager.SanitizeOverrideEnv(sanitizedEnv, accepted, rejectedBlocked, rejectedInvalid);
+    EXPECT_EQ(0u, sanitizedEnv.count("SANDBOX_SOCKET_PATH"));
+}
+
+/**
+ * @tc.name: Initialize004
+ * @tc.desc: A caller that passes no SANDBOX_SOCKET_PATH opts out instead of failing the launch
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, Initialize004, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.env = {{"LANG", "C"}};
+    CmdInfo cmdInfo;
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.Initialize(std::move(config), cmdInfo));
+    // The extraction runs everywhere, because taking SANDBOX_SOCKET_PATH out of the
+    // config is what keeps it away from the child whether or not a monitor
+    // exists to consume it.
+    EXPECT_TRUE(manager.monitorSocketPath_.empty());
+
+#ifdef CONFIG_SHELL_SANDBOX
+    // Opting out starts the sandbox without a channel rather than aborting it.
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ConnectMonitorSocket());
+    EXPECT_EQ(-1, manager.monitorSocketFd_);
+#endif
+}
+
+/**
+ * @tc.name: Initialize005
+ * @tc.desc: Spelling SANDBOX_SOCKET_PATH more than one way is rejected instead of guessed
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, Initialize005, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    /*
+     * Three distinct map keys that all normalise to the same variable: the
+     * lookup trims surrounding space and upper-cases, nothing more, so these
+     * collide while a near miss like "socket_path" does not.
+     */
+    config.type = "shell";
+    config.env = {{"SANDBOX_SOCKET_PATH", "/data/local/tmp/a.socket"},
+                  {"sandbox_socket_path", "/data/local/tmp/b.socket"},
+                  {"  Sandbox_Socket_Path  ", "/data/local/tmp/c.socket"}};
+    CmdInfo cmdInfo;
+
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, manager.Initialize(std::move(config), cmdInfo));
+    EXPECT_FALSE(manager.initialized_);
+}
+
+/**
+ * @tc.name: Initialize006
+ * @tc.desc: SANDBOX_SOCKET_PATH on a non-shell sandbox is ignored, not refused:
+ *           the sandbox starts, simply without a monitor channel
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, Initialize006, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.type = "cli";
+    config.env = {{"SANDBOX_SOCKET_PATH", "/data/local/tmp/app.socket"}};
+    CmdInfo cmdInfo;
+
+    /*
+     * The monitor is a shell-sandbox feature, so ExtractMonitorSocketPath returns
+     * before it ever looks at env. The variable does not reach the sandboxed
+     * child either way - DELETE_ENV_VARS strips it in ApplyEnvironment - so the
+     * only effect is that the path is never picked up.
+     */
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.Initialize(std::move(config), cmdInfo));
+    EXPECT_TRUE(manager.monitorSocketPath_.empty());
+#ifdef CONFIG_SHELL_SANDBOX
+    // Nothing to connect to, and that is not an error.
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ConnectMonitorSocket());
+    EXPECT_EQ(-1, manager.monitorSocketFd_);
+#endif
+}
+
+/*
+ * Monitor socket plumbing is PC only, so everything that drives it lives
+ * behind the same flag as the code under test.
+ */
+#ifdef CONFIG_SHELL_SANDBOX
+
+/*
+ * Makes the monitor socket whitelist observable at all.
+ *
+ * The allowed directory only exists inside an application sandbox, so without
+ * the realpath redirect IsMonitorSocketPathAllowed() is false for every input
+ * and an EXPECT_FALSE on it tests nothing. The guard creates a real directory,
+ * points the mock at it, and puts a real file where the socket path is expected
+ * - realpath() needs the target to exist. Both sides of the IsPathUnder()
+ * comparison go through the redirect, leaving the containment rule as what is
+ * actually under test. The base directory is probed, not hardcoded: see
+ * MakeSocketPath in the monitor test.
+ */
+class MonitorSocketPathGuard {
+public:
+    explicit MonitorSocketPathGuard(const std::string &leaf)
+    {
+        static const char *candidates[] = {"/data/local/tmp", "/tmp", "."};
+        const std::string suffix = "/claw_ut_socket_" + std::to_string(getpid());
+
+        for (const char *base : candidates) {
+            std::error_code ec;
+            const std::string dir = std::string(base) + suffix;
+            std::filesystem::create_directories(dir, ec);
+            std::ofstream(dir + "/" + leaf).put('\0');
+            if (!std::filesystem::exists(dir + "/" + leaf, ec)) {
+                std::filesystem::remove_all(dir, ec);
+                continue;
+            }
+
+            baseDir_ = base;
+            dir_ = dir;
+            valid_ = true;
+            break;
+        }
+
+        g_pathMockState.redirectFrom = ALLOWED_DIR;
+        g_pathMockState.redirectTo = dir_;
+        g_pathMockState.mockEnabled = valid_;
+    }
+
+    ~MonitorSocketPathGuard()
+    {
+        // Process-wide state: it has to come back off however the test ends.
+        g_pathMockState.mockEnabled = false;
+        g_pathMockState.redirectFrom.clear();
+        g_pathMockState.redirectTo.clear();
+
+        std::error_code ec;
+        std::filesystem::remove_all(dir_, ec);
+    }
+
+    bool Valid() const
+    {
+        return valid_;
+    }
+
+    /*
+     * The directory the redirect target was created in. It is guaranteed to
+     * exist and to sit outside the redirected tree, which makes it the one path
+     * a test can rely on for the "not in the whitelist" case.
+     */
+    const std::string &BaseDir() const
+    {
+        return baseDir_;
+    }
+
+    // Must match MONITOR_SOCKET_ALLOWED_DIRS[0] in sandbox_manager.cpp.
+    static constexpr const char *ALLOWED_DIR = "/data/storage/el1/base";
+
+private:
+    std::string baseDir_;
+    std::string dir_;
+    bool valid_ = false;
+};
+
+/**
+ * @tc.name: ConnectMonitorSocket001
+ * @tc.desc: A socket path inside the allowed directory reaches connect, and a
+ *           failed connect aborts the launch instead of starting unmonitored
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ConnectMonitorSocket001, TestSize.Level0)
+{
+    MonitorSocketPathGuard guard("absent.socket");
+    ASSERT_TRUE(guard.Valid());
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = getpid();
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    // SANDBOX_SOCKET_PATH is a shell-sandbox feature; Initialize refuses it otherwise.
+    config.type = "shell";
+    config.env = {{"SANDBOX_SOCKET_PATH", std::string(MonitorSocketPathGuard::ALLOWED_DIR) + "/absent.socket"}};
+    CmdInfo cmdInfo;
+
+    manager.Initialize(std::move(config), cmdInfo);
+
+    /*
+     * The whitelist lets it through, so the launch fails on the connect instead.
+     * connect() uses the path as written and the redirect does not reach it, so
+     * there is genuinely nobody there - which is the case that has to abort the
+     * launch rather than start a sandbox with no monitor.
+     */
+    EXPECT_TRUE(manager.IsMonitorSocketPathAllowed());
+    EXPECT_EQ(SANDBOX_ERR_SOCKET_CONNECT_FAILED, manager.ConnectMonitorSocket());
+    EXPECT_EQ(-1, manager.monitorSocketFd_);
+}
+
+/**
+ * @tc.name: ConnectMonitorSocket002
+ * @tc.desc: A socket path outside the allowed directories is refused before connecting
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ConnectMonitorSocket002, TestSize.Level0)
+{
+    MonitorSocketPathGuard guard("unused.socket");
+    ASSERT_TRUE(guard.Valid());
+
+    /*
+     * The guard just created a subdirectory here, so it resolves; and the
+     * redirect points at that subdirectory, so this sits outside it. Asserted
+     * rather than assumed: if it stopped resolving, the refusal below would come
+     * from realpath instead of the containment rule and the test would go back
+     * to passing for the wrong reason without saying so.
+     */
+    ASSERT_FALSE(GetRealPath(guard.BaseDir()).empty());
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = getpid();
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    // SANDBOX_SOCKET_PATH is a shell-sandbox feature; Initialize refuses it otherwise.
+    config.type = "shell";
+    config.env = {{"SANDBOX_SOCKET_PATH", guard.BaseDir()}};
+    CmdInfo cmdInfo;
+
+    manager.Initialize(std::move(config), cmdInfo);
+
+    EXPECT_FALSE(manager.IsMonitorSocketPathAllowed());
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.ConnectMonitorSocket());
+    EXPECT_EQ(-1, manager.monitorSocketFd_);
+}
+
+/**
+ * @tc.name: ConnectMonitorSocket003
+ * @tc.desc: Containment is by path component, and ".." cannot step out of the allowed tree
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ConnectMonitorSocket003, TestSize.Level0)
+{
+    // A sibling whose name merely starts with the allowed directory must not
+    // pass: this is containment, not a string prefix.
+    EXPECT_FALSE(IsPathUnder("/tmp_other/x", "/tmp"));
+
+    // Resolution happens before comparison, so traversal cannot escape.
+    EXPECT_FALSE(IsPathUnder("/tmp/../etc", "/tmp"));
+
+    // A path that cannot be resolved at all is refused rather than assumed good.
+    EXPECT_FALSE(IsPathUnder("/tmp/no_such_dir_here/x.socket", "/tmp"));
+
+    EXPECT_TRUE(IsPathUnder("/tmp", "/tmp"));
+}
+
+#endif // CONFIG_SHELL_SANDBOX
 
 // ==================== ValidateConfig tests ====================
 
@@ -573,7 +872,7 @@ HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId001, TestSize.Level0)
     SandboxManager manager;
     SandboxConfig config;
     config.type = "cli"; // Not "shell"
-    config.appIdentifier = "com.test.app";
+    config.appIdentifier = "20020026";
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
@@ -609,7 +908,7 @@ HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId003, TestSize.Level0)
     SandboxManager manager;
     SandboxConfig config;
     config.type = "shell";
-    config.appIdentifier = "com.example.hnp";
+    config.appIdentifier = "20020026";
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
@@ -1670,7 +1969,7 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter002, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    manager.ParseSeccompJson(root);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseSeccompJson(root));
 
     struct sock_fprog prog;
     int ret = manager.BuildSeccompFilter(prog);
@@ -1927,7 +2226,7 @@ HWTEST_F(ClawSandboxManagerTest, BuildSeccompFilter008, TestSize.Level0)
     ASSERT_NE(root, nullptr);
 
     SandboxManager manager;
-    manager.ParseSeccompJson(root);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ParseSeccompJson(root));
 
     struct sock_fprog prog;
     int ret = manager.BuildSeccompFilter(prog);
@@ -2246,7 +2545,8 @@ HWTEST_F(ClawSandboxManagerTest, SetGroups001, TestSize.Level0)
     // SetGroups will call setgroups() which requires root.
     // In UT environment without root, expect SANDBOX_ERR_NS_FAILED.
     // In privileged environments, setgroups() may succeed.
-    int ret = manager.SetGroups();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.SetGroups(); }, ret));
     EXPECT_TRUE(ret == SANDBOX_ERR_NS_FAILED || ret == SANDBOX_SUCCESS);
 }
 
@@ -2269,7 +2569,8 @@ HWTEST_F(ClawSandboxManagerTest, SetGroups002, TestSize.Level0)
 
     // No permissions configured → CollectGrantedPermissionGids returns empty
     // Only config.gid (20020026) goes into the gids vector
-    int ret = manager.SetGroups();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.SetGroups(); }, ret));
     EXPECT_TRUE(ret == SANDBOX_ERR_NS_FAILED || ret == SANDBOX_SUCCESS);
 }
 
@@ -2296,7 +2597,8 @@ HWTEST_F(ClawSandboxManagerTest, SetGroups003, TestSize.Level0)
     permConfig.gids = {20020026, 30030033};
     manager.templateConfig_.permissions["ohos.permission.GRANTED_DUP"] = permConfig;
 
-    int ret = manager.SetGroups();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.SetGroups(); }, ret));
     EXPECT_TRUE(ret == SANDBOX_ERR_NS_FAILED || ret == SANDBOX_SUCCESS);
 }
 
@@ -2319,7 +2621,8 @@ HWTEST_F(ClawSandboxManagerTest, SetUidGid001, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.SetUidGid();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.SetUidGid(); }, ret));
     EXPECT_TRUE(ret == SANDBOX_SUCCESS ||
                 ret == SANDBOX_ERR_SET_UGID_FAILED);
 }
@@ -2343,7 +2646,8 @@ HWTEST_F(ClawSandboxManagerTest, SetAccessToken001, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.SetAccessToken();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.SetAccessToken(); }, ret));
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_TOKENID_FAILED);
 }
 
@@ -2365,7 +2669,8 @@ HWTEST_F(ClawSandboxManagerTest, SetAccessToken002, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.SetAccessToken();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.SetAccessToken(); }, ret));
     EXPECT_TRUE(ret == SANDBOX_SUCCESS ||
                 ret == SANDBOX_ERR_SET_TOKENID_FAILED ||
                 ret == SANDBOX_ERR_SET_PTOKENID_FAILED);
@@ -2402,7 +2707,8 @@ HWTEST_F(ClawSandboxManagerTest, SetParentHapTokenId001, TestSize.Level0)
 
 /**
  * @tc.name: SetAinfo001
- * @tc.desc: SetAinfo always returns success (Ainfo is optional)
+ * @tc.desc: A cli sandbox gets no AIDS label, and that is success rather than a
+ *           silent failure
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -2414,11 +2720,35 @@ HWTEST_F(ClawSandboxManagerTest, SetAinfo001, TestSize.Level0)
     config.gid = 20020026;
     config.callerPid = 1000;
     config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.type = "cli";
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.SetAinfo();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetAinfo());
+}
+
+/**
+ * @tc.name: SetAinfo002
+ * @tc.desc: SetAinfo returns success for a shell sandbox too - the label is
+ *           optional, so a missing /dev/hkids must not fail the launch
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetAinfo002, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.type = "shell";
+    config.appIdentifier = "20020026";
+    config.appIdentifierU64 = 20020026;
+    CmdInfo cmdInfo;
+    manager.Initialize(std::move(config), cmdInfo);
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetAinfo());
 }
 
 // ==================== SetSeccomp tests ====================
@@ -2440,7 +2770,8 @@ HWTEST_F(ClawSandboxManagerTest, SetSeccomp001, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.SetSeccomp();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.SetSeccomp(); }, ret));
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_SECCOMP_FAILED);
 }
 
@@ -2463,7 +2794,8 @@ HWTEST_F(ClawSandboxManagerTest, InstallCustomSeccompFilter001, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.InstallCustomSeccompFilter();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.InstallCustomSeccompFilter(); }, ret));
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_SECCOMP_FAILED);
 }
 
@@ -2486,7 +2818,8 @@ HWTEST_F(ClawSandboxManagerTest, DropCapabilities001, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.DropCapabilities();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.DropCapabilities(); }, ret));
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_CAP_FAILED);
 }
 
@@ -2509,7 +2842,9 @@ HWTEST_F(ClawSandboxManagerTest, PrepareWorkdir001, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    EXPECT_EQ(SANDBOX_SUCCESS, manager.PrepareWorkdir());
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.PrepareWorkdir(); }, ret));
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
 /**
@@ -2530,7 +2865,9 @@ HWTEST_F(ClawSandboxManagerTest, PrepareWorkdir002, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.PrepareWorkdir());
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.PrepareWorkdir(); }, ret));
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, ret);
     EXPECT_FALSE(SandboxDirGuard::Exists(config.workdir));
 }
 
@@ -2553,283 +2890,9 @@ HWTEST_F(ClawSandboxManagerTest, PrepareWorkdir003, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.PrepareWorkdir());
-}
-
-// ==================== DeliverPolicy tests ====================
-
-// Helper: allocate and initialize a minimal valid policyArg for DeliverPolicy tests.
-// The returned pointer must be freed with std::free() by the caller.
-static struct AgentLockAddPolicyArg *MakeMinimalPolicyArg(uint32_t policyCnt = 1)
-{
-    size_t totalSize = sizeof(struct AgentLockAddPolicyArg) +
-                       policyCnt * sizeof(struct AgentLockPolicy);
-    auto *arg = static_cast<struct AgentLockAddPolicyArg *>(std::malloc(totalSize));
-    if (arg == nullptr) {
-        return nullptr;
-    }
-    if (memset_s(arg, totalSize, 0, totalSize) != 0) {
-        std::free(arg);
-        arg = nullptr;
-        return nullptr;
-    }
-    arg->version = 1;
-    arg->policyCnt = policyCnt;
-    return arg;
-}
-
-/**
- * @tc.name: DeliverPolicy001
- * @tc.desc: DeliverPolicy with nullptr policyArg returns success early
- *           (no policy to deliver, skips open/ioctl entirely)
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, DeliverPolicy001, TestSize.Level0)
-{
-    IoctlMockGuard guard;
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg = nullptr; // No netPolicy provided
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    int ret = manager.DeliverPolicy();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: DeliverPolicy002
- * @tc.desc: DeliverPolicy with uninitialized manager returns SANDBOX_ERR_GENERIC
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, DeliverPolicy002, TestSize.Level0)
-{
-    IoctlMockGuard guard;
-
-    SandboxManager manager;
-    // Not calling Initialize() — initialized_ stays false
-
-    int ret = manager.DeliverPolicy();
-    EXPECT_EQ(SANDBOX_ERR_GENERIC, ret);
-}
-
-/**
- * @tc.name: DeliverPolicy003
- * @tc.desc: DeliverPolicy returns SET_POLICY_FAILED when open("/dev/dec") fails
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, DeliverPolicy003, TestSize.Level0)
-{
-    IoctlMockGuard guard;
-    g_ioctlMockState.mockEnabled = true;
-    g_ioctlMockState.openFail = true;
-    g_ioctlMockState.openErrno = ENOENT;
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg.reset(MakeMinimalPolicyArg());
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    int ret = manager.DeliverPolicy();
-    EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
-    config.policyArg.reset();
-}
-
-/**
- * @tc.name: DeliverPolicy004
- * @tc.desc: DeliverPolicy returns SET_POLICY_FAILED when ioctl init
- *           (DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT, call index 0) fails.
- *           Verifies fd is closed on the error path.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, DeliverPolicy004, TestSize.Level0)
-{
-    IoctlMockGuard guard;
-    g_ioctlMockState.mockEnabled = true;
-    g_ioctlMockState.openFail = false;     // open succeeds → mockFd
-    g_ioctlMockState.failOnCallIndex = 0;  // first ioctl (init) fails
-    g_ioctlMockState.ioctlErrno = EINVAL;
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg.reset(MakeMinimalPolicyArg());
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    int ret = manager.DeliverPolicy();
-    EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
-    EXPECT_EQ(1, g_ioctlMockState.ioctlCallCount);
-
-    config.policyArg.reset();
-}
-
-/**
- * @tc.name: DeliverPolicy005
- * @tc.desc: DeliverPolicy returns SET_POLICY_FAILED when net policy ioctl
- *           (DEC_CMD_POLICY_ADD, call index 1) fails after init succeeds.
- *           Verifies fd is closed on the error path.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, DeliverPolicy005, TestSize.Level0)
-{
-    IoctlMockGuard guard;
-    g_ioctlMockState.mockEnabled = true;
-    g_ioctlMockState.openFail = false;
-    g_ioctlMockState.failOnCallIndex = 1;
-    g_ioctlMockState.ioctlErrno = EINVAL;
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg.reset(MakeMinimalPolicyArg());
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-    int ret = manager.DeliverPolicy();
-    EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
-    EXPECT_EQ(2, g_ioctlMockState.ioctlCallCount);
-    config.policyArg.reset();
-}
-
-/**
- * @tc.name: DeliverPolicy006
- * @tc.desc: DeliverPolicy full success path: open succeeds, init ioctl succeeds,
- *           net policy ioctl succeeds. Returns SANDBOX_SUCCESS and closes fd.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, DeliverPolicy006, TestSize.Level0)
-{
-    IoctlMockGuard guard;
-    g_ioctlMockState.mockEnabled = true;
-    g_ioctlMockState.openFail = false;
-    g_ioctlMockState.failOnCallIndex = -1;
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg.reset(MakeMinimalPolicyArg());
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    int ret = manager.DeliverPolicy();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-    EXPECT_EQ(2, g_ioctlMockState.ioctlCallCount);
-    config.policyArg.reset();
-}
-
-/**
- * @tc.name: DeliverPolicy007
- * @tc.desc: DeliverPolicy with open returning EACCES verifies the error code
- *           is propagated as SANDBOX_ERR_SET_POLICY_FAILED
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, DeliverPolicy007, TestSize.Level0)
-{
-    IoctlMockGuard guard;
-    g_ioctlMockState.mockEnabled = true;
-    g_ioctlMockState.openFail = true;
-    g_ioctlMockState.openErrno = EACCES;
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg.reset(MakeMinimalPolicyArg());
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    int ret = manager.DeliverPolicy();
-    EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
-    config.policyArg.reset();
-}
-
-/**
- * @tc.name: DeliverPolicy008
- * @tc.desc: DeliverPolicy with init ioctl failing with ENOTTY verifies that
- *           different errno values are handled (function returns SET_POLICY_FAILED
- *           regardless of the specific errno)
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, DeliverPolicy008, TestSize.Level0)
-{
-    IoctlMockGuard guard;
-    g_ioctlMockState.mockEnabled = true;
-    g_ioctlMockState.openFail = false;
-    g_ioctlMockState.failOnCallIndex = 0;
-    g_ioctlMockState.ioctlErrno = ENOTTY;
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg.reset(MakeMinimalPolicyArg());
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    int ret = manager.DeliverPolicy();
-    EXPECT_EQ(SANDBOX_ERR_SET_POLICY_FAILED, ret);
-    config.policyArg.reset();
-}
-
-/**
- * @tc.name: DeliverPolicy009
- * @tc.desc: DeliverPolicy with policyArg containing multiple policies
- *           verifies the full flow succeeds with the correct ioctl call count
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, DeliverPolicy009, TestSize.Level0)
-{
-    IoctlMockGuard guard;
-    g_ioctlMockState.mockEnabled = true;
-    g_ioctlMockState.openFail = false;
-    g_ioctlMockState.failOnCallIndex = -1;
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.policyArg.reset(MakeMinimalPolicyArg(3));
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    int ret = manager.DeliverPolicy();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-    EXPECT_EQ(2, g_ioctlMockState.ioctlCallCount);
-    config.policyArg.reset();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.PrepareWorkdir(); }, ret));
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, ret);
 }
 
 // ==================== ExecuteCommand tests ====================
@@ -2852,8 +2915,8 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteCommand001, TestSize.Level0)
     manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ExecuteCommand();
-    // When cmdInfo_.argv is empty, ExecuteCommand falls back to execl("/system/bin/sh")
-    // which fails in test environment, returning SANDBOX_ERR_CMD_INVALID
+    // An empty cmdInfo_.argv leaves argv[0] as the terminating nullptr, so this
+    // is OpenAllowedExecutable's null-path branch - no exec is attempted.
     EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
 }
 
@@ -2877,8 +2940,8 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteCommand002, TestSize.Level0)
     manager.Initialize(std::move(config), cmdInfo);
 
     int ret = manager.ExecuteCommand();
-    // When cmdInfo_.argv is empty, ExecuteCommand falls back to execl("/system/bin/sh")
-    // which fails in test environment, returning SANDBOX_ERR_CMD_INVALID
+    // An empty cmdInfo_.argv leaves argv[0] as the terminating nullptr, so this
+    // is OpenAllowedExecutable's null-path branch - no exec is attempted.
     EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, ret);
 }
 
@@ -2898,7 +2961,8 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps001, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.ExecuteEarlySteps();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.ExecuteEarlySteps(); }, ret));
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
 }
 
@@ -2921,7 +2985,8 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps002, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.ExecuteEarlySteps();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.ExecuteEarlySteps(); }, ret));
     EXPECT_EQ(SANDBOX_ERR_SET_SELINUX_FAILED, ret);
 }
 
@@ -2944,14 +3009,17 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteLateSteps001, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.ExecuteLateSteps();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.ExecuteLateSteps(); }, ret));
     // ExecuteLateSteps calls SetAccessToken/SetXpmOwnerId/SetAinfo first.
     // SetSelfTokenID may fail in some environments → SET_TOKENID_FAILED,
     // or SetUidGid fails at setresgid → SET_UGID_FAILED,
+    // or the child-side DeliverExecuterInit cannot open /dev/dec → SET_POLICY_FAILED,
     // or in privileged environments SetUidGid/SetSeccomp succeed and
     // ExecuteCommand fails with CMD_INVALID (empty cmd).
     EXPECT_TRUE(ret == SANDBOX_ERR_SET_UGID_FAILED ||
                 ret == SANDBOX_ERR_SET_TOKENID_FAILED ||
+                ret == SANDBOX_ERR_SET_POLICY_FAILED ||
                 ret == SANDBOX_ERR_CMD_INVALID ||
                 ret == SANDBOX_ERR_SET_DEC_FAILED);
 }
@@ -2968,7 +3036,8 @@ HWTEST_F(ClawSandboxManagerTest, Execute001, TestSize.Level0)
 {
     SandboxManager manager;
 
-    int ret = manager.Execute();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.Execute(); }, ret));
     EXPECT_EQ(SANDBOX_ERR_GENERIC, ret);
 }
 
@@ -3053,6 +3122,554 @@ HWTEST_F(ClawSandboxManagerTest, EnvPolicyEdge005, TestSize.Level0)
     EXPECT_EQ(1U, accepted);
     EXPECT_EQ(0U, rejectedBlocked);
     EXPECT_EQ(2U, rejectedInvalid);
+}
+
+// ==================== start gate tests ====================
+// The gate ForkAfterUnshare installs. What these pin is the distinction the
+// parent draws - a byte means "run", a bare close means "do not" - and the
+// child side reading that byte. Only the child's EOF path is out of reach: it
+// ends in _exit, which no unit test survives.
+
+/**
+ * @tc.name: NeedsForkAfterUnshare001
+ * @tc.desc: The fork is what puts the program into a new pid namespace, so only
+ *           a cli sandbox that asked for no pid namespace skips it
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, NeedsForkAfterUnshare001, TestSize.Level0)
+{
+    SandboxManager manager;
+
+    // cli without a pid namespace: nothing to fork for.
+    manager.config_.type = "cli";
+    manager.config_.nsFlags = CLONE_NEWNS;
+    manager.config_.nsFlags |= CLONE_NEWNET;
+    EXPECT_FALSE(manager.NeedsForkAfterUnshare());
+
+    // cli that asked for one: fork, or the program never joins it.
+    manager.config_.nsFlags |= CLONE_NEWPID;
+    EXPECT_TRUE(manager.NeedsForkAfterUnshare());
+
+    // shell forks either way - the parent stays behind as the monitor - so the
+    // flag is not consulted. It is the caller's to set, not ours.
+    manager.config_.type = "shell";
+    manager.config_.nsFlags = CLONE_NEWNS;
+    EXPECT_TRUE(manager.NeedsForkAfterUnshare());
+    manager.config_.nsFlags |= CLONE_NEWPID;
+    EXPECT_TRUE(manager.NeedsForkAfterUnshare());
+}
+
+/**
+ * @tc.name: StartGate001
+ * @tc.desc: CreateStartGate hands back a connected pair
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, StartGate001, TestSize.Level0)
+{
+    SandboxManager manager;
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.CreateStartGate());
+    EXPECT_GE(manager.startGateReadFd_, 0);
+    EXPECT_GE(manager.startGateWriteFd_, 0);
+
+    manager.CloseStartGate();
+    close(manager.startGateReadFd_);
+    manager.startGateReadFd_ = -1;
+}
+
+/**
+ * @tc.name: StartGate002
+ * @tc.desc: ReleaseStartGate sends the byte the child is waiting for, and gives
+ *           up the write end so a second call cannot send a second one
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, StartGate002, TestSize.Level0)
+{
+    SandboxManager manager;
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.CreateStartGate());
+
+    manager.ReleaseStartGate();
+    EXPECT_EQ(-1, manager.startGateWriteFd_);
+
+    char token = 0;
+    EXPECT_EQ(1, read(manager.startGateReadFd_, &token, sizeof(token)));
+
+    // Write end already gone: the next read is EOF, not a second token.
+    manager.ReleaseStartGate();
+    EXPECT_EQ(0, read(manager.startGateReadFd_, &token, sizeof(token)));
+
+    close(manager.startGateReadFd_);
+    manager.startGateReadFd_ = -1;
+}
+
+/**
+ * @tc.name: StartGate003
+ * @tc.desc: CloseStartGate sends nothing, so the child's read returns EOF - the
+ *           signal that it must not run the command
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, StartGate003, TestSize.Level0)
+{
+    SandboxManager manager;
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.CreateStartGate());
+
+    manager.CloseStartGate();
+    EXPECT_EQ(-1, manager.startGateWriteFd_);
+
+    char token = 0;
+    EXPECT_EQ(0, read(manager.startGateReadFd_, &token, sizeof(token)));
+
+    close(manager.startGateReadFd_);
+    manager.startGateReadFd_ = -1;
+}
+
+/**
+ * @tc.name: StartGate004
+ * @tc.desc: CloseStartGate on an already released gate is a no-op, which is what
+ *           lets ParentAfterFork call it unconditionally as a backstop
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, StartGate004, TestSize.Level0)
+{
+    SandboxManager manager;
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.CreateStartGate());
+
+    manager.ReleaseStartGate();
+    manager.CloseStartGate();  // must not close a second, unrelated fd
+    EXPECT_EQ(-1, manager.startGateWriteFd_);
+
+    // The token survives the extra close.
+    char token = 0;
+    EXPECT_EQ(1, read(manager.startGateReadFd_, &token, sizeof(token)));
+
+    close(manager.startGateReadFd_);
+    manager.startGateReadFd_ = -1;
+}
+
+/**
+ * @tc.name: StartGate005
+ * @tc.desc: A cli sandbox is never watched, so it gets no gate at all - nothing
+ *           to build, nothing to release, and nothing that could hold the child
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, StartGate005, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.config_.type = "cli";
+    EXPECT_FALSE(manager.NeedsStartGate());
+
+    EXPECT_LT(manager.RunMonitorForChild(getpid()), 0);  // no monitor taken over
+    // Untouched: RunMonitorForChild has no gate to act on for a cli sandbox.
+    EXPECT_EQ(-1, manager.startGateReadFd_);
+    EXPECT_EQ(-1, manager.startGateWriteFd_);
+}
+
+/**
+ * @tc.name: StartGate006
+ * @tc.desc: A shell sandbox is the one that gets a gate; both sides of the fork
+ *           read the same predicate, so they cannot disagree about that
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, StartGate006, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.config_.type = "shell";
+#ifdef CONFIG_SHELL_SANDBOX
+    EXPECT_TRUE(manager.NeedsStartGate());
+#else
+    // Without the shell sandbox built in, the config parser refuses "shell" and
+    // nothing is ever watched.
+    EXPECT_FALSE(manager.NeedsStartGate());
+#endif
+}
+
+// ==================== OpenAllowedExecutable / fork-half tests ====================
+
+namespace {
+// A regular file this process can open, plus its SELinux type when the platform
+// has one. Returns an empty path when no candidate directory is writable.
+struct ProbeBinary {
+    std::string path;
+    std::string selinuxType;   // empty when fgetfilecon is unavailable here
+};
+
+ProbeBinary MakeProbeBinary()
+{
+    ProbeBinary probe;
+    const char *envDir = getenv("TMPDIR");
+    const std::vector<std::string> candidates = {
+        (envDir != nullptr && envDir[0] == '/') ? std::string(envDir) : std::string(),
+        "/data/local/tmp", "/data", "/tmp", ".",
+    };
+    for (const std::string &dir : candidates) {
+        if (dir.empty()) {
+            continue;
+        }
+        const std::string candidate = dir + "/claw_ut_exec_" + std::to_string(getpid());
+        int fd = open(candidate.c_str(), O_CREAT | O_WRONLY | O_CLOEXEC, S_IRWXU);
+        if (fd < 0) {
+            continue;
+        }
+        close(fd);
+        probe.path = candidate;
+        break;
+    }
+    if (probe.path.empty()) {
+        return probe;
+    }
+
+    int fd = open(probe.path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return probe;
+    }
+    char *con = nullptr;
+    if (fgetfilecon(fd, &con) != -1) {
+        context_t ctx = context_new(con);
+        if (ctx != nullptr) {
+            const char *type = context_type_get(ctx);
+            if (type != nullptr) {
+                probe.selinuxType = type;
+            }
+            context_free(ctx);
+        }
+        freecon(con);
+    }
+    close(fd);
+    return probe;
+}
+
+/*
+ * By reference, not by value. SandboxManager declares a destructor, which
+ * suppresses the implicit move constructor, and it holds four raw fds - handing
+ * one back by value would lean on NRVO to avoid copying those fds and running
+ * the destructor over them twice.
+ */
+void InitCliManager(SandboxManager &manager, uint32_t nsFlags)
+{
+    SandboxConfig config;
+    config.uid = TEST_MCS_UID;
+    config.gid = TEST_MCS_UID;
+    config.callerPid = TEST_CALLER_PID;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.type = "cli";
+    config.nsFlags = nsFlags;
+    CmdInfo cmdInfo;
+    manager.Initialize(std::move(config), cmdInfo);
+}
+} // namespace
+
+/**
+ * @tc.name: OpenAllowedExecutable001
+ * @tc.desc: A null path and a path that will not open are both refused before
+ *           any label is looked at
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, OpenAllowedExecutable001, TestSize.Level0)
+{
+    SandboxManager manager;
+    InitCliManager(manager, 0);
+    EXPECT_EQ(-1, manager.OpenAllowedExecutable(nullptr));
+    EXPECT_EQ(-1, manager.OpenAllowedExecutable("/claw_sandbox_ut_no_such_binary"));
+}
+
+/**
+ * @tc.name: OpenAllowedExecutable002
+ * @tc.desc: A file that opens is still refused when its SELinux type is not on
+ *           the template's allow list. An empty list refuses everything, which
+ *           is the fail-closed half of the check.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, OpenAllowedExecutable002, TestSize.Level0)
+{
+    const ProbeBinary probe = MakeProbeBinary();
+    ASSERT_FALSE(probe.path.empty());
+
+    SandboxManager manager;
+    InitCliManager(manager, 0);
+    manager.templateConfig_.execSelinuxTypes.clear();
+    EXPECT_EQ(-1, manager.OpenAllowedExecutable(probe.path.c_str()));
+
+    // A type that exists but is not this file's is refused the same way.
+    manager.templateConfig_.execSelinuxTypes = {"claw_sandbox_ut_absent_type"};
+    EXPECT_EQ(-1, manager.OpenAllowedExecutable(probe.path.c_str()));
+
+    unlink(probe.path.c_str());
+}
+
+/**
+ * @tc.name: OpenAllowedExecutable003
+ * @tc.desc: A file whose type is on the allow list yields an open fd.
+ *           Only reachable where fgetfilecon works; without SELinux the call
+ *           fails earlier, and OpenAllowedExecutable002 covers that refusal.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, OpenAllowedExecutable003, TestSize.Level0)
+{
+    const ProbeBinary probe = MakeProbeBinary();
+    ASSERT_FALSE(probe.path.empty());
+    if (probe.selinuxType.empty()) {
+        unlink(probe.path.c_str());
+        GTEST_SKIP() << "no SELinux label available here, so the allow path cannot be reached";
+    }
+
+    SandboxManager manager;
+    InitCliManager(manager, 0);
+    manager.templateConfig_.execSelinuxTypes = {probe.selinuxType};
+    int fd = manager.OpenAllowedExecutable(probe.path.c_str());
+    EXPECT_GE(fd, 0);
+    if (fd >= 0) {
+        close(fd);
+    }
+
+    unlink(probe.path.c_str());
+}
+
+/**
+ * @tc.name: ExecuteCommand003
+ * @tc.desc: A command that cannot be opened never reaches exec, and one that is
+ *           allowed does. fexecve always fails in the mock, so the call count is
+ *           what tells the two apart.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ExecuteCommand003, TestSize.Level0)
+{
+    const ProbeBinary probe = MakeProbeBinary();
+    ASSERT_FALSE(probe.path.empty());
+
+    SandboxManager manager;
+    InitCliManager(manager, 0);
+    manager.cmdInfo_.argv = {"/claw_sandbox_ut_no_such_binary"};
+    g_execMockState.fexecveCalls = 0;
+    EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, manager.ExecuteCommand());
+    EXPECT_EQ(0, g_execMockState.fexecveCalls);
+
+    if (!probe.selinuxType.empty()) {
+        manager.templateConfig_.execSelinuxTypes = {probe.selinuxType};
+        manager.cmdInfo_.argv = {probe.path};
+        g_execMockState.fexecveCalls = 0;
+        // Still CMD_INVALID: the mock refuses the exec, which is the only way a
+        // test can get past this line at all.
+        EXPECT_EQ(SANDBOX_ERR_CMD_INVALID, manager.ExecuteCommand());
+        EXPECT_EQ(1, g_execMockState.fexecveCalls);
+    }
+
+    g_execMockState.fexecveCalls = 0;
+    unlink(probe.path.c_str());
+}
+
+/**
+ * @tc.name: ChildAfterFork001
+ * @tc.desc: The child drops every fd it inherited, and says so by clearing the
+ *           members. A cli sandbox has no start gate, so nothing blocks.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ChildAfterFork001, TestSize.Level0)
+{
+    SandboxManager manager;
+    InitCliManager(manager, 0);
+
+    int gate[2] = {-1, -1};
+    ASSERT_EQ(0, pipe(gate));
+    int spare[2] = {-1, -1};
+    ASSERT_EQ(0, pipe(spare));
+
+    manager.startGateWriteFd_ = gate[1];
+    manager.startGateReadFd_ = gate[0];
+    manager.monitorSocketFd_ = spare[0];
+    manager.decFd_ = spare[1];
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ChildAfterFork());
+    EXPECT_EQ(-1, manager.startGateWriteFd_);
+    EXPECT_EQ(-1, manager.monitorSocketFd_);
+    EXPECT_EQ(-1, manager.decFd_);
+
+    // The read end is the child's to keep; ChildAfterFork must not touch it.
+    EXPECT_EQ(gate[0], manager.startGateReadFd_);
+    close(gate[0]);
+}
+
+/**
+ * @tc.name: ChildAfterFork002
+ * @tc.desc: With nothing inherited there is nothing to close, and the fd members
+ *           stay at -1 rather than being closed twice
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ChildAfterFork002, TestSize.Level0)
+{
+    SandboxManager manager;
+    InitCliManager(manager, 0);
+    manager.startGateWriteFd_ = -1;
+    manager.monitorSocketFd_ = -1;
+    manager.decFd_ = -1;
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ChildAfterFork());
+    EXPECT_EQ(-1, manager.startGateWriteFd_);
+    EXPECT_EQ(-1, manager.monitorSocketFd_);
+    EXPECT_EQ(-1, manager.decFd_);
+}
+
+/**
+ * @tc.name: ForkAfterUnshare003
+ * @tc.desc: Without a pid namespace the command runs in place: no fork, so the
+ *           call returns to its caller
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ForkAfterUnshare003, TestSize.Level0)
+{
+    SandboxManager manager;
+    InitCliManager(manager, CLONE_NEWNS);
+    ASSERT_FALSE(manager.NeedsForkAfterUnshare());
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ForkAfterUnshare());
+}
+
+/**
+ * @tc.name: ForkAfterUnshare004
+ * @tc.desc: The forking path end to end. It has to run inside a child of the
+ *           test, because the parent half is ParentAfterFork, which ends in
+ *           _exit() - called here directly it would take the test binary with
+ *           it. The exit code proves all three halves ran: the grandchild
+ *           returned from ChildAfterFork and chose it, and ParentAfterFork
+ *           waited for the grandchild and mirrored it back.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ForkAfterUnshare004, TestSize.Level0)
+{
+    constexpr int CHILD_MARKER = 21;
+    constexpr int CHILD_FAILED = 22;
+
+    pid_t probe = fork();
+    ASSERT_GE(probe, 0);
+    if (probe == 0) {
+        // cli with a pid namespace asked for: forks, and needs no start gate.
+        SandboxManager manager;
+    InitCliManager(manager, CLONE_NEWPID);
+        int ret = manager.ForkAfterUnshare();
+        // Only the grandchild gets here; the middle process never returns.
+        _exit(ret == SANDBOX_SUCCESS ? CHILD_MARKER : CHILD_FAILED);
+    }
+
+    int status = 0;
+    ASSERT_EQ(probe, waitpid(probe, &status, 0));
+    ASSERT_TRUE(WIFEXITED(status)) << "the fork half died on a signal";
+    EXPECT_EQ(CHILD_MARKER, WEXITSTATUS(status));
+}
+
+/**
+ * @tc.name: WaitForStartGate001
+ * @tc.desc: The child runs once the byte arrives, and gives the read end back on
+ *           the way out. Only the EOF half of this function ends in _exit; the
+ *           released path returns like anything else.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, WaitForStartGate001, TestSize.Level0)
+{
+    SandboxManager manager;
+    InitCliManager(manager, 0);
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.CreateStartGate());
+
+    // Release it first, so the read below has a byte waiting and cannot block.
+    manager.ReleaseStartGate();
+    EXPECT_EQ(-1, manager.startGateWriteFd_);
+
+    manager.WaitForStartGate();
+    EXPECT_EQ(-1, manager.startGateReadFd_);
+}
+
+/**
+ * @tc.name: ParentAfterFork001
+ * @tc.desc: With no monitor to take over, the parent waits for the child and
+ *           reports the code it chose
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ParentAfterFork001, TestSize.Level0)
+{
+    constexpr int CHILD_EXIT_CODE = 42;
+
+    SandboxManager manager;
+    InitCliManager(manager, 0);
+
+    pid_t child = fork();
+    ASSERT_GE(child, 0);
+    if (child == 0) {
+        _exit(CHILD_EXIT_CODE);
+    }
+
+    // cli, so RunMonitorForChild declines and the waitpid fallback runs.
+    EXPECT_EQ(CHILD_EXIT_CODE, manager.ParentAfterForkExitCode(child));
+}
+
+/**
+ * @tc.name: ParentAfterFork002
+ * @tc.desc: A child killed by a signal is reported as 128 + the signal, not as
+ *           an exit code it never chose
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ParentAfterFork002, TestSize.Level0)
+{
+    SandboxManager manager;
+    InitCliManager(manager, 0);
+
+    pid_t child = fork();
+    ASSERT_GE(child, 0);
+    if (child == 0) {
+        raise(SIGKILL);
+        _exit(0);  // unreachable; SIGKILL cannot be caught
+    }
+
+    EXPECT_EQ(SIGNAL_EXIT_BASE + SIGKILL, manager.ParentAfterForkExitCode(child));
+}
+
+/**
+ * @tc.name: ParentAfterFork003
+ * @tc.desc: The parent hands back the fds it still holds: the gate's read end,
+ *           which belongs to the child, and the device fd the monitor did not
+ *           take over
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ParentAfterFork003, TestSize.Level0)
+{
+    constexpr int CHILD_EXIT_CODE = 7;
+
+    SandboxManager manager;
+    InitCliManager(manager, 0);
+
+    int spare[2] = {-1, -1};
+    ASSERT_EQ(0, pipe(spare));
+    manager.startGateReadFd_ = spare[0];
+    manager.decFd_ = spare[1];
+
+    pid_t child = fork();
+    ASSERT_GE(child, 0);
+    if (child == 0) {
+        _exit(CHILD_EXIT_CODE);
+    }
+
+    EXPECT_EQ(CHILD_EXIT_CODE, manager.ParentAfterForkExitCode(child));
+    EXPECT_EQ(-1, manager.startGateReadFd_);
+    EXPECT_EQ(-1, manager.decFd_);
+    // Both really are closed, not just forgotten.
+    EXPECT_EQ(-1, close(spare[0]));
+    EXPECT_EQ(EBADF, errno);
+    EXPECT_EQ(-1, close(spare[1]));
+    EXPECT_EQ(EBADF, errno);
 }
 
 } // namespace SANDBOX

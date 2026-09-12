@@ -31,6 +31,19 @@ ohos_fuzztest("ClawSandboxConfigFuzzTest") {
     "claw_sandbox_config_fuzzer.cpp",
   ]
 
+  # The op-control (DEC/AgentLock) parser TU exists only in shell-sandbox builds;
+  # ParseConfig's AddOperationControlRuleGroups branch is compiled in only then.
+  if (sandbox_manager_shell_sandbox) {
+    sources += [
+      "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_op_control_parser.cpp",
+    ]
+  }
+
+  defines = []
+  if (sandbox_manager_shell_sandbox) {
+    defines += [ "CONFIG_SHELL_SANDBOX" ]
+  }
+
   external_deps = [
     "access_token:libaccesstoken_sdk",
     "access_token:libtokenid_sdk",

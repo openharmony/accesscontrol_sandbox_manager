@@ -16,7 +16,9 @@
 #ifndef CLAW_SANDBOX_UTILS_H
 #define CLAW_SANDBOX_UTILS_H
 
+#include <cstdint>
 #include <string>
+#include <string_view>
 
 namespace OHOS {
 namespace AccessControl {
@@ -24,7 +26,15 @@ namespace SANDBOX {
 
 std::string GetRealPath(const std::string &path);
 
+// Strict decimal parse: the whole string or nothing, no sign and no leading
+// space. A prefix reading would silently stand for a different number.
+bool ParseDecimalU64(std::string_view text, uint64_t &value);
+
+// Whether path resolves to dir itself or to something inside it. Both sides are
+// canonicalised first, so ".." and symlinks cannot be used to step outside.
+bool IsPathUnder(const std::string &path, const std::string &dir);
+
 } // namespace SANDBOX
 } // namespace AccessControl
 } // namespace OHOS
-#endif
+#endif // CLAW_SANDBOX_UTILS_H

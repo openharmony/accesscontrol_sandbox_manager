@@ -226,5 +226,6 @@
       "check-exists": true,
       "permissions": []
     }
-  ]
+  ],
+  "exec-selinux-types": ["sh_exec"]
 }

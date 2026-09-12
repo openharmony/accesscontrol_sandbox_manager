@@ -15,6 +15,7 @@
 
 #include "sandbox_cmd_parser.h"
 #include "sandbox_error.h"
+#include "sandbox_limits.h"
 #include "sandbox_log.h"
 #include <cstdlib>
 #include <iostream>
@@ -24,6 +25,9 @@
 #include <functional>
 #include <securec.h>
 #include "parameters.h"
+#include <cerrno>
+#include <fcntl.h>
+#include <unistd.h>
 
 namespace OHOS {
 namespace AccessControl {
@@ -122,7 +126,6 @@ constexpr size_t MAX_APP_IDENTIFIER_LENGTH = 64;
 constexpr size_t MAX_BUNDLE_NAME_LENGTH = 256;
 constexpr size_t MAX_WORKDIR_LENGTH = 1024;
 constexpr size_t MAX_ENV_LENGTH = 10240;
-constexpr size_t MAX_POLICY_LENGTH = 102400;
 constexpr size_t MAX_TYPE_LENGTH = 10;
 
 // Maximum constraints for nsFlags array
@@ -131,22 +134,6 @@ constexpr size_t MAX_NS_FLAG_STRING_LENGTH = 24;
 
 // Maximum count and length limits for collection fields
 constexpr int MAX_POLICY_MOUNTS_COUNT = 1024;      // Maximum number of policy mount points
-
-// Maximum constraints for agentlock policy
-constexpr size_t MAX_POLICY_COUNT = 8;
-constexpr size_t MAX_ACTION_STR_LENGTH = 6;
-constexpr size_t MAX_SCOPE_NAME_LENGTH = 16;
-
-// Default action for network policies if not specified
-constexpr enum AGENT_LOCK_POLICY_ACTION AGENT_LOCK_DEFAULT_NETWORK_ACTION = AL_POLICY_ACTION_ALLOW;
-static const std::vector<std::string> g_fieldTypes = {"Network", "File", "Exec"};
-static const std::unordered_map<std::string, AGENT_LOCK_POLICY_ACTION> g_actionMap = {
-    {"allow", AL_POLICY_ACTION_ALLOW},
-    {"deny", AL_POLICY_ACTION_DENY}
-};
-static const std::unordered_map<std::string, SCOPE_TYPE> g_validScopeTypeMap = {
-    {"current_task", SCOPE_TYPE_CURRENT_TASK}
-};
 
 // Default Namespace flags if not specified in config
 // mnt|net namespaces are required for sandbox isolation, so they are included in the default flags.
@@ -304,6 +291,23 @@ static int ParseInt32Field(cJSON *root, const char *key, int32_t &out)
     return SANDBOX_SUCCESS;
 }
 
+// Parse a decimal/hex string into a u64. Returns false if the text is empty,
+// negative, overflows u64, or carries trailing non-numeric characters.
+static bool ParseU64Strict(const std::string &text, uint64_t &value)
+{
+    if (text.empty() || text.front() == '-') {
+        return false;
+    }
+    errno = 0;
+    char *end = nullptr;
+    unsigned long long parsed = std::strtoull(text.c_str(), &end, 0);
+    if (errno == ERANGE || end == text.c_str() || *end != '\0') {
+        return false;
+    }
+    value = static_cast<uint64_t>(parsed);
+    return true;
+}
+
 // Helper: parse a required string field with maximum length check
 static int ParseStringFieldWithMaxLen(cJSON *root, const char *key,
     std::string &out, size_t maxLen)
@@ -362,151 +366,6 @@ static int ParseTypeField(cJSON *root, std::string &out)
     return ParseStringFieldWithMaxLen(root, "type", out, MAX_TYPE_LENGTH);
 }
 
-// Helper: parse the 'Scope' field of an agentlock policy
-static int ParseScopeField(cJSON *root, struct AgentLockPolicy &policy)
-{
-    cJSON *scopeObj = cJSON_GetObjectItem(root, "Scope");
-    if (!cJSON_IsObject(scopeObj)) {
-        std::cerr << "Error: Config field 'Scope' missing or not an object" << std::endl;
-        SANDBOX_LOGE("Config field 'Scope' missing or not an object");
-        return SANDBOX_ERR_CONFIG_INVALID;
-    }
-    std::string typeStr;
-    int ret = ParseStringFieldWithMaxLen(scopeObj, "Type", typeStr, MAX_SCOPE_NAME_LENGTH);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-    auto scopeTypeItem = g_validScopeTypeMap.find(typeStr);
-    if (scopeTypeItem == g_validScopeTypeMap.end()) {
-        std::cerr << "Error: Config field 'Scope.Type' has invalid value: " << typeStr << std::endl;
-        SANDBOX_LOGE("Config field 'Scope.Type' has invalid value: %{public}s", typeStr.c_str());
-        return SANDBOX_ERR_CONFIG_INVALID;
-    }
-    policy.scope.type = scopeTypeItem->second;
-    return SANDBOX_SUCCESS;
-}
-
-// Helper: parse the 'Network' policy field of an agentlock policy with default action policy
-static int ParseNetworkField(cJSON *networkObj, AgentLockPolicy &policy)
-{
-    if (!cJSON_IsObject(networkObj)) {
-        std::cerr << "Error: Config field 'Network' not an object" << std::endl;
-        SANDBOX_LOGE("Config field 'Network' not an object");
-        return SANDBOX_ERR_CONFIG_INVALID;
-    }
-
-    policy.operationType = OP_TYPE_NETWORK;
-    policy.defaultAction = AGENT_LOCK_DEFAULT_NETWORK_ACTION;
-    policy.rulesListCnt = 0;
-
-    std::string actionStr;
-    int ret = ParseStringFieldWithMaxLen(networkObj, "DefaultAction", actionStr, MAX_ACTION_STR_LENGTH);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-    auto actionItem = g_actionMap.find(actionStr);
-    if (actionItem == g_actionMap.end()) {
-        std::cerr << "Error: Config field 'Network.DefaultAction' has invalid value: " << actionStr << std::endl;
-        SANDBOX_LOGE("Config field 'Network.DefaultAction' has invalid value: %{public}s", actionStr.c_str());
-        return SANDBOX_ERR_CONFIG_INVALID;
-    }
-    policy.defaultAction = actionItem->second;
-    return SANDBOX_SUCCESS;
-}
-
-// Helper: parse the 'AddOperationControlRuleGroups' policy array and collect AgentLockPolicy entries.
-static int ParseAgentLockField(cJSON *root, std::vector<struct AgentLockPolicy> &policies)
-{
-    cJSON *ruleGroupObj = cJSON_GetObjectItem(root, "AddOperationControlRuleGroups");
-    if (ruleGroupObj == nullptr) {
-        return SANDBOX_SUCCESS;
-    }
-    if (!cJSON_IsArray(ruleGroupObj)) {
-        std::cerr << "Error: Config field 'AddOperationControlRuleGroups' type mismatch: expected array" << std::endl;
-        SANDBOX_LOGE("Config field 'AddOperationControlRuleGroups' type mismatch: expected array");
-        return SANDBOX_ERR_CONFIG_INVALID;
-    }
-    const std::unordered_map<std::string, int (*)(cJSON *fieldObj, AgentLockPolicy &policy)> policyFieldHandlers = {
-        {"Network", ParseNetworkField},
-    };
-    int size = cJSON_GetArraySize(ruleGroupObj);
-    for (int i = 0; i < size; i++) {
-        cJSON *ruleGroupItem = cJSON_GetArrayItem(ruleGroupObj, i);
-        if (!cJSON_IsObject(ruleGroupItem)) {
-            std::cerr << "Error: Config field 'AddOperationControlRuleGroups' should contain objects" << std::endl;
-            SANDBOX_LOGE("Config field 'AddOperationControlRuleGroups' should contain objects");
-            return SANDBOX_ERR_CONFIG_INVALID;
-        }
-        for (const std::string &typeItem : g_fieldTypes) {
-            auto handlerIt = policyFieldHandlers.find(typeItem);
-            cJSON *fieldObj = cJSON_GetObjectItem(ruleGroupItem, typeItem.c_str());
-            if (handlerIt == policyFieldHandlers.end() || fieldObj == nullptr) {
-                continue;
-            }
-            size_t policyIdx = policies.size();
-            if (policyIdx >= MAX_POLICY_COUNT) {
-                std::cerr << "Error: Agentlock policies exceeds max (" << MAX_POLICY_COUNT << ")" << std::endl;
-                SANDBOX_LOGE("Agentlock policies exceeds max (%{public}zu)", MAX_POLICY_COUNT);
-                return SANDBOX_ERR_CONFIG_INVALID;
-            }
-            policies.emplace_back();
-            AgentLockPolicy &policy = policies.back();
-            int ret = handlerIt->second(fieldObj, policy);
-            if (ret != SANDBOX_SUCCESS) {
-                return ret;
-            }
-            ret = ParseScopeField(ruleGroupItem, policy);
-            if (ret != SANDBOX_SUCCESS) {
-                return ret;
-            }
-        }
-    }
-    return SANDBOX_SUCCESS;
-}
-
-// Helper: parse the 'policy' field for agentlock and fill in the AgentLockAddPolicyArg structure
-static int ParseAgentLockAddPolicyArg(cJSON *root, struct AgentLockAddPolicyArg* &policyArg)
-{
-    cJSON *policySrcObj = nullptr;
-    cJSON *ownedPolicyObj = nullptr;
-    int ret = GetOptionalObjectField(root, "policy", policySrcObj, ownedPolicyObj, MAX_POLICY_LENGTH);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-    if (policySrcObj == nullptr) {
-        return SANDBOX_SUCCESS;
-    }
-    std::vector<AgentLockPolicy> policies;
-    ret = ParseAgentLockField(policySrcObj, policies);
-    if (ret != SANDBOX_SUCCESS || policies.empty()) {
-        return CleanupParsedObjectAndReturn(ownedPolicyObj, ret);
-    }
-    size_t policyCnt = policies.size();
-    size_t totalSize = sizeof(struct AgentLockAddPolicyArg) + policyCnt * sizeof(struct AgentLockPolicy);
-    policyArg = (struct AgentLockAddPolicyArg *)std::malloc(totalSize);
-    if (policyArg == nullptr) {
-        std::cerr << "Error: Failed to allocate memory for AgentLockAddPolicyArg" << std::endl;
-        SANDBOX_LOGE("Failed to allocate memory for AgentLockAddPolicyArg");
-        return CleanupParsedObjectAndReturn(ownedPolicyObj, SANDBOX_ERR_CONFIG_INVALID);
-    }
-    if (memset_s(policyArg, totalSize, 0, totalSize) != 0) {
-        std::cerr << "Error: Failed to initialize memory for AgentLockAddPolicyArg" << std::endl;
-        SANDBOX_LOGE("Failed to initialize memory for AgentLockAddPolicyArg");
-        std::free(policyArg);
-        policyArg = nullptr;
-        return CleanupParsedObjectAndReturn(ownedPolicyObj, SANDBOX_ERR_CONFIG_INVALID);
-    }
-    if (memcpy_s(policyArg->policy, policyCnt * sizeof(struct AgentLockPolicy),
-                 policies.data(), policyCnt * sizeof(struct AgentLockPolicy)) != 0) {
-        std::cerr << "Error: Failed to copy agentlock policies" << std::endl;
-        SANDBOX_LOGE("Failed to copy agentlock policies");
-        std::free(policyArg);
-        policyArg = nullptr;
-        return CleanupParsedObjectAndReturn(ownedPolicyObj, SANDBOX_ERR_CONFIG_INVALID);
-    }
-    policyArg->policyCnt = static_cast<uint32_t>(policyCnt);
-    return CleanupParsedObjectAndReturn(ownedPolicyObj, SANDBOX_SUCCESS);
-}
 // Helper: parse optional hex name field (max 64 chars)
 static int ParseNameField(cJSON *root, std::string &out)
 {
@@ -669,7 +528,7 @@ static int ParsePolicyField(cJSON *root, SandboxConfig::Policy &out)
 {
     cJSON *item = nullptr;
     cJSON *parsedPolicy = nullptr;
-    int ret = GetOptionalObjectField(root, "policy", item, parsedPolicy, MAX_POLICY_LENGTH);
+    int ret = GetOptionalObjectField(root, "policy", item, parsedPolicy, MAX_POLICY_JSON_LENGTH);
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
@@ -677,11 +536,23 @@ static int ParsePolicyField(cJSON *root, SandboxConfig::Policy &out)
         return SANDBOX_SUCCESS;
     }
     ret = ParsePolicyMounts(item, out);
-    return CleanupParsedObjectAndReturn(parsedPolicy, ret);
+    if (ret != SANDBOX_SUCCESS) {
+        SANDBOX_LOGE("Parse policy mounts failed, ret=%{public}d", ret);
+        return CleanupParsedObjectAndReturn(parsedPolicy, ret);
+    }
+#ifdef CONFIG_SHELL_SANDBOX
+    ret = CmdParser::ParseOperationControlRuleGroups(item, out.addOperationControlRuleGroups,
+        SANDBOX_POLICY_PARSE_STARTUP);
+    if (ret != SANDBOX_SUCCESS) {
+        SANDBOX_LOGE("Parse AddOperationControlRuleGroups failed, ret=%{public}d", ret);
+        return CleanupParsedObjectAndReturn(parsedPolicy, ret);
+    }
+#endif
+    return CleanupParsedObjectAndReturn(parsedPolicy, SANDBOX_SUCCESS);
 }
 
 // Helper: parse optional nsFlags string array and convert directly to bitmask
-static int ParseNsFlagsField(cJSON *root, int &out)
+static int ParseNsFlagsField(cJSON *root, uint32_t &out)
 {
     out = DEFAULT_NS_FLAGS;
     cJSON *item = cJSON_GetObjectItem(root, "nsFlags");
@@ -719,8 +590,7 @@ static int ParseNsFlagsField(cJSON *root, int &out)
         }
         flags.push_back(flagVal);
     }
-    out = CmdParser::ConvertNsFlags(flags);
-    return SANDBOX_SUCCESS;
+    return CmdParser::ConvertNsFlags(flags, out);
 }
 
 int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
@@ -751,7 +621,22 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
             return ParseOptionalStringFieldWithMaxLen(root, "challenge", config.challenge, MAX_CHALLENGE_LENGTH);
         },
         [&]() -> int {
-            return ParseStringFieldWithMaxLen(root, "appIdentifier", config.appIdentifier, MAX_APP_IDENTIFIER_LENGTH);
+            int ret = ParseStringFieldWithMaxLen(root, "appIdentifier", config.appIdentifier,
+                                                 MAX_APP_IDENTIFIER_LENGTH);
+            if (ret != SANDBOX_SUCCESS) {
+                SANDBOX_LOGE("Parse config field 'appIdentifier' failed, ret=%{public}d", ret);
+                return ret;
+            }
+            // appIdentifier must be a u64 integer; reject non-integer values here
+            // so the whole config is refused before any later delivery step.
+            uint64_t appIdentifierU64 = 0;
+            if (!ParseU64Strict(config.appIdentifier, appIdentifierU64)) {
+                std::cerr << "Error: appIdentifier is not a valid u64: \"" << config.appIdentifier << "\"" << std::endl;
+                SANDBOX_LOGE("appIdentifier '%{public}s' is not a valid u64", config.appIdentifier.c_str());
+                return SANDBOX_ERR_CONFIG_INVALID;
+            }
+            config.appIdentifierU64 = appIdentifierU64;
+            return SANDBOX_SUCCESS;
         },
         [&]() -> int {
             return ParseStringFieldWithMaxLen(root, "bundleName", config.bundleName, MAX_BUNDLE_NAME_LENGTH);
@@ -788,20 +673,11 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
         [&]() -> int { return ParseEnvField(root, config.env); },
         [&]() -> int { return ParsePolicyField(root, config.policy); },
         [&]() -> int { return ParseNsFlagsField(root, config.nsFlags); },
-        [&]() -> int {
-            struct AgentLockAddPolicyArg *rawArg = nullptr;
-            int ret = ParseAgentLockAddPolicyArg(root, rawArg);
-            if (ret == SANDBOX_SUCCESS && rawArg != nullptr) {
-                config.policyArg.reset(rawArg);
-            }
-            return ret;
-        },
     };
 
     for (const auto& step : parseSteps) {
         int ret = step();
         if (ret != SANDBOX_SUCCESS) {
-            config.policyArg.reset();
             return CleanupAndReturn(root, ret);
         }
     }
@@ -809,6 +685,40 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
     cJSON_Delete(root);
     return SANDBOX_SUCCESS;
 }
+
+#ifdef CONFIG_SHELL_SANDBOX
+int CmdParser::ParseOperationControlPolicy(const std::string &jsonStr,
+    std::vector<SandboxPolicyRuleGroup> &ruleGroups)
+{
+    if (jsonStr.size() > MAX_POLICY_JSON_LENGTH) {
+        SANDBOX_LOGE("Operation control policy exceeds maximum length");
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    int ret = CheckJsonDepth(jsonStr);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    cJSON *root = cJSON_Parse(jsonStr.c_str());
+    if (!cJSON_IsObject(root)) {
+        SANDBOX_LOGE("Operation control policy must be a JSON object");
+        cJSON_Delete(root);
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+
+    std::vector<SandboxPolicyRuleGroup> parsedRuleGroups;
+    // DYNAMIC, not STARTUP: this is a policy handed to a sandbox that is already
+    // running, so the phase rules refuse the modules that only make sense at boot.
+    ret = CmdParser::ParseOperationControlRuleGroups(root, parsedRuleGroups,
+        SANDBOX_POLICY_PARSE_DYNAMIC);
+    cJSON_Delete(root);
+    if (ret == SANDBOX_SUCCESS) {
+        ruleGroups.swap(parsedRuleGroups);
+    }
+    return ret;
+}
+
+#endif // CONFIG_SHELL_SANDBOX
 
 CmdInfo CmdParser::ParseCommandFromArgv(int argc, char *argv[])
 {
@@ -827,26 +737,35 @@ CmdInfo CmdParser::ParseCommandFromArgv(int argc, char *argv[])
     return info;
 }
 
-int CmdParser::ConvertNsFlags(const std::vector<std::string> &nsFlags)
+int CmdParser::ConvertNsFlags(const std::vector<std::string> &nsFlags, uint32_t &flags)
 {
-    int flags = DEFAULT_NS_FLAGS;
+    uint32_t parsed = DEFAULT_NS_FLAGS;
     for (const auto &flag : nsFlags) {
         if (flag == "mnt") {
-            flags |= CLONE_NEWNS;
+            parsed |= CLONE_NEWNS;
         } else if (flag == "net") {
-            flags |= CLONE_NEWNET;
+            parsed |= CLONE_NEWNET;
         } else if (flag == "uts") {
-            flags |= CLONE_NEWUTS;
+            parsed |= CLONE_NEWUTS;
         } else if (flag == "ipc") {
-            flags |= CLONE_NEWIPC;
+            parsed |= CLONE_NEWIPC;
         } else if (flag == "pid") {
-            flags |= CLONE_NEWPID;
+            parsed |= CLONE_NEWPID;
         } else if (flag == "user") {
-            flags |= CLONE_NEWUSER;
+            parsed |= CLONE_NEWUSER;
+        } else {
+            // Not skipped: an unknown name is a namespace the caller believes it
+            // asked for. Dropping it would start a sandbox weaker than the one
+            // the config describes, and nothing downstream could tell.
+            std::cerr << "Error: Config field 'nsFlags' has unknown namespace '" <<
+                         flag << "'" << std::endl;
+            SANDBOX_LOGE("Config field 'nsFlags' has unknown namespace '%{public}s'", flag.c_str());
+            return SANDBOX_ERR_CONFIG_INVALID;
         }
     }
 
-    return flags;
+    flags = parsed;
+    return SANDBOX_SUCCESS;
 }
 
 } // namespace SANDBOX

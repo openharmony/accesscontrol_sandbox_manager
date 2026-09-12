@@ -27,9 +27,9 @@
  *   - When mockEnabled is true, open("/dev/dec") returns a controlled mockFd,
  *     and ioctl calls on that fd return controlled success/failure.
  *
- * This approach enables testing the full DeliverPolicy flow including the
- * file descriptor lifecycle (open → ioctl init → ioctl deliver → close)
- * without requiring the /dev/dec device node to exist.
+ * This approach enables testing the full DeliverExecuterInit flow including the
+ * file descriptor lifecycle (open → daemon init → config get → ioctl deliver
+ * → executer init → close) without requiring the /dev/dec device node to exist.
  */
 
 #include "sandbox_mock_state.h"

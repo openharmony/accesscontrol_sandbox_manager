@@ -15,30 +15,37 @@
 
 #include "sandbox_aids.h"
 #include "sandbox_log.h"
+
 #include <cerrno>
-#include <cstring>
-#include <fcntl.h>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
+#include <iostream>
 #include <sys/types.h>
 #include <unistd.h>
-#include <iostream>
+
 #include "securec.h"
 
 namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
-AidsClient::AidsClient(const std::string& device_path)
+AidsClient::AidsClient(const std::string &devicePath)
 {
-    fd_ = open(device_path.c_str(), O_RDWR | O_CLOEXEC);
+    fd_ = open(devicePath.c_str(), O_RDWR | O_CLOEXEC);
     if (fd_ < 0) {
-        std::cerr << "Error: Failed to open " << device_path.c_str() << ", err: " << std::strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to open device: %{public}s, error: %{public}s", device_path.c_str(), std::strerror(errno));
+        std::cerr << "Error: Failed to open " << devicePath << ", err: " << std::strerror(errno) << std::endl;
+        SANDBOX_LOGE("AidsClient: open %{public}s failed, errno=%{public}s",
+                     devicePath.c_str(), std::strerror(errno));
         return;
     }
 
-    if (ioctl(fd_, HM_HKIDS_CMD_SEC_INIT_AIDS, NULL) < 0) {
+    // The device opened but will not label anything, so drop the fd and let
+    // IsOpen() report it closed. Logged here because it is the only trace: the
+    // caller only ever sees "device is not open".
+    if (ioctl(fd_, HM_HKIDS_CMD_SEC_INIT_AIDS, nullptr) < 0) {
+        SANDBOX_LOGE("AidsClient: HM_HKIDS_CMD_SEC_INIT_AIDS on %{public}s failed, errno=%{public}s",
+                     devicePath.c_str(), std::strerror(errno));
         close(fd_);
         fd_ = -1;
     }
@@ -51,15 +58,16 @@ AidsClient::~AidsClient()
     }
 }
 
-int AidsClient::setLabel(const uint32_t appid)
+int AidsClient::SetLabel(uint32_t userid, uint64_t appIdentifier)
 {
-    if (!isOpen()) {
-        SANDBOX_LOGE("Device node is not open");
+    if (!IsOpen()) {
+        SANDBOX_LOGE("SetLabel: device is not open");
         return -1;
     }
 
     struct aids_set_ainfo_arg aidsArg = {
-        .appid = appid
+        .userid = userid,
+        .appIdentifier = appIdentifier
     };
 
     struct hkids_ioctl_arg arg = {
@@ -72,24 +80,26 @@ int AidsClient::setLabel(const uint32_t appid)
     return ioctl(fd_, HM_HKIDS_CMD_SEC_EXEC_CMD, &arg);
 }
 
-int AidsClient::addBlacklist(const std::string& cmd, const std::string& subcmd, const uint32_t appid)
+int AidsClient::AddBlacklist(const std::string &cmd, const std::string &subcmd, uint32_t appid)
 {
-    int ret;
-    if (!isOpen()) {
-        SANDBOX_LOGE("Device node is not open");
+    if (!IsOpen()) {
+        SANDBOX_LOGE("AddBlacklist: device is not open");
         return -1;
     }
 
     struct hkids_blacklist_cmd_arg aidsArg;
-    memset_s(&aidsArg, sizeof(aidsArg), 0, sizeof(aidsArg));
-    ret = strncpy_s(aidsArg.command, HKIDS_CMD_MAX_SIZE, cmd.c_str(), HKIDS_CMD_MAX_SIZE);
-    if (ret != 0) {
-        SANDBOX_LOGE("cmd copy failed\n");
+    if (memset_s(&aidsArg, sizeof(aidsArg), 0, sizeof(aidsArg)) != 0) {
+        SANDBOX_LOGE("AddBlacklist: memset blacklist arg failed");
         return -1;
     }
-    ret = strncpy_s(aidsArg.subcommand, HKIDS_CMD_MAX_SIZE, subcmd.c_str(), HKIDS_CMD_MAX_SIZE);
-    if (ret != 0) {
-        SANDBOX_LOGE("subcmd copy failed\n");
+    if (strncpy_s(aidsArg.command, HKIDS_CMD_MAX_SIZE, cmd.c_str(), HKIDS_CMD_MAX_SIZE) != 0) {
+        SANDBOX_LOGE("AddBlacklist: copy cmd failed, len=%{public}zu max=%{public}zu",
+                     cmd.size(), HKIDS_CMD_MAX_SIZE);
+        return -1;
+    }
+    if (strncpy_s(aidsArg.subcommand, HKIDS_CMD_MAX_SIZE, subcmd.c_str(), HKIDS_CMD_MAX_SIZE) != 0) {
+        SANDBOX_LOGE("AddBlacklist: copy subcmd failed, len=%{public}zu max=%{public}zu",
+                     subcmd.size(), HKIDS_CMD_MAX_SIZE);
         return -1;
     }
     aidsArg.appid = appid;
@@ -104,24 +114,26 @@ int AidsClient::addBlacklist(const std::string& cmd, const std::string& subcmd, 
     return ioctl(fd_, HM_HKIDS_CMD_SEC_EXEC_CMD, &arg);
 }
 
-int AidsClient::delBlacklist(const std::string& cmd, const std::string& subcmd, const uint32_t appid)
+int AidsClient::DelBlacklist(const std::string &cmd, const std::string &subcmd, uint32_t appid)
 {
-    int ret;
-    if (!isOpen()) {
-        SANDBOX_LOGE("Device node is not open");
+    if (!IsOpen()) {
+        SANDBOX_LOGE("DelBlacklist: device is not open");
         return -1;
     }
 
     struct hkids_blacklist_cmd_arg aidsArg;
-    memset_s(&aidsArg, sizeof(aidsArg), 0, sizeof(aidsArg));
-    ret = strncpy_s(aidsArg.command, HKIDS_CMD_MAX_SIZE, cmd.c_str(), HKIDS_CMD_MAX_SIZE);
-    if (ret != 0) {
-        SANDBOX_LOGE("cmd copy failed\n");
+    if (memset_s(&aidsArg, sizeof(aidsArg), 0, sizeof(aidsArg)) != 0) {
+        SANDBOX_LOGE("DelBlacklist: memset blacklist arg failed");
         return -1;
     }
-    ret = strncpy_s(aidsArg.subcommand, HKIDS_CMD_MAX_SIZE, subcmd.c_str(), HKIDS_CMD_MAX_SIZE);
-    if (ret != 0) {
-        SANDBOX_LOGE("subcmd copy failed\n");
+    if (strncpy_s(aidsArg.command, HKIDS_CMD_MAX_SIZE, cmd.c_str(), HKIDS_CMD_MAX_SIZE) != 0) {
+        SANDBOX_LOGE("DelBlacklist: copy cmd failed, len=%{public}zu max=%{public}zu",
+                     cmd.size(), HKIDS_CMD_MAX_SIZE);
+        return -1;
+    }
+    if (strncpy_s(aidsArg.subcommand, HKIDS_CMD_MAX_SIZE, subcmd.c_str(), HKIDS_CMD_MAX_SIZE) != 0) {
+        SANDBOX_LOGE("DelBlacklist: copy subcmd failed, len=%{public}zu max=%{public}zu",
+                     subcmd.size(), HKIDS_CMD_MAX_SIZE);
         return -1;
     }
     aidsArg.appid = appid;
@@ -136,17 +148,17 @@ int AidsClient::delBlacklist(const std::string& cmd, const std::string& subcmd, 
     return ioctl(fd_, HM_HKIDS_CMD_SEC_EXEC_CMD, &arg);
 }
 
-int AidsClient::clrBlacklist(void)
+int AidsClient::ClearBlacklist()
 {
-    if (!isOpen()) {
-        SANDBOX_LOGE("Device node is not open");
+    if (!IsOpen()) {
+        SANDBOX_LOGE("ClearBlacklist: device is not open");
         return -1;
     }
 
     struct hkids_ioctl_arg arg = {
         .module_id = 0,
         .cmd_id = BLACKLIST_CMD_CLEAR,
-        .cmd_args = NULL,
+        .cmd_args = nullptr,
         .cmd_args_size = 0
     };
 

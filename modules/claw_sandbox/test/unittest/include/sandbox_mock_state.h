@@ -25,15 +25,35 @@ namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
-// Mock state control for open/ioctl stubs in ioctl_mock_stub.cpp.
-// Tests manipulate this global to control stub behavior for DeliverPolicy
-// and other functions that open /dev/dec and issue ioctl commands.
-//
-// By default mockEnabled is false, so all open/ioctl calls are forwarded
-// to the real syscalls. Set mockEnabled to true and configure failOnCallIndex
-// to simulate failures at specific ioctl stages:
-//   call index 0 = DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT (DeliverPolicyInit)
-//   call index 1 = DEC_CMD_POLICY_ADD              (DeliverNetPolicy)
+/*
+ * Mock state control for open/ioctl stubs in ioctl_mock_stub.cpp.
+ * Tests manipulate this global to control stub behavior for DEC/AgentLock
+ * delivery functions that open /dev/dec and issue ioctl commands.
+ *
+ * DEC delivery is split across the fork boundary (Option 1: separation of duties):
+ *   Parent side, DeliverDaemonSidePolicies (before ForkAfterUnshare):
+ *     call index 0 = DEC_CMD_AGENTLOCK_CURRENT_DAEMON_INIT  (DaemonInit)
+ *     call index 1 = ASK event subscription                (DaemonInit, issued
+ *                     immediately after the daemon init on the same fd)
+ *     call index 2 = DEC_CMD_POLICY_CONFIG_SET             (PolicyConfigSet, once per
+ *                     distinct scope type; exactly one today -- every group is
+ *                     locked to "self_session" by the parser)
+ *     call index 3.. = DEC_CMD_POLICY_ADD                  (one ioctl per (rule group,
+ *                     module); each carries a single policy with policy_cnt=1,
+ *                     operation_type/module_id identify the module)
+ *   Child side, DeliverExecuterInit (after the fork, in ExecuteLateSteps):
+ *     call index 0 = DEC_CMD_AGENTLOCK_CURR_EXECUTER_INIT  (ExecuterInit)
+ *
+ * failOnCallIndex is resolved per function call: a test calls exactly one
+ * delivery function, so index 0/1/2/.. counts ioctls within that function only.
+ *
+ * Note: the mock open() intercepts "/dev/dec" regardless of flag bits, so the
+ * O_CLOEXEC opens (the parent's pre-fork open via OpenDecDeviceBeforeFork and
+ * the child's reopen in DeliverExecuterInit) all return mockFd when mockEnabled.
+ * The parent-side open is NOT exercised by the DeliverExecuterInit tests (those call
+ * DeliverExecuterInit directly and never reach DeliverDaemonSidePolicies);
+ * the mount tests cover it via OpenDecDeviceBeforeFork.
+ */
 struct IoctlMockState {
     bool mockEnabled = false;      // When true, intercept /dev/dec open and ioctl on mockFd
     bool openFail = true;          // Whether mock open returns failure
@@ -72,6 +92,40 @@ extern SelinuxMockState g_selinuxMockState;
 // Mock state for permission checks. When true, AccessTokenKit::VerifyAccessToken
 // returns PERMISSION_GRANTED for "ohos.permission.CUSTOM_SANDBOX".
 extern bool g_customSandboxGranted;
+
+/*
+ * Mock state for realpath, wired up through -Drealpath=WrapRealpath in the test
+ * target's cflags_cc. The monitor socket whitelist is anchored at
+ * /data/storage/el1/base, which only exists inside an application sandbox, so
+ * without a redirect IsMonitorSocketPathAllowed() is false for every input and
+ * every assertion about it passes without testing anything.
+ *
+ * While mockEnabled is set, redirectFrom and paths below it resolve as if under
+ * redirectTo; everything else goes to the real realpath. Both sides of an
+ * IsPathUnder() comparison are rewritten, so containment is preserved. Keep it
+ * off by default and reset it in a guard - this is process-wide state.
+ */
+struct PathMockState {
+    bool mockEnabled = false;
+    std::string redirectFrom;
+    std::string redirectTo;
+};
+
+extern PathMockState g_pathMockState;
+
+/*
+ * What the exec mocks saw. fexecve must always fail - letting it through would
+ * replace the test process - so its return value cannot tell "the executable
+ * was refused before exec" apart from "exec was reached and failed". The count
+ * is what separates those two, which is the whole point of ExecuteCommand's
+ * error path. Reset it in a guard; this is process-wide state.
+ */
+struct ExecMockState {
+    int fexecveCalls = 0;
+    int lastFexecveFd = -1;
+};
+
+extern ExecMockState g_execMockState;
 
 }  // namespace SANDBOX
 }  // namespace AccessControl

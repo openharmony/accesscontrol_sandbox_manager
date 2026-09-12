@@ -31,11 +31,11 @@
 #include <utility>
 #include <filesystem>
 #include <grp.h>
+#include <sched.h>
 #include <sys/mount.h>
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 #include <sys/random.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -64,9 +64,6 @@ constexpr int MAX_TRY_CNT = 3;
 
 // Sandbox directory mode
 constexpr mode_t DIR_MODE = 0711;
-
-// Base value for signal exit codes (128 + signal_number follows shell convention)
-constexpr int SIGNAL_EXIT_BASE = 128;
 
 // Hex string generation constants
 constexpr int HEX_CNT = 16;
@@ -435,7 +432,7 @@ int SandboxManager::CreateNewRoot()
 
 int SandboxManager::UnshareNamespaces()
 {
-    if (unshare(config_.nsFlags) < 0) {
+    if (unshare(static_cast<int>(config_.nsFlags)) < 0) {
         std::cerr << "Error: unshare(0x" << std::hex << config_.nsFlags << std::dec <<
                   ") failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("unshare(0x%{public}x) failed: %{public}s",
@@ -458,59 +455,6 @@ int SandboxManager::MountNewRoot()
         return SANDBOX_ERR_MOUNT_FAILED;
     }
     mountedDirs_.push_back(newRootPath_);
-    return SANDBOX_SUCCESS;
-}
-
-/**
- * @brief If CLONE_NEWPID is set, fork a child process after unsharing namespaces.
- *       This is required to enter the new PID namespace, as the original process
- *       will still be in the old PID namespace until it forks. The child process will
- *       continue executing the sandbox setup, while the parent process will wait for
- *       the child to exit and then exit itself. This also has the benefit of making
- *       the sandboxed process a child of the init process in the new PID namespace,
- *       which can help with reaping zombie processes.
- * @return SANDBOX_SUCCESS on success, SANDBOX_ERR_NS_FAILED on failure
- */
-int SandboxManager::ForkAfterUnshare()
-{
-    if ((config_.nsFlags & CLONE_NEWPID) == 0) {
-        return SANDBOX_SUCCESS;
-    }
-
-    pid_t pid = fork();
-    if (pid < 0) {
-        std::cerr << "Error: fork failed after unshare: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("fork failed after unshare: %{public}s", strerror(errno));
-        return SANDBOX_ERR_GENERIC;
-    } else if (pid > 0) {
-        // Parent process: wait for child to exit and then exit
-        int status = 0;
-        pid_t ret;
-        do {
-            ret = waitpid(pid, &status, 0);
-        } while (ret < 0 && errno == EINTR);
-        if (ret < 0) {
-            std::cerr << "Error: waitpid failed: " << strerror(errno) << std::endl;
-            SANDBOX_LOGE("waitpid failed: %{public}s", strerror(errno));
-            Cleanup();
-            _exit(SANDBOX_ERR_GENERIC);
-        }
-
-        int exitCode;
-        if (WIFEXITED(status)) {
-            SANDBOX_LOGD("Child process exited with status %{public}d", WEXITSTATUS(status));
-            exitCode = WEXITSTATUS(status);
-        } else if (WIFSIGNALED(status)) {
-            SANDBOX_LOGD("Child process killed by signal %{public}d", WTERMSIG(status));
-            exitCode = SIGNAL_EXIT_BASE + WTERMSIG(status);
-        } else {
-            SANDBOX_LOGD("Child process exited with unknown status");
-            exitCode = SANDBOX_ERR_GENERIC;
-        }
-        Cleanup();
-        _exit(exitCode);
-    }
-    // Child process continues with sandbox setup in new PID namespace
     return SANDBOX_SUCCESS;
 }
 
@@ -614,6 +558,16 @@ int SandboxManager::SymlinkSingleEntry(const SymLinkEntry &entry, const std::str
 
     if (access(entry.source.c_str(), F_OK) != 0) {
         SANDBOX_LOGD("SymlinkSingleEntry: %{public}s does not exist, skipping", entry.source.c_str());
+        return SANDBOX_SUCCESS;
+    }
+
+    const std::string resolvedSource = targetPrefix + entry.source;
+    if (access(resolvedSource.c_str(), F_OK) != 0) {
+        // Worth a warning rather than a debug line: the host has it, so this is
+        // a mount entry that is missing or a step that ran in the wrong order.
+        SANDBOX_LOGW("SymlinkSingleEntry: %{public}s exists but %{public}s does not; skipping "
+            "%{public}s so the sandbox does not get a dangling link",
+            entry.source.c_str(), resolvedSource.c_str(), entry.target.c_str());
         return SANDBOX_SUCCESS;
     }
 
@@ -732,27 +686,6 @@ int SandboxManager::MountAppDirs()
     return SANDBOX_SUCCESS;
 }
 
-static bool IsPathUnderMountPoint(const std::string &path, const std::string &mountPoint)
-{
-    std::string realPath = GetRealPath(path);
-    std::string realMount = GetRealPath(mountPoint);
-    if (realPath.empty() || realMount.empty()) {
-        return false;
-    }
-    if (realMount == "/") {
-        return !realPath.empty() && realPath[0] == '/';
-    }
-    if (realPath == realMount) {
-        return true;
-    }
-    // Prefix match ensuring it crosses a directory boundary.
-    // e.g., realMount="/data", realPath="/data/app" -> true
-    // e.g., realMount="/data", realPath="/data_app" -> false (blocked by the '/' check)
-    return realPath.size() > realMount.size() &&
-           realPath.compare(0, realMount.size(), realMount) == 0 &&
-           realPath[realMount.size()] == '/';
-}
-
 static bool MountOptionsReadOnly(const std::string &options)
 {
     std::istringstream iss(options);
@@ -788,7 +721,7 @@ static int GetMountReadOnly(const std::string &path, bool &readOnly)
         if (!(iss >> id >> parent >> majorMinor >> root >> mountPoint >> options)) {
             continue;
         }
-        if (IsPathUnderMountPoint(path, mountPoint) && mountPoint.size() >= bestLen) {
+        if (IsPathUnder(path, mountPoint) && mountPoint.size() >= bestLen) {
             bestLen = mountPoint.size();
             readOnly = MountOptionsReadOnly(options);
             found = true;

@@ -26,6 +26,23 @@ if(!defined(ohos_lite)) {
       "src/sandbox_utils.cpp",
     ]
 
+    # The op-control delivery chain, the monitor, its socket transport and the
+    # device event parser it reads through all exist to serve the shell sandbox.
+    # Where it is off, the config parser refuses type "shell", so this code would
+    # be unreachable - compiled in, but never entered. Dropping the translation
+    # units removes it outright instead.
+    if (sandbox_manager_shell_sandbox) {
+      sources += [
+        "src/sandbox_op_control_deliver.cpp",
+        "src/sandbox_policy.cpp",
+        "src/sandbox_op_control_parser.cpp",
+        "src/sandbox_device_event.cpp",
+        "src/sandbox_monitor.cpp",
+        "src/sandbox_response.cpp",
+        "src/sandbox_socket.cpp",
+      ]
+    }
+
     if (sandbox_manager_enable_aids) {
       sources += [
         "src/sandbox_aids.cpp",
@@ -120,6 +137,10 @@ if(!defined(ohos_lite)) {
   }
 
   ohos_prebuilt_etc("claw_sandbox_template_shell") {
+    # Declared unconditionally because bundle.json names this target, but only
+    # installed on PC: off PC the config parser refuses type "shell", so the
+    # template would be dead weight on the device.
+    install_enable = sandbox_manager_shell_sandbox
     relative_install_dir = "sandbox"
     source = "etc/claw_sandbox_template_shell.json"
     part_name = "sandbox_manager"

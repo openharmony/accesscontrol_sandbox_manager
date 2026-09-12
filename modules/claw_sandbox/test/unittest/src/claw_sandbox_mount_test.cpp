@@ -15,10 +15,13 @@
 
 #include "claw_sandbox_mount_test.h"
 #include "sandbox_error.h"
+#include "sandbox_test_privileged.h"
+#include "sandbox_mock_state.h"
 #include <sys/mount.h>
 #include <sys/syscall.h>
 #include <cerrno>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <unistd.h>
@@ -28,6 +31,15 @@
 #define private public
 #include "sandbox_manager.h"
 #undef private
+
+/*
+ * Last on purpose. sandbox_log.h #undefs LOG_TAG and LOG_DOMAIN and redefines
+ * them, and those are plain macros read where SANDBOX_LOGx is written, not
+ * settings applied once. Any header included after this one that defines its own
+ * LOG_TAG silently takes over, and the log lines go out under someone else's tag
+ * and domain - which looks exactly like logging being broken.
+ */
+#include "sandbox_log.h"
 
 using namespace testing::ext;
 
@@ -39,6 +51,30 @@ namespace SANDBOX {
 static constexpr uint64_t TEST_SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32);
 
 static constexpr uint64_t TEST_HAP_TOKEN_ID = TEST_SYSTEM_APP_MASK | 0x200D000D;
+
+/*
+ * A directory this test can actually create in.
+ *
+ * Probed rather than assumed: /tmp is not writable in every environment this
+ * suite runs in, and a hard coded path turns an environment problem into a
+ * confusing assertion failure somewhere else.
+ */
+static std::string MakeTempRoot(const std::string &tag)
+{
+    const char *candidates[] = {getenv("TMPDIR"), "/data/local/tmp", "/data", "/tmp", "."};
+    for (const char *dir : candidates) {
+        if (dir == nullptr || dir[0] == '\0') {
+            continue;
+        }
+        std::string path = std::string(dir) + "/claw_" + tag + "_" + std::to_string(getpid());
+        std::error_code ec;
+        std::filesystem::remove_all(path, ec);
+        if (std::filesystem::create_directories(path, ec)) {
+            return path;
+        }
+    }
+    return "";
+}
 
 // SandboxDirGuard helper (needed for file/directory based tests)
 class SandboxDirGuard {
@@ -351,52 +387,9 @@ HWTEST_F(ClawSandboxMountTest, UnshareNamespaces002, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.UnshareNamespaces();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.UnshareNamespaces(); }, ret));
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_NS_FAILED);
-}
-
-/**
- * @tc.name: ForkAfterUnshare001
- * @tc.desc: ForkAfterUnshare without CLONE_NEWPID returns success (no fork)
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ForkAfterUnshare001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.nsFlags = CLONE_NEWNS | CLONE_NEWUTS;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    int ret = manager.ForkAfterUnshare();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: ForkAfterUnshare002
- * @tc.desc: ForkAfterUnshare with nsFlags=0 returns success
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, ForkAfterUnshare002, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.nsFlags = 0;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    int ret = manager.ForkAfterUnshare();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
 /**
@@ -416,7 +409,8 @@ HWTEST_F(ClawSandboxMountTest, MountNewRoot001, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.MountNewRoot();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.MountNewRoot(); }, ret));
     EXPECT_EQ(ret, SANDBOX_ERR_MOUNT_FAILED);
 }
 
@@ -590,6 +584,82 @@ HWTEST_F(ClawSandboxMountTest, SymlinkSingleEntry001, TestSize.Level0)
 }
 
 /**
+ * @tc.name: SymlinkSingleEntry002
+ * @tc.desc: A source the host has but the new root does not is skipped, so the
+ *           sandbox never gets a dangling link
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, SymlinkSingleEntry002, TestSize.Level0)
+{
+    // An empty stand-in for a new root that no mount step populated.
+    std::string root = MakeTempRoot("symlink_empty_root");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(std::move(config), cmdInfo);
+
+    SandboxManager::SymLinkEntry entry;
+    entry.source = "/dev";
+    entry.target = "/dev_link";
+
+    // The premise of the test: present on the host, absent in the new root.
+    ASSERT_EQ(0, access(entry.source.c_str(), F_OK));
+    ASSERT_NE(0, access((root + entry.source).c_str(), F_OK));
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SymlinkSingleEntry(entry, root));
+
+    struct stat st = {};
+    EXPECT_NE(0, lstat((root + entry.target).c_str(), &st));
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
+ * @tc.name: SymlinkSingleEntry003
+ * @tc.desc: Once the new root has the source, the link is created
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, SymlinkSingleEntry003, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("symlink_ready_root");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = 20020026;
+    config.gid = 20020026;
+    config.callerPid = 1000;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    CmdInfo cmdInfo;
+    manager.Initialize(std::move(config), cmdInfo);
+
+    SandboxManager::SymLinkEntry entry;
+    entry.source = "/dev";
+    entry.target = "/dev_link";
+
+    // What a mount step would have left behind.
+    std::error_code ec;
+    ASSERT_TRUE(std::filesystem::create_directories(root + entry.source, ec));
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SymlinkSingleEntry(entry, root));
+
+    struct stat st = {};
+    ASSERT_EQ(0, lstat((root + entry.target).c_str(), &st));
+    EXPECT_TRUE(S_ISLNK(st.st_mode));
+
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
  * @tc.name: MountSingleEntry001
  * @tc.desc: MountSingleEntry with checkExists and non-existent source returns error
  * @tc.type: FUNC
@@ -660,7 +730,8 @@ HWTEST_F(ClawSandboxMountTest, MountSystemDirs001, TestSize.Level0)
     manager.Initialize(std::move(config), cmdInfo);
 
     manager.newRootPath_ = "/mnt/sandbox/claw/test";
-    int ret = manager.MountSystemDirs();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.MountSystemDirs(); }, ret));
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
@@ -772,7 +843,8 @@ HWTEST_F(ClawSandboxMountTest, MountAppDirs001, TestSize.Level0)
     manager.Initialize(std::move(config), cmdInfo);
 
     manager.newRootPath_ = "/mnt/sandbox/claw/test";
-    int ret = manager.MountAppDirs();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.MountAppDirs(); }, ret));
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
@@ -793,7 +865,8 @@ HWTEST_F(ClawSandboxMountTest, EnterCallerSandbox001, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.EnterCallerSandbox();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.EnterCallerSandbox(); }, ret));
     // EnterCallerSandbox requires:
     //   1. "readproc" group to exist in /etc/group
     //   2. CAP_SETGID for setgroups()
@@ -818,7 +891,8 @@ HWTEST_F(ClawSandboxMountTest, EnterCallerSandbox002, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.EnterCallerSandbox();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.EnterCallerSandbox(); }, ret));
     EXPECT_EQ(SANDBOX_ERR_NS_FAILED, ret);
 }
 
@@ -841,7 +915,8 @@ HWTEST_F(ClawSandboxMountTest, EnterCallerSandbox003, TestSize.Level0)
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
 
-    int ret = manager.EnterCallerSandbox();
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.EnterCallerSandbox(); }, ret));
     // If SetReadProcGroup succeeds, this covers the uid/gid mismatch branch
     // in OpenCallerProcDir. Otherwise it covers the same SetReadProcGroup
     // failure path as the other tests.
@@ -1145,10 +1220,20 @@ HWTEST_F(ClawSandboxMountTest, RemountPolicyMount002, TestSize.Level0)
     SandboxConfig::PolicyMount policyMount;
     policyMount.readOnly = false;
 
-    // rw policy → GetMountReadOnly on "/proc" → found, not usually readonly
-    // → no write escalation → mount() with MS_REMOUNT fails in non-root env
-    int ret = manager.RemountPolicyMount(policyMount, "/proc");
-    EXPECT_EQ(SANDBOX_ERR_MOUNT_FAILED, ret);
+    /*
+     * In a child, or it really remounts /proc for the rest of the test binary.
+     * This used to be safe for the wrong reason: an earlier test had stripped
+     * the process of its capabilities, so the mount could not succeed.
+     *
+     * Either answer is correct, since that depends on privileges. What is pinned
+     * is that it gets as far as attempting the remount: PATH_INVALID would mean
+     * GetMountReadOnly failed to find /proc (compare RemountPolicyMount003).
+     */
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager, &policyMount]() {
+        return manager.RemountPolicyMount(policyMount, "/proc");
+    }, ret));
+    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_MOUNT_FAILED);
 }
 
 /**
