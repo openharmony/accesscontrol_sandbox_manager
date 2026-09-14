@@ -45,13 +45,14 @@ namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
-// System app mask constant (must match the one in sandbox_manager.cpp)
-static constexpr uint64_t TEST_SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32);
+// The high half of an AccessTokenIDEx. It gates nothing - ValidateTokenType
+// masks it off - so it is here only to keep the test tokens shaped like real ones.
+static constexpr uint64_t TEST_TOKEN_ID_HIGH_BIT = (static_cast<uint64_t>(1) << 32);
 
-// A callerTokenId that has SYSTEM_APP_MASK set and a non-zero low 32-bit token ID.
+// A callerTokenId with a non-zero low 32-bit token ID.
 // The low 32 bits (AccessTokenID) will be passed to AccessTokenKit::GetTokenTypeFlag.
 // In the real device test environment, this requires a properly initialized token system.
-static constexpr uint64_t TEST_HAP_TOKEN_ID = TEST_SYSTEM_APP_MASK | 0x200D000D;
+static constexpr uint64_t TEST_HAP_TOKEN_ID = TEST_TOKEN_ID_HIGH_BIT | 0x200D000D;
 
 static constexpr int32_t TEST_IOCTL_FD = 100;
 

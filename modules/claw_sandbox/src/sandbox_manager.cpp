@@ -265,9 +265,6 @@ constexpr uint8_t BPF_JEQ_SKIP_1ARG = BPF_PER_UID_SYSCALL_1ARG - 1;  // 3
 constexpr uint8_t BPF_JEQ_SKIP_2ARG = BPF_PER_UID_SYSCALL_2ARG - 1;  // 6
 constexpr uint8_t BPF_JEQ_SKIP_3ARG = BPF_PER_UID_SYSCALL_3ARG - 1;  // 9
 
-// System app mask: bit 32 of AccessTokenIDEx indicates system app
-constexpr uint64_t SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32);
-
 // Low 32-bit mask for extracting AccessTokenID from AccessTokenIDEx
 constexpr uint64_t TOKEN_ID_LOWMASK = 0xFFFFFFFF;
 
@@ -742,11 +739,6 @@ int SandboxManager::ValidateTokenType()
                   static_cast<int>(tokenType) << std::endl;
         SANDBOX_LOGE("callerTokenId type is not TOKEN_HAP, type=%{public}d",
             static_cast<int>(tokenType));
-        return SANDBOX_ERR_BAD_PARAMETERS;
-    }
-    if ((config_.callerTokenId & SYSTEM_APP_MASK) != SYSTEM_APP_MASK) {
-        std::cerr << "Error: callerTokenId is not System Hap" << std::endl;
-        SANDBOX_LOGE("callerTokenId is not System Hap");
         return SANDBOX_ERR_BAD_PARAMETERS;
     }
     return SANDBOX_SUCCESS;
