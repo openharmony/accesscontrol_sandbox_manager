@@ -57,13 +57,14 @@ namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
-// System app mask constant (must match the one in sandbox_manager.cpp)
-static constexpr uint64_t TEST_SYSTEM_APP_MASK = (static_cast<uint64_t>(1) << 32);
+// The high half of an AccessTokenIDEx. It gates nothing - ValidateTokenType
+// masks it off - so it is here only to keep the test tokens shaped like real ones.
+static constexpr uint64_t TEST_TOKEN_ID_HIGH_BIT = (static_cast<uint64_t>(1) << 32);
 
-// A callerTokenId that has SYSTEM_APP_MASK set and a non-zero low 32-bit token ID.
+// A callerTokenId with a non-zero low 32-bit token ID.
 // The low 32 bits (AccessTokenID) will be passed to AccessTokenKit::GetTokenTypeFlag.
 // In the real device test environment, this requires a properly initialized token system.
-static constexpr uint64_t TEST_HAP_TOKEN_ID = TEST_SYSTEM_APP_MASK | 0x200D000D;
+static constexpr uint64_t TEST_HAP_TOKEN_ID = TEST_TOKEN_ID_HIGH_BIT | 0x200D000D;
 
 static constexpr uint32_t TEST_MCS_UID = 20020026;
 
@@ -716,7 +717,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig006, TestSize.Level0)
 
 /**
  * @tc.name: ValidateConfig007
- * @tc.desc: ValidateConfig with callerTokenId missing SYSTEM_APP_MASK returns error
+ * @tc.desc: ValidateConfig accepts a hap token that is not a system app
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -727,19 +728,19 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig007, TestSize.Level0)
     config.uid = 20020026;
     config.gid = 20020026;
     config.callerPid = 1000;
-    // Token without SYSTEM_APP_MASK (bit 32 not set) - should fail system app check
+    // A plain hap token, no system-app bit. Every hap is allowed now.
     config.callerTokenId = 0x200D000D;
     CmdInfo cmdInfo;
 
     manager.Initialize(std::move(config), cmdInfo);
     int ret = manager.ValidateConfig();
-    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, ret);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
 /**
  * @tc.name: ValidateConfig008
- * @tc.desc: ValidateConfig with callerTokenId having SYSTEM_APP_MASK but zero low bits
- *          still fails because callerTokenId == 0 check comes first
+ * @tc.desc: ValidateConfig with a non-zero callerTokenId whose low 32 bits are
+ *          zero still fails, because the type check reads only those low bits
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -750,9 +751,9 @@ HWTEST_F(ClawSandboxManagerTest, ValidateConfig008, TestSize.Level0)
     config.uid = 20020026;
     config.gid = 20020026;
     config.callerPid = 1000;
-    // SYSTEM_APP_MASK alone without any low bits -> callerTokenId != 0, but
+    // High bit alone, no low bits -> callerTokenId != 0, but
     // GetTokenTypeFlag(0) will likely not return TOKEN_HAP
-    config.callerTokenId = TEST_SYSTEM_APP_MASK;
+    config.callerTokenId = TEST_TOKEN_ID_HIGH_BIT;
     CmdInfo cmdInfo;
 
     manager.Initialize(std::move(config), cmdInfo);
@@ -942,7 +943,7 @@ HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId004, TestSize.Level0)
 
 /**
  * @tc.name: ValidateTokenType001
- * @tc.desc: ValidateTokenType passes with TOKEN_HAP and SYSTEM_APP_MASK set
+ * @tc.desc: ValidateTokenType passes with a TOKEN_HAP token
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -980,7 +981,7 @@ HWTEST_F(ClawSandboxManagerTest, ValidateTokenType002, TestSize.Level0)
 
 /**
  * @tc.name: ValidateTokenType003
- * @tc.desc: ValidateTokenType rejects token without SYSTEM_APP_MASK
+ * @tc.desc: ValidateTokenType accepts a hap token that is not a system app
  * @tc.type: FUNC
  * @tc.require:
  */
@@ -991,10 +992,10 @@ HWTEST_F(ClawSandboxManagerTest, ValidateTokenType003, TestSize.Level0)
     config.uid = 20020026;
     config.gid = 20020026;
     config.callerPid = 1000;
-    config.callerTokenId = 0x200D000D;  // TOKEN_HAP but no SYSTEM_APP_MASK
+    config.callerTokenId = 0x200D000D;  // TOKEN_HAP, no system-app bit
     CmdInfo cmdInfo;
     manager.Initialize(std::move(config), cmdInfo);
-    EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.ValidateTokenType());
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ValidateTokenType());
 }
 
 /**
@@ -1484,7 +1485,7 @@ HWTEST_F(ClawSandboxManagerTest, IsPermissionGranted003, TestSize.Level0)
     manager.Initialize(std::move(config), cmdInfo);
 
     // Override token so that callerTokenId & TOKEN_ID_LOWMASK == 0
-    manager.config_.callerTokenId = TEST_SYSTEM_APP_MASK;
+    manager.config_.callerTokenId = TEST_TOKEN_ID_HIGH_BIT;
     EXPECT_FALSE(manager.IsPermissionGranted("ohos.permission.GRANTED_TEST"));
 }
 
@@ -2968,13 +2969,18 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps001, TestSize.Level0)
 
 /**
  * @tc.name: ExecuteEarlySteps002
- * @tc.desc: ExecuteEarlySteps with shell type now also enters EnterCallerSandbox,
- *           which fails in UT environment (no readproc group).
+ * @tc.desc: ExecuteEarlySteps stops at the SELinux step and returns its error
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps002, TestSize.Level0)
 {
+    // Drive the step through the mock rather than the host's own SELinux state:
+    // on a real device the MCS step succeeds, and the sequence then runs on into
+    // EnterCallerSandbox and returns whatever that fails with.
+    SelinuxMockGuard guard;
+    g_selinuxMockState.getconRet = -1;
+
     SandboxManager manager;
     SandboxConfig config;
     config.uid = 20020026;
@@ -2988,6 +2994,36 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps002, TestSize.Level0)
     int ret = 0;
     ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.ExecuteEarlySteps(); }, ret));
     EXPECT_EQ(SANDBOX_ERR_SET_SELINUX_FAILED, ret);
+}
+
+/**
+ * @tc.name: ExecuteEarlySteps003
+ * @tc.desc: ExecuteEarlySteps carries on past a successful SELinux step and
+ *           fails at EnterCallerSandbox, which no test environment can satisfy
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps003, TestSize.Level0)
+{
+    SelinuxMockGuard guard;
+
+    SandboxManager manager;
+    SandboxConfig config;
+    config.uid = TEST_MCS_UID;
+    config.gid = TEST_MCS_UID;
+    config.callerPid = TEST_CALLER_PID;
+    config.callerTokenId = TEST_HAP_TOKEN_ID;
+    config.type = "shell";
+    CmdInfo cmdInfo;
+    manager.Initialize(std::move(config), cmdInfo);
+
+    int ret = 0;
+    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.ExecuteEarlySteps(); }, ret));
+    // Every failure path in EnterCallerSandbox reports NS_FAILED, so the code is
+    // the same whichever one the host takes - missing readproc group, no
+    // permission on the caller's /proc, or setns refusing. It cannot succeed:
+    // that needs /proc/1000 to be owned by config.uid/gid.
+    EXPECT_EQ(SANDBOX_ERR_NS_FAILED, ret);
 }
 
 // ==================== ExecuteLateSteps tests ====================

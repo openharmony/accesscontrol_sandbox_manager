@@ -39,7 +39,6 @@ namespace AccessToken {
         // ValidateConfig() can proceed past the token type check for valid tokens.
         // Return TOKEN_NATIVE for tokenId == 0 to allow ValidateConfig008 to test
         // the case where GetTokenTypeFlag(0) does not return TOKEN_HAP.
-        // The SYSTEM_APP_MASK check is still performed on callerTokenId.
         if (tokenId == 0) {
             return TOKEN_NATIVE;
         }
