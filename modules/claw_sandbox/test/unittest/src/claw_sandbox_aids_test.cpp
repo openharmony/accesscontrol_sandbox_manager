@@ -212,6 +212,19 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel012, TestSize.Level0) {
 // whether the real /dev/hkids device exists in the test environment.
 // The mock fd does not support hkids ioctls, so all ioctl() calls return -1.
 // The AidsClient destructor closes the mock fd, covering the fd_ >= 0 branch.
+// fd_ is assigned directly here, which skips the constructor - and the constructor
+// is the only place fd_ would normally carry its fdsan tag. Mark the mock fd with
+// the same site code the destructor closes with, otherwise the tagged close sees an
+// unowned descriptor and fdsan aborts ("closing an fd you do not own") instead of
+// reporting the leak this suite is actually exercising.
+static int OpenMockFd()
+{
+    int fd = open("/dev/null", O_RDWR);
+    if (fd >= 0) {
+        SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_AIDS_DEVICE);
+    }
+    return fd;
+}
 
 /**
  * @tc.name: AidsSetLabel013
@@ -221,7 +234,7 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel012, TestSize.Level0) {
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel013, TestSize.Level0) {
-    int mockFd = open("/dev/null", O_RDWR);
+    int mockFd = OpenMockFd();
     ASSERT_GE(mockFd, 0);
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
@@ -237,7 +250,7 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel013, TestSize.Level0) {
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel014, TestSize.Level0) {
-    int mockFd = open("/dev/null", O_RDWR);
+    int mockFd = OpenMockFd();
     ASSERT_GE(mockFd, 0);
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
@@ -253,7 +266,7 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel014, TestSize.Level0) {
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel015, TestSize.Level0) {
-    int mockFd = open("/dev/null", O_RDWR);
+    int mockFd = OpenMockFd();
     ASSERT_GE(mockFd, 0);
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
@@ -269,7 +282,7 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel015, TestSize.Level0) {
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel016, TestSize.Level0) {
-    int mockFd = open("/dev/null", O_RDWR);
+    int mockFd = OpenMockFd();
     ASSERT_GE(mockFd, 0);
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
@@ -285,7 +298,7 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel016, TestSize.Level0) {
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel017, TestSize.Level0) {
-    int mockFd = open("/dev/null", O_RDWR);
+    int mockFd = OpenMockFd();
     ASSERT_GE(mockFd, 0);
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
@@ -302,7 +315,7 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel017, TestSize.Level0) {
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel018, TestSize.Level0) {
-    int mockFd = open("/dev/null", O_RDWR);
+    int mockFd = OpenMockFd();
     ASSERT_GE(mockFd, 0);
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
@@ -319,7 +332,7 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel018, TestSize.Level0) {
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel019, TestSize.Level0) {
-    int mockFd = open("/dev/null", O_RDWR);
+    int mockFd = OpenMockFd();
     ASSERT_GE(mockFd, 0);
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
@@ -336,7 +349,7 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel019, TestSize.Level0) {
  * @tc.require:
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel020, TestSize.Level0) {
-    int mockFd = open("/dev/null", O_RDWR);
+    int mockFd = OpenMockFd();
     ASSERT_GE(mockFd, 0);
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;

@@ -39,6 +39,7 @@ AidsClient::AidsClient(const std::string &devicePath)
                      devicePath.c_str(), std::strerror(errno));
         return;
     }
+    SANDBOX_FDSAN_MARK(fd_, SANDBOX_FDSAN_SITE_AIDS_DEVICE);
 
     // The device opened but will not label anything, so drop the fd and let
     // IsOpen() report it closed. Logged here because it is the only trace: the
@@ -46,7 +47,7 @@ AidsClient::AidsClient(const std::string &devicePath)
     if (ioctl(fd_, HM_HKIDS_CMD_SEC_INIT_AIDS, nullptr) < 0) {
         SANDBOX_LOGE("AidsClient: HM_HKIDS_CMD_SEC_INIT_AIDS on %{public}s failed, errno=%{public}s",
                      devicePath.c_str(), std::strerror(errno));
-        close(fd_);
+        SANDBOX_FDSAN_CLOSE(fd_, SANDBOX_FDSAN_SITE_AIDS_DEVICE);
         fd_ = -1;
     }
 }
@@ -54,7 +55,7 @@ AidsClient::AidsClient(const std::string &devicePath)
 AidsClient::~AidsClient()
 {
     if (fd_ >= 0) {
-        close(fd_);
+        SANDBOX_FDSAN_CLOSE(fd_, SANDBOX_FDSAN_SITE_AIDS_DEVICE);
     }
 }
 

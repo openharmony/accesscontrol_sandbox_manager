@@ -326,10 +326,12 @@ int AddSocketProtectionPolicy(int deviceFd, const std::string &socketPath)
         return SANDBOX_ERR_SET_POLICY_FAILED;
     }
 
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_SOCKET_PATH);
+
     SandboxPolicyTlv tlv;
     BuildSocketProtectionTlv(fd, socketPath, tlv);
     int ret = DeliverSocketProtectionTlv(deviceFd, tlv);
-    close(fd);
+    SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_SOCKET_PATH);
 
     if (ret != SANDBOX_SUCCESS) {
         return ret;

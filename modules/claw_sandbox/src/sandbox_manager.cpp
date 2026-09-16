@@ -684,6 +684,8 @@ int SandboxManager::SetXpmOwnerId()
         return SANDBOX_ERR_SET_XPM_FAILED;
     }
 
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_XPM_DEVICE);
+
     XpmRegionInfo info = {};
     info.idType = PROCESS_OWNERID_APP;
     size_t copyLen = std::min(ownerId.size(), static_cast<size_t>(MAX_OWNERID_LEN - 1));
@@ -691,7 +693,7 @@ int SandboxManager::SetXpmOwnerId()
     if (ret != 0) {
         std::cerr << "Error: failed to copy ownerid to XpmRegionInfo" << std::endl;
         SANDBOX_LOGE("Error: failed to copy ownerid to XpmRegionInfo");
-        close(fd);
+        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_XPM_DEVICE);
         return SANDBOX_ERR_SET_XPM_FAILED;
     }
 
@@ -703,7 +705,7 @@ int SandboxManager::SetXpmOwnerId()
     } else {
         SANDBOX_LOGD("Set xpm owner id success");
     }
-    close(fd);
+    SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_XPM_DEVICE);
     return ret;
 }
 
@@ -960,6 +962,8 @@ int SandboxManager::SendDecPolicyIoctl(const DecPolicyInfo& decPolicyInfo)
         return SANDBOX_ERR_SET_DEC_FAILED;
     }
 
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_DEC_SET);
+
     // NOTE: deny rules are sent via SET_DEC_POLICY_CMD (same as grant rules),
     // with DEC_MODE_DENY_INHERIT mode to distinguish them. This matches
     // appspawn's SetDecDenyWithDir behavior.
@@ -972,7 +976,7 @@ int SandboxManager::SendDecPolicyIoctl(const DecPolicyInfo& decPolicyInfo)
         SANDBOX_LOGD("PreDecDenyPaths: denied %{public}u paths", decPolicyInfo.pathNum);
     }
 
-    close(fd);
+    SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_DEC_SET);
     return ret;
 }
 
@@ -1005,6 +1009,7 @@ int SandboxManager::DispatchDecBatches(const std::vector<std::string>& decPaths,
         SANDBOX_LOGE("DispatchDecBatches: Open %{public}s failed, errno=%{public}s", DEC_DEVICE_PATH, strerror(errno));
         return SANDBOX_ERR_SET_DEC_FAILED;
     }
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_DEC_BATCH);
     SANDBOX_LOGD("[DEBUG INFO] DEC debug device opened, path=%{public}s, fd=%{public}d", DEC_DEVICE_PATH, fd);
 
     size_t failedBatches = 0;
@@ -1020,7 +1025,7 @@ int SandboxManager::DispatchDecBatches(const std::vector<std::string>& decPaths,
         }
     }
 
-    close(fd);
+    SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_DEC_BATCH);
 
     if (failedBatches > 0) {
         std::cerr << "Error: DEC apply batch failed, pathCount=" << decPaths.size() << std::endl;
@@ -1100,13 +1105,15 @@ int SandboxManager::SetParentHapTokenId(uint64_t tokenId)
         return SANDBOX_ERR_SET_PTOKENID_FAILED;
     }
 
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_ACCESS_TOKEN);
+
     int32_t ret = ioctl(fd, ACCESS_TOKENID_SET_HAP_PTOKENID, &atmTokenId);
     if (ret < 0) {
         std::cerr << "Error: ioctl ACCESS_TOKENID_SET_HAP_PTOKENID failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("ioctl ACCESS_TOKENID_SET_HAP_PTOKENID failed: %{public}s", strerror(errno));
         ret = SANDBOX_ERR_SET_PTOKENID_FAILED;
     }
-    close(fd);
+    SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_ACCESS_TOKEN);
     return ret;
 }
 #endif
@@ -1865,8 +1872,13 @@ int SandboxManager::CreateStartGate()
         SANDBOX_LOGE("ForkAfterUnshare: start gate socketpair failed: %{public}s", strerror(errno));
         return SANDBOX_ERR_GENERIC;
     }
+    // Claimed at the one place the pair is opened. Both ends cross the fork, and
+    // the tag is per process and per fd number, so the parent and the child each
+    // close their own copy under this same code without interfering.
     startGateReadFd_ = fds[0];
+    SANDBOX_FDSAN_MARK(startGateReadFd_, SANDBOX_FDSAN_SITE_START_GATE_READ);
     startGateWriteFd_ = fds[1];
+    SANDBOX_FDSAN_MARK(startGateWriteFd_, SANDBOX_FDSAN_SITE_START_GATE_WRITE);
     return SANDBOX_SUCCESS;
 }
 
@@ -1885,7 +1897,7 @@ void SandboxManager::ReleaseStartGate()
         // same answer a failed monitor gets. Nothing is left running unwatched.
         SANDBOX_LOGE("ForkAfterUnshare: could not release the start gate: %{public}s", strerror(errno));
     }
-    close(startGateWriteFd_);
+    SANDBOX_FDSAN_CLOSE(startGateWriteFd_, SANDBOX_FDSAN_SITE_START_GATE_WRITE);
     startGateWriteFd_ = -1;
 }
 
@@ -1894,7 +1906,7 @@ void SandboxManager::CloseStartGate()
     if (startGateWriteFd_ < 0) {
         return;
     }
-    close(startGateWriteFd_);
+    SANDBOX_FDSAN_CLOSE(startGateWriteFd_, SANDBOX_FDSAN_SITE_START_GATE_WRITE);
     startGateWriteFd_ = -1;
 }
 
@@ -1906,7 +1918,9 @@ void SandboxManager::WaitForStartGate()
         got = read(startGateReadFd_, &token, sizeof(token));
     } while (got < 0 && errno == EINTR);
 
-    close(startGateReadFd_);
+    // Child side of the fork, closing its own copy of what CreateStartGate
+    // claimed: the tag is per process, so this is the same code the parent uses.
+    SANDBOX_FDSAN_CLOSE(startGateReadFd_, SANDBOX_FDSAN_SITE_START_GATE_READ);
     startGateReadFd_ = -1;
 
     if (got == static_cast<ssize_t>(sizeof(token))) {
@@ -2016,7 +2030,7 @@ int SandboxManager::ParentAfterForkExitCode(pid_t pid)
 {
     // The child owns the read end from here on.
     if (startGateReadFd_ >= 0) {
-        close(startGateReadFd_);
+        SANDBOX_FDSAN_CLOSE(startGateReadFd_, SANDBOX_FDSAN_SITE_START_GATE_READ);
         startGateReadFd_ = -1;
     }
 
@@ -2037,7 +2051,7 @@ int SandboxManager::ParentAfterForkExitCode(pid_t pid)
 
     // No-op when the monitor took ownership; it closed the fd on the way out.
     if (decFd_ >= 0) {
-        close(decFd_);
+        SANDBOX_FDSAN_CLOSE(decFd_, SANDBOX_FDSAN_SITE_DEC_PREFORK);
         decFd_ = -1;
     }
 
@@ -2058,19 +2072,19 @@ int SandboxManager::ChildAfterFork()
      * never surface as EOF. The child would wait on itself.
      */
     if (startGateWriteFd_ >= 0) {
-        close(startGateWriteFd_);
+        SANDBOX_FDSAN_CLOSE(startGateWriteFd_, SANDBOX_FDSAN_SITE_START_GATE_WRITE);
         startGateWriteFd_ = -1;
     }
 
     if (monitorSocketFd_ >= 0) {
-        close(monitorSocketFd_);
+        SANDBOX_FDSAN_CLOSE(monitorSocketFd_, SANDBOX_FDSAN_SITE_MONITOR_SOCKET);
         SANDBOX_LOGI("ForkAfterUnshare: child pid=%{public}d closed inherited monitor socket fd=%{public}d",
                      getpid(), monitorSocketFd_);
         monitorSocketFd_ = -1;
     }
 
     if (decFd_ >= 0) {
-        close(decFd_);
+        SANDBOX_FDSAN_CLOSE(decFd_, SANDBOX_FDSAN_SITE_DEC_PREFORK);
         SANDBOX_LOGI("ForkAfterUnshare: child pid=%{public}d closed inherited dec fd=%{public}d, "
                      "will reopen its own fd in DeliverExecuterInit", getpid(), decFd_);
         decFd_ = -1;
@@ -2118,16 +2132,16 @@ int SandboxManager::ForkAfterUnshare()
         std::cerr << "Error: fork failed after unshare: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("fork failed after unshare: %{public}s", strerror(errno));
         if (decFd_ >= 0) {
-            close(decFd_);
+            SANDBOX_FDSAN_CLOSE(decFd_, SANDBOX_FDSAN_SITE_DEC_PREFORK);
             decFd_ = -1;
         }
         if (monitorSocketFd_ >= 0) {
-            close(monitorSocketFd_);
+            SANDBOX_FDSAN_CLOSE(monitorSocketFd_, SANDBOX_FDSAN_SITE_MONITOR_SOCKET);
             monitorSocketFd_ = -1;
         }
         CloseStartGate();
         if (startGateReadFd_ >= 0) {
-            close(startGateReadFd_);
+            SANDBOX_FDSAN_CLOSE(startGateReadFd_, SANDBOX_FDSAN_SITE_START_GATE_READ);
             startGateReadFd_ = -1;
         }
         return SANDBOX_ERR_GENERIC;
@@ -2377,6 +2391,8 @@ int SandboxManager::SetSandboxPathMark()
         return SANDBOX_ERR_SET_DEC_FAILED;
     }
 
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_DEC_PATH_MARK);
+
     MarkPathInfo pathInfo = {};
     pathInfo.path = "/";
     pathInfo.flags = SEC_SANDBOX_PATH_TYPE;
@@ -2385,7 +2401,7 @@ int SandboxManager::SetSandboxPathMark()
     if (ret < 0) {
         std::cerr << "Error: ADD_PATH_MARK_CMD (sandbox) failed, errno=" << strerror(errno) << std::endl;
         SANDBOX_LOGE("SetSandboxPathMark: ADD_PATH_MARK_CMD (sandbox) failed, errno=%{public}s", strerror(errno));
-        close(fd);
+        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_DEC_PATH_MARK);
         return SANDBOX_ERR_SET_DEC_FAILED;
     } else {
         SANDBOX_LOGD("SetSandboxPathMark: marked / dir with SEC_SANDBOX_PATH_TYPE");
@@ -2404,7 +2420,7 @@ int SandboxManager::SetSandboxPathMark()
         SANDBOX_LOGD("SetSandboxPathMark: marked User dir with SEC_UGC_PATH_TYPE");
     }
 
-    close(fd);
+    SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_DEC_PATH_MARK);
     return ret;
 }
 
@@ -2428,6 +2444,8 @@ int SandboxManager::SetEncapsProcFlag()
         return SANDBOX_ERR_SET_ENCAPS_FAILED;
     }
 
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_ENCAPS);
+
     uint32_t procFlag = CUSTOM_SANDBOX_PROCESS_TYPE;
     int ret = ioctl(fd, SET_ENCAPS_PROC_FLAG_CMD, &procFlag);
     if (ret < 0) {
@@ -2438,7 +2456,7 @@ int SandboxManager::SetEncapsProcFlag()
         SANDBOX_LOGD("SetEncapsProcFlag: success");
     }
 
-    close(fd);
+    SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_ENCAPS);
     return ret;
 }
 #endif
@@ -2467,19 +2485,20 @@ int SandboxManager::OpenAllowedExecutable(const char *path)
         SANDBOX_LOGE("Cannot open executable %{public}s: %{public}s", path, strerror(errno));
         return -1;
     }
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_EXEC_TARGET);
 
     char *con = nullptr;
     if (fgetfilecon(fd, &con) == -1) {
         std::cerr << "Error: fgetfilecon failed." << std::endl;
         SANDBOX_LOGE("fgetfilecon failed for %{public}s: %{public}s", path, strerror(errno));
-        close(fd);
+        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_EXEC_TARGET);
         return -1;
     }
 
     context_t ctx = context_new(con);
     if (ctx == nullptr) {
         freecon(con);
-        close(fd);
+        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_EXEC_TARGET);
         return -1;
     }
 
@@ -2500,7 +2519,7 @@ int SandboxManager::OpenAllowedExecutable(const char *path)
     freecon(con);
 
     if (!isAllowed) {
-        close(fd);
+        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_EXEC_TARGET);
         return -1;
     }
 
@@ -2529,7 +2548,7 @@ int SandboxManager::ExecuteCommand()
 
     // Only reached if exec fails
     int execErrno = errno;
-    close(execFd);
+    SANDBOX_FDSAN_CLOSE(execFd, SANDBOX_FDSAN_SITE_EXEC_TARGET);
     std::cerr << "Error: fexecve(" << argv[0] << ") failed: " << strerror(execErrno) << std::endl;
     SANDBOX_LOGE("fexecve(%{public}s) failed: %{public}s", argv[0], strerror(execErrno));
     return SANDBOX_ERR_CMD_INVALID;
