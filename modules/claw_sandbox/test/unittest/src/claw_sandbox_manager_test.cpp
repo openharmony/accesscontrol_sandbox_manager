@@ -3210,7 +3210,7 @@ HWTEST_F(ClawSandboxManagerTest, StartGate001, TestSize.Level0)
     EXPECT_GE(manager.startGateWriteFd_, 0);
 
     manager.CloseStartGate();
-    close(manager.startGateReadFd_);
+    SANDBOX_FDSAN_CLOSE(manager.startGateReadFd_, SANDBOX_FDSAN_SITE_START_GATE_READ);
     manager.startGateReadFd_ = -1;
 }
 
@@ -3236,7 +3236,7 @@ HWTEST_F(ClawSandboxManagerTest, StartGate002, TestSize.Level0)
     manager.ReleaseStartGate();
     EXPECT_EQ(0, read(manager.startGateReadFd_, &token, sizeof(token)));
 
-    close(manager.startGateReadFd_);
+    SANDBOX_FDSAN_CLOSE(manager.startGateReadFd_, SANDBOX_FDSAN_SITE_START_GATE_READ);
     manager.startGateReadFd_ = -1;
 }
 
@@ -3258,7 +3258,7 @@ HWTEST_F(ClawSandboxManagerTest, StartGate003, TestSize.Level0)
     char token = 0;
     EXPECT_EQ(0, read(manager.startGateReadFd_, &token, sizeof(token)));
 
-    close(manager.startGateReadFd_);
+    SANDBOX_FDSAN_CLOSE(manager.startGateReadFd_, SANDBOX_FDSAN_SITE_START_GATE_READ);
     manager.startGateReadFd_ = -1;
 }
 
@@ -3282,7 +3282,7 @@ HWTEST_F(ClawSandboxManagerTest, StartGate004, TestSize.Level0)
     char token = 0;
     EXPECT_EQ(1, read(manager.startGateReadFd_, &token, sizeof(token)));
 
-    close(manager.startGateReadFd_);
+    SANDBOX_FDSAN_CLOSE(manager.startGateReadFd_, SANDBOX_FDSAN_SITE_START_GATE_READ);
     manager.startGateReadFd_ = -1;
 }
 
@@ -3463,7 +3463,9 @@ HWTEST_F(ClawSandboxManagerTest, OpenAllowedExecutable003, TestSize.Level0)
     int fd = manager.OpenAllowedExecutable(probe.path.c_str());
     EXPECT_GE(fd, 0);
     if (fd >= 0) {
-        close(fd);
+        // OpenAllowedExecutable claims the fd at the site the exec paths close it
+        // through, so giving it back here has to use that same tag.
+        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_EXEC_TARGET);
     }
 
     unlink(probe.path.c_str());
@@ -3520,10 +3522,20 @@ HWTEST_F(ClawSandboxManagerTest, ChildAfterFork001, TestSize.Level0)
     int spare[2] = {-1, -1};
     ASSERT_EQ(0, pipe(spare));
 
+    /*
+     * ChildAfterFork gives back the write end, the socket and the device, all
+     * through the tagged path, so the injected fds have to carry the tag those
+     * closes expect. The read end is left untagged on purpose: ChildAfterFork
+     * must not touch it, and the plain close at the end of this test is the
+     * child's own.
+     */
     manager.startGateWriteFd_ = gate[1];
+    SANDBOX_FDSAN_MARK(gate[1], SANDBOX_FDSAN_SITE_START_GATE_WRITE);
     manager.startGateReadFd_ = gate[0];
     manager.monitorSocketFd_ = spare[0];
+    SANDBOX_FDSAN_MARK(spare[0], SANDBOX_FDSAN_SITE_MONITOR_SOCKET);
     manager.decFd_ = spare[1];
+    SANDBOX_FDSAN_MARK(spare[1], SANDBOX_FDSAN_SITE_DEC_PREFORK);
 
     EXPECT_EQ(SANDBOX_SUCCESS, manager.ChildAfterFork());
     EXPECT_EQ(-1, manager.startGateWriteFd_);
@@ -3689,8 +3701,13 @@ HWTEST_F(ClawSandboxManagerTest, ParentAfterFork003, TestSize.Level0)
 
     int spare[2] = {-1, -1};
     ASSERT_EQ(0, pipe(spare));
+    // Both are given back by ParentAfterForkExitCode through the tagged path, so
+    // they carry the tags those closes expect. The closes at the end of this test
+    // then prove the fds are really gone, by finding them already closed.
     manager.startGateReadFd_ = spare[0];
+    SANDBOX_FDSAN_MARK(spare[0], SANDBOX_FDSAN_SITE_START_GATE_READ);
     manager.decFd_ = spare[1];
+    SANDBOX_FDSAN_MARK(spare[1], SANDBOX_FDSAN_SITE_DEC_PREFORK);
 
     pid_t child = fork();
     ASSERT_GE(child, 0);

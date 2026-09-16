@@ -39,6 +39,18 @@
 #include "sandbox_manager.h"
 #undef private
 
+/*
+ * Last on purpose. sandbox_log.h #undefs LOG_TAG and LOG_DOMAIN and redefines
+ * them, and those are plain macros read where SANDBOX_LOGx is written, not
+ * settings applied once. Any header included after this one that defines its own
+ * LOG_TAG silently takes over, and the log lines go out under someone else's tag
+ * and domain - which looks exactly like logging being broken.
+ *
+ * Needed here for the fdsan site codes: the tests below close decFd_ themselves,
+ * and that close has to carry the same tag the product put on it.
+ */
+#include "sandbox_log.h"
+
 using namespace testing::ext;
 
 namespace OHOS {
@@ -364,7 +376,7 @@ HWTEST_F(ClawSandboxOpControlDeliverTest, DeliverDaemonSidePolicies001, TestSize
     EXPECT_EQ(3, g_ioctlMockState.ioctlCallCount);
     EXPECT_GE(manager.decFd_, 0);
     if (manager.decFd_ >= 0) {
-        close(manager.decFd_);
+        SANDBOX_FDSAN_CLOSE(manager.decFd_, SANDBOX_FDSAN_SITE_DEC_PREFORK);
     }
 }
 
@@ -535,7 +547,7 @@ HWTEST_F(ClawSandboxOpControlDeliverTest, DeliverDaemonSidePolicies006, TestSize
     // close it here so the test does not leak an fd.
     EXPECT_GE(manager.decFd_, 0);
     if (manager.decFd_ >= 0) {
-        close(manager.decFd_);
+        SANDBOX_FDSAN_CLOSE(manager.decFd_, SANDBOX_FDSAN_SITE_DEC_PREFORK);
     }
 }
 
@@ -573,7 +585,7 @@ HWTEST_F(ClawSandboxOpControlDeliverTest, DeliverDaemonSidePolicies007, TestSize
     // close it here so the test does not leak an fd.
     EXPECT_GE(manager.decFd_, 0);
     if (manager.decFd_ >= 0) {
-        close(manager.decFd_);
+        SANDBOX_FDSAN_CLOSE(manager.decFd_, SANDBOX_FDSAN_SITE_DEC_PREFORK);
     }
 }
 
@@ -717,7 +729,9 @@ HWTEST_F(ClawSandboxOpControlDeliverTest, ForkAfterUnshare002, TestSize.Level0)
     int fd = manager.OpenDecDeviceBeforeFork();
     EXPECT_EQ(100, fd);
     if (fd >= 0) {
-        close(fd);
+        // OpenDecDeviceBeforeFork claims the fd at the site the fork paths close
+        // it through, so giving it back here has to use that same tag.
+        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_DEC_PREFORK);
     }
 
     g_ioctlMockState.mockEnabled = false;
@@ -758,7 +772,7 @@ HWTEST_F(ClawSandboxOpControlDeliverTest, DeliverDaemonSidePolicies008, TestSize
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_EQ(3, g_ioctlMockState.ioctlCallCount);  // no ADD for the module-less group
     if (manager.decFd_ >= 0) {
-        close(manager.decFd_);
+        SANDBOX_FDSAN_CLOSE(manager.decFd_, SANDBOX_FDSAN_SITE_DEC_PREFORK);
     }
 }
 
@@ -794,7 +808,7 @@ HWTEST_F(ClawSandboxOpControlDeliverTest, DeliverDaemonSidePolicies009, TestSize
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_EQ(4, g_ioctlMockState.ioctlCallCount);
     if (manager.decFd_ >= 0) {
-        close(manager.decFd_);
+        SANDBOX_FDSAN_CLOSE(manager.decFd_, SANDBOX_FDSAN_SITE_DEC_PREFORK);
     }
     unlink(ruleFile.c_str());
 }
@@ -942,7 +956,7 @@ HWTEST_F(ClawSandboxOpControlDeliverTest, DeliverDaemonSidePolicies013, TestSize
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_EQ(5, g_ioctlMockState.ioctlCallCount);  // init + config set + File ADD + Process ADD
     if (manager.decFd_ >= 0) {
-        close(manager.decFd_);
+        SANDBOX_FDSAN_CLOSE(manager.decFd_, SANDBOX_FDSAN_SITE_DEC_PREFORK);
     }
     unlink(ruleFile.c_str());
 }

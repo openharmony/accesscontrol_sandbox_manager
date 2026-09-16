@@ -32,6 +32,16 @@ namespace SANDBOX {
 SandboxSocket::SandboxSocket(int fd) : fd_(fd), readState_(SOCKET_STATE_READING_HEADER), currentHeader_{},
     headerBytesRead_(0), bodyBytesRead_(0), bodyBytesToDiscard_(0), txOffset_(0)
 {
+    /*
+     * Taking ownership is what claims the fd, so the tag goes on here rather than
+     * at the caller: the descriptor comes from SandboxMonitor::ConnectToApp,
+     * which claims it under this same code because the manager holds a copy of
+     * it until the handover and closes that copy itself. Claiming twice is
+     * harmless -- MARK replaces whatever tag was there.
+     */
+    if (fd_ >= 0) {
+        SANDBOX_FDSAN_MARK(fd_, SANDBOX_FDSAN_SITE_MONITOR_SOCKET);
+    }
 }
 
 SandboxSocket::~SandboxSocket()
@@ -39,7 +49,7 @@ SandboxSocket::~SandboxSocket()
     if (fd_ < 0) {
         return;
     }
-    if (close(fd_) < 0) {
+    if (SANDBOX_FDSAN_CLOSE(fd_, SANDBOX_FDSAN_SITE_MONITOR_SOCKET) < 0) {
         SANDBOX_LOGW("Failed to close socket fd: %{public}s", strerror(errno));
     }
 }

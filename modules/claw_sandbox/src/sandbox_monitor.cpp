@@ -193,6 +193,16 @@ SandboxMonitor::SandboxMonitor(MonitorConfig config)
         socket_ = std::make_unique<SandboxSocket>(config.socketFd);
         sockCtx_.fd = config.socketFd;
     }
+
+    /*
+     * The manager claimed this fd before the fork, so this is normally a no-op;
+     * it is repeated because the monitor is the side that closes it, and the
+     * close below has to see the tag it expects whether the fd arrived across a
+     * fork or was handed in by a caller that opened it itself.
+     */
+    if (deviceFd_ >= 0) {
+        SANDBOX_FDSAN_MARK(deviceFd_, SANDBOX_FDSAN_SITE_DEC_PREFORK);
+    }
     deviceReadBuffer_.resize(DEVICE_READ_CHUNK_SIZE);
 }
 
@@ -200,12 +210,15 @@ SandboxMonitor::~SandboxMonitor()
 {
     CloseSocket();
 
-    SafeCloseFd(deviceFd_);
-    SafeCloseFd(childFd_);
-    SafeCloseFd(epollFd_);
+    // deviceFd_ is the DEC fd the manager opened before the fork and handed over;
+    // the constructor re-claimed it under the site the manager used, so the close
+    // here pairs with it rather than with whatever tag it arrived carrying.
+    SafeCloseTaggedFd(deviceFd_, SANDBOX_FDSAN_SITE_DEC_PREFORK);
+    SafeCloseTaggedFd(childFd_, SANDBOX_FDSAN_SITE_MONITOR_CHILD);
+    SafeCloseTaggedFd(epollFd_, SANDBOX_FDSAN_SITE_MONITOR_EPOLL);
 }
 
-void SandboxMonitor::SafeCloseFd(int &fd)
+void SandboxMonitor::SafeCloseTaggedFd(int &fd, uint64_t siteCode)
 {
     if (fd < 0) {
         return;
@@ -213,7 +226,7 @@ void SandboxMonitor::SafeCloseFd(int &fd)
 
     int closeFd = fd;
     fd = -1;
-    if (close(closeFd) < 0) {
+    if (SANDBOX_FDSAN_CLOSE(closeFd, siteCode) < 0) {
         SANDBOX_LOGW("Failed to close fd %{public}d: %{public}s",
             closeFd, strerror(errno));
     }
@@ -621,11 +634,24 @@ int SandboxMonitor::ConnectToApp(const std::string &socketPath, int &socketFd,
         return SANDBOX_ERR_SOCKET_CREATE_FAILED;
     }
 
+    /*
+     * Claimed here, at the one place the socket is created, and before anything
+     * can fail: the failure path below closes the fd as well, so the claim has
+     * to be in place for it to pair with that close.
+     *
+     * This fd outlives the function twice over: it crosses the fork into the
+     * monitor, and the manager keeps a copy of it until the handover. Claiming
+     * it here is what lets every one of those closes -- and the SandboxSocket
+     * that takes it over and re-claims it under this same code -- agree on an
+     * owner. Claiming twice is harmless: MARK replaces whatever was there.
+     */
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_MONITOR_SOCKET);
+
     const socklen_t addrLength = static_cast<socklen_t>(
         offsetof(struct sockaddr_un, sun_path) + socketPath.length() + 1);
     int ret = AttemptConnect(fd, addr, addrLength, socketPath, mode);
     if (ret != SANDBOX_SUCCESS) {
-        SafeCloseFd(fd);
+        SafeCloseTaggedFd(fd, SANDBOX_FDSAN_SITE_MONITOR_SOCKET);
         return ret;
     }
 
@@ -658,6 +684,7 @@ int SandboxMonitor::SetupChildExitFd()
     }
 
     childFd_ = static_cast<int>(fd);
+    SANDBOX_FDSAN_MARK(childFd_, SANDBOX_FDSAN_SITE_MONITOR_CHILD);
     childCtx_.fd = childFd_;
     return SANDBOX_SUCCESS;
 }
@@ -755,6 +782,7 @@ int SandboxMonitor::Init()
             strerror(errno));
         return SANDBOX_ERR_EPOLL_FAILED;
     }
+    SANDBOX_FDSAN_MARK(epollFd_, SANDBOX_FDSAN_SITE_MONITOR_EPOLL);
 
     ret = RegisterFdToEpoll(childFd_, &childCtx_, EPOLLIN);
     if (ret != SANDBOX_SUCCESS) {
@@ -1487,7 +1515,8 @@ bool SandboxMonitor::ApplyAction(MonitorAction action)
             if (epollFd_ >= 0 && deviceFd_ >= 0) {
                 (void)epoll_ctl(epollFd_, EPOLL_CTL_DEL, deviceFd_, nullptr);
             }
-            SafeCloseFd(deviceFd_);
+            // Claimed by the constructor under this same code, so it is closed under it too.
+            SafeCloseTaggedFd(deviceFd_, SANDBOX_FDSAN_SITE_DEC_PREFORK);
             devCtx_.fd = -1;
             Degrade();
             return true;

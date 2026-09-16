@@ -140,7 +140,11 @@ public:
     int Run();
 
 private:
-    static void SafeCloseFd(int &fd);
+    // The only way this class gives an fd back: clears the member and closes it
+    // under the site code it was claimed with at SANDBOX_FDSAN_MARK. A close
+    // whose tag no longer matches aborts rather than closing whatever holds that
+    // descriptor number now, which is the whole point of tagging.
+    static void SafeCloseTaggedFd(int &fd, uint64_t siteCode);
     void CloseSocket();
     // Tolerate the loss of the peer mid-run: close the socket, keep both tables,
     // and start the bounded reconnect sequence. Only the first connect (in
