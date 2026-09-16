@@ -45,6 +45,9 @@ const uint32_t NON_PERSIST_POLICY_BATCH_SIZE = 200;
 // Persist policy has a significant overhead for each call, thus requires a larger batch.
 const uint32_t PERSIST_POLICY_BATCH_SIZE = 200000;
 
+// Aging TTL for volume-removed persisted policies: 30 days in milliseconds
+const int64_t VOLUME_POLICY_AGING_TTL_MS = 30LL * 24 * 60 * 60 * 1000;
+
 } // namespace SandboxManager
 } // namespace AccessControl
 } // namespace OHOS

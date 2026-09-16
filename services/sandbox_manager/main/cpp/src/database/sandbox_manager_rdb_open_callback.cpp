@@ -87,6 +87,20 @@ int32_t SandboxManagerRdbOpenCallback::OnUpgrade(
         }
         SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 3");
     }
+    // Upgrade from version < 4 to version 4: Add volumeUnmountTs column to persisted_policy_table
+    if (currentVersion < 4 && targetVersion >= 4) {
+        std::string sql = "ALTER TABLE ";
+        sql.append(PERSISTED_POLICY_TABLE)
+            .append(" ADD COLUMN ")
+            .append(PolicyFiledConst::FIELD_VOLUME_UNMOUNT_TS)
+            .append(" integer not null default 0");
+        int32_t res = rdbStore.ExecuteSql(sql);
+        if (res != NativeRdb::E_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "ALTER TABLE failed (res=%{public}d), column may already exist", res);
+        } else {
+            SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 4");
+        }
+    }
 
     return NativeRdb::E_OK;
 }
@@ -106,6 +120,8 @@ int32_t SandboxManagerRdbOpenCallback::CreatePersistedPolicyTable(NativeRdb::Rdb
         .append(INTEGER_STR)
         .append(PolicyFiledConst::FIELD_FLAG)
         .append(INTEGER_STR)
+        .append(PolicyFiledConst::FIELD_VOLUME_UNMOUNT_TS)
+        .append(" integer not null default 0,")
         .append("primary key(")
         .append(PolicyFiledConst::FIELD_TOKENID)
         .append(",")

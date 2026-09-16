@@ -29,6 +29,8 @@ public:
     static constexpr const char *FIELD_MODE = "mode";
     static constexpr const char *FIELD_DEPTH = "depth";
     static constexpr const char *FIELD_FLAG = "flag";
+    // Field for persisted_policy_table: timestamp when volume was removed (0 = active)
+    static constexpr const char *FIELD_VOLUME_UNMOUNT_TS = "volumeUnmountTs";
     // Fields for bundle persistent policy table
     static constexpr const char *FIELD_BUNDLENAME = "bundleName";
     static constexpr const char *FIELD_USERID = "userId";

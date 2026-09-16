@@ -24,6 +24,7 @@
 #include "policy_info.h"
 #include "policy_vec_raw_data.h"
 #include "policy_trie.h"
+#include "sandbox_manager_const.h"
 
 namespace OHOS {
 namespace AccessControl {
@@ -230,7 +231,7 @@ public:
      */
     int32_t RevokeSharedDirectoryPermission(const uint32_t tokenId, int32_t userId);
 
-private:
+    private:
     PolicyInfoManager() = default;
     ~PolicyInfoManager() = default;
     /**

@@ -525,6 +525,24 @@ int32_t SandboxManagerClient::RevokeSharedDirectoryPermission()
         };
     return CallProxyWithRetry(func, __FUNCTION__);
 }
+
+int32_t SandboxManagerClient::DeactivePolicyByPath(const std::string &volumeMountPath)
+{
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) {
+            return proxy->DeactivePolicyByPath(volumeMountPath);
+        };
+    return CallProxyWithRetry(func, __FUNCTION__);
+}
+
+int32_t SandboxManagerClient::ActivePolicyByPath(const std::string &volumeMountPath)
+{
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) {
+            return proxy->ActivePolicyByPath(volumeMountPath);
+        };
+    return CallProxyWithRetry(func, __FUNCTION__);
+}
 } // SandboxManager
 } // AccessControl
 } // OHOS

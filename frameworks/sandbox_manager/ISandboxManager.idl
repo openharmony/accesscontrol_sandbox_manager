@@ -50,4 +50,6 @@ interface OHOS.AccessControl.SandboxManager.ISandboxManager {
     [ipccode 0xffc8] void RevokeSharedDirectoryPermission();
     [ipccode 0xffc9] void UnPersistPolicy([in] unsigned int tokenId);
     [ipccode 0xffc10] void GetPersistPolicy([in] unsigned int tokenId, [out] PolicyVecRawData policyRawData);
+    [ipccode 0xffc11] void DeactivePolicyByPath([in] String volumeMountPath);
+    [ipccode 0xffc12] void ActivePolicyByPath([in] String volumeMountPath);
 }
