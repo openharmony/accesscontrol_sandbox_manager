@@ -170,6 +170,10 @@ int SandboxManager::OpenDecDeviceBeforeFork()
     }
     SANDBOX_LOGD("DeliverDaemonSidePolicies: parent pid=%{public}d opened %{public}s fd=%{public}d (O_CLOEXEC)",
                  getpid(), DEC_DEVICE_PATH, fd);
+    // Claimed before the fork, which is what lets both sides close their own copy
+    // of it: the manager in its fork-failure paths, the monitor through the
+    // deviceFd_ it is handed. The monitor re-claims it on construction.
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_DEC_PREFORK);
     return fd;
 }
 
@@ -349,7 +353,7 @@ int SandboxManager::DeliverDaemonSidePolicies()
     }
     if (ret != SANDBOX_SUCCESS) {
         // The one place the device is given back: every failure above leaves it to us.
-        close(decFd_);
+        SANDBOX_FDSAN_CLOSE(decFd_, SANDBOX_FDSAN_SITE_DEC_PREFORK);
         decFd_ = -1;
         return ret;
     }
@@ -389,6 +393,7 @@ int SandboxManager::DeliverExecuterInit()
                      getpid(), DEC_DEVICE_PATH, strerror(errno));
         return SANDBOX_ERR_SET_POLICY_FAILED;
     }
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_DEC_LOCAL);
     SANDBOX_LOGD("DeliverExecuterInit: pid=%{public}d opened %{public}s fd=%{public}d (O_CLOEXEC)",
                  getpid(), DEC_DEVICE_PATH, fd);
 
@@ -397,7 +402,7 @@ int SandboxManager::DeliverExecuterInit()
     SANDBOX_LOGD("DeliverExecuterInit: pid=%{public}d executer init ioctl returned %{public}d",
                  getpid(), ret);
     SANDBOX_LOGD("DeliverExecuterInit: pid=%{public}d closing fd=%{public}d", getpid(), fd);
-    close(fd);
+    SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_DEC_LOCAL);
     return ret;
 }
 

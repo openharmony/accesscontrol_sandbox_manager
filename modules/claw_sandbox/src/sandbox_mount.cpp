@@ -135,6 +135,7 @@ static int OpenCallerProcDir(pid_t pid, uid_t expectedUid, gid_t expectedGid,
             procPath, strerror(errno));
         return SANDBOX_ERR_NS_FAILED;
     }
+    SANDBOX_FDSAN_MARK(procFd, SANDBOX_FDSAN_SITE_PROC_DIR);
 
     struct stat procStat;
     if (fstat(procFd, &procStat) != 0) {
@@ -142,7 +143,7 @@ static int OpenCallerProcDir(pid_t pid, uid_t expectedUid, gid_t expectedGid,
                   strerror(errno) << std::endl;
         SANDBOX_LOGE("fstat failed for %{public}s: %{public}s",
             procPath, strerror(errno));
-        close(procFd);
+        SANDBOX_FDSAN_CLOSE(procFd, SANDBOX_FDSAN_SITE_PROC_DIR);
         procFd = -1;
         return SANDBOX_ERR_NS_FAILED;
     }
@@ -157,7 +158,7 @@ static int OpenCallerProcDir(pid_t pid, uid_t expectedUid, gid_t expectedGid,
             "%{public}u/%{public}u, got %{public}u/%{public}u",
             pid, expectedUid, expectedGid,
             procStat.st_uid, procStat.st_gid);
-        close(procFd);
+        SANDBOX_FDSAN_CLOSE(procFd, SANDBOX_FDSAN_SITE_PROC_DIR);
         procFd = -1;
         return SANDBOX_ERR_NS_FAILED;
     }
@@ -202,10 +203,11 @@ static int OpenCallerMountNamespace(pid_t callerPid, uid_t uid, gid_t gid, int &
                   callerPid << ": " << strerror(errno) << std::endl;
         SANDBOX_LOGE("Failed to open ns/mnt for pid %{public}d: %{public}s",
             callerPid, strerror(errno));
-        close(procFd);
+        SANDBOX_FDSAN_CLOSE(procFd, SANDBOX_FDSAN_SITE_PROC_DIR);
         return SANDBOX_ERR_NS_FAILED;
     }
-    close(procFd);
+    SANDBOX_FDSAN_MARK(nsFd, SANDBOX_FDSAN_SITE_NS_MNT);
+    SANDBOX_FDSAN_CLOSE(procFd, SANDBOX_FDSAN_SITE_PROC_DIR);
     return SANDBOX_SUCCESS;
 }
 
@@ -271,7 +273,7 @@ int SandboxManager::EnterCallerSandbox()
     char nsTarget[NS_PATH_BUF_SIZE] = {0};
     ret = ReadNamespaceId(callerPid, nsTarget, sizeof(nsTarget));
     if (ret != SANDBOX_SUCCESS) {
-        close(nsFd);
+        SANDBOX_FDSAN_CLOSE(nsFd, SANDBOX_FDSAN_SITE_NS_MNT);
         return ret;
     }
 
@@ -280,10 +282,10 @@ int SandboxManager::EnterCallerSandbox()
                   ": " << strerror(errno) << std::endl;
         SANDBOX_LOGE("setns failed for pid %{public}d: %{public}s",
             callerPid, strerror(errno));
-        close(nsFd);
+        SANDBOX_FDSAN_CLOSE(nsFd, SANDBOX_FDSAN_SITE_NS_MNT);
         return SANDBOX_ERR_NS_FAILED;
     }
-    close(nsFd);
+    SANDBOX_FDSAN_CLOSE(nsFd, SANDBOX_FDSAN_SITE_NS_MNT);
 
     ret = VerifyNamespaceChanged(callerPid, nsTarget);
     if (ret != SANDBOX_SUCCESS) {
@@ -484,19 +486,20 @@ static int OpenSourcePath(const std::string &path)
     if (fd < 0) {
         return -1;
     }
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
 
     struct stat st;
     if (fstat(fd, &st) != 0) {
         std::cerr << "Error: fstat failed for " << path << ": " << strerror(errno) << std::endl;
         SANDBOX_LOGE("fstat failed for %{public}s: %{public}s", path.c_str(), strerror(errno));
-        close(fd);
+        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
         return -1;
     }
 
     if (!S_ISDIR(st.st_mode)) {
         std::cerr << "Error: " << path << " is not a directory" << std::endl;
         SANDBOX_LOGE("%{public}s is not a directory", path.c_str());
-        close(fd);
+        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
         return -1;
     }
 
@@ -525,7 +528,7 @@ int SandboxManager::MountSystemEntry(const MountEntry &entry, const std::string 
 
     int ret = CreateDir(target);
     if (ret != SANDBOX_SUCCESS) {
-        close(srcFd);
+        SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
         return ret;
     }
 
@@ -535,7 +538,7 @@ int SandboxManager::MountSystemEntry(const MountEntry &entry, const std::string 
         // Always mount procfs via mount -t proc, never bind-mount the host's /proc.
         // Bind-mounting /proc would expose the host process list inside the sandbox,
         // which is a security concern regardless of PID namespace isolation.
-        close(srcFd);
+        SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
         return SANDBOX_SUCCESS;
     }
     if (mount(entry.source.c_str(), target.c_str(), nullptr, mountFlags, nullptr) < 0) {
@@ -543,11 +546,11 @@ int SandboxManager::MountSystemEntry(const MountEntry &entry, const std::string 
                   ": " << strerror(errno) << std::endl;
         SANDBOX_LOGE("Failed to mount %{public}s -> %{public}s: %{public}s",
             entry.source.c_str(), target.c_str(), strerror(errno));
-        close(srcFd);
+        SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
         return SANDBOX_ERR_MOUNT_FAILED;
     }
 
-    close(srcFd);
+    SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
     mountedDirs_.push_back(target);
     return SANDBOX_SUCCESS;
 }
@@ -637,19 +640,19 @@ int SandboxManager::MountSingleEntry(const MountEntry &entry, const std::string 
 
     int ret = CreateDir(target);
     if (ret != SANDBOX_SUCCESS) {
-        close(srcFd);
+        SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
         return ret;
     }
 
     unsigned long allFlags = ConvertMountFlags(entry.mountFlags);
     ret = DoMountSequence(entry.source, target, allFlags);
     if (ret != SANDBOX_SUCCESS) {
-        close(srcFd);
+        SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
         return ret;
     }
 
     mountedDirs_.push_back(target);
-    close(srcFd);
+    SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
     return SANDBOX_SUCCESS;
 }
 

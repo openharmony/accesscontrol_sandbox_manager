@@ -701,6 +701,10 @@ HWTEST_F(ClawSandboxMonitorTest, MonitorInit004, TestSize.Level0)
     ASSERT_GE(epollFd, 0);
 
     SandboxMonitor monitor(MakeConfig(getpid(), -1, deviceFd));
+    // Init claims the epoll fd it creates under this code and the destructor
+    // closes it under the same one, so an fd injected in its place has to carry
+    // that claim before it is handed over.
+    SANDBOX_FDSAN_MARK(epollFd, SANDBOX_FDSAN_SITE_MONITOR_EPOLL);
     monitor.epollFd_ = epollFd;  // pretend a previous Init already succeeded
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, monitor.Init());
 }
@@ -769,8 +773,10 @@ HWTEST_F(ClawSandboxMonitorTest, MonitorConnectToApp003, TestSize.Level1)
     // The retry budget must actually have been spent before giving up.
     EXPECT_GE(elapsed, CONNECT_RETRY_BUDGET_MS - CONNECT_BUDGET_SLACK_MS);
 
+    // ConnectToApp hands back an fd it has already claimed, so giving it back
+    // here has to go through the tag it carries.
     for (int fd : pending) {
-        close(fd);
+        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_MONITOR_SOCKET);
     }
 }
 
@@ -808,8 +814,10 @@ HWTEST_F(ClawSandboxMonitorTest, MonitorConnectToApp004, TestSize.Level0)
     EXPECT_EQ(SANDBOX_ERR_SOCKET_WOULD_BLOCK, ret);
     EXPECT_LT(elapsed, CONNECT_RETRY_BUDGET_MS / 2);
 
+    // ConnectToApp hands back an fd it has already claimed, so giving it back
+    // here has to go through the tag it carries.
     for (int fd : pending) {
-        close(fd);
+        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_MONITOR_SOCKET);
     }
 }
 
@@ -833,7 +841,7 @@ HWTEST_F(ClawSandboxMonitorTest, MonitorConnectToApp002, TestSize.Level0)
     // sandboxed program never inherits the app channel.
     EXPECT_NE(0, fcntl(socketFd, F_GETFL, 0) & O_NONBLOCK);
     EXPECT_NE(0, fcntl(socketFd, F_GETFD, 0) & FD_CLOEXEC);
-    close(socketFd);
+    SANDBOX_FDSAN_CLOSE(socketFd, SANDBOX_FDSAN_SITE_MONITOR_SOCKET);
 }
 
 /**
@@ -921,23 +929,27 @@ HWTEST_F(ClawSandboxMonitorTest, MonitorLogSocketPeer001, TestSize.Level0)
 }
 
 /**
- * @tc.name: MonitorSafeCloseFd001
- * @tc.desc: SafeCloseFd ignores an unset fd and clears the one it closes
+ * @tc.name: MonitorSafeCloseTaggedFd001
+ * @tc.desc: SafeCloseTaggedFd ignores an unset fd and clears the one it closes
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxMonitorTest, MonitorSafeCloseFd001, TestSize.Level0)
+HWTEST_F(ClawSandboxMonitorTest, MonitorSafeCloseTaggedFd001, TestSize.Level0)
 {
     SandboxMonitor monitor(MakeConfig(getpid(), -1, -1));
 
     int unset = -1;
-    monitor.SafeCloseFd(unset);
+    monitor.SafeCloseTaggedFd(unset, SANDBOX_FDSAN_SITE_MONITOR_SOCKET);
     EXPECT_EQ(-1, unset);
 
     int fd = open("/dev/null", O_RDONLY | O_CLOEXEC);
     ASSERT_GE(fd, 0);
     int copy = fd;
-    monitor.SafeCloseFd(fd);
+    // Which site code this is does not matter to the helper -- it only has to be
+    // the one the fd was claimed with, since that is what the close checks. The
+    // fd stands in for no particular production descriptor, so any will do.
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_MONITOR_SOCKET);
+    monitor.SafeCloseTaggedFd(fd, SANDBOX_FDSAN_SITE_MONITOR_SOCKET);
     EXPECT_EQ(-1, fd);
     EXPECT_EQ(-1, fcntl(copy, F_GETFL, 0));
 }

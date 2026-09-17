@@ -941,6 +941,7 @@ static bool OpenOnePathRule(SandboxPolicyTlv::FilterRule &fr, std::vector<Policy
         }
         return false;
     }
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_RULE_PATH);
     fr.fd = fd;
     return true;
 }
@@ -994,7 +995,7 @@ void SandboxPolicyTlv::CloseFileFds()
 {
     auto closeFd = [](FilterRule &fr) {
         if (fr.fd != INVALID_PATH_FD) {
-            close(fr.fd);
+            SANDBOX_FDSAN_CLOSE(fr.fd, SANDBOX_FDSAN_SITE_RULE_PATH);
             fr.fd = INVALID_PATH_FD;
         }
     };
