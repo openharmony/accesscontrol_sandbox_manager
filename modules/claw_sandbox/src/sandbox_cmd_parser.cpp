@@ -627,10 +627,12 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
                 SANDBOX_LOGE("Parse config field 'appIdentifier' failed, ret=%{public}d", ret);
                 return ret;
             }
-            // appIdentifier must be a u64 integer; reject non-integer values here
-            // so the whole config is refused before any later delivery step.
+            // A cli caller sends it empty and nothing on that path reads the
+            // number, so 0 stands in for it. A value that is there must be a u64,
+            // refused here so the whole config goes before any delivery step.
             uint64_t appIdentifierU64 = 0;
-            if (!ParseU64Strict(config.appIdentifier, appIdentifierU64)) {
+            if (!config.appIdentifier.empty() &&
+                !ParseU64Strict(config.appIdentifier, appIdentifierU64)) {
                 std::cerr << "Error: appIdentifier is not a valid u64: \"" << config.appIdentifier << "\"" << std::endl;
                 SANDBOX_LOGE("appIdentifier '%{public}s' is not a valid u64", config.appIdentifier.c_str());
                 return SANDBOX_ERR_CONFIG_INVALID;
