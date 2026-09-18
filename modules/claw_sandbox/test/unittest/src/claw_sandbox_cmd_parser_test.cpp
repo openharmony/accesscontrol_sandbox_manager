@@ -278,6 +278,24 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfigAppIdentifierMax, TestSize.Level0)
 }
 
 /**
+ * @tc.name: ParseConfigAppIdentifierEmpty
+ * @tc.desc: A cli caller sends appIdentifier empty; the u64 conversion is skipped
+ *           rather than failing the config.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfigAppIdentifierEmpty, TestSize.Level0)
+{
+    const std::string json = BuildConfigJsonWithValue("appIdentifier", R"("")");
+    SandboxConfig config;
+    // Not the struct's default: the step has to write the field, not skip it.
+    config.appIdentifierU64 = UINT64_MAX;
+    ASSERT_EQ(SANDBOX_SUCCESS, CmdParser::ParseConfig(json, config));
+    EXPECT_TRUE(config.appIdentifier.empty());
+    EXPECT_EQ(0ULL, config.appIdentifierU64);
+}
+
+/**
  * @tc.name: ParseConfig002
  * @tc.desc: ParseConfig with invalid JSON string
  * @tc.type: FUNC
