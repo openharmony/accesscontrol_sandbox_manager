@@ -92,6 +92,8 @@ constexpr const char *SANDBOX_BASE_DIR = "/mnt/sandbox/claw";
 // value will be blocked by the seccomp filter, returning EACCES.
 constexpr unsigned int UID_MIN_LIMIT = 20000000;
 
+constexpr int DEC_GID = 3076;
+
 // Marker added to the final child process environment after sanitization.
 // It is only used to identify that the process was launched by claw_sandbox.
 constexpr const char *CLAW_SANDBOX_ENV_KEY = "CLAW_SANDBOX";
@@ -1260,6 +1262,14 @@ int SandboxManager::SetSelinuxMCS()
 int SandboxManager::SetGroups()
 {
     std::vector<gid_t> gids = {static_cast<gid_t>(config_.gid)};
+
+    if (config_.type == "shell") {
+        gid_t decGid = static_cast<gid_t>(DEC_GID);
+        if (std::find(gids.begin(), gids.end(), decGid) == gids.end()) {
+            gids.emplace_back(decGid);
+        }
+    }
+
     for (int permissionGid : CollectGrantedPermissionGids()) {
         gid_t gid = static_cast<gid_t>(permissionGid);
         if (std::find(gids.begin(), gids.end(), gid) != gids.end()) {

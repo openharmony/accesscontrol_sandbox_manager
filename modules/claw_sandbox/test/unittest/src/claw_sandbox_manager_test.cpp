@@ -2603,6 +2603,67 @@ HWTEST_F(ClawSandboxManagerTest, SetGroups003, TestSize.Level0)
     EXPECT_TRUE(ret == SANDBOX_ERR_NS_FAILED || ret == SANDBOX_SUCCESS);
 }
 
+/**
+ * @tc.name: SetGroups004
+ * @tc.desc: A shell sandbox gets the DEC group with nothing granted, and a cli
+ *           sandbox does not get it from here
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetGroups004, TestSize.Level0)
+{
+    // The number is repeated rather than taken from the manager's constant, so
+    // that changing the constant alone fails here.
+    constexpr gid_t DEC_GID = 3076;
+
+    // The default is a shell-mode decision, so the cli arm is the gate check.
+    const std::vector<std::pair<std::string, bool>> cases = {
+        {"shell", true},
+        {"cli", false},
+    };
+
+    for (const auto &testCase : cases) {
+        const std::string &type = testCase.first;
+        const bool expectDecGid = testCase.second;
+
+        SandboxManager manager;
+        SandboxConfig config;
+        config.type = type;
+        config.uid = 20020026;
+        config.gid = 20020026;
+        config.callerPid = 1000;
+        config.callerTokenId = TEST_HAP_TOKEN_ID;
+        CmdInfo cmdInfo;
+        manager.Initialize(std::move(config), cmdInfo);
+
+        // Nothing is granted in either case, so the DEC gid can only come from
+        // the default. setgroups() needs privilege; without it the step fails
+        // and there is no list to read back, which is what the -1 arm allows.
+        int ret = 0;
+        ASSERT_TRUE(RunPrivilegedStepInChild([&manager, DEC_GID]() -> int {
+            if (manager.SetGroups() != SANDBOX_SUCCESS) {
+                return -1;
+            }
+            int count = getgroups(0, nullptr);
+            if (count <= 0) {
+                return -1;
+            }
+            std::vector<gid_t> current(static_cast<size_t>(count));
+            if (getgroups(count, current.data()) != count) {
+                return -1;
+            }
+            for (gid_t gid : current) {
+                if (gid == DEC_GID) {
+                    return 1;
+                }
+            }
+            return 0;
+        }, ret));
+        EXPECT_TRUE(ret == -1 || ret == (expectDecGid ? 1 : 0))
+            << "type=" << type << " DEC group presence was not as expected";
+    }
+}
+
 // ==================== SetUidGid tests ====================
 
 /**
