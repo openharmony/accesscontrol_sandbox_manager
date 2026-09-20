@@ -167,22 +167,22 @@
   "permission": {
     "ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY":[{
       "sandbox-switch": "ON",
-      "gids": [1006, 3076],
+      "gids": [1006],
       "dec-paths": ["/storage/Users/currentUser/Download"]
     }],
     "ohos.permission.READ_WRITE_DESKTOP_DIRECTORY":[{
       "sandbox-switch": "ON",
-      "gids": [1006, 3076],
+      "gids": [1006],
       "dec-paths": ["/storage/Users/currentUser/Desktop"]
     }],
     "ohos.permission.READ_WRITE_DOCUMENTS_DIRECTORY":[{
       "sandbox-switch": "ON",
-      "gids": [1006, 3076],
+      "gids": [1006],
       "dec-paths": ["/storage/Users/currentUser/Documents"]
     }],
     "ohos.permission.FILE_ACCESS_MANAGER":[{
       "sandbox-switch": "ON",
-      "gids": [1006, 3076],
+      "gids": [1006],
       "dec-paths": []
     }],
     "ohos.permission.INTERNET":[{
