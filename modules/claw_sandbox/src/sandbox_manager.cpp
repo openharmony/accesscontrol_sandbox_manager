@@ -1745,20 +1745,24 @@ static int SetNoNewPrivs(void)
 #ifdef WITH_SECCOMP
 static int SetAppSeccompPolicy(void)
 {
-    const char *filterName1 = APP_NAME;
-    const char *filterName2 = APP_CUSTOM;
-    bool ret = SetSeccompPolicyWithName(APP, filterName1);
-    if (!ret) {
-        ret = SetSeccompPolicyWithName(APP, filterName2);
-        if (!ret) {
-            std::cerr << "Error: SetSeccompPolicyWithName failed for filter: " <<
-                    filterName1 << " or " << filterName2 << std::endl;
-            SANDBOX_LOGE("SetSeccompPolicyWithName failed for filter: %{public}s or %{public}s",
-                         filterName1, filterName2);
-            return SANDBOX_ERR_SET_SECCOMP_FAILED;
-        }
+    const bool pcMode = IsPcMode(false);
+    const char *applied = nullptr;
+
+    if (!pcMode && SetSeccompPolicyWithName(APP, APP_NAME)) {
+        applied = APP_NAME;
+    } else if (SetSeccompPolicyWithName(APP, APP_CUSTOM)) {
+        applied = APP_CUSTOM;
     }
-    SANDBOX_LOGD("APP-level seccomp policy set: %{public}s or %{public}s", filterName1, filterName2);
+
+    if (applied == nullptr) {
+        const char *tried = pcMode ? APP_CUSTOM : APP_NAME " or " APP_CUSTOM;
+        std::cerr << "Error: SetSeccompPolicyWithName failed for filter: " << tried << std::endl;
+        SANDBOX_LOGE("SetSeccompPolicyWithName failed for filter: %{public}s", tried);
+        return SANDBOX_ERR_SET_SECCOMP_FAILED;
+    }
+
+    SANDBOX_LOGD("APP-level seccomp policy set: %{public}s (pcMode=%{public}d)",
+        applied, static_cast<int>(pcMode));
     return SANDBOX_SUCCESS;
 }
 #endif

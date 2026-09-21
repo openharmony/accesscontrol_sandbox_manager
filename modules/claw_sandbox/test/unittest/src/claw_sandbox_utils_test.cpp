@@ -15,6 +15,7 @@
 
 #include "claw_sandbox_utils_test.h"
 #include "sandbox_utils.h"
+#include "scoped_pc_mode.h"
 
 #include <climits>
 #include <cstdint>
@@ -223,6 +224,40 @@ HWTEST_F(ClawSandboxUtilsTest, IsPathUnder003, TestSize.Level0)
     rmdir(sibling.c_str());
     rmdir(inside.c_str());
     rmdir(dir.c_str());
+}
+
+/**
+ * @tc.name: IsPcMode001
+ * @tc.desc: A set parameter decides, and the caller's default does not interfere
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxUtilsTest, IsPcMode001, TestSize.Level0)
+{
+    {
+        ScopedPcMode pcMode("true");
+        EXPECT_TRUE(IsPcMode(true));
+        EXPECT_TRUE(IsPcMode(false));
+    }
+    {
+        ScopedPcMode pcMode("false");
+        EXPECT_FALSE(IsPcMode(true));
+        EXPECT_FALSE(IsPcMode(false));
+    }
+}
+
+/**
+ * @tc.name: IsPcMode002
+ * @tc.desc: An unparsable value hands the decision back to the caller, which is
+ *          what lets the shell type gate and the APP seccomp profile disagree
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxUtilsTest, IsPcMode002, TestSize.Level0)
+{
+    ScopedPcMode pcMode("not-a-bool");
+    EXPECT_TRUE(IsPcMode(true));
+    EXPECT_FALSE(IsPcMode(false));
 }
 
 } // namespace SANDBOX

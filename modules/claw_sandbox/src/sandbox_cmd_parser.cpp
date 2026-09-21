@@ -17,6 +17,7 @@
 #include "sandbox_error.h"
 #include "sandbox_limits.h"
 #include "sandbox_log.h"
+#include "sandbox_utils.h"
 #include <cstdlib>
 #include <iostream>
 #include <cstring>
@@ -24,7 +25,6 @@
 #include <sched.h>
 #include <functional>
 #include <securec.h>
-#include "parameters.h"
 #include <cerrno>
 #include <fcntl.h>
 #include <unistd.h>
@@ -36,18 +36,13 @@ namespace SANDBOX {
 // Maximum allowed JSON nesting depth (prevents stack overflow in recursive cJSON parser)
 constexpr uint32_t MAX_JSON_DEPTH = 10;
 
-#ifdef CONFIG_SHELL_SANDBOX
-// Runtime gate for the shell sandbox. Shell is only meaningful in PC mode, which
-// sceneboard publishes through this parameter; outside PC mode "cli" is the only
-// type a caller may ask for.
-constexpr const char *PC_MODE_PARAM = "persist.sceneboard.ispcmode";
-#endif
-
 // Entry gate for the "shell" type: refused outright unless the shell sandbox is built in.
 static int CheckShellTypeAllowed()
 {
 #ifdef CONFIG_SHELL_SANDBOX
-    if (OHOS::system::GetBoolParameter(PC_MODE_PARAM, true)) {
+    // Shell is only meaningful in PC mode; outside it "cli" is the only type a
+    // caller may ask for. An unset parameter reads as PC mode here, unchanged.
+    if (IsPcMode(true)) {
         return SANDBOX_SUCCESS;
     }
     std::cerr << "Error: Config field 'type' value 'shell' requires PC mode" << std::endl;
