@@ -34,6 +34,8 @@ bool ParseDecimalU64(std::string_view text, uint64_t &value);
 // canonicalised first, so ".." and symlinks cannot be used to step outside.
 bool IsPathUnder(const std::string &path, const std::string &dir);
 
+bool IsPcMode(bool defaultValue);
+
 } // namespace SANDBOX
 } // namespace AccessControl
 } // namespace OHOS

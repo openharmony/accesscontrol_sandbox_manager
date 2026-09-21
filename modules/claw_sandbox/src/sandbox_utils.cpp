@@ -19,9 +19,20 @@
 #include <climits>
 #include <cstdlib>
 
+#include "parameters.h"
+
 namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
+
+namespace {
+constexpr const char *PC_MODE_PARAM = "persist.sceneboard.ispcmode";
+} // namespace
+
+bool IsPcMode(bool defaultValue)
+{
+    return OHOS::system::GetBoolParameter(PC_MODE_PARAM, defaultValue);
+}
 
 bool ParseDecimalU64(std::string_view text, uint64_t &value)
 {

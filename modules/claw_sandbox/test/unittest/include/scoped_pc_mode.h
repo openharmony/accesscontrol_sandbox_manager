@@ -51,8 +51,9 @@ public:
 
 private:
     static constexpr const char *PC_MODE_PARAM_KEY = "persist.sceneboard.ispcmode";
-    // Mirrors the default in CheckShellTypeAllowed's GetBoolParameter call
-    // (sandbox_cmd_parser.cpp). Keep the two in step.
+    // Mirrors the default CheckShellTypeAllowed passes to IsPcMode
+    // (sandbox_cmd_parser.cpp). Keep the two in step. Note that the APP-level
+    // seccomp profile passes the opposite default; this one is the gate's.
     static constexpr const char *GATE_DEFAULT = "true";
     std::string saved_;
 };
