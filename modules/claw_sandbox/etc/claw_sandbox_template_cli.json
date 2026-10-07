@@ -139,5 +139,5 @@
       "check-exists": true
     }
   ],
-  "exec-selinux-types": ["sa_aimgr_climgr_exec_file", "print_aimgr_climgr_exec_file"]
+  "exec-selinux-types": ["sa_aimgr_climgr_exec_file", "print_aimgr_climgr_exec_file", "bm_aimgr_climgr_exec_file"]
 }
