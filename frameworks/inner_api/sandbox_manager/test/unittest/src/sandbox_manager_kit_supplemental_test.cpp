@@ -1317,7 +1317,7 @@ HWTEST_F(SandboxManagerKitSupplementalTest, StopAccessingPolicyCoverage001, Test
     std::vector<uint32_t> unPersistResult;
     ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
     EXPECT_EQ(1, unPersistResult.size());
-    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[1]);
+    EXPECT_EQ(OPERATE_SUCCESSFULLY, unPersistResult[0]);
 }
 
 /**
