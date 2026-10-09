@@ -155,6 +155,18 @@
       "target": "/data/app/bin",
       "mount-flags": ["bind", "rec"],
       "check-exists": true
+    },
+    {
+      "source": "/mnt/data/voldata",
+      "target": "/mnt/data/voldata",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
+    },
+    {
+      "source": "/mnt/data/external",
+      "target": "/mnt/data/external",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true
     }
   ],
   "env-policy": {
