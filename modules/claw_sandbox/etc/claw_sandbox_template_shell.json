@@ -155,18 +155,6 @@
       "target": "/data/app/bin",
       "mount-flags": ["bind", "rec"],
       "check-exists": true
-    },
-    {
-      "source": "/mnt/data/voldata",
-      "target": "/mnt/data/voldata",
-      "mount-flags": ["bind", "rec"],
-      "check-exists": true
-    },
-    {
-      "source": "/mnt/data/external",
-      "target": "/mnt/data/external",
-      "mount-flags": ["bind", "rec"],
-      "check-exists": true
     }
   ],
   "env-policy": {
@@ -234,6 +222,27 @@
     {
       "source": "/data/storage/el2/base",
       "target": "/data/storage/el2/base",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true,
+      "permissions": []
+    },
+    {
+      "source": "/data/storage/el1/base",
+      "target": "/data/storage/el1/base",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true,
+      "permissions": []
+    },
+    {
+      "source": "/storage/voldata",
+      "target": "/storage/voldata",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true,
+      "permissions": []
+    },
+    {
+      "source": "/storage/External",
+      "target": "/storage/External",
       "mount-flags": ["bind", "rec"],
       "check-exists": true,
       "permissions": []
