@@ -225,6 +225,27 @@
       "mount-flags": ["bind", "rec"],
       "check-exists": true,
       "permissions": []
+    },
+    {
+      "source": "/data/storage/el1/base",
+      "target": "/data/storage/el1/base",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true,
+      "permissions": []
+    },
+    {
+      "source": "/storage/voldata",
+      "target": "/storage/voldata",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true,
+      "permissions": []
+    },
+    {
+      "source": "/storage/External",
+      "target": "/storage/External",
+      "mount-flags": ["bind", "rec"],
+      "check-exists": true,
+      "permissions": []
     }
   ],
   "exec-selinux-types": ["sh_exec"]
