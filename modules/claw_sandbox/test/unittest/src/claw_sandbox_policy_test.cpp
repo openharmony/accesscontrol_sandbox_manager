@@ -22,8 +22,11 @@
 
 #include <cerrno>
 #include <climits>
+#include <cstdint>
 #include <string>
+#include <sys/stat.h>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 
 /*
@@ -43,6 +46,16 @@ namespace SANDBOX {
 
 namespace {
 constexpr int32_t TEST_MOCK_FD = 100;
+
+// TLV header: a u32 tag followed by a u32 payload length.
+constexpr size_t TLV_LEN_OFFSET = sizeof(uint32_t);
+constexpr size_t TLV_HEADER_SIZE = TLV_LEN_OFFSET + sizeof(uint32_t);
+// Every u32 filter-rule field (cmp type, item type, fd, ...) is four bytes.
+constexpr size_t TLV_U32_SIZE = sizeof(uint32_t);
+// A PATH rule's object list: the bound fd entity plus the string entity.
+constexpr uint32_t PATH_RULE_OBJECT_CNT = 2;
+// Socket protection: one deny rule each for read, write and delete.
+constexpr uint32_t SOCKET_GUARD_RULE_CNT = 3;
 
 /*
  * Rule group JSON covering both modules a dynamic policy may carry, so one
@@ -122,6 +135,120 @@ std::vector<SandboxPolicyRuleGroup> BuildRuleGroups(const char *json)
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     return ruleGroups;
 }
+
+// --- captured DEC_CMD_POLICY_ADD payload -----------------------------------
+
+struct CapturedTlvEntry {
+    uint32_t tag = 0;
+    std::vector<uint8_t> payload;
+};
+
+uint32_t ReadCapturedU32(const std::vector<uint8_t> &buf, size_t off)
+{
+    uint32_t value = 0;
+    for (size_t i = 0; i < sizeof(uint32_t); ++i) {
+        value |= static_cast<uint32_t>(buf[off + i]) << (i * CHAR_BIT);
+    }
+    return value;
+}
+
+// Walk the serialized TLV as one flat stream. The policy block is itself a TLV
+// sequence embedded after operation_size, so its entries show up here too.
+bool ParseCapturedTlv(const std::vector<uint8_t> &buf, std::vector<CapturedTlvEntry> &out)
+{
+    out.clear();
+    size_t off = 0;
+    while (off + TLV_HEADER_SIZE <= buf.size()) {
+        const uint32_t tag = ReadCapturedU32(buf, off);
+        const uint32_t len = ReadCapturedU32(buf, off + TLV_LEN_OFFSET);
+        if (off + TLV_HEADER_SIZE + len > buf.size()) {
+            return false;
+        }
+        CapturedTlvEntry entry;
+        entry.tag = tag;
+        entry.payload.assign(buf.begin() + off + TLV_HEADER_SIZE,
+            buf.begin() + off + TLV_HEADER_SIZE + len);
+        out.push_back(std::move(entry));
+        off += TLV_HEADER_SIZE + len;
+    }
+    return off == buf.size();
+}
+
+// What a captured socket-protection policy says, collapsed into the facts the
+// tests assert on.
+struct CapturedRuleSummary {
+    uint32_t rulesListCnt = 0;
+    bool sawRulesList = false;
+    uint32_t denyActions = 0;
+    uint32_t objectCounts = 0;
+    uint32_t suffixCmpTypes = 0;
+    bool sawRead = false;
+    bool sawWrite = false;
+    bool sawDelete = false;
+    bool badPayloadSize = false;
+    std::vector<std::string> pathItems;
+};
+
+// PATH items are NUL-terminated in the TLV; store them without the terminator.
+void AppendCapturedPathItem(const CapturedTlvEntry &entry, std::vector<std::string> &items)
+{
+    std::string item(reinterpret_cast<const char *>(entry.payload.data()), entry.payload.size());
+    if (!item.empty() && item.back() == '\0') {
+        item.pop_back();
+    }
+    items.push_back(std::move(item));
+}
+
+// Walk the captured TLV once and collect the socket-guard facts.
+CapturedRuleSummary SummarizeCapturedRules(const std::vector<CapturedTlvEntry> &entries)
+{
+    CapturedRuleSummary summary;
+    uint32_t lastItemType = DEC_POLICY_ITEM_TYPE_NR;
+    for (const CapturedTlvEntry &entry : entries) {
+        switch (entry.tag) {
+            case DEC_POLICY_TLV_RULESLIST_CNT:
+                summary.badPayloadSize |= entry.payload.size() != TLV_U32_SIZE;
+                summary.rulesListCnt = ReadCapturedU32(entry.payload, 0);
+                summary.sawRulesList = true;
+                break;
+            case DEC_POLICY_TLV_RULE_ACTION:
+                summary.badPayloadSize |= entry.payload.size() != TLV_U32_SIZE;
+                summary.denyActions +=
+                    (ReadCapturedU32(entry.payload, 0) == DEC_POLICY_ACTION_DENY) ? 1u : 0u;
+                break;
+            case DEC_POLICY_TLV_RULE_EVENT_TYPE: {
+                summary.badPayloadSize |= entry.payload.size() != TLV_U32_SIZE;
+                const uint32_t eventType = ReadCapturedU32(entry.payload, 0);
+                summary.sawRead |= eventType == DEC_POLICY_FILE_EVENT_READ;
+                summary.sawWrite |= eventType == DEC_POLICY_FILE_EVENT_WRITE;
+                summary.sawDelete |= eventType == DEC_POLICY_FILE_EVENT_DELETE;
+                break;
+            }
+            case DEC_POLICY_TLV_FILTER_RULE_OBJECT_CNT:
+                summary.badPayloadSize |= entry.payload.size() != TLV_U32_SIZE;
+                summary.objectCounts +=
+                    (ReadCapturedU32(entry.payload, 0) == PATH_RULE_OBJECT_CNT) ? 1u : 0u;
+                break;
+            case DEC_POLICY_TLV_FILTER_RULE_CMP_TYPE:
+                summary.badPayloadSize |= entry.payload.size() != TLV_U32_SIZE;
+                summary.suffixCmpTypes +=
+                    (ReadCapturedU32(entry.payload, 0) == DEC_POLICY_CMP_SUFFIX) ? 1u : 0u;
+                break;
+            case DEC_POLICY_TLV_FILTER_RULE_ITEM_TYPE:
+                summary.badPayloadSize |= entry.payload.size() != TLV_U32_SIZE;
+                lastItemType = ReadCapturedU32(entry.payload, 0);
+                break;
+            case DEC_POLICY_TLV_FILTER_RULE_ITEM:
+                if (lastItemType == DEC_POLICY_ITEM_TYPE_PATH) {
+                    AppendCapturedPathItem(entry, summary.pathItems);
+                }
+                break;
+            default:
+                break;
+        }
+    }
+    return summary;
+}
 } // namespace
 
 void ClawSandboxPolicyTest::SetUpTestCase() {}
@@ -135,6 +262,9 @@ void ClawSandboxPolicyTest::SetUp()
     g_ioctlMockState.failOnCallIndex = -1;
     g_ioctlMockState.ioctlErrno = EINVAL;
     g_ioctlMockState.ioctlCallCount = 0;
+    g_ioctlMockState.capturePolicy = false;
+    g_ioctlMockState.capturedModuleId = 0;
+    g_ioctlMockState.capturedPolicyTlv.clear();
 }
 
 void ClawSandboxPolicyTest::TearDown()
@@ -143,6 +273,9 @@ void ClawSandboxPolicyTest::TearDown()
     g_ioctlMockState.openFail = true;
     g_ioctlMockState.failOnCallIndex = -1;
     g_ioctlMockState.ioctlCallCount = 0;
+    g_ioctlMockState.capturePolicy = false;
+    g_ioctlMockState.capturedModuleId = 0;
+    g_ioctlMockState.capturedPolicyTlv.clear();
 }
 
 /**
@@ -740,6 +873,188 @@ HWTEST_F(ClawSandboxPolicyTest, AddOperationControlPolicies014, TestSize.Level0)
 
     // Only process reached the device.
     EXPECT_EQ(1, g_ioctlMockState.ioctlCallCount);
+}
+
+/**
+ * @tc.name: ResolveGuardedInode001
+ * @tc.desc: The guard carries the protected path's own inode - the only shape a
+ *           rule is refused for naming.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxPolicyTest, ResolveGuardedInode001, TestSize.Level0)
+{
+    const std::string path = ExistingFilePath();
+    struct stat st = {};
+    ASSERT_EQ(0, lstat(path.c_str(), &st));
+
+    GuardedInode guarded = ResolveGuardedInode(path);
+    ASSERT_TRUE(guarded.valid);
+    EXPECT_EQ(st.st_dev, guarded.dev);
+    EXPECT_EQ(st.st_ino, guarded.ino);
+}
+
+/**
+ * @tc.name: ResolveGuardedInode002
+ * @tc.desc: An existing path is guarded; a path that is not there is not guarded
+ *           at all.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxPolicyTest, ResolveGuardedInode002, TestSize.Level0)
+{
+    GuardedInode root = ResolveGuardedInode("/");
+    EXPECT_TRUE(root.valid);
+
+    GuardedInode missing = ResolveGuardedInode("/definitely/not/here/claw-ut.sock");
+    EXPECT_FALSE(missing.valid);
+}
+
+/**
+ * @tc.name: AddSocketProtectionPolicy004
+ * @tc.desc: One protection ioctl carries three deny EQ rules for the socket
+ *           inode - read, write and delete - and no SUFFIX rule: an EQ rule
+ *           outranks any pattern a config can bind to the parent directory.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxPolicyTest, AddSocketProtectionPolicy004, TestSize.Level0)
+{
+    const std::string socketPath = ExistingFilePath();
+    g_ioctlMockState.capturePolicy = true;
+
+    EXPECT_EQ(SANDBOX_SUCCESS, AddSocketProtectionPolicy(TEST_MOCK_FD, socketPath));
+    EXPECT_EQ(1, g_ioctlMockState.ioctlCallCount);
+    EXPECT_EQ(static_cast<uint32_t>(DEC_POLICY_OP_TYPE_FILE),
+        g_ioctlMockState.capturedModuleId);
+
+    std::vector<CapturedTlvEntry> entries;
+    ASSERT_TRUE(ParseCapturedTlv(g_ioctlMockState.capturedPolicyTlv, entries));
+
+    const CapturedRuleSummary summary = SummarizeCapturedRules(entries);
+
+    EXPECT_FALSE(summary.badPayloadSize);
+    EXPECT_TRUE(summary.sawRulesList);
+    EXPECT_EQ(SOCKET_GUARD_RULE_CNT, summary.rulesListCnt);
+    EXPECT_EQ(SOCKET_GUARD_RULE_CNT, summary.denyActions);
+    EXPECT_TRUE(summary.sawRead);
+    EXPECT_TRUE(summary.sawWrite);
+    EXPECT_TRUE(summary.sawDelete);
+    EXPECT_EQ(SOCKET_GUARD_RULE_CNT, summary.objectCounts);
+    EXPECT_EQ(0u, summary.suffixCmpTypes);
+
+    ASSERT_EQ(SOCKET_GUARD_RULE_CNT, summary.pathItems.size());
+    for (const std::string &item : summary.pathItems) {
+        EXPECT_EQ(socketPath, item);
+    }
+}
+
+/**
+ * @tc.name: AddSocketProtectionPolicy005
+ * @tc.desc: A path with no basename (here "/") gets the same three EQ rules and
+ *           still no SUFFIX rule.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxPolicyTest, AddSocketProtectionPolicy005, TestSize.Level0)
+{
+    g_ioctlMockState.capturePolicy = true;
+
+    EXPECT_EQ(SANDBOX_SUCCESS, AddSocketProtectionPolicy(TEST_MOCK_FD, "/"));
+    EXPECT_EQ(1, g_ioctlMockState.ioctlCallCount);
+
+    std::vector<CapturedTlvEntry> entries;
+    ASSERT_TRUE(ParseCapturedTlv(g_ioctlMockState.capturedPolicyTlv, entries));
+
+    const CapturedRuleSummary summary = SummarizeCapturedRules(entries);
+
+    EXPECT_FALSE(summary.badPayloadSize);
+    EXPECT_EQ(SOCKET_GUARD_RULE_CNT, summary.rulesListCnt);
+    EXPECT_EQ(SOCKET_GUARD_RULE_CNT, summary.denyActions);
+    EXPECT_TRUE(summary.sawRead);
+    EXPECT_TRUE(summary.sawWrite);
+    EXPECT_TRUE(summary.sawDelete);
+    EXPECT_EQ(SOCKET_GUARD_RULE_CNT, summary.objectCounts);
+    EXPECT_EQ(0u, summary.suffixCmpTypes);
+
+    ASSERT_EQ(SOCKET_GUARD_RULE_CNT, summary.pathItems.size());
+    for (const std::string &item : summary.pathItems) {
+        EXPECT_EQ("/", item);
+    }
+}
+
+/**
+ * @tc.name: AddOperationControlPolicies015
+ * @tc.desc: A dynamic SUFFIX rule bound to the socket's own parent directory
+ *           with the exact "/<name>" tail is delivered like any other
+ *           string-level rule. The socket's EQ protection outranks it in the
+ *           kernel, so the guard ignores the SUFFIX shape entirely.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxPolicyTest, AddOperationControlPolicies015, TestSize.Level0)
+{
+    const std::string real = ExistingFilePath();
+    const size_t slash = real.rfind('/');
+    ASSERT_NE(std::string::npos, slash);
+    const std::string pattern = real.substr(0, slash + 1) + "**/" + real.substr(slash + 1);
+
+    const std::string json =
+        R"({"AddOperationControlRuleGroups":[{"Scope":{"Type":"self_session"},)"
+        R"("File":{"AllowDelete":[")" + pattern + R"("]}}]})";
+    std::vector<SandboxPolicyRuleGroup> ruleGroups = BuildRuleGroups(json.c_str());
+    ASSERT_FALSE(ruleGroups.empty());
+
+    std::vector<PolicyScopeResult> results;
+    EXPECT_EQ(SANDBOX_SUCCESS,
+        AddOperationControlPolicies(TEST_MOCK_FD, ruleGroups, real, &results));
+    EXPECT_EQ(1, g_ioctlMockState.ioctlCallCount);
+    ASSERT_EQ(1u, results.size());
+    EXPECT_TRUE(results[0].errors.empty());
+    ASSERT_EQ(1u, results[0].delivered.size());
+    EXPECT_EQ(DEC_POLICY_OP_TYPE_FILE, results[0].delivered[0].module);
+    EXPECT_EQ(SANDBOX_SUCCESS, results[0].delivered[0].result);
+}
+
+/**
+ * @tc.name: AddOperationControlPolicies016
+ * @tc.desc: A different tail, and an identical tail bound to a higher
+ *           directory, are delivered too: only a rule naming the socket inode
+ *           itself is refused.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxPolicyTest, AddOperationControlPolicies016, TestSize.Level0)
+{
+    const std::string real = ExistingFilePath();
+    const size_t slash = real.rfind('/');
+    ASSERT_NE(std::string::npos, slash);
+    const std::string dir = real.substr(0, slash + 1);
+    const std::string name = real.substr(slash + 1);
+
+    const std::string dirNoSlash = dir.substr(0, dir.size() - 1);
+    const size_t up = dirNoSlash.rfind('/');
+    ASSERT_NE(std::string::npos, up);
+    const std::string grandDir = dirNoSlash.substr(0, up + 1);
+
+    const std::string differentTail = dir + "**/" + name + ".other";
+    const std::string higherDirectory = grandDir + "**/" + name;
+    const std::string json =
+        R"({"AddOperationControlRuleGroups":[{"Scope":{"Type":"self_session"},)"
+        R"("File":{"AllowDelete":[")" + differentTail + R"(",")" + higherDirectory +
+        R"("]}}]})";
+    std::vector<SandboxPolicyRuleGroup> ruleGroups = BuildRuleGroups(json.c_str());
+    ASSERT_FALSE(ruleGroups.empty());
+
+    std::vector<PolicyScopeResult> results;
+    EXPECT_EQ(SANDBOX_SUCCESS,
+        AddOperationControlPolicies(TEST_MOCK_FD, ruleGroups, real, &results));
+    EXPECT_EQ(1, g_ioctlMockState.ioctlCallCount);
+    ASSERT_EQ(1u, results.size());
+    EXPECT_TRUE(results[0].errors.empty());
+    ASSERT_EQ(1u, results[0].delivered.size());
+    EXPECT_EQ(DEC_POLICY_OP_TYPE_FILE, results[0].delivered[0].module);
+    EXPECT_EQ(SANDBOX_SUCCESS, results[0].delivered[0].result);
 }
 
 } // namespace SANDBOX

@@ -90,17 +90,24 @@ GuardedInode ResolveGuardedInode(const std::string &protectedPath)
     return guarded;
 }
 
-// Only file rules carry paths; a process rule's item is a bare command name.
-static const char *OperationLabel(DEC_POLICY_OP_TYPE module)
+// The operation a rule belongs to, for a rejection report. Only file rules carry
+// paths; a process rule's item is a bare command name, and exec is its only
+// operation. A file rule is named after its event bits, since that is what told
+// its read/write/delete apart in the first place - the rule itself no longer
+// remembers which array it came from.
+static const char *OperationLabel(DEC_POLICY_OP_TYPE module, uint32_t eventType)
 {
-    return module == DEC_POLICY_OP_TYPE_PROCESS ? "ProcessExecCmd" : "FileDelete";
+    if (module == DEC_POLICY_OP_TYPE_PROCESS) {
+        return "ProcessExecCmd";
+    }
+    return PolicyFileNameOfEvent(eventType);
 }
 
 // One entity list, mirroring how OpenPathRules splits off OpenFileFds. Returns
 // whether any PATH rule in it turned out to be the guarded object.
 static bool RefuseGuardedInEntities(
     std::vector<std::vector<SandboxPolicyTlv::FilterRule>> &entities,
-    DEC_POLICY_OP_TYPE module, const GuardedInode &guarded,
+    DEC_POLICY_OP_TYPE module, uint32_t eventType, const GuardedInode &guarded,
     std::vector<PolicyError> &errors)
 {
     bool found = false;
@@ -111,13 +118,17 @@ static bool RefuseGuardedInEntities(
             }
             // fstat cannot fail on an fd open() just returned.
             struct stat st = {};
-            const bool isGuarded = fstat(fr.fd, &st) == 0 &&
-                st.st_dev == guarded.dev && st.st_ino == guarded.ino;
-            if (!isGuarded) {
+            if (fstat(fr.fd, &st) != 0) {
                 continue;
             }
+
+            if (st.st_dev != guarded.dev || st.st_ino != guarded.ino) {
+                continue;
+            }
+
             SANDBOX_LOGE("Refusing a policy that names the monitor socket");
-            errors.push_back(PolicyError::ProtectedObject(OperationLabel(module), fr.path));
+            errors.push_back(PolicyError::ProtectedObject(
+                OperationLabel(module, eventType), fr.path));
             found = true;
         }
     }
@@ -125,11 +136,13 @@ static bool RefuseGuardedInEntities(
 }
 
 /*
- * Refuse any rule whose fd is the monitor socket.
+ * Refuse any rule that names the monitor socket. Runs after OpenFileFds, so the fd
+ * is already the one the kernel would bind to - immune to spelling and symlinks.
  *
- * Runs after OpenFileFds, so every PATH rule already holds the fd the kernel
- * would bind to - which is what makes this immune to the spelling, to a symlink
- * anywhere along the path, and to the path changing after the check.
+ * Only an EQ rule bound to the socket inode can name it this way: a SUFFIX rule
+ * binds a directory fd, so a config pattern covering the socket is deliberately
+ * left to the kernel's ordering, where the socket's own EQ protection outranks
+ * it. String-level rules get no special handling at all.
  */
 static bool RefuseGuardedInode(SandboxPolicyTlv &tlv, DEC_POLICY_OP_TYPE module,
     const GuardedInode &guarded, std::vector<PolicyError> &errors)
@@ -141,8 +154,8 @@ static bool RefuseGuardedInode(SandboxPolicyTlv &tlv, DEC_POLICY_OP_TYPE module,
     bool found = false;
     for (SandboxPolicyTlv::Policy &policy : tlv.policies) {
         for (SandboxPolicyTlv::Rule &rule : policy.rules) {
-            found |= RefuseGuardedInEntities(rule.subjectRules, module, guarded, errors);
-            found |= RefuseGuardedInEntities(rule.objectRules, module, guarded, errors);
+            found |= RefuseGuardedInEntities(rule.subjectRules, module, rule.eventType, guarded, errors);
+            found |= RefuseGuardedInEntities(rule.objectRules, module, rule.eventType, guarded, errors);
         }
     }
     return found;
@@ -250,29 +263,38 @@ int DeliverModuleToDevice(int deviceFd, const SandboxPolicyRuleGroup &group,
 }
 
 /*
- * Deny unlink and rmdir on one path, addressed by fd so the kernel binds the
- * rule to the inode rather than re-resolving the name.
+ * Deny reading, writing and deleting the socket. The EQ rule binds the socket
+ * inode directly, which outranks any SUFFIX rule a config pattern can bind to
+ * the parent directory, so carrying a string-level twin is unnecessary.
  */
-static void BuildSocketProtectionTlv(int fd, const std::string &socketPath,
+static void BuildSocketProtectionTlv(int socketFd, const std::string &socketPath,
     SandboxPolicyTlv &tlv)
 {
-    SandboxPolicyTlv::FilterRule objectRule;
-    objectRule.cmpType = DEC_POLICY_CMP_EQ;
-    objectRule.itemType = DEC_POLICY_ITEM_TYPE_PATH;
-    objectRule.fd = fd;
-    objectRule.path = socketPath;
-
-    SandboxPolicyTlv::Rule rule;
-    rule.action = DEC_POLICY_ACTION_DENY;
-    rule.eventType = static_cast<uint32_t>(DEC_POLICY_FILE_EVENT_RMDIR | DEC_POLICY_FILE_EVENT_UNLINK);
-    rule.objectRules.push_back(std::vector<SandboxPolicyTlv::FilterRule>{objectRule});
+    const uint32_t eventTypes[] = {
+        DEC_POLICY_FILE_EVENT_READ,
+        DEC_POLICY_FILE_EVENT_WRITE,
+        DEC_POLICY_FILE_EVENT_DELETE,
+    };
 
     SandboxPolicyTlv::Policy policy;
     policy.operationType = DEC_POLICY_OP_TYPE_FILE;
     // Left at NONE on purpose: this delivery must not disturb whatever default
     // action the caller's own file policy established.
     policy.defaultAction = DEC_POLICY_ACTION_NONE;
-    policy.rules.push_back(rule);
+
+    for (uint32_t eventType : eventTypes) {
+        SandboxPolicyTlv::FilterRule eqRule;
+        eqRule.cmpType = DEC_POLICY_CMP_EQ;
+        eqRule.itemType = DEC_POLICY_ITEM_TYPE_PATH;
+        eqRule.fd = socketFd;
+        eqRule.path = socketPath;
+
+        SandboxPolicyTlv::Rule rule;
+        rule.action = DEC_POLICY_ACTION_DENY;
+        rule.eventType = eventType;
+        rule.objectRules.push_back(std::vector<SandboxPolicyTlv::FilterRule>{eqRule});
+        policy.rules.push_back(std::move(rule));
+    }
 
     tlv.policies.push_back(std::move(policy));
 }
@@ -313,7 +335,7 @@ int AddSocketProtectionPolicy(int deviceFd, const std::string &socketPath)
     // O_NOFOLLOW, same as the rule fds in OpenPathRules: the rule must bind to
     // this path itself. Without it a symlink sitting where the socket belongs
     // would have us protect whatever it points at instead, and leave the socket
-    // itself unprotected. ELOOP then means exactly that, and is a failure.
+    // itself unprotected.
     int fd = open(socketPath.c_str(), O_PATH | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0) {
         if (errno == ENOENT) {
@@ -337,7 +359,7 @@ int AddSocketProtectionPolicy(int deviceFd, const std::string &socketPath)
         return ret;
     }
 
-    SANDBOX_LOGI("Monitor socket is protected against deletion");
+    SANDBOX_LOGI("Monitor socket is protected against read, write and deletion");
     return SANDBOX_SUCCESS;
 }
 

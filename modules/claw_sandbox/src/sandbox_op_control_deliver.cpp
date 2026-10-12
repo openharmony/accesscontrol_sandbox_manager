@@ -137,13 +137,6 @@ static int DeliverOneGroupModules(int fd, const SandboxPolicyRuleGroup &group,
     SANDBOX_LOGD("DeliverOneGroupModules: pid=%{public}d enter, fd=%{public}d scope type=%{public}s",
         getpid(), fd, PolicyScopeName(group.scope.type));
     for (DEC_POLICY_OP_TYPE module : STARTUP_DELIVERY_MODULES) {
-        /*
-         * No guarded inode here, unlike the dynamic path. The socket protection
-         * rule goes out last (AddSocketProtectionPolicy), so "newest rule per
-         * object" already puts it above anything the config said. A dynamic
-         * policy arrives after that rule and cannot outrank it, which is why
-         * that path has to check instead. The difference is timing, not intent.
-         */
         ModuleOutcome outcome;
         int ret = DeliverModuleToDevice(fd, group, module, GuardedInode {}, outcome);
         errors.insert(errors.end(), outcome.errors.begin(), outcome.errors.end());

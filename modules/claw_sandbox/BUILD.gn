@@ -35,6 +35,7 @@ if(!defined(ohos_lite)) {
       sources += [
         "src/sandbox_op_control_deliver.cpp",
         "src/sandbox_policy.cpp",
+        "src/sandbox_glob_pattern.cpp",
         "src/sandbox_op_control_parser.cpp",
         "src/sandbox_device_event.cpp",
         "src/sandbox_monitor.cpp",

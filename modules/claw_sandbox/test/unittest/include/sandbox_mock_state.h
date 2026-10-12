@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <string>
 #include <sys/types.h>
+#include <vector>
 
 namespace OHOS {
 namespace AccessControl {
@@ -62,6 +63,18 @@ struct IoctlMockState {
     int32_t failOnCallIndex = -1;      // ioctl call index that should fail (-1 = all succeed)
     int32_t ioctlErrno = EINVAL;       // errno value when ioctl fails
     int32_t ioctlCallCount = 0;        // incremented on each ioctl call to mockFd (reset per test)
+
+    /*
+     * DEC_CMD_POLICY_ADD payload capture, for tests that judge what was built
+     * rather than just how many ioctls went out. Off by default so the other
+     * delivery tests keep the mock's cheapest path.
+     *
+     * copied while the caller still owns the buffer: BuildAlPolicyContext is
+     * freed right after ioctl() returns.
+     */
+    bool capturePolicy = false;
+    uint32_t capturedModuleId = 0;
+    std::vector<uint8_t> capturedPolicyTlv;
 };
 
 extern IoctlMockState g_ioctlMockState;

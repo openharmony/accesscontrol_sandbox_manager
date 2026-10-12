@@ -137,11 +137,11 @@ enum DEC_POLICY_ITEM_TYPE : uint32_t {
 };
 
 /**
- * @brief Filter rule comparison operators, carried by TLV [11]FILTER_RULE_CMP_TYPE.
- *        Mirrors kernel enum dec_filter_rule_type (kernel_struct.h). The legacy
- *        STR_/UINT_ value-type variants are gone: the value type is derived by the
- *        kernel from the item tag. Only EQ is supported this version:
- *        AppendFilterRuleBlock rejects any other cmpType (incl. the _NR sentinel).
+ * @brief Filter rule comparison operators, TLV [11]FILTER_RULE_CMP_TYPE. Mirrors kernel
+ *        enum dec_filter_rule_type. A PATH item takes EQ/PREFIX/SUFFIX; a CMD item takes
+ *        EQ only, because the kernel does not match command names by prefix or suffix;
+ *        an fd is a bound handle and takes EQ only. NE and _NR are never emitted. PREFIX
+ *        has no producer today: a pattern's prefix travels as the fd instead.
  */
 enum DEC_POLICY_CMP_TYPE : uint32_t {
     DEC_POLICY_CMP_EQ = 0,
@@ -167,6 +167,38 @@ enum DEC_POLICY_FILE_EVENT : uint32_t {
     DEC_POLICY_FILE_EVENT_UNLINK = 0x80,
     DEC_POLICY_FILE_EVENT_RMDIR = 0x100,
 };
+
+/**
+ * @brief The three file operations as the event bits each covers. Write includes
+ *        rename/create so it cannot be bypassed; Read includes stat.
+ */
+inline constexpr uint32_t DEC_POLICY_FILE_EVENT_READ =
+    DEC_POLICY_FILE_EVENT_OPEN_READ | DEC_POLICY_FILE_EVENT_STAT;
+inline constexpr uint32_t DEC_POLICY_FILE_EVENT_WRITE =
+    DEC_POLICY_FILE_EVENT_OPEN_WRITE | DEC_POLICY_FILE_EVENT_CREATE |
+    DEC_POLICY_FILE_EVENT_LINK | DEC_POLICY_FILE_EVENT_RENAME |
+    DEC_POLICY_FILE_EVENT_MKDIR;
+inline constexpr uint32_t DEC_POLICY_FILE_EVENT_DELETE =
+    DEC_POLICY_FILE_EVENT_UNLINK | DEC_POLICY_FILE_EVENT_RMDIR;
+
+/**
+ * @brief The name a file operation goes by in reports and logs, keyed on event bits
+ *        since that is all a built rule carries. Shared by both call sites.
+ *        "File" is the floor for bits matching no single operation.
+ */
+inline const char *PolicyFileNameOfEvent(uint32_t eventType)
+{
+    if (eventType == DEC_POLICY_FILE_EVENT_READ) {
+        return "FileRead";
+    }
+    if (eventType == DEC_POLICY_FILE_EVENT_WRITE) {
+        return "FileWrite";
+    }
+    if (eventType == DEC_POLICY_FILE_EVENT_DELETE) {
+        return "FileDelete";
+    }
+    return "File";
+}
 
 /**
  * @brief Process event bit flags, carried by TLV [9]RULE_EVENT_TYPE. Mirrors
@@ -209,12 +241,22 @@ struct SandboxPolicyNetworkConfig {
 
 /**
  * @brief File operation control rules (AddOperationControlRuleGroups[].File).
- *        This version only supports Delete (rmdir/unlink) rules.
+ *
+ *        One deny/allow/ask trio each for Read, Write and Delete; the operations are
+ *        independent, but conflicting actions within one are refused. Every path must
+ *        name an existing file: the rule binds to its inode through an fd, so a file
+ *        that is not there yet cannot be named (see SandboxPolicyTlv::OpenFileFds).
  */
 struct SandboxPolicyFileConfig {
-    // Optional DefaultAction (NONE when not configured). Default action applied
-    // when no rule matches; explicit per-rule actions always win.
+    // Optional; NONE when not configured. One value for the whole file module, and
+    // explicit per-rule actions always win.
     DEC_POLICY_ACTION defaultAction = DEC_POLICY_ACTION_NONE;
+    std::vector<std::string> denyReadData;
+    std::vector<std::string> allowReadData;
+    std::vector<std::string> askReadData;
+    std::vector<std::string> denyWriteData;
+    std::vector<std::string> allowWriteData;
+    std::vector<std::string> askWriteData;
     std::vector<std::string> denyDelete;
     std::vector<std::string> allowDelete;
     std::vector<std::string> askDelete;
@@ -279,17 +321,22 @@ struct SandboxPolicyScopeBody {
 class SandboxPolicyTlv {
 public:
     /**
-     * @brief Single filter rule. On the wire a PATH rule is expanded into two
-     *        single-rule entities: an FD entity (item = the open fd) followed by
-     *        a PATH entity (item = path_str). A CMD rule stays a single entity
-     *        (item = cmd_str). The subject/object_item_cnt tags are not emitted;
-     *        entity_cnt equals the number of filter-rule blocks that follow.
+     * @brief Single filter rule. On the wire a PATH rule is an FD entity followed by
+     *        one PATH entity (the exact path for EQ, the tail after '**' for SUFFIX);
+     *        a CMD rule stays one entity. The subject/object_item_cnt tags are not
+     *        emitted; entity_cnt counts the filter-rule blocks that follow.
      */
     struct FilterRule {
         uint32_t cmpType = DEC_POLICY_CMP_NR;
         uint32_t itemType = DEC_POLICY_ITEM_TYPE_NR;
         int fd = -1;  // open() fd of a PATH rule, kept valid through the delivery ioctl
-        std::string path;  // PATH item value
+        // PATH item value for EQ; for SUFFIX, the prefix before '**' (the path whose fd
+        // carries the rule). Either way it is what OpenFileFds opens.
+        std::string path;
+        // A pattern's tail, sent as the SUFFIX item: empty for '**', "/<tail>" for a
+        // literal tail, and "<tail>" for the star-led form (the star is absorbed).
+        // Separate so no model walker mistakes a fragment (".jpg") for a path to open.
+        std::string pathSuffix;
         std::string cmd;   // CMD item value
     };
 
@@ -345,6 +392,10 @@ public:
      *        but every rule is still attempted so the caller hears about all of
      *        them. No-op for CMD rules. Pair with CloseFileFds() after the
      *        ioctl; also call it on error to release the fds that did open.
+     *
+     *        A wildcard pattern's rule path is its prefix (FilterRule::path), i.e.
+     *        the directory the rule binds to. The suffix is not opened: it names no
+     *        file of its own, and never has an fd to begin with.
      * @param errors Optional: every path that failed, with its errno text, is
      *        appended here, so a caller that answers someone else can name all
      *        of them at once.

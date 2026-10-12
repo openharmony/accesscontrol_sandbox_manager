@@ -38,8 +38,32 @@
 #include <cstdarg>
 #include <cstring>
 #include <fcntl.h>
+#include <sys/ioctl.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+
+#ifdef CONFIG_SHELL_SANDBOX
+#include "sandbox_device_ioctl.h"
+#endif
+
+/*
+ * ioctl's second parameter type is the libc's, not ours: musl (OHOS) declares
+ * int ioctl(int, int, ...), glibc and Darwin declare
+ * int ioctl(int, unsigned long, ...). Once <sys/ioctl.h> is in scope a
+ * definition with the other type is a conflicting declaration, so mirror
+ * whichever one this build has. glibc additionally declares it noexcept in
+ * C++, which the definition has to repeat.
+ */
+#if defined(__GLIBC__)
+using IoctlRequestType = unsigned long;
+#define MOCK_IOCTL_EXCEPTION_SPEC __THROW
+#elif defined(__APPLE__)
+using IoctlRequestType = unsigned long;
+#define MOCK_IOCTL_EXCEPTION_SPEC
+#else
+using IoctlRequestType = int;
+#define MOCK_IOCTL_EXCEPTION_SPEC
+#endif
 
 namespace OHOS {
 namespace AccessControl {
@@ -108,10 +132,27 @@ int openat(int dirfd, const char *path, int flags, ...)
  * failOnCallIndex. All other fd/request combinations are forwarded to
  * the real kernel via syscall(SYS_ioctl, ...).
  */
-int ioctl(int fd, unsigned long request, ...)
+int ioctl(int fd, IoctlRequestType request, ...) MOCK_IOCTL_EXCEPTION_SPEC
 {
     if (g_ioctlMockState.mockEnabled && fd == g_ioctlMockState.mockFd) {
         int callIdx = g_ioctlMockState.ioctlCallCount++;
+#ifdef CONFIG_SHELL_SANDBOX
+        // Compare the low 32 bits: the libc may have narrowed the unsigned long
+        // command to int on the way in, and the command is a u32 encoding anyway.
+        if (g_ioctlMockState.capturePolicy &&
+            static_cast<unsigned int>(request) == static_cast<unsigned int>(DEC_CMD_POLICY_ADD)) {
+            va_list ap;
+            va_start(ap, request);
+            // Same type the real call passes: va_arg must not change it.
+            const auto *arg = va_arg(ap, SandboxPolicyArg *);
+            va_end(ap);
+            if (arg != nullptr) {
+                // Copy before ioctl() returns: the caller frees the context.
+                g_ioctlMockState.capturedModuleId = arg->module_id;
+                g_ioctlMockState.capturedPolicyTlv.assign(arg->data, arg->data + arg->size);
+            }
+        }
+#endif
         if (callIdx == g_ioctlMockState.failOnCallIndex) {
             errno = g_ioctlMockState.ioctlErrno;
             return -1;
@@ -126,5 +167,7 @@ int ioctl(int fd, unsigned long request, ...)
     va_end(ap);
     return syscall(SYS_ioctl, fd, request, arg);
 }
+
+#undef MOCK_IOCTL_EXCEPTION_SPEC
 
 }  // extern "C"

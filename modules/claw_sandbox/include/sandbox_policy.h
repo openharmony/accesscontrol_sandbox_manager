@@ -104,13 +104,20 @@ int DeliverModuleToDevice(int deviceFd, const SandboxPolicyRuleGroup &group,
     DEC_POLICY_OP_TYPE module, const GuardedInode &guarded, ModuleOutcome &outcome);
 
 /*
- * Deny deleting the monitor socket, so the sandboxed program cannot unlink it
- * and put its own in its place.
+ * Deny reading, writing and deleting the monitor socket, so the sandboxed
+ * program can neither consume nor replace it.
+ *
+ * One EQ rule per operation, all bound to the socket inode. An EQ rule outranks
+ * any SUFFIX rule a config pattern can bind to the parent directory, so a
+ * string-level twin is not needed.
  *
  * Delivered as its own ioctl rather than merged into the caller's policy: a
  * kernel that refuses this one must not take the caller's rules down with it.
- * Delivering it last also means it wins over anything the config said about the
- * same path, since the kernel keeps the newest rule for an object.
+ * Delivering it last also means a rule the config wrote for the same object is
+ * replaced, since the kernel keeps the newest rule for an object. A dynamic
+ * policy arrives after this one, so the dynamic guard refuses an EQ rule that
+ * names the socket inode. A string-level rule gets no special handling: the
+ * kernel's ordering already puts this EQ protection ahead of it.
  *
  * Must run after pivot_root, in the sandbox's own mount namespace. The path
  * resolution that builds the rule is then the same one the child would do, so
