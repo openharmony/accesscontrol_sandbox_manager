@@ -183,11 +183,27 @@
     "ohos.permission.FILE_ACCESS_MANAGER":[{
       "sandbox-switch": "ON",
       "gids": [1006],
-      "dec-paths": []
+      "dec-paths": [
+        "/storage/Users/currentUser/Documents",
+        "/storage/Users/currentUser/Desktop",
+        "/storage/Users/currentUser/Download"
+      ]
     }],
     "ohos.permission.INTERNET":[{
       "sandbox-switch": "ON",
       "gids": [1097]
+    }],
+    "ohos.permission.CUSTOM_SANDBOX":[{
+      "sandbox-switch": "ON",
+      "gids": [1076]
+    }],
+    "ohos.permission.EXEC_CLI_TOOL":[{
+      "sandbox-switch": "ON",
+      "gids": [1076]
+    }],
+    "ohos.permission.EXEC_PUBLIC_CLI_TOOL":[{
+      "sandbox-switch": "ON",
+      "gids": [1076]
     }]
   },
   "conditional": [
