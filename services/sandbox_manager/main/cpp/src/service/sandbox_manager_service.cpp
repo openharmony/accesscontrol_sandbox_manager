@@ -351,8 +351,8 @@ int32_t SandboxManagerService::UnPersistPolicy(uint32_t tokenId)
     }
 
     ATokenTypeEnum tokenType = AccessTokenKit::GetTokenType(tokenId);
-    if (tokenType == TOKEN_INVALID) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unpersist failed, tokenId not exist");
+    if (tokenType == TOKEN_INVALID || tokenType == TOKEN_TYPE_BUTT) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unpersist failed, tokenType = %{public}u", tokenType);
         return INVALID_PARAMTER;
     }
 
@@ -753,8 +753,8 @@ int32_t SandboxManagerService::GetPersistPolicy(uint32_t tokenId, PolicyVecRawDa
     }
 
     ATokenTypeEnum tokenType = AccessTokenKit::GetTokenType(tokenId);
-    if (tokenType == TOKEN_INVALID) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "Get persist policy failed, tokenId not exist");
+    if (tokenType == TOKEN_INVALID || tokenType == TOKEN_TYPE_BUTT) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Get persist policy failed, tokenType = %{public}u", tokenType);
         return INVALID_PARAMTER;
     }
 
