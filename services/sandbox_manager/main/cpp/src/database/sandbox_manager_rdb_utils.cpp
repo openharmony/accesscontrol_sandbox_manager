@@ -115,6 +115,12 @@ void ToRdbPredicates(const GenericValues &conditionValue, const GenericValues& s
                 predicates.EqualTo(column, value);
             } else if (symbol == "<=") {
                 predicates.LessThanOrEqualTo(column, value);
+            } else if (symbol == ">") {
+                predicates.GreaterThan(column, value);
+            } else if (symbol == ">=") {
+                predicates.GreaterThanOrEqualTo(column, value);
+            } else if (symbol == "<") {
+                predicates.LessThan(column, value);
             } else {
                 SANDBOXMANAGER_LOG_ERROR(
                     LABEL, "Unknown symbol, input: %{public}s", symbol.c_str());
@@ -150,8 +156,9 @@ void ToRdbPredicates(const GenericValues &conditionValue, NativeRdb::RdbPredicat
 static void PutIntegerColumn(const std::shared_ptr<NativeRdb::ResultSet> &resultSet,
     int32_t columnIndex, const std::string &columnName, GenericValues &value)
 {
-    // Special handling for timestamp field - always use int64_t
-    if (columnName == PolicyFiledConst::FIELD_TIMESTAMP) {
+    // Special handling for timestamp fields - always use int64_t
+    if (columnName == PolicyFiledConst::FIELD_TIMESTAMP ||
+        columnName == PolicyFiledConst::FIELD_VOLUME_UNMOUNT_TS) {
         int64_t data = 0;
         int32_t errCode = resultSet->GetLong(columnIndex, data);
         if (errCode != NativeRdb::E_OK) {

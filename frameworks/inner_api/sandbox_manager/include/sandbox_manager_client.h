@@ -73,6 +73,8 @@ public:
     int32_t GetSharedDirectoryInfo(std::vector<SharedDirectoryInfo> &result);
     int32_t GrantSharedDirectoryPermission();
     int32_t RevokeSharedDirectoryPermission();
+    int32_t DeactivePolicyByPath(const std::string &volumeMountPath);
+    int32_t ActivePolicyByPath(const std::string &volumeMountPath);
 
 private:
     SandboxManagerClient() = default;

@@ -302,6 +302,19 @@ public:
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
     static int32_t RevokeSharedDirectoryPermission();
+
+    /**
+     * @brief Preserve persisted policies on external volume remove
+     * @param volumeMountPath mount path of the external volume being removed
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t DeactivePolicyByPath(const std::string &volumeMountPath);
+    /**
+     * @brief Restore persisted policies on external volume mount
+     * @param volumeMountPath mount path of the external volume being mounted
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t ActivePolicyByPath(const std::string &volumeMountPath);
 };
 } // SandboxManager
 } // AccessControl

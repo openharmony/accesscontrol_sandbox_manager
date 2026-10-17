@@ -88,6 +88,8 @@ public:
     int32_t GetSharedDirectoryInfo(SharedDirectoryInfoVecRawData &resultRawData) override;
     int32_t GrantSharedDirectoryPermission() override;
     int32_t RevokeSharedDirectoryPermission() override;
+    int32_t DeactivePolicyByPath(const std::string &volumeMountPath) override;
+    int32_t ActivePolicyByPath(const std::string &volumeMountPath) override;
 private:
     bool Initialize();
     bool InitDelayUnloadHandler();

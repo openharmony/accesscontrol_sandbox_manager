@@ -55,6 +55,8 @@ public:
     int32_t Find(const DataType type, const GenericValues &conditions,
         const GenericValues &symbols, std::vector<GenericValues> &results);
 
+    int32_t FindExpiredVolumeRecords(int64_t expiryThreshold, std::vector<GenericValues> &results);
+
     int32_t GetRecordCount(const DataType type, int32_t &count);
 
     int32_t GetTokenIdWithMostRecords(const DataType type, uint32_t &tokenId, uint32_t &count);
@@ -76,7 +78,7 @@ private:
     std::shared_ptr<NativeRdb::RdbStore> db_ = nullptr;
     std::mutex dbLock_;
     OHOS::Utils::RWLock rwLock_; // Used to ensure serialization of write operations
-    static const int DATABASE_VERSION = 3;
+    static const int DATABASE_VERSION = 4;
     
     std::shared_ptr<AppExecFwk::EventHandler> eventHandler_ = nullptr;
     int64_t dbCleanupDelay_ = 180000; // 180 seconds in milliseconds

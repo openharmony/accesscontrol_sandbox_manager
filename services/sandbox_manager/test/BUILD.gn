@@ -29,6 +29,7 @@ sandbox_manager_service_src = [
   "../main/cpp/src/media/media_path_support.cpp",
   "../main/cpp/src/share/share_files.cpp",
   "../main/cpp/src/preserve/persistent_preserve.cpp",
+  "../main/cpp/src/preserve/volume_preserve_manager.cpp",
 ]
 
 if (!sandbox_manager_process_resident) {
@@ -203,6 +204,7 @@ ohos_unittest("libsandbox_policy_test") {
     "unittest/policy_info_manager_test.cpp",
     "unittest/policy_info_manager_extended_test.cpp",
     "unittest/sandbox_param_validator_test.cpp",
+    "unittest/volume_preserve_test.cpp",
   ]
   sources += sandbox_manager_service_src
   sources += sandbox_manager_service_mock_src

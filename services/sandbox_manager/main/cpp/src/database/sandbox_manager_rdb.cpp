@@ -437,6 +437,47 @@ int32_t SandboxManagerRdb::FindSubPathIgnoreCase(
     return SUCCESS;
 }
 
+int32_t SandboxManagerRdb::FindExpiredVolumeRecords(
+    int64_t expiryThreshold, std::vector<GenericValues> &results)
+{
+    std::string tableName;
+    GetTableNameByType(SANDBOX_MANAGER_PERSISTED_POLICY, tableName);
+    if (tableName.empty()) {
+        return FAILURE;
+    }
+
+    std::shared_ptr<NativeRdb::RdbStore> db = GetRdb();
+    if (db == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
+        return FAILURE;
+    }
+
+    std::string sql = "select * from " + tableName + " where " +
+        PolicyFiledConst::FIELD_VOLUME_UNMOUNT_TS + " > 0 and " +
+        PolicyFiledConst::FIELD_VOLUME_UNMOUNT_TS + " < ?";
+
+    std::vector<NativeRdb::ValueObject> bindArgs;
+    bindArgs.emplace_back(static_cast<int64_t>(expiryThreshold));
+
+    OHOS::Utils::UniqueReadGuard<OHOS::Utils::RWLock> lock(rwLock_);
+    auto queryResultSet = db->QuerySql(sql, bindArgs);
+    if (queryResultSet == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to query expired volume records");
+        return FAILURE;
+    }
+    while (queryResultSet->GoToNextRow() == NativeRdb::E_OK) {
+        GenericValues value;
+        ResultToGenericValues(queryResultSet, value);
+        if (value.GetAllKeys().empty()) {
+            continue;
+        }
+        results.emplace_back(value);
+    }
+
+    ScheduleDbCleanup();
+    return SUCCESS;
+}
+
 int32_t SandboxManagerRdb::Find(const DataType type, const GenericValues& conditions,
     const GenericValues& symbols, std::vector<GenericValues>& results)
 {

@@ -61,6 +61,8 @@
         "OHOS::AccessControl::SandboxManager::SandboxManagerKit::GetSharedDirectoryInfo(std::__h::vector<OHOS::AccessControl::SandboxManager::SharedDirectoryInfo, std::__h::allocator<OHOS::AccessControl::SandboxManager::SharedDirectoryInfo>>&)";
         "OHOS::AccessControl::SandboxManager::SandboxManagerKit::GrantSharedDirectoryPermission()";
         "OHOS::AccessControl::SandboxManager::SandboxManagerKit::RevokeSharedDirectoryPermission()";
+        "OHOS::AccessControl::SandboxManager::SandboxManagerKit::DeactivePolicyByPath(std::__h::basic_string<char, std::__h::char_traits<char>, std::__h::allocator<char>> const&)";
+        "OHOS::AccessControl::SandboxManager::SandboxManagerKit::ActivePolicyByPath(std::__h::basic_string<char, std::__h::char_traits<char>, std::__h::allocator<char>> const&)";
         "";
     };
   local:

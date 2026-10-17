@@ -28,6 +28,7 @@
 #include "os_account_manager.h"
 #include "policy_info.h"
 #include "policy_info_manager.h"
+#include "volume_preserve_manager.h"
 #include "sandbox_manager_const.h"
 #include "sandbox_manager_dfx_helper.h"
 #include "sandbox_manager_err_code.h"
@@ -1268,6 +1269,36 @@ int32_t SandboxManagerService::KillProcessForPermissionUpdate(uint32_t accessTok
     // Read the result
     int32_t result = reply.ReadInt32();
     return result;
+}
+
+int32_t SandboxManagerService::DeactivePolicyByPath(const std::string &volumeMountPath)
+{
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!IsFileManagerCalling(callingTokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
+        return PERMISSION_DENIED;
+    }
+    if (volumeMountPath.empty() || volumeMountPath.length() > POLICY_PATH_LIMIT) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid volumeMountPath, length=%{public}zu", volumeMountPath.length());
+        return INVALID_PARAMTER;
+    }
+    return VolumePreserveManager::GetInstance().DeactivePolicyByPath(volumeMountPath);
+}
+
+int32_t SandboxManagerService::ActivePolicyByPath(const std::string &volumeMountPath)
+{
+    DelayUnloadService();
+    uint32_t callingTokenId = IPCSkeleton::GetCallingTokenID();
+    if (!IsFileManagerCalling(callingTokenId)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
+        return PERMISSION_DENIED;
+    }
+    if (volumeMountPath.empty() || volumeMountPath.length() > POLICY_PATH_LIMIT) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid volumeMountPath, length=%{public}zu", volumeMountPath.length());
+        return INVALID_PARAMTER;
+    }
+    return VolumePreserveManager::GetInstance().ActivePolicyByPath(volumeMountPath);
 }
 } // namespace SandboxManager
 } // namespace AccessControl

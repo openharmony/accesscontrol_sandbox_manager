@@ -402,6 +402,28 @@ int32_t SandboxManagerKit::RevokeSharedDirectoryPermission()
     SANDBOXMANAGER_LOG_INFO(LABEL, "RevokeSharedDirectoryPermission called");
     return SandboxManagerClient::GetInstance().RevokeSharedDirectoryPermission();
 }
+
+int32_t SandboxManagerKit::DeactivePolicyByPath(const std::string &volumeMountPath)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "DeactivePolicyByPath called, path=%{public}s",
+        volumeMountPath.c_str());
+    if (volumeMountPath.empty() || volumeMountPath.length() > POLICY_PATH_LIMIT) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid volumeMountPath, length=%{public}zu", volumeMountPath.length());
+        return SandboxManagerErrCode::INVALID_PARAMTER;
+    }
+    return SandboxManagerClient::GetInstance().DeactivePolicyByPath(volumeMountPath);
+}
+
+int32_t SandboxManagerKit::ActivePolicyByPath(const std::string &volumeMountPath)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "ActivePolicyByPath called, path=%{public}s",
+        volumeMountPath.c_str());
+    if (volumeMountPath.empty() || volumeMountPath.length() > POLICY_PATH_LIMIT) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid volumeMountPath, length=%{public}zu", volumeMountPath.length());
+        return SandboxManagerErrCode::INVALID_PARAMTER;
+    }
+    return SandboxManagerClient::GetInstance().ActivePolicyByPath(volumeMountPath);
+}
 } // SandboxManager
 } // AccessControl
 } // OHOS
