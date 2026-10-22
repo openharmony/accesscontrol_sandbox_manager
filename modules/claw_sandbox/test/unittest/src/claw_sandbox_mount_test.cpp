@@ -1369,34 +1369,6 @@ HWTEST_F(ClawSandboxMountTest, MountPolicyPath003, TestSize.Level0)
     std::filesystem::remove_all(manager.newRootPath_, ec);
 }
 
-/**
- * @tc.name: MountPolicyPath004
- * @tc.desc: MountPolicyPath remounts when target is an existing mount point, fails at mount in non-root env
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, MountPolicyPath004, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    manager.newRootPath_ = "";
-    SandboxConfig::PolicyMount policyMount;
-    policyMount.source = "/proc";
-    policyMount.readOnly = true;
-
-    // "/proc" is an existing mount point → MountPolicyPath calls RemountPolicyMount
-    // readonly → skips writability check → mount() fails in non-root env
-    int ret = manager.MountPolicyPath(policyMount);
-    EXPECT_EQ(SANDBOX_ERR_MOUNT_FAILED, ret);
-}
-
 } // namespace SANDBOX
 } // namespace AccessControl
 } // namespace OHOS

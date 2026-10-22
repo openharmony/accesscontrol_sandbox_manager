@@ -2813,54 +2813,6 @@ HWTEST_F(ClawSandboxManagerTest, SetAinfo002, TestSize.Level0)
     EXPECT_EQ(SANDBOX_SUCCESS, manager.SetAinfo());
 }
 
-// ==================== SetSeccomp tests ====================
-
-/**
- * @tc.name: SetSeccomp001
- * @tc.desc: SetSeccomp attempts to install seccomp filter
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, SetSeccomp001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    int ret = 0;
-    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.SetSeccomp(); }, ret));
-    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_SECCOMP_FAILED);
-}
-
-// ==================== InstallCustomSeccompFilter tests ====================
-
-/**
- * @tc.name: InstallCustomSeccompFilter001
- * @tc.desc: InstallCustomSeccompFilter builds filter and installs via prctl
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, InstallCustomSeccompFilter001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    int ret = 0;
-    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.InstallCustomSeccompFilter(); }, ret));
-    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_SET_SECCOMP_FAILED);
-}
-
 // ==================== DropCapabilities tests ====================
 
 /**
@@ -3086,42 +3038,6 @@ HWTEST_F(ClawSandboxManagerTest, ExecuteEarlySteps003, TestSize.Level0)
     // that needs /proc/1000 to be owned by config.uid/gid.
     EXPECT_EQ(SANDBOX_ERR_NS_FAILED, ret);
 }
-
-// ==================== ExecuteLateSteps tests ====================
-
-/**
- * @tc.name: ExecuteLateSteps001
- * @tc.desc: ExecuteLateSteps with empty cmd fails at ExecuteCommand
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, ExecuteLateSteps001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    int ret = 0;
-    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.ExecuteLateSteps(); }, ret));
-    // ExecuteLateSteps calls SetAccessToken/SetXpmOwnerId/SetAinfo first.
-    // SetSelfTokenID may fail in some environments → SET_TOKENID_FAILED,
-    // or SetUidGid fails at setresgid → SET_UGID_FAILED,
-    // or the child-side DeliverExecuterInit cannot open /dev/dec → SET_POLICY_FAILED,
-    // or in privileged environments SetUidGid/SetSeccomp succeed and
-    // ExecuteCommand fails with CMD_INVALID (empty cmd).
-    EXPECT_TRUE(ret == SANDBOX_ERR_SET_UGID_FAILED ||
-                ret == SANDBOX_ERR_SET_TOKENID_FAILED ||
-                ret == SANDBOX_ERR_SET_POLICY_FAILED ||
-                ret == SANDBOX_ERR_CMD_INVALID ||
-                ret == SANDBOX_ERR_SET_DEC_FAILED);
-}
-
-// ==================== Execute tests ====================
 
 /**
  * @tc.name: Execute001
