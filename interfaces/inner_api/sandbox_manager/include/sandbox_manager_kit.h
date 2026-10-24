@@ -315,6 +315,34 @@ public:
      * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
      */
     static int32_t ActivePolicyByPath(const std::string &volumeMountPath);
+
+    /**
+     * @brief Grant permission by user for specified tokenId and policies
+     *        Writes UGC permission records and sets MAC policies
+     * @param tokenId token id of the target application
+     * @param policies policy information to grant permission on URIs
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t GrantPermissionByUser(uint32_t tokenId, const std::vector<PolicyInfo> &policies);
+
+    /**
+     * @brief Revoke permission by user for specified tokenId and policies
+     *        Updates UGC permission status and unsets MAC policies
+     * @param tokenId token id of the target application
+     * @param policies policy information to revoke permission on URIs
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t RevokePermissionByUser(uint32_t tokenId, const std::vector<PolicyInfo> &policies);
+
+    /**
+     * @brief Get status of UGC permissions for specified tokenId list
+     *        Queries UGC_PERMISSION_TABLE for all records of each tokenId
+     * @param tokenIdList list of token ids to query
+     * @param result output permission status info for each result record
+     * @return SandboxManagerErrCode, see sandbox_manager_err_code.h
+     */
+    static int32_t GetStatusByPermission(const std::vector<uint32_t> &tokenIdList,
+        std::vector<PermissionStatusInfo> &result);
 };
 } // SandboxManager
 } // AccessControl

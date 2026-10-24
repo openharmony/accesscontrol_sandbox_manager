@@ -543,6 +543,65 @@ int32_t SandboxManagerClient::ActivePolicyByPath(const std::string &volumeMountP
         };
     return CallProxyWithRetry(func, __FUNCTION__);
 }
+
+int32_t SandboxManagerClient::GrantPermissionByUser(uint32_t tokenId, const std::vector<PolicyInfo> &policies)
+{
+    PolicyVecRawData policyRawData;
+    int32_t ret = policyRawData.Marshalling(policies);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Marshalling policies failed, ret=%{public}d", ret);
+        return ret;
+    }
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) {
+            return proxy->GrantPermissionByUser(tokenId, policyRawData);
+        };
+    return CallProxyWithRetry(func, __FUNCTION__);
+}
+
+int32_t SandboxManagerClient::RevokePermissionByUser(uint32_t tokenId, const std::vector<PolicyInfo> &policies)
+{
+    PolicyVecRawData policyRawData;
+    int32_t ret = policyRawData.Marshalling(policies);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Marshalling policies failed, ret=%{public}d", ret);
+        return ret;
+    }
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) {
+            return proxy->RevokePermissionByUser(tokenId, policyRawData);
+        };
+    return CallProxyWithRetry(func, __FUNCTION__);
+}
+
+int32_t SandboxManagerClient::GetStatusByPermission(const std::vector<uint32_t> &tokenIdList,
+    std::vector<PermissionStatusInfo> &result)
+{
+    result.clear();
+
+    Uint32VecRawData tokenIdListRawData;
+    int32_t ret = tokenIdListRawData.Marshalling(tokenIdList);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Marshalling tokenIdList failed, ret=%{public}d", ret);
+        return ret;
+    }
+
+    PermissionStatusInfoVecRawData resultRawData;
+    std::function<int32_t(sptr<ISandboxManager> &)> func =
+        [&](sptr<ISandboxManager> &proxy) {
+            return proxy->GetStatusByPermission(tokenIdListRawData, resultRawData);
+        };
+    ret = CallProxyWithRetry(func, __FUNCTION__);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Call GetStatusByPermission failed, ret=%{public}d", ret);
+        return ret;
+    }
+    ret = resultRawData.Unmarshalling(result);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshalling result failed");
+    }
+    return ret;
+}
 } // SandboxManager
 } // AccessControl
 } // OHOS

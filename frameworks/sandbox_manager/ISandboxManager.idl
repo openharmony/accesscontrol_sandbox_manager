@@ -20,6 +20,7 @@ rawdata OHOS.AccessControl.SandboxManager.BoolVecRawData;
 rawdata OHOS.AccessControl.SandboxManager.PolicyVecRawData;
 rawdata OHOS.AccessControl.SandboxManager.Uint32VecRawData;
 rawdata OHOS.AccessControl.SandboxManager.SharedDirectoryInfoVecRawData;
+rawdata OHOS.AccessControl.SandboxManager.PermissionStatusInfoVecRawData;
 option_stub_hooks on;
 
 interface OHOS.AccessControl.SandboxManager.ISandboxManager {
@@ -52,4 +53,7 @@ interface OHOS.AccessControl.SandboxManager.ISandboxManager {
     [ipccode 0xffc10] void GetPersistPolicy([in] unsigned int tokenId, [out] PolicyVecRawData policyRawData);
     [ipccode 0xffc11] void DeactivePolicyByPath([in] String volumeMountPath);
     [ipccode 0xffc12] void ActivePolicyByPath([in] String volumeMountPath);
+    [ipccode 0xffc13] void GetStatusByPermission([in] Uint32VecRawData tokenIdListRawData, [out] PermissionStatusInfoVecRawData resultRawData);
+    [ipccode 0xffc14] void GrantPermissionByUser([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData);
+    [ipccode 0xffc15] void RevokePermissionByUser([in] unsigned int tokenId, [in] PolicyVecRawData policyRawData);
 }

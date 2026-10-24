@@ -24,6 +24,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 #include "accesstoken_kit.h"
@@ -369,6 +370,52 @@ uint32_t PolicyInfoManager::FilterValidPolicyInBatch(const std::vector<PolicyInf
     }
     return policySize - passIndexes.size() - mediaIndexes.size();
 }
+
+uint32_t PolicyInfoManager::FilterValidPolicy(const std::vector<PolicyInfo> &policies,
+    std::vector<uint32_t> &results, std::vector<PolicyInfo> &validPolicies)
+{
+    size_t policySize = policies.size();
+    results.resize(policySize);
+    validPolicies.clear();
+    validPolicies.reserve(policySize);
+    uint32_t invalidNum = 0;
+    for (size_t i = 0; i < policySize; ++i) {
+        std::string normalizedPath = AdjustPath(policies[i].path);
+        if (!IsAllowedPath(normalizedPath)) {
+            LOGE_WITH_REPORT(LABEL, "Policy path is not in allowed paths, rejected: %{public}s",
+                SandboxManagerLog::MaskRealPath(normalizedPath).c_str());
+            results[i] = static_cast<uint32_t>(SandboxRetType::INVALID_PATH);
+            invalidNum++;
+            continue;
+        }
+        int32_t pathRet = SandboxParamValidator::ValidateGenericPath(normalizedPath);
+        if (pathRet != SANDBOX_MANAGER_OK) {
+            results[i] = static_cast<uint32_t>(pathRet);
+            invalidNum++;
+            continue;
+        }
+        int32_t modeRet = SandboxParamValidator::ValidateTempMode(policies[i].mode);
+        if (modeRet != SANDBOX_MANAGER_OK) {
+            results[i] = static_cast<uint32_t>(modeRet);
+            invalidNum++;
+            continue;
+        }
+        std::vector<std::string> components = splitPath(normalizedPath);
+        if (IsAppDataPathPrefix(components)) {
+            LOGE_WITH_REPORT(LABEL, "Policy path is appdata prefix, rejected: %{public}s",
+                SandboxManagerLog::MaskRealPath(normalizedPath).c_str());
+            results[i] = static_cast<uint32_t>(SandboxRetType::INVALID_PATH);
+            invalidNum++;
+            continue;
+        }
+        results[i] = static_cast<uint32_t>(SandboxRetType::OPERATE_SUCCESSFULLY);
+        PolicyInfo validPolicy = policies[i];
+        validPolicy.path = normalizedPath;
+        validPolicies.emplace_back(validPolicy);
+    }
+    return invalidNum;
+}
+
 int32_t PolicyInfoManager::AddToDatabaseIfNotDuplicate(const uint32_t tokenId, const std::vector<PolicyInfo> &policies,
     const std::vector<size_t> &passIndexes, const uint32_t flag, std::vector<uint32_t> &results)
 {
@@ -1795,6 +1842,27 @@ bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::strin
     return CheckShareMode(permission, policy.mode, maskedPath, bundleNameTmp);
 }
 
+bool PolicyInfoManager::IsAllowedPath(const std::string &path)
+{
+    static const std::vector<std::string> ALLOWED_PREFIXES = {
+        "/storage/Users/currentUser/Music",
+        "/storage/Users/currentUser/Images",
+        "/storage/Users/currentUser/Videos",
+        "/storage/External",
+        "/storage/userExternal",
+    };
+    for (const auto &prefix : ALLOWED_PREFIXES) {
+        if (path == prefix) {
+            return true;
+        }
+        if (path.size() > prefix.size() && path.compare(0, prefix.size(), prefix) == 0 &&
+            path[prefix.size()] == '/') {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Check if path components start with /storage/Users/currentUser/appdata prefix
 // Note: "appdata" is case-insensitive, while "storage", "Users", "currentUser" are case-sensitive
 bool PolicyInfoManager::IsAppDataPathPrefix(const std::vector<std::string> &components)
@@ -2284,6 +2352,144 @@ int32_t PolicyInfoManager::RevokeSharedDirectoryPermission(const uint32_t tokenI
     SANDBOXMANAGER_LOG_INFO(LABEL, "RevokeSharedDirectoryPermission success, revoked %{public}zu policies",
         policies.size());
     return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::GrantPermissionByUser(const uint32_t tokenId, const std::vector<PolicyInfo> &policies)
+{
+    std::vector<PolicyInfo> validPolicies;
+    std::vector<uint32_t> results;
+    FilterValidPolicy(policies, results, validPolicies);
+    if (validPolicies.empty()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "GrantPermissionByUser: no valid policies after filtering");
+        return SANDBOX_MANAGER_OK;
+    }
+
+    std::vector<GenericValues> addValues;
+    addValues.reserve(validPolicies.size());
+    for (const auto &policy : validPolicies) {
+        GenericValues value;
+        value.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(tokenId));
+        value.Put(PolicyFiledConst::FIELD_PATH, policy.path);
+        value.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(policy.mode));
+        value.Put(PolicyFiledConst::FIELD_STATUS,
+            static_cast<int64_t>(UgcPermissionStatus::UGC_PERMISSION_GRANTED));
+        addValues.emplace_back(value);
+    }
+
+    int32_t ret = SandboxManagerRdb::GetInstance().Add(
+        SANDBOX_MANAGER_UGC_PERMISSION, addValues, SandboxManagerRdb::REPLACE);
+    if (ret != SandboxManagerRdb::SUCCESS) {
+        LOGE_WITH_REPORT(LABEL, "GrantPermissionByUser database operate error, ret=%{public}d", ret);
+        return SANDBOX_MANAGER_DB_ERR;
+    }
+
+    std::vector<size_t> validIndex;
+    validIndex.reserve(validPolicies.size());
+    for (size_t i = 0; i < validPolicies.size(); ++i) {
+        validIndex.emplace_back(i);
+    }
+    MacParams macParams = {tokenId, 0, 0, 0};
+    PolicyInfoInner info = {0, validPolicies.size(), SetPolicyType::NORMAL_POLICY};
+    std::vector<uint32_t> setResult(validPolicies.size(), SANDBOX_MANAGER_OK);
+    ret = SetPolicyInner(validPolicies, validIndex, macParams, setResult, info);
+    if (ret != SANDBOX_MANAGER_OK) {
+        LOGE_WITH_REPORT(LABEL, "GrantPermissionByUser SetPolicyInner failed, ret=%{public}d", ret);
+        return ret;
+    }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GrantPermissionByUser success, granted %{public}zu policies",
+        validPolicies.size());
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t PolicyInfoManager::RevokePermissionByUser(const uint32_t tokenId, const std::vector<PolicyInfo> &policies)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "RevokePermissionByUser called, tokenId=%{public}u, count=%{public}zu",
+        tokenId, policies.size());
+
+    std::vector<PolicyInfo> validPolicies;
+    std::vector<uint32_t> results;
+    FilterValidPolicy(policies, results, validPolicies);
+    if (validPolicies.empty()) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "RevokePermissionByUser: no valid policies after filtering");
+        return SANDBOX_MANAGER_OK;
+    }
+
+    int32_t ret = SANDBOX_MANAGER_OK;
+    for (const auto &policy : validPolicies) {
+        GenericValues modifyValues;
+        modifyValues.Put(PolicyFiledConst::FIELD_STATUS,
+            static_cast<int64_t>(UgcPermissionStatus::UGC_PERMISSION_DENIED));
+
+        GenericValues conditions;
+        conditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(tokenId));
+        conditions.Put(PolicyFiledConst::FIELD_PATH, policy.path);
+        conditions.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(policy.mode));
+
+        int32_t dbRet = SandboxManagerRdb::GetInstance().Modify(
+            SANDBOX_MANAGER_UGC_PERMISSION, modifyValues, conditions);
+        if (dbRet != SandboxManagerRdb::SUCCESS) {
+            LOGE_WITH_REPORT(LABEL, "RevokePermissionByUser Modify failed, ret=%{public}d", dbRet);
+            ret = SANDBOX_MANAGER_DB_ERR;
+            continue;
+        }
+        std::vector<uint32_t> setResult;
+        int32_t macRet = UnSetPolicy(tokenId, {policy}, setResult);
+        if (macRet != SANDBOX_MANAGER_OK) {
+            LOGE_WITH_REPORT(LABEL, "RevokePermissionByUser UnSetPolicy failed, ret=%{public}d", macRet);
+            ret = macRet;
+        }
+    }
+
+    if (ret == SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "RevokePermissionByUser success, revoked %{public}zu policies",
+            validPolicies.size());
+    }
+    return ret;
+}
+
+int32_t PolicyInfoManager::GetStatusByPermission(const std::vector<uint32_t> &tokenIdList,
+    std::vector<PermissionStatusInfo> &result)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GetStatusByPermission called, tokenIdList size=%{public}zu",
+        tokenIdList.size());
+
+    result.clear();
+
+    std::vector<GenericValues> dbResults;
+    int32_t ret = SandboxManagerRdb::GetInstance().FindByTokenIds(
+        SANDBOX_MANAGER_UGC_PERMISSION, tokenIdList, dbResults);
+    if (ret != SandboxManagerRdb::SUCCESS) {
+        LOGE_WITH_REPORT(LABEL, "GetStatusByPermission FindByTokenIds failed, ret=%{public}d", ret);
+        return SANDBOX_MANAGER_DB_ERR;
+    }
+
+    for (const auto &values : dbResults) {
+        PermissionStatusInfo info;
+        info.tokenId = static_cast<uint32_t>(values.GetInt(PolicyFiledConst::FIELD_TOKENID));
+        info.policyInfo.path = values.GetString(PolicyFiledConst::FIELD_PATH);
+        info.policyInfo.mode = static_cast<uint64_t>(values.GetInt(PolicyFiledConst::FIELD_MODE));
+        info.grantStatus = static_cast<int32_t>(values.GetInt(PolicyFiledConst::FIELD_STATUS));
+        result.emplace_back(info);
+    }
+
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GetStatusByPermission success, returned %{public}zu records",
+        result.size());
+    return SANDBOX_MANAGER_OK;
+}
+
+void PolicyInfoManager::RemoveUgcPermissionByTokenId(const uint32_t tokenId)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "RemoveUgcPermissionByTokenId called, tokenId=%{public}u", tokenId);
+
+    GenericValues conditions;
+    conditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(tokenId));
+    int32_t ret = SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_UGC_PERMISSION, conditions);
+    if (ret != SandboxManagerRdb::SUCCESS) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "RemoveUgcPermissionByTokenId failed, ret=%{public}d", ret);
+        return;
+    }
+    SANDBOXMANAGER_LOG_INFO(LABEL, "RemoveUgcPermissionByTokenId success, tokenId=%{public}u", tokenId);
 }
 } // namespace SandboxManager
 } // namespace AccessControl

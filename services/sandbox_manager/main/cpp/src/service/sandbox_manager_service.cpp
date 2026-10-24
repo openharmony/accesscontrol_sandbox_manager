@@ -371,6 +371,9 @@ int32_t SandboxManagerService::UnPersistPolicy(uint32_t tokenId)
         return ret;
     }
 
+    // Remove all UGC permission records for this tokenId
+    PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId);
+
     if (tokenType == ATokenTypeEnum::TOKEN_HAP) {
         ret = KillProcessForPermissionUpdate(tokenId);
         if (ret != 0) {
@@ -1223,6 +1226,122 @@ int32_t SandboxManagerService::RevokeSharedDirectoryPermission()
     int32_t userId = GetOsAccountLocalIdFromUid(IPCSkeleton::GetCallingUid());
 
     return PolicyInfoManager::GetInstance().RevokeSharedDirectoryPermission(callingTokenId, userId);
+}
+
+int32_t SandboxManagerService::GrantPermissionByUser(uint32_t tokenId, const PolicyVecRawData &policyRawData)
+{
+    DelayUnloadService();
+    uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
+    if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
+        LOGE_WITH_REPORT(LABEL, "GrantPermissionByUser failed, not system app");
+        return SANDBOX_MANAGER_NOT_SYS_APP;
+    }
+
+    AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
+    if (!CheckPermission(callingTokenId, GRANT_SENSITIVE_PERMISSIONS_NAME)) {
+        LOGE_WITH_REPORT(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
+        return PERMISSION_DENIED;
+    }
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid tokenId=0");
+        return INVALID_PARAMTER;
+    }
+    std::vector<PolicyInfo> policies;
+    int32_t ret = policyRawData.Unmarshalling(policies);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshalling policies failed, ret=%{public}d", ret);
+        return ret;
+    }
+    if (policies.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policies is empty");
+        return INVALID_PARAMTER;
+    }
+    return PolicyInfoManager::GetInstance().GrantPermissionByUser(tokenId, policies);
+}
+
+int32_t SandboxManagerService::RevokePermissionByUser(uint32_t tokenId, const PolicyVecRawData &policyRawData)
+{
+    DelayUnloadService();
+    uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
+    if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
+        LOGE_WITH_REPORT(LABEL, "RevokePermissionByUser failed, not system app");
+        return SANDBOX_MANAGER_NOT_SYS_APP;
+    }
+
+    AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
+    if (!CheckPermission(callingTokenId, REVOKE_SENSITIVE_PERMISSIONS_NAME)) {
+        LOGE_WITH_REPORT(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
+        return PERMISSION_DENIED;
+    }
+    if (tokenId == 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid tokenId=0");
+        return INVALID_PARAMTER;
+    }
+    std::vector<PolicyInfo> policies;
+    int32_t ret = policyRawData.Unmarshalling(policies);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshalling policies failed, ret=%{public}d", ret);
+        return ret;
+    }
+    if (policies.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Policies is empty");
+        return INVALID_PARAMTER;
+    }
+    ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, policies);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+    ATokenTypeEnum tokenType = AccessTokenKit::GetTokenType(tokenId);
+    if (tokenType == ATokenTypeEnum::TOKEN_HAP) {
+        ret = KillProcessForPermissionUpdate(tokenId);
+        if (ret != 0) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Kill process failed for tokenId=%{public}u, error=%{public}d",
+                tokenId, ret);
+            return SANDBOX_MANAGER_KILL_PROCESS_ERR;
+        }
+    }
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t SandboxManagerService::GetStatusByPermission(const Uint32VecRawData &tokenIdListRawData,
+    PermissionStatusInfoVecRawData &resultRawData)
+{
+    DelayUnloadService();
+    uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
+    if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
+        LOGE_WITH_REPORT(LABEL, "GetStatusByPermission failed, not system app");
+        return SANDBOX_MANAGER_NOT_SYS_APP;
+    }
+
+    AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
+    if (!CheckPermission(callingTokenId, GET_SENSITIVE_PERMISSIONS_NAME)) {
+        LOGE_WITH_REPORT(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
+        return PERMISSION_DENIED;
+    }
+    std::vector<uint32_t> tokenIdList;
+    int32_t ret = tokenIdListRawData.Unmarshalling(tokenIdList);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Unmarshalling tokenIdList failed, ret=%{public}d", ret);
+        return ret;
+    }
+    if (tokenIdList.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "tokenIdList is empty");
+        return INVALID_PARAMTER;
+    }
+    for (uint32_t tokenId : tokenIdList) {
+        if (tokenId == 0) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Invalid tokenId=0 in list");
+            return INVALID_PARAMTER;
+        }
+    }
+    std::vector<PermissionStatusInfo> result;
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, result);
+    if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "GetStatusByPermission failed, ret=%{public}d", ret);
+        return ret;
+    }
+    resultRawData.Marshalling(result);
+    return SANDBOX_MANAGER_OK;
 }
 
 int32_t SandboxManagerService::KillProcessForPermissionUpdate(uint32_t accessTokenId)

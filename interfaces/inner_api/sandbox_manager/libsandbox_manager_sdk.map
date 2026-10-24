@@ -63,6 +63,9 @@
         "OHOS::AccessControl::SandboxManager::SandboxManagerKit::RevokeSharedDirectoryPermission()";
         "OHOS::AccessControl::SandboxManager::SandboxManagerKit::DeactivePolicyByPath(std::__h::basic_string<char, std::__h::char_traits<char>, std::__h::allocator<char>> const&)";
         "OHOS::AccessControl::SandboxManager::SandboxManagerKit::ActivePolicyByPath(std::__h::basic_string<char, std::__h::char_traits<char>, std::__h::allocator<char>> const&)";
+        "OHOS::AccessControl::SandboxManager::SandboxManagerKit::GrantPermissionByUser(unsigned int, std::__h::vector<OHOS::AccessControl::SandboxManager::PolicyInfo, std::__h::allocator<OHOS::AccessControl::SandboxManager::PolicyInfo>> const&)";
+        "OHOS::AccessControl::SandboxManager::SandboxManagerKit::RevokePermissionByUser(unsigned int, std::__h::vector<OHOS::AccessControl::SandboxManager::PolicyInfo, std::__h::allocator<OHOS::AccessControl::SandboxManager::PolicyInfo>> const&)";
+        "OHOS::AccessControl::SandboxManager::SandboxManagerKit::GetStatusByPermission(std::__h::vector<unsigned int, std::__h::allocator<unsigned int>> const&, std::__h::vector<OHOS::AccessControl::SandboxManager::PermissionStatusInfo, std::__h::allocator<OHOS::AccessControl::SandboxManager::PermissionStatusInfo>>&)";
         "";
     };
   local:

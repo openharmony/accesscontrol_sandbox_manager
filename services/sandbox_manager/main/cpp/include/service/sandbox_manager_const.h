@@ -34,6 +34,9 @@ const std::string GET_PERSIST_PERMISSION_NAME = "ohos.permission.GET_FILE_ACCESS
 const std::string REVOKE_PERSIST_PERMISSION_NAME = "ohos.permission.REVOKE_FILE_ACCESS_PERSIST";
 const std::string FILE_ACCESS_PERMISSION_NAME = "ohos.permission.FILE_ACCESS_MANAGER";
 const std::string ACCESS_SHARED_FILE_NAME = "ohos.permission.ACCESS_SHARED_FILE";
+const std::string GRANT_SENSITIVE_PERMISSIONS_NAME = "ohos.permission.GRANT_SENSITIVE_PERMISSIONS";
+const std::string REVOKE_SENSITIVE_PERMISSIONS_NAME = "ohos.permission.REVOKE_SENSITIVE_PERMISSIONS";
+const std::string GET_SENSITIVE_PERMISSIONS_NAME = "ohos.permission.GET_SENSITIVE_PERMISSIONS";
 
 const int32_t SPACE_MGR_SERVICE_UID = 7013;
 const int32_t FOUNDATION_UID = 5523;

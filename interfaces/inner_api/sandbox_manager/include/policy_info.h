@@ -78,6 +78,17 @@ struct SharedDirectoryInfo final {
     std::string path;
     OperateMode permissionMode;
 };
+
+typedef enum UgcPermissionStatus {
+    UGC_PERMISSION_DENIED = -1,
+    UGC_PERMISSION_GRANTED = 0,
+} UgcPermissionStatus;
+
+struct PermissionStatusInfo final {
+    uint32_t tokenId = 0;
+    PolicyInfo policyInfo;
+    int32_t grantStatus = UGC_PERMISSION_DENIED;
+};
 } // namespace SandboxManager
 } // namespace AccessControl
 } // namespace OHOS
