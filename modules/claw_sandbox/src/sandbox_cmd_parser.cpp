@@ -118,6 +118,7 @@ constexpr size_t MAX_CLI_NAME_LENGTH = 256;
 constexpr size_t MAX_SUB_CLI_NAME_LENGTH = 256;
 constexpr size_t MAX_CHALLENGE_LENGTH = 40960;
 constexpr size_t MAX_APP_IDENTIFIER_LENGTH = 64;
+constexpr size_t MAX_SUBJECT_ID_LENGTH = 4096;
 constexpr size_t MAX_BUNDLE_NAME_LENGTH = 256;
 constexpr size_t MAX_WORKDIR_LENGTH = 1024;
 constexpr size_t MAX_ENV_LENGTH = 10240;
@@ -666,6 +667,10 @@ int CmdParser::ParseConfig(const std::string &jsonStr, SandboxConfig &config)
         [&]() -> int { return ParseNameField(root, config.name); },
         [&]() -> int {
             return ParseOptionalStringFieldWithMaxLen(root, "workdir", config.workdir, MAX_WORKDIR_LENGTH);
+        },
+        [&]() -> int {
+            return ParseOptionalStringFieldWithMaxLen(root, "subjectId", config.subjectId,
+                                                      MAX_SUBJECT_ID_LENGTH);
         },
         [&]() -> int { return ParseEnvField(root, config.env); },
         [&]() -> int { return ParsePolicyField(root, config.policy); },

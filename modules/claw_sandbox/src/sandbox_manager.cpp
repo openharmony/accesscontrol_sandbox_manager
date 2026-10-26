@@ -267,9 +267,6 @@ constexpr uint8_t BPF_JEQ_SKIP_1ARG = BPF_PER_UID_SYSCALL_1ARG - 1;  // 3
 constexpr uint8_t BPF_JEQ_SKIP_2ARG = BPF_PER_UID_SYSCALL_2ARG - 1;  // 6
 constexpr uint8_t BPF_JEQ_SKIP_3ARG = BPF_PER_UID_SYSCALL_3ARG - 1;  // 9
 
-// Low 32-bit mask for extracting AccessTokenID from AccessTokenIDEx
-constexpr uint64_t TOKEN_ID_LOWMASK = 0xFFFFFFFF;
-
 SandboxManager::SandboxManager() {}
 
 SandboxManager::~SandboxManager()
@@ -626,6 +623,10 @@ int SandboxManager::ExecuteLateSteps()
         &SandboxManager::SetAccessToken,
         &SandboxManager::SetXpmOwnerId,
         &SandboxManager::SetAinfo,
+#ifdef CONFIG_SHELL_SANDBOX
+        // Fetch tool credentials at uid=0 stage (PC shell only)
+        &SandboxManager::FetchToolCredentials,
+#endif
         &SandboxManager::SetUidGid,
 #ifdef CONFIG_SHELL_SANDBOX
         // Pre-deny DEC for paths without permission (before DEC authorization).
@@ -637,6 +638,10 @@ int SandboxManager::ExecuteLateSteps()
         &SandboxManager::PrepareWorkdir,
         // Apply optional environment after UID/GID switch so exec inherits the final environment.
         &SandboxManager::ApplyEnvironment,
+#ifdef CONFIG_SHELL_SANDBOX
+        // Inject tool credentials into the environment (PC shell only)
+        &SandboxManager::SetToolCredentials,
+#endif
         // Set Seccomp (always applied to block setpgid/setsid for process group protection).
         &SandboxManager::SetSeccomp,
 #ifdef CONFIG_SHELL_SANDBOX

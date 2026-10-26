@@ -57,6 +57,7 @@ struct SandboxConfig {
     std::string challenge;
     std::string appIdentifier;             // App identifier (must parse as a u64)
     uint64_t appIdentifierU64 = 0;         // Numeric form of appIdentifier; set by ParseConfig
+    std::string subjectId;                 // Subject ID for the SAF tool-credential request
     std::string bundleName;                // Bundle name for <PackageName> substitution
     std::string currentUserId;             // Current user ID for <currentUserId> substitution
     std::string name;                      // Optional hex sandbox name (max 64 chars)

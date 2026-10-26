@@ -34,6 +34,7 @@
         "ability_runtime",
         "access_token",
         "appspawn",
+        "asset",
         "bundle_framework",
         "cJSON",
         "c_utils",

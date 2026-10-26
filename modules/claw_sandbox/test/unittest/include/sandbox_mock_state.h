@@ -19,6 +19,8 @@
 #include <cerrno>
 #include <cstdint>
 #include <string>
+#include <utility>
+#include <vector>
 #include <sys/types.h>
 
 namespace OHOS {
@@ -126,6 +128,23 @@ struct ExecMockState {
 };
 
 extern ExecMockState g_execMockState;
+
+#ifdef CONFIG_SHELL_SANDBOX
+/*
+ * Mock state for SafCredential::GetToolCredential, used by
+ * acquire_tool_credential_mock_stub.cpp.
+ *
+ * Tests set mockEnabled, getToolCredentialRet and credentials before calling
+ * FetchToolCredentials.
+ */
+struct ToolCredentialMockState {
+    bool mockEnabled = false;
+    int32_t getToolCredentialRet = 0;  // 0 is SAF_SUCCESS
+    std::vector<std::pair<std::string, std::string>> credentials;
+};
+
+extern ToolCredentialMockState g_toolCredentialMockState;
+#endif
 
 }  // namespace SANDBOX
 }  // namespace AccessControl
