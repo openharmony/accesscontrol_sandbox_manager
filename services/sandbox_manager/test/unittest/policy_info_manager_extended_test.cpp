@@ -555,6 +555,569 @@ HWTEST_F(NewPolicyTests, GetPersistPolicyTest_EmptyResults, TestSize.Level0)
     EXPECT_EQ(0, retrievedPolicies.size());
 }
 
+/**
+ * @tc.name: FilterValidPolicyTest001
+ * @tc.desc: Test FilterValidPolicy with all valid policies
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, FilterValidPolicyTest001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Images", OperateMode::READ_MODE | OperateMode::WRITE_MODE},
+    };
+    std::vector<uint32_t> results;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = PolicyInfoManager::GetInstance().FilterValidPolicy(policies, results, validPolicies);
+
+    EXPECT_EQ(0u, invalidNum);
+    ASSERT_EQ(2u, validPolicies.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, results[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, results[1]);
+}
+
+/**
+ * @tc.name: FilterValidPolicyTest002
+ * @tc.desc: Test FilterValidPolicy with all invalid policies (bad mode)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, FilterValidPolicyTest002, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/Music", OperateMode::MAX_MODE},
+        {"/storage/Users/currentUser/Images", 0},
+    };
+    std::vector<uint32_t> results;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = PolicyInfoManager::GetInstance().FilterValidPolicy(policies, results, validPolicies);
+
+    EXPECT_EQ(2u, invalidNum);
+    EXPECT_EQ(0u, validPolicies.size());
+    EXPECT_EQ(SandboxRetType::INVALID_MODE, results[0]);
+    EXPECT_EQ(SandboxRetType::INVALID_MODE, results[1]);
+}
+
+/**
+ * @tc.name: FilterValidPolicyTest003
+ * @tc.desc: Test FilterValidPolicy with all invalid policies (empty path)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, FilterValidPolicyTest003, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policies = {
+        {"", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+    };
+    std::vector<uint32_t> results;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = PolicyInfoManager::GetInstance().FilterValidPolicy(policies, results, validPolicies);
+
+    EXPECT_EQ(1u, invalidNum);
+    ASSERT_EQ(1u, validPolicies.size());
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, results[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, results[1]);
+}
+
+/**
+ * @tc.name: FilterValidPolicyTest004
+ * @tc.desc: Test FilterValidPolicy with mixed valid/invalid policies
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, FilterValidPolicyTest004, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+        {"", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Images", OperateMode::WRITE_MODE},
+        {"/storage/Users/currentUser/Videos", 0},
+    };
+    std::vector<uint32_t> results;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = PolicyInfoManager::GetInstance().FilterValidPolicy(policies, results, validPolicies);
+
+    EXPECT_EQ(2u, invalidNum);
+    ASSERT_EQ(2u, validPolicies.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, results[0]);
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, results[1]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, results[2]);
+    EXPECT_EQ(SandboxRetType::INVALID_MODE, results[3]);
+}
+
+/**
+ * @tc.name: FilterValidPolicyTest005
+ * @tc.desc: Test FilterValidPolicy with empty input
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, FilterValidPolicyTest005, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policies;
+    std::vector<uint32_t> results;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = PolicyInfoManager::GetInstance().FilterValidPolicy(policies, results, validPolicies);
+
+    EXPECT_EQ(0u, invalidNum);
+    EXPECT_EQ(0u, validPolicies.size());
+}
+
+/**
+ * @tc.name: IsAllowedPathTest001
+ * @tc.desc: Test FilterValidPolicy with allowed path prefixes (exact match)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, IsAllowedPathTest001, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Images", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Videos", OperateMode::READ_MODE},
+        {"/storage/External", OperateMode::READ_MODE},
+        {"/storage/userExternal", OperateMode::READ_MODE},
+    };
+    std::vector<uint32_t> results;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = PolicyInfoManager::GetInstance().FilterValidPolicy(policies, results, validPolicies);
+
+    EXPECT_EQ(0u, invalidNum);
+    ASSERT_EQ(5u, validPolicies.size());
+    for (size_t i = 0; i < results.size(); ++i) {
+        EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, results[i]);
+    }
+}
+
+/**
+ * @tc.name: IsAllowedPathTest002
+ * @tc.desc: Test FilterValidPolicy with allowed path sub-paths (prefix + /)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, IsAllowedPathTest002, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/Music/sub", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Images/sub/dir", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Videos/a/b/c", OperateMode::READ_MODE},
+        {"/storage/External/sdcard", OperateMode::READ_MODE},
+        {"/storage/userExternal/dir", OperateMode::READ_MODE},
+    };
+    std::vector<uint32_t> results;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = PolicyInfoManager::GetInstance().FilterValidPolicy(policies, results, validPolicies);
+
+    EXPECT_EQ(0u, invalidNum);
+    ASSERT_EQ(5u, validPolicies.size());
+}
+
+/**
+ * @tc.name: IsAllowedPathTest003
+ * @tc.desc: Test FilterValidPolicy with disallowed paths (not in allowed list)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, IsAllowedPathTest003, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policies = {
+        {"/data/app", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Documents", OperateMode::READ_MODE},
+        {"/system/etc", OperateMode::READ_MODE},
+        {"/storage/Other", OperateMode::READ_MODE},
+    };
+    std::vector<uint32_t> results;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = PolicyInfoManager::GetInstance().FilterValidPolicy(policies, results, validPolicies);
+
+    EXPECT_EQ(4u, invalidNum);
+    EXPECT_EQ(0u, validPolicies.size());
+    for (size_t i = 0; i < results.size(); ++i) {
+        EXPECT_EQ(SandboxRetType::INVALID_PATH, results[i]);
+    }
+}
+
+/**
+ * @tc.name: IsAllowedPathTest004
+ * @tc.desc: Test FilterValidPolicy with path that looks like allowed prefix but is not (false prefix)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, IsAllowedPathTest004, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/MusicFoo", OperateMode::READ_MODE},
+        {"/storage/ExternalBar", OperateMode::READ_MODE},
+        {"/storage/userExternalBaz", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/MusicX", OperateMode::READ_MODE},
+    };
+    std::vector<uint32_t> results;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = PolicyInfoManager::GetInstance().FilterValidPolicy(policies, results, validPolicies);
+
+    EXPECT_EQ(4u, invalidNum);
+    EXPECT_EQ(0u, validPolicies.size());
+    for (size_t i = 0; i < results.size(); ++i) {
+        EXPECT_EQ(SandboxRetType::INVALID_PATH, results[i]);
+    }
+}
+
+/**
+ * @tc.name: IsAllowedPathTest005
+ * @tc.desc: Test FilterValidPolicy with mixed allowed and disallowed paths
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, IsAllowedPathTest005, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Music/sub", OperateMode::READ_MODE},
+        {"/data/app", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/MusicFoo", OperateMode::READ_MODE},
+        {"/storage/External", OperateMode::READ_MODE},
+    };
+    std::vector<uint32_t> results;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = PolicyInfoManager::GetInstance().FilterValidPolicy(policies, results, validPolicies);
+
+    EXPECT_EQ(2u, invalidNum);
+    ASSERT_EQ(3u, validPolicies.size());
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, results[0]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, results[1]);
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, results[2]);
+    EXPECT_EQ(SandboxRetType::INVALID_PATH, results[3]);
+    EXPECT_EQ(SandboxRetType::OPERATE_SUCCESSFULLY, results[4]);
+}
+
+/**
+ * @tc.name: IsAllowedPathTest006
+ * @tc.desc: Test FilterValidPolicy with allowed path but trailing slash
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, IsAllowedPathTest006, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/Music/", OperateMode::READ_MODE},
+        {"/storage/External/", OperateMode::READ_MODE},
+        {"/storage/userExternal/", OperateMode::READ_MODE},
+    };
+    std::vector<uint32_t> results;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = PolicyInfoManager::GetInstance().FilterValidPolicy(policies, results, validPolicies);
+
+    EXPECT_EQ(0u, invalidNum);
+    ASSERT_EQ(3u, validPolicies.size());
+}
+
+/**
+ * @tc.name: IsAllowedPathTest007
+ * @tc.desc: Test FilterValidPolicy with empty path and non-existent path
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, IsAllowedPathTest007, TestSize.Level0)
+{
+    std::vector<PolicyInfo> policies = {
+        {"", OperateMode::READ_MODE},
+        {"/", OperateMode::READ_MODE},
+        {"/storage", OperateMode::READ_MODE},
+        {"/storage/Users", OperateMode::READ_MODE},
+    };
+    std::vector<uint32_t> results;
+    std::vector<PolicyInfo> validPolicies;
+    uint32_t invalidNum = PolicyInfoManager::GetInstance().FilterValidPolicy(policies, results, validPolicies);
+
+    EXPECT_EQ(4u, invalidNum);
+    EXPECT_EQ(0u, validPolicies.size());
+}
+
+/**
+ * @tc.name: GrantPermissionByUserTest001
+ * @tc.desc: Test GrantPermissionByUser with valid policies, verify DB record + GetStatusByPermission
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, GrantPermissionByUserTest001, TestSize.Level0)
+{
+    uint32_t tokenId = 50001;
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Images", OperateMode::READ_MODE | OperateMode::WRITE_MODE},
+    };
+    std::vector<uint32_t> results;
+    int32_t ret = PolicyInfoManager::GetInstance().GrantPermissionByUser(tokenId, policies);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    std::vector<uint32_t> tokenIdList = {tokenId};
+    std::vector<PermissionStatusInfo> result;
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, result);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(2u, result.size());
+    for (size_t i = 0; i < result.size(); ++i) {
+        EXPECT_EQ(static_cast<int32_t>(UGC_PERMISSION_GRANTED), result[i].grantStatus);
+    }
+
+    PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId);
+}
+
+/**
+ * @tc.name: GrantPermissionByUserTest002
+ * @tc.desc: Test GrantPermissionByUser with empty policies
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, GrantPermissionByUserTest002, TestSize.Level0)
+{
+    uint32_t tokenId = 50002;
+    std::vector<PolicyInfo> policies;
+    int32_t ret = PolicyInfoManager::GetInstance().GrantPermissionByUser(tokenId, policies);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    std::vector<uint32_t> tokenIdList = {tokenId};
+    std::vector<PermissionStatusInfo> result;
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, result);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    EXPECT_EQ(0u, result.size());
+}
+
+/**
+ * @tc.name: GrantPermissionByUserTest003
+ * @tc.desc: Test GrantPermissionByUser with all invalid policies (empty path + bad mode)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, GrantPermissionByUserTest003, TestSize.Level0)
+{
+    uint32_t tokenId = 50003;
+    std::vector<PolicyInfo> policies = {
+        {"", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Music", 0},
+    };
+    int32_t ret = PolicyInfoManager::GetInstance().GrantPermissionByUser(tokenId, policies);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    std::vector<uint32_t> tokenIdList = {tokenId};
+    std::vector<PermissionStatusInfo> result;
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, result);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    EXPECT_EQ(0u, result.size());
+}
+
+/**
+ * @tc.name: GrantPermissionByUserTest004
+ * @tc.desc: Test GrantPermissionByUser with mixed valid/invalid policies; only valid ones should be persisted
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, GrantPermissionByUserTest004, TestSize.Level0)
+{
+    uint32_t tokenId = 50004;
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+        {"", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Images", 0},
+    };
+    int32_t ret = PolicyInfoManager::GetInstance().GrantPermissionByUser(tokenId, policies);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    std::vector<uint32_t> tokenIdList = {tokenId};
+    std::vector<PermissionStatusInfo> result;
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, result);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(1u, result.size());
+    EXPECT_EQ("/storage/Users/currentUser/Music", result[0].policyInfo.path);
+    EXPECT_EQ(static_cast<int32_t>(UGC_PERMISSION_GRANTED), result[0].grantStatus);
+
+    PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId);
+}
+
+/**
+ * @tc.name: RevokePermissionByUserTest001
+ * @tc.desc: Test RevokePermissionByUser after grant; verify status becomes DENIED
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, RevokePermissionByUserTest001, TestSize.Level0)
+{
+    uint32_t tokenId = 50005;
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+    };
+
+    int32_t ret = PolicyInfoManager::GetInstance().GrantPermissionByUser(tokenId, policies);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, policies);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    std::vector<uint32_t> tokenIdList = {tokenId};
+    std::vector<PermissionStatusInfo> result;
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, result);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(1u, result.size());
+    EXPECT_EQ(static_cast<int32_t>(UGC_PERMISSION_DENIED), result[0].grantStatus);
+
+    PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId);
+}
+
+/**
+ * @tc.name: RevokePermissionByUserTest002
+ * @tc.desc: Test RevokePermissionByUser with empty policies
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, RevokePermissionByUserTest002, TestSize.Level0)
+{
+    uint32_t tokenId = 50006;
+    std::vector<PolicyInfo> policies;
+    std::vector<uint32_t> results;
+    int32_t ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, policies);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+
+/**
+ * @tc.name: RevokePermissionByUserTest003
+ * @tc.desc: Test RevokePermissionByUser with all invalid policies (nothing to revoke)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, RevokePermissionByUserTest003, TestSize.Level0)
+{
+    uint32_t tokenId = 50007;
+    std::vector<PolicyInfo> policies = {
+        {"", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Music", 0},
+    };
+    std::vector<uint32_t> results;
+    int32_t ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, policies);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+}
+
+/**
+ * @tc.name: RevokePermissionByUserTest004
+ * @tc.desc: Test RevokePermissionByUser with mixed valid/invalid policies; only valid ones revoked
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, RevokePermissionByUserTest004, TestSize.Level0)
+{
+    uint32_t tokenId = 50008;
+    std::vector<PolicyInfo> grantPolicies = {
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Images", OperateMode::WRITE_MODE},
+    };
+    int32_t ret = PolicyInfoManager::GetInstance().GrantPermissionByUser(tokenId, grantPolicies);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    std::vector<PolicyInfo> revokePolicies = {
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+        {"", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Images", OperateMode::WRITE_MODE},
+    };
+    ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, revokePolicies);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    std::vector<uint32_t> tokenIdList = {tokenId};
+    std::vector<PermissionStatusInfo> result;
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, result);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(2u, result.size());
+    for (size_t i = 0; i < result.size(); ++i) {
+        EXPECT_EQ(static_cast<int32_t>(UGC_PERMISSION_DENIED), result[i].grantStatus);
+    }
+
+    PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId);
+}
+
+/**
+ * @tc.name: GetStatusByPermissionTest001
+ * @tc.desc: Test GetStatusByPermission with multiple tokenIds, some with records and some without
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, GetStatusByPermissionTest001, TestSize.Level0)
+{
+    uint32_t tokenId1 = 50009;
+    uint32_t tokenId2 = 50010;
+    std::vector<PolicyInfo> policies1 = {
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+    };
+    int32_t ret = PolicyInfoManager::GetInstance().GrantPermissionByUser(tokenId1, policies1);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    std::vector<uint32_t> tokenIdList = {tokenId1, tokenId2};
+    std::vector<PermissionStatusInfo> result;
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, result);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(1u, result.size());
+    EXPECT_EQ(tokenId1, result[0].tokenId);
+    EXPECT_EQ(static_cast<int32_t>(UGC_PERMISSION_GRANTED), result[0].grantStatus);
+
+    PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId1);
+}
+
+/**
+ * @tc.name: GetStatusByPermissionTest002
+ * @tc.desc: Test GetStatusByPermission with empty tokenIdList
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, GetStatusByPermissionTest002, TestSize.Level0)
+{
+    std::vector<uint32_t> tokenIdList;
+    std::vector<PermissionStatusInfo> result;
+    int32_t ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, result);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    EXPECT_EQ(0u, result.size());
+}
+
+/**
+ * @tc.name: RemoveUgcPermissionByTokenIdTest001
+ * @tc.desc: Test RemoveUgcPermissionByTokenId removes all records for a tokenId
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, RemoveUgcPermissionByTokenIdTest001, TestSize.Level0)
+{
+    uint32_t tokenId = 50011;
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Images", OperateMode::WRITE_MODE},
+        {"/storage/Users/currentUser/Videos", OperateMode::READ_MODE | OperateMode::WRITE_MODE},
+    };
+    int32_t ret = PolicyInfoManager::GetInstance().GrantPermissionByUser(tokenId, policies);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    std::vector<uint32_t> tokenIdList = {tokenId};
+    std::vector<PermissionStatusInfo> result;
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, result);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(3u, result.size());
+
+    PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId);
+
+    result.clear();
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, result);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    EXPECT_EQ(0u, result.size());
+}
+
+/**
+ * @tc.name: RemoveUgcPermissionByTokenIdTest002
+ * @tc.desc: Test RemoveUgcPermissionByTokenId with tokenId that has no records (no crash, no error)
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(NewPolicyTests, RemoveUgcPermissionByTokenIdTest002, TestSize.Level0)
+{
+    uint32_t tokenId = 50012;
+    PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId);
+    EXPECT_TRUE(true);
+}
+
 } // namespace SandboxManager
 } // namespace AccessControl
 } // namespace OHOS

@@ -72,6 +72,18 @@ private:
      * @return int32_t Returns 0 on success, error code on failure
      */
     int32_t CreateSharedFileInfoTable(NativeRdb::RdbStore &rdbStore, const std::string &tableName) const;
+    /**
+     * @brief Create ugc permission table for storing user-granted shared directory permission
+     * @details This table stores the UGC permission status per tokenId:
+     *          - tokenId: unique token identifier of the application (primary key)
+     *          - path: shared file path granted to the user
+     *          - mode: access permission mode (read/write)
+     *          - status: permission status (not granted / granted / revoked)
+     * @param rdbStore The RdbStore object
+     * @param tableName The name of the table to create
+     * @return int32_t Returns 0 on success, error code on failure
+     */
+    int32_t CreateUgcPermissionTable(NativeRdb::RdbStore &rdbStore, const std::string &tableName) const;
 
     OHOS::Utils::RWLock rwLock_;
     /* Table for storing actual persisted policies (path, depth, mode, flag) */
@@ -80,6 +92,8 @@ private:
     inline static const std::string BUNDLE_PERSISTENT_POLICY_TABLE = "bundle_persistent_policy_table";
     /* Table for storing shared file info (tokenId, bundleName, userId, sharingOSPath, sharedMode) */
     inline static const std::string SHARED_FILE_INFO_TABLE = "shared_file_info_table";
+    /* Table for storing ugc permission (tokenId, path, mode, status) */
+    inline static const std::string UGC_PERMISSION_TABLE = "ugc_permission_table";
 
     inline static const std::string DATABASE_NAME = "sandbox_manager.db";
     inline static const std::string DATABASE_PATH = "/data/service/el1/public/sandbox_manager/";

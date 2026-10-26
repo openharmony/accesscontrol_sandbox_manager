@@ -231,7 +231,43 @@ public:
      */
     int32_t RevokeSharedDirectoryPermission(const uint32_t tokenId, int32_t userId);
 
-    private:
+    /**
+     * @brief Grant permission by user, persist UGC permission record to database
+     *        Writes/updates records (tokenId + path + mode + status) in UGC_PERMISSION_TABLE
+     *        and sets MAC policies for immediate access
+     * @param tokenId token id of the object
+     * @param policies policy information to grant permission on URIs
+     * @return SANDBOX_MANAGER_OK on success, error code on failure
+     */
+    int32_t GrantPermissionByUser(const uint32_t tokenId, const std::vector<PolicyInfo> &policies);
+
+    /**
+     * @brief Revoke permission by user, update UGC permission status and unset MAC policies
+     *        Updates records (status=DENIED) in UGC_PERMISSION_TABLE and unsets MAC policies
+     * @param tokenId token id of the object
+     * @param policies policy information to revoke permission on URIs
+     * @return SANDBOX_MANAGER_OK on success, error code on failure
+     */
+    int32_t RevokePermissionByUser(const uint32_t tokenId, const std::vector<PolicyInfo> &policies);
+
+    /**
+     * @brief Get status of UGC permissions for a list of tokenIds
+     *        Queries UGC_PERMISSION_TABLE for all records of each tokenId
+     * @param tokenIdList list of token ids to query
+     * @param result output permission status info for each record
+     * @return SANDBOX_MANAGER_OK on success, error code on failure
+     */
+    int32_t GetStatusByPermission(const std::vector<uint32_t> &tokenIdList,
+        std::vector<PermissionStatusInfo> &result);
+
+    /**
+     * @brief Remove all UGC permission records for a given tokenId
+     *        Called during UnPersistPolicy(tokenId) to clean up UGC table
+     * @param tokenId token id of the object
+     */
+    void RemoveUgcPermissionByTokenId(const uint32_t tokenId);
+
+private:
     PolicyInfoManager() = default;
     ~PolicyInfoManager() = default;
     /**
@@ -257,6 +293,15 @@ public:
      */
     uint32_t FilterValidPolicyInBatch(const std::vector<PolicyInfo> &policies, std::vector<uint32_t> &results,
         std::vector<size_t> &passIndexes, std::vector<size_t> &mediaIndexes);
+    /**
+     * @brief Filter valid non-media policies and collect them into a vector
+     * @param policies input policy, see policy_info.h
+     * @param results output per-policy result codes
+     * @param validPolicies output valid non-media policies
+     * @return uint32_t invalid policy count
+     */
+    uint32_t FilterValidPolicy(const std::vector<PolicyInfo> &policies, std::vector<uint32_t> &results,
+        std::vector<PolicyInfo> &validPolicies);
     /**
      * @brief AddToDatabaseIfNotDuplicate by remove deplicate records
      * @param tokenId token id of the object
@@ -386,6 +431,7 @@ private:
         MacParams &macParams, std::vector<uint32_t> &result, PolicyInfoInner &info);
     std::vector<std::string> splitPath(const std::string &path);
     bool IsAppDataPathPrefix(const std::vector<std::string> &components);
+    bool IsAllowedPath(const std::string &path);
     bool CheckPathWithinBundleName(const std::string &path, const std::string &bundleName,
         std::vector<std::string> &components);
     bool CheckPathWithinRule(int32_t userID, const std::string &path,

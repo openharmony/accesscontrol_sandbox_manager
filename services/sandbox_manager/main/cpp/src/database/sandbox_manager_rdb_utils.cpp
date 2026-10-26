@@ -39,6 +39,7 @@ static const std::map<DataType, std::string> dataTypeToSqlTable_ = {
     {SANDBOX_MANAGER_PERSISTED_POLICY, "persisted_policy_table"},
     {SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, "bundle_persistent_policy_table"},
     {SANDBOX_MANAGER_SHARED_FILE_INFO, "shared_file_info_table"},
+    {SANDBOX_MANAGER_UGC_PERMISSION, "ugc_permission_table"},
 };
 }  // namespace
 

@@ -90,6 +90,10 @@ public:
     int32_t RevokeSharedDirectoryPermission() override;
     int32_t DeactivePolicyByPath(const std::string &volumeMountPath) override;
     int32_t ActivePolicyByPath(const std::string &volumeMountPath) override;
+    int32_t GrantPermissionByUser(uint32_t tokenId, const PolicyVecRawData &policyRawData) override;
+    int32_t RevokePermissionByUser(uint32_t tokenId, const PolicyVecRawData &policyRawData) override;
+    int32_t GetStatusByPermission(const Uint32VecRawData &tokenIdListRawData,
+        PermissionStatusInfoVecRawData &resultRawData) override;
 private:
     bool Initialize();
     bool InitDelayUnloadHandler();

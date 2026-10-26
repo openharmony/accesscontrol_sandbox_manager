@@ -30,6 +30,7 @@ enum DataType {
     SANDBOX_MANAGER_PERSISTED_POLICY,
     SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY,
     SANDBOX_MANAGER_SHARED_FILE_INFO,
+    SANDBOX_MANAGER_UGC_PERMISSION,
 };
 
 void GetTableNameByType(const DataType type, std::string &tableName);

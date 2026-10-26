@@ -51,6 +51,11 @@ int32_t SandboxManagerRdbOpenCallback::OnCreate(NativeRdb::RdbStore &rdbStore)
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to create table SHARED_FILE_INFO_TABLE");
         return res;
     }
+    res = CreateUgcPermissionTable(rdbStore, UGC_PERMISSION_TABLE);
+    if (res != NativeRdb::E_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to create table UGC_PERMISSION_TABLE");
+        return res;
+    }
     // Restore if back_db exist
     std::string backupDbPath = DATABASE_PATH + BACK_UP_RDB_NAME;
     if (access(backupDbPath.c_str(), NativeRdb::E_OK) == 0) {
@@ -100,6 +105,15 @@ int32_t SandboxManagerRdbOpenCallback::OnUpgrade(
         } else {
             SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 4");
         }
+    }
+    // Upgrade from version < 5 to version 5: Add UGC_PERMISSION_TABLE
+    if (currentVersion < 5 && targetVersion >= 5) {
+        int32_t res = CreateUgcPermissionTable(rdbStore, UGC_PERMISSION_TABLE);
+        if (res != NativeRdb::E_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to create table UGC_PERMISSION_TABLE during upgrade");
+            return res;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 5");
     }
 
     return NativeRdb::E_OK;
@@ -180,6 +194,29 @@ int32_t SandboxManagerRdbOpenCallback::CreateSharedFileInfoTable(NativeRdb::RdbS
         .append(INTEGER_STR)
         .append("primary key(")
         .append(PolicyFiledConst::FIELD_TOKENID)
+        .append("))");
+    return rdbStore.ExecuteSql(sql);
+}
+
+int32_t SandboxManagerRdbOpenCallback::CreateUgcPermissionTable(NativeRdb::RdbStore &rdbStore,
+    const std::string &tableName) const
+{
+    std::string sql = "create table if not exists ";
+    sql.append(tableName + " (")
+        .append(PolicyFiledConst::FIELD_TOKENID)
+        .append(INTEGER_STR)
+        .append(PolicyFiledConst::FIELD_PATH)
+        .append(TEXT_STR)
+        .append(PolicyFiledConst::FIELD_MODE)
+        .append(INTEGER_STR)
+        .append(PolicyFiledConst::FIELD_STATUS)
+        .append(INTEGER_STR)
+        .append("primary key(")
+        .append(PolicyFiledConst::FIELD_TOKENID)
+        .append(",")
+        .append(PolicyFiledConst::FIELD_PATH)
+        .append(",")
+        .append(PolicyFiledConst::FIELD_MODE)
         .append("))");
     return rdbStore.ExecuteSql(sql);
 }

@@ -42,6 +42,8 @@ public:
     static constexpr const char *FIELD_USER_ID = "userId";
     static constexpr const char *FIELD_SHARED_OS_PATH = "sharedOsPath";
     static constexpr const char *FIELD_SHARED_MODE = "sharedMode";
+    // Fields for ugc permission table
+    static constexpr const char *FIELD_STATUS = "status";
 };
 } // namespace SandboxManager
 } // namespace AccessControl

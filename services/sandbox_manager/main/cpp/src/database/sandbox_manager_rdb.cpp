@@ -478,6 +478,57 @@ int32_t SandboxManagerRdb::FindExpiredVolumeRecords(
     return SUCCESS;
 }
 
+int32_t SandboxManagerRdb::FindByTokenIds(const DataType type, const std::vector<uint32_t> &tokenIds,
+    std::vector<GenericValues> &results)
+{
+    if (tokenIds.empty()) {
+        return SUCCESS;
+    }
+
+    std::string tableName;
+    GetTableNameByType(type, tableName);
+    if (tableName.empty()) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Cannot find tableName by type: %{public}u", type);
+        return FAILURE;
+    }
+
+    std::shared_ptr<NativeRdb::RdbStore> db = GetRdb();
+    if (db == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
+        return FAILURE;
+    }
+
+    std::string sql = "select * from " + tableName + " where " +
+        PolicyFiledConst::FIELD_TOKENID + " in (";
+    std::vector<NativeRdb::ValueObject> bindArgs;
+    for (size_t i = 0; i < tokenIds.size(); ++i) {
+        if (i > 0) {
+            sql += ",";
+        }
+        sql += "?";
+        bindArgs.emplace_back(static_cast<int32_t>(tokenIds[i]));
+    }
+    sql += ")";
+
+    OHOS::Utils::UniqueReadGuard<OHOS::Utils::RWLock> lock(rwLock_);
+    auto queryResultSet = db->QuerySql(sql, bindArgs);
+    if (queryResultSet == nullptr) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to query by tokenIds from table %{public}s", tableName.c_str());
+        return FAILURE;
+    }
+    while (queryResultSet->GoToNextRow() == NativeRdb::E_OK) {
+        GenericValues value;
+        ResultToGenericValues(queryResultSet, value);
+        if (value.GetAllKeys().empty()) {
+            continue;
+        }
+        results.emplace_back(value);
+    }
+
+    ScheduleDbCleanup();
+    return SUCCESS;
+}
+
 int32_t SandboxManagerRdb::Find(const DataType type, const GenericValues& conditions,
     const GenericValues& symbols, std::vector<GenericValues>& results)
 {

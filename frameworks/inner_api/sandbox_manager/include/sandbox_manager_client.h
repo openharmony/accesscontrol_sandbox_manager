@@ -75,6 +75,10 @@ public:
     int32_t RevokeSharedDirectoryPermission();
     int32_t DeactivePolicyByPath(const std::string &volumeMountPath);
     int32_t ActivePolicyByPath(const std::string &volumeMountPath);
+    int32_t GrantPermissionByUser(uint32_t tokenId, const std::vector<PolicyInfo> &policies);
+    int32_t RevokePermissionByUser(uint32_t tokenId, const std::vector<PolicyInfo> &policies);
+    int32_t GetStatusByPermission(const std::vector<uint32_t> &tokenIdList,
+        std::vector<PermissionStatusInfo> &result);
 
 private:
     SandboxManagerClient() = default;

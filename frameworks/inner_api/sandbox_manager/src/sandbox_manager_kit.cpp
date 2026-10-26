@@ -424,6 +424,29 @@ int32_t SandboxManagerKit::ActivePolicyByPath(const std::string &volumeMountPath
     }
     return SandboxManagerClient::GetInstance().ActivePolicyByPath(volumeMountPath);
 }
+
+int32_t SandboxManagerKit::GrantPermissionByUser(uint32_t tokenId, const std::vector<PolicyInfo> &policies)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GrantPermissionByUser called, tokenId=%{public}u, count=%{public}zu",
+        tokenId, policies.size());
+    return SandboxManagerClient::GetInstance().GrantPermissionByUser(tokenId, policies);
+}
+
+int32_t SandboxManagerKit::RevokePermissionByUser(uint32_t tokenId, const std::vector<PolicyInfo> &policies)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "RevokePermissionByUser called, tokenId=%{public}u, count=%{public}zu",
+        tokenId, policies.size());
+    return SandboxManagerClient::GetInstance().RevokePermissionByUser(tokenId, policies);
+}
+
+int32_t SandboxManagerKit::GetStatusByPermission(const std::vector<uint32_t> &tokenIdList,
+    std::vector<PermissionStatusInfo> &result)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "GetStatusByPermission called, tokenIdList size=%{public}zu",
+        tokenIdList.size());
+    result.clear();
+    return SandboxManagerClient::GetInstance().GetStatusByPermission(tokenIdList, result);
+}
 } // SandboxManager
 } // AccessControl
 } // OHOS
