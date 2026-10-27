@@ -44,58 +44,9 @@ void ClawSandboxAidsTest::TearDown() {}
 // Any appIdentifier will do: the kernel only echoes it back into the label.
 static constexpr uint64_t TEST_APP_IDENTIFIER = 1001;
 
-/**
- * @tc.name: AidsSetLabel001
- * @tc.desc: Test calling the SetLabel interface with the default valid device path, expecting a successful return.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxAidsTest, AidsSetLabel001, TestSize.Level0) {
-    AidsClient aids;
-    int ret = aids.SetLabel(0, TEST_APP_IDENTIFIER);
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: AidsSetLabel002
- * @tc.desc: Test calling the AddBlacklist interface with the default valid device path to
- * add a cmdblacklist entry, expecting a successful return.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxAidsTest, AidsSetLabel002, TestSize.Level0) {
-    AidsClient aids;
-    int ret = aids.AddBlacklist("date", "", 0);
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: AidsSetLabel003
- * @tc.desc: Test calling the DelBlacklist interface with the default valid device path to
- * delete an added cmdblacklist entry, expecting a successful return.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxAidsTest, AidsSetLabel003, TestSize.Level0) {
-    AidsClient aids;
-    int ret = aids.AddBlacklist("date", "", 0);
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-    ret = aids.DelBlacklist("date", "", 0);
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: AidsSetLabel004
- * @tc.desc: Test calling the ClearBlacklist interface with the default valid device path to
- * clear the cmdblacklist, expecting a successful return.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxAidsTest, AidsSetLabel004, TestSize.Level0) {
-    AidsClient aids;
-    int ret = aids.ClearBlacklist();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
+// The cases that drive the kernel AIDS device nodes (/dev/hkids and its
+// cmdblacklist) live in claw_sandbox_device_node_test.cpp, which is only built
+// when !is_emulator.
 
 /**
  * @tc.name: AidsSetLabel005
