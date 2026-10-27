@@ -91,6 +91,13 @@ ohos_unittest("claw_sandbox_test") {
     ]
   }
 
+  # These cases drive kernel device nodes (/dev/xpm, /dev/hkids and its
+  # cmdblacklist) that a real device kernel provides but the emulator kernel
+  # does not, so keep them out of emulator builds.
+  if (!is_emulator) {
+    sources += [ "unittest/src/claw_sandbox_device_node_test.cpp" ]
+  }
+
   cflags_cc = [
     "-DHILOG_ENABLE",
     "-DMCS_ENABLE",

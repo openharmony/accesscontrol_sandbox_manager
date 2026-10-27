@@ -898,46 +898,8 @@ HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId002, TestSize.Level0)
     EXPECT_EQ(SANDBOX_ERR_BAD_PARAMETERS, manager.SetXpmOwnerId());
 }
 
-/**
- * @tc.name: SetXpmOwnerId003
- * @tc.desc: Validate SetXpmOwnerId logic with valid shell type and normal appIdentifier.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId003, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.type = "shell";
-    config.appIdentifier = "20020026";
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    // In a typical UT environment, /dev/xpm might not exist, so open() fails,
-    // which correctly logs a warning and returns SANDBOX_SUCCESS.
-    // If mocked or run on a real device, ioctl executes and also returns SANDBOX_SUCCESS.
-    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetXpmOwnerId());
-}
-
-/**
- * @tc.name: SetXpmOwnerId004
- * @tc.desc: Validate SetXpmOwnerId safely handles appIdentifier lengths exceeding MAX_OWNERID_LEN.
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, SetXpmOwnerId004, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.type = "shell";
-    // Create a string longer than MAX_OWNERID_LEN (64)
-    config.appIdentifier = std::string(100, 'A');
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    // The truncation logic (std::min) should prevent memcpy_s from failing.
-    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetXpmOwnerId());
-}
+// SetXpmOwnerId003/004 need /dev/xpm, so they live in
+// claw_sandbox_device_node_test.cpp, which is only built when !is_emulator.
 
 // ==================== ValidateTokenType tests ====================
 
@@ -2789,29 +2751,8 @@ HWTEST_F(ClawSandboxManagerTest, SetAinfo001, TestSize.Level0)
     EXPECT_EQ(SANDBOX_SUCCESS, manager.SetAinfo());
 }
 
-/**
- * @tc.name: SetAinfo002
- * @tc.desc: SetAinfo returns success for a shell sandbox too - the label is
- *           optional, so a missing /dev/hkids must not fail the launch
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxManagerTest, SetAinfo002, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.type = "shell";
-    config.appIdentifier = "20020026";
-    config.appIdentifierU64 = 20020026;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetAinfo());
-}
+// SetAinfo002 needs /dev/hkids, so it lives in
+// claw_sandbox_device_node_test.cpp, which is only built when !is_emulator.
 
 // ==================== DropCapabilities tests ====================
 
