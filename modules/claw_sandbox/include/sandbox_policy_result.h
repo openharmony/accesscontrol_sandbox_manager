@@ -78,6 +78,18 @@ struct PolicyError {
         };
     }
 
+    // A path that is no legal wildcard pattern - bad '*', more than one '**', not on a
+    // segment boundary, '..', or not absolute. detail names which.
+    static PolicyError InvalidPattern(std::string operation, std::string object, std::string detail)
+    {
+        return PolicyError {
+            .reason = "invalid_pattern",
+            .operation = std::move(operation),
+            .object = std::move(object),
+            .detail = std::move(detail)
+        };
+    }
+
     // A rule naming the monitor's own socket. The wording is fixed here rather
     // than at the call site: it is part of the wire contract, not a log line.
     static PolicyError ProtectedObject(std::string operation, std::string object)

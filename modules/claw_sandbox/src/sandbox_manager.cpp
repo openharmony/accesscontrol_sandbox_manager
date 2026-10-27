@@ -2390,6 +2390,54 @@ int SandboxManager::ApplyEnvironment()
 }
 
 #ifdef CONFIG_SHELL_SANDBOX
+/*
+ * Mark the sandbox root with SEC_SANDBOX_PATH_TYPE. The caller owns fd and
+ * closes it on failure. Returns the ioctl result, or SANDBOX_ERR_SET_DEC_FAILED.
+ */
+static int MarkSandboxRootPath(int fd)
+{
+    MarkPathInfo pathInfo = {};
+    pathInfo.path = "/";
+    pathInfo.flags = SEC_SANDBOX_PATH_TYPE;
+    pathInfo.recursive = MARK_ENABLE_RECURSIVE;
+    int ret = ioctl(fd, ADD_PATH_MARK_CMD, &pathInfo);
+    if (ret < 0) {
+        std::cerr << "Error: ADD_PATH_MARK_CMD (sandbox) failed, errno=" << strerror(errno) << std::endl;
+        SANDBOX_LOGE("SetSandboxPathMark: ADD_PATH_MARK_CMD (sandbox) failed, errno=%{public}s", strerror(errno));
+        return SANDBOX_ERR_SET_DEC_FAILED;
+    }
+    SANDBOX_LOGD("SetSandboxPathMark: marked / dir with SEC_SANDBOX_PATH_TYPE");
+    return ret;
+}
+
+/*
+ * Mark the per-user UGC directory with SEC_UGC_PATH_TYPE. The caller owns fd.
+ * Returns the ioctl result; an absent directory is not an error.
+ */
+static int MarkUgcPath(int fd)
+{
+    MarkPathInfo ugcInfo = {};
+    ugcInfo.path = "/storage/Users/currentUser";
+    ugcInfo.flags = SEC_UGC_PATH_TYPE;
+    ugcInfo.recursive = 0;
+    // Only a conditional mount can put anything here; marking an unseen path would
+    // land on whatever else sits there.
+    if (access(ugcInfo.path, F_OK) != 0) {
+        SANDBOX_LOGD("SetSandboxPathMark: %{public}s is not there (%{public}s), ugc mark skipped",
+            ugcInfo.path, strerror(errno));
+        return SANDBOX_SUCCESS;
+    }
+
+    int ret = ioctl(fd, ADD_PATH_MARK_CMD, &ugcInfo);
+    if (ret < 0) {
+        std::cerr << "Error: ADD_PATH_MARK_CMD (ugc) failed, errno=" << strerror(errno) << std::endl;
+        SANDBOX_LOGE("SetSandboxPathMark: ADD_PATH_MARK_CMD (ugc) failed, errno=%{public}s", strerror(errno));
+        return SANDBOX_ERR_SET_DEC_FAILED;
+    }
+    SANDBOX_LOGD("SetSandboxPathMark: marked User dir with SEC_UGC_PATH_TYPE");
+    return ret;
+}
+
 int SandboxManager::SetSandboxPathMark()
 {
     if (config_.type != "shell") {
@@ -2412,32 +2460,13 @@ int SandboxManager::SetSandboxPathMark()
 
     SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_DEC_PATH_MARK);
 
-    MarkPathInfo pathInfo = {};
-    pathInfo.path = "/";
-    pathInfo.flags = SEC_SANDBOX_PATH_TYPE;
-    pathInfo.recursive = MARK_ENABLE_RECURSIVE;
-    int ret = ioctl(fd, ADD_PATH_MARK_CMD, &pathInfo);
+    int ret = MarkSandboxRootPath(fd);
     if (ret < 0) {
-        std::cerr << "Error: ADD_PATH_MARK_CMD (sandbox) failed, errno=" << strerror(errno) << std::endl;
-        SANDBOX_LOGE("SetSandboxPathMark: ADD_PATH_MARK_CMD (sandbox) failed, errno=%{public}s", strerror(errno));
         SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_DEC_PATH_MARK);
-        return SANDBOX_ERR_SET_DEC_FAILED;
-    } else {
-        SANDBOX_LOGD("SetSandboxPathMark: marked / dir with SEC_SANDBOX_PATH_TYPE");
+        return ret;
     }
 
-    MarkPathInfo ugcInfo = {};
-    ugcInfo.path = "/storage/Users/currentUser";
-    ugcInfo.flags = SEC_UGC_PATH_TYPE;
-    ugcInfo.recursive = 0;
-    ret = ioctl(fd, ADD_PATH_MARK_CMD, &ugcInfo);
-    if (ret < 0) {
-        std::cerr << "Error: ADD_PATH_MARK_CMD (ugc) failed, errno=" << strerror(errno) << std::endl;
-        SANDBOX_LOGE("SetSandboxPathMark: ADD_PATH_MARK_CMD (ugc) failed, errno=%{public}s", strerror(errno));
-        ret = SANDBOX_ERR_SET_DEC_FAILED;
-    } else {
-        SANDBOX_LOGD("SetSandboxPathMark: marked User dir with SEC_UGC_PATH_TYPE");
-    }
+    ret = MarkUgcPath(fd);
 
     SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_DEC_PATH_MARK);
     return ret;

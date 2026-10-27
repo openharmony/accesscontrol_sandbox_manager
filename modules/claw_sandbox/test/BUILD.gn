@@ -83,8 +83,10 @@ ohos_unittest("claw_sandbox_test") {
     # guarded there by #ifdef CONFIG_SHELL_SANDBOX.
     sources += [
       "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_op_control_deliver.cpp",
+      "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_glob_pattern.cpp",
       "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_op_control_parser.cpp",
       "unittest/src/sandbox_op_control_deliver_test.cpp",
+      "unittest/src/sandbox_glob_pattern_test.cpp",
       "unittest/src/sandbox_op_control_parser_test.cpp",
     ]
   }

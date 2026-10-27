@@ -21,6 +21,7 @@
 
 #include "sandbox_cmd_parser.h"
 #include "sandbox_error.h"
+#include "sandbox_glob_pattern.h"
 #include "sandbox_log.h"
 #include <cstdlib>
 #include <iostream>
@@ -133,6 +134,55 @@ static int ParseOptionalStringArrayField(cJSON *root, const char *key,
     return SANDBOX_SUCCESS;
 }
 
+// Helper: parse an optional DefaultAction through the shared action vocabulary.
+// fieldLabel names the field in errors ("File.DefaultAction"). Absent leaves
+// action untouched, so the model's built-in default (NONE) stands.
+static int ParseOptionalDefaultAction(cJSON *obj, const char *fieldLabel, DEC_POLICY_ACTION &action)
+{
+    std::string actionStr;
+    bool found = false;
+    int ret = ParseOptionalStringField(obj, "DefaultAction", actionStr, found);
+    if (ret != SANDBOX_SUCCESS) {
+        SANDBOX_LOGE("Parse config field '%{public}s' failed, ret=%{public}d", fieldLabel, ret);
+        return ret;
+    }
+    if (!found) {
+        return SANDBOX_SUCCESS;
+    }
+    auto actionIt = g_ocActionMap.find(actionStr);
+    if (actionIt == g_ocActionMap.end()) {
+        std::cerr << "Error: Config field '" << fieldLabel << "' has invalid value: " << actionStr << std::endl;
+        SANDBOX_LOGE("Config field '%{public}s' has invalid value: %{public}s",
+            fieldLabel, actionStr.c_str());
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    action = actionIt->second;
+    return SANDBOX_SUCCESS;
+}
+
+// One optional string-array field of a module object: its JSON key and the model
+// vector it fills.
+struct OperationArrayField {
+    const char *key;
+    std::vector<std::string> *values;
+};
+
+// Helper: parse every field in the table through ParseOptionalStringArrayField,
+// applying validate to each entry. fieldLabel names the module in error logs.
+static int ParseOperationArrayFields(cJSON *obj, const char *fieldLabel,
+    const OperationArrayField *fields, size_t count, ArrayFieldValidator validate)
+{
+    for (size_t i = 0; i < count; i++) {
+        int ret = ParseOptionalStringArrayField(obj, fields[i].key, *(fields[i].values), validate);
+        if (ret != SANDBOX_SUCCESS) {
+            SANDBOX_LOGE("Parse '%{public}s.%{public}s' failed, ret=%{public}d",
+                fieldLabel, fields[i].key, ret);
+            return ret;
+        }
+    }
+    return SANDBOX_SUCCESS;
+}
+
 // Parse and validate Scope.Type (required; only "self_session" is supported
 // this version). Unknown types are rejected.
 static int ParseOperationControlScopeType(cJSON *scopeObj, SandboxPolicyScope &scope)
@@ -215,6 +265,28 @@ static int ParseNetworkOperationControl(cJSON *ruleGroupItem,
     return SANDBOX_SUCCESS;
 }
 
+// Validate a parsed file path array: every entry that is a wildcard pattern must be one the
+// converter can parse. Literal paths are left alone - the only check that means anything for
+// a path meant to name a real file is opening it at delivery time.
+static int ValidateFilePatternArray(const char *key, const std::vector<std::string> &paths)
+{
+    for (const auto &path : paths) {
+        if (!IsWildcardPattern(path)) {
+            continue;
+        }
+        FilePattern pattern;
+        std::string why;
+        if (ParseFilePattern(path, pattern, why) != SANDBOX_SUCCESS) {
+            std::cerr << "Error: Config field '" << key << "' item '" << path <<
+                         "' is not a legal wildcard pattern: " << why << std::endl;
+            SANDBOX_LOGE("Config field '%{public}s' item '%{public}s' is not a legal wildcard "
+                "pattern: %{public}s", key, path.c_str(), why.c_str());
+            return SANDBOX_ERR_CONFIG_INVALID;
+        }
+    }
+    return SANDBOX_SUCCESS;
+}
+
 // Parse the File object (optional, all sub-fields optional string arrays)
 static int ParseFileOperationControl(cJSON *ruleGroupItem,
     bool &hasFile, SandboxPolicyFileConfig &fileRules)
@@ -230,40 +302,30 @@ static int ParseFileOperationControl(cJSON *ruleGroupItem,
     }
 
     // File.DefaultAction is optional; default to NONE when not configured.
-    std::string actionStr;
-    bool found = false;
-    int ret = ParseOptionalStringField(fileObj, "DefaultAction", actionStr, found);
+    int ret = ParseOptionalDefaultAction(fileObj, "File.DefaultAction", fileRules.defaultAction);
     if (ret != SANDBOX_SUCCESS) {
-        SANDBOX_LOGE("Parse config field 'File.DefaultAction' failed, ret=%{public}d", ret);
         return ret;
     }
-    if (found) {
-        auto actionIt = g_ocActionMap.find(actionStr);
-        if (actionIt == g_ocActionMap.end()) {
-            std::cerr << "Error: Config field 'File.DefaultAction' has invalid value: " << actionStr << std::endl;
-            SANDBOX_LOGE("Config field 'File.DefaultAction' has invalid value: %{public}s", actionStr.c_str());
-            return SANDBOX_ERR_CONFIG_INVALID;
-        }
-        fileRules.defaultAction = actionIt->second;
-    }
 
-    // File sub-fields are optional path arrays, all parsed through one loop; a new operation only
-    // needs a new table row plus the matching field on SandboxPolicyFileConfig.
-    struct FileArrayField {
-        const char *key;
-        std::vector<std::string> *values;
-    };
-    const FileArrayField fileArrayFields[] = {
+    // File sub-fields are optional path arrays, all parsed through one loop (the wildcard check
+    // rides along in ParseOptionalStringArrayField via the passed-in validator); a new operation
+    // only needs a new table row (plus its trio on SandboxPolicyFileConfig and a row in the
+    // converter's operation table, which is what gives the operation its event bits).
+    const OperationArrayField fileArrayFields[] = {
+        {"DenyReadData", &fileRules.denyReadData},
+        {"AllowReadData", &fileRules.allowReadData},
+        {"AskReadData", &fileRules.askReadData},
+        {"DenyWriteData", &fileRules.denyWriteData},
+        {"AllowWriteData", &fileRules.allowWriteData},
+        {"AskWriteData", &fileRules.askWriteData},
         {"DenyDelete", &fileRules.denyDelete},
         {"AllowDelete", &fileRules.allowDelete},
         {"AskDelete", &fileRules.askDelete},
     };
-    for (const auto &field : fileArrayFields) {
-        int ret = ParseOptionalStringArrayField(fileObj, field.key, *(field.values));
-        if (ret != SANDBOX_SUCCESS) {
-            SANDBOX_LOGE("Parse 'File.%{public}s' failed, ret=%{public}d", field.key, ret);
-            return ret;
-        }
+    ret = ParseOperationArrayFields(fileObj, "File", fileArrayFields,
+        sizeof(fileArrayFields) / sizeof(fileArrayFields[0]), ValidateFilePatternArray);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
     }
 
     hasFile = true;
@@ -308,41 +370,23 @@ static int ParseProcessOperationControl(cJSON *ruleGroupItem,
 
     // Process DefaultAction is optional (default NONE); when present it allows
     // "allow", "deny", "ask", or explicit "none".
-    std::string actionStr;
-    bool found = false;
-    int ret = ParseOptionalStringField(processObj, "DefaultAction", actionStr, found);
+    int ret = ParseOptionalDefaultAction(processObj, "Process.DefaultAction", processRules.defaultAction);
     if (ret != SANDBOX_SUCCESS) {
-        SANDBOX_LOGE("Parse config field 'Process.DefaultAction' failed, ret=%{public}d", ret);
         return ret;
-    }
-    if (found) {
-        auto actionIt = g_ocActionMap.find(actionStr);
-        if (actionIt == g_ocActionMap.end()) {
-            std::cerr << "Error: Config field 'Process.DefaultAction' has invalid value: " << actionStr << std::endl;
-            SANDBOX_LOGE("Config field 'Process.DefaultAction' has invalid value: %{public}s", actionStr.c_str());
-            return SANDBOX_ERR_CONFIG_INVALID;
-        }
-        processRules.defaultAction = actionIt->second;
     }
 
     // Process sub-fields are optional bare-name arrays, parsed and validated through one loop (the
     // bare-name check runs in ParseOptionalStringArrayField via the passed-in validator). A new
     // operation needs a new table row plus the matching field on SandboxPolicyProcessConfig.
-    struct ProcessArrayField {
-        const char *key;
-        std::vector<std::string> *values;
-    };
-    const ProcessArrayField processArrayFields[] = {
+    const OperationArrayField processArrayFields[] = {
         {"DenyExecCmd", &processRules.denyExecCmd},
         {"AllowExecCmd", &processRules.allowExecCmd},
         {"AskExecCmd", &processRules.askExecCmd},
     };
-    for (const auto &field : processArrayFields) {
-        ret = ParseOptionalStringArrayField(processObj, field.key, *(field.values), ValidateExecCmdArray);
-        if (ret != SANDBOX_SUCCESS) {
-            SANDBOX_LOGE("Parse 'Process.%{public}s' failed, ret=%{public}d", field.key, ret);
-            return ret;
-        }
+    ret = ParseOperationArrayFields(processObj, "Process", processArrayFields,
+        sizeof(processArrayFields) / sizeof(processArrayFields[0]), ValidateExecCmdArray);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
     }
 
     hasProcess = true;
@@ -444,26 +488,56 @@ int CmdParser::ParseOperationControlRuleGroups(cJSON *policyObj,
 
 // --- convert each rule group of one module into its own policy ---
 
-// Convert a delete path array into TLV rules: each path becomes its own rule (action +
-// eventType + one PATH object), never aggregated; subjectRules stay empty.
-static void ConvertFileDeleteRulesToTlv(const std::vector<std::string> &paths,
-    uint32_t action, SandboxPolicyTlv::Policy &policy)
+// Build one PATH filter rule: an exact path is EQ on itself; a pattern binds its prefix fd
+// and sends the tail as SUFFIX. A bad pattern is refused - it has no prefix to bind and a
+// guessed rule would match nothing asked for.
+static int BuildFileRuleObject(const std::string &path, uint32_t eventType,
+    SandboxPolicyTlv::FilterRule &objectRule, std::vector<PolicyError> *errors)
 {
-    if (paths.empty()) {
-        return;
+    objectRule.itemType = DEC_POLICY_ITEM_TYPE_PATH;
+    if (!IsWildcardPattern(path)) {
+        objectRule.cmpType = DEC_POLICY_CMP_EQ;
+        objectRule.path = path;
+        return SANDBOX_SUCCESS;
     }
-    const uint32_t eventType = static_cast<uint32_t>(DEC_POLICY_FILE_EVENT_RMDIR | DEC_POLICY_FILE_EVENT_UNLINK);
+
+    FilePattern pattern;
+    std::string why;
+    if (ParseFilePattern(path, pattern, why) != SANDBOX_SUCCESS) {
+        SANDBOX_LOGE("ConvertFileRulesToTlv: %{public}s path '%{public}s' is not a legal "
+            "wildcard pattern: %{public}s", PolicyFileNameOfEvent(eventType), path.c_str(),
+            why.c_str());
+        if (errors != nullptr) {
+            errors->push_back(PolicyError::InvalidPattern(
+                PolicyFileNameOfEvent(eventType), path, why));
+        }
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    objectRule.cmpType = DEC_POLICY_CMP_SUFFIX;
+    objectRule.path = pattern.prefix;
+    objectRule.pathSuffix = pattern.suffix;
+    return SANDBOX_SUCCESS;
+}
+
+// Convert one operation's path array: one rule per entry (action + eventType + PATH object).
+// Every entry is attempted so all errors are reported at once.
+static int ConvertFileRulesToTlv(const std::vector<std::string> &paths, uint32_t action,
+    uint32_t eventType, SandboxPolicyTlv::Policy &policy, std::vector<PolicyError> *errors)
+{
+    bool failed = false;
     for (const auto &path : paths) {
         SandboxPolicyTlv::FilterRule objectRule;
-        objectRule.cmpType = DEC_POLICY_CMP_EQ;
-        objectRule.itemType = DEC_POLICY_ITEM_TYPE_PATH;
-        objectRule.path = path;
+        if (BuildFileRuleObject(path, eventType, objectRule, errors) != SANDBOX_SUCCESS) {
+            failed = true;
+            continue;
+        }
         SandboxPolicyTlv::Rule rule;
         rule.action = action;
         rule.eventType = eventType;
         rule.objectRules.push_back(std::vector<SandboxPolicyTlv::FilterRule>{objectRule});
         policy.rules.push_back(rule);
     }
+    return failed ? SANDBOX_ERR_CONFIG_INVALID : SANDBOX_SUCCESS;
 }
 
 // Convert an exec cmd array into TLV rules: each cmd becomes its own rule, never aggregated;
@@ -534,6 +608,13 @@ static void ReportActionConflict(const std::string &opLabel, const std::string &
  * comparing spellings cannot: "/a/x" and "/a/./x", or two hard links to one
  * file, are a single object to the kernel.
  *
+ * A pattern binds the directory before its '**' and sends the tail as SUFFIX, so
+ * its key is that directory's dev:ino plus the suffix. Two patterns over one
+ * directory are the same rule only when their suffixes match; different tails
+ * overlap at most, which the kernel decides. A literal carries an empty suffix,
+ * so it collides with a pattern binding the same inode with no suffix as well -
+ * the kernel would see one fd object under two actions.
+ *
  * A CMD rule is a bare command name - ValidateExecCmdArray rejects any '/' - so
  * comparing the names is the whole job. It must not be stat'ed either: lstat of
  * a name like "rm" would succeed whenever the working directory happens to hold
@@ -542,22 +623,38 @@ static void ReportActionConflict(const std::string &opLabel, const std::string &
  * A path with nothing to stat falls back to its spelling: a rule naming a file
  * that does not exist yet still has to be checked against its twin, and the
  * open failure is reported on its own.
+ *
+ * An illegal pattern has no faithful key and yields an empty string; conversion
+ * rejects it with InvalidPattern, so the caller just skips it here.
  */
 static std::string ObjectIdentity(const std::string &object, uint32_t itemType)
 {
     if (itemType != DEC_POLICY_ITEM_TYPE_PATH) {
         return "cmd:" + object;
     }
-    struct stat st = {};
-    if (lstat(object.c_str(), &st) != 0) {
-        return "path:" + object;
+    std::string boundPath = object;
+    std::string suffix;
+    if (IsWildcardPattern(object)) {
+        FilePattern pattern;
+        std::string why;
+        if (ParseFilePattern(object, pattern, why) != SANDBOX_SUCCESS) {
+            return std::string();
+        }
+        boundPath = pattern.prefix;
+        suffix = pattern.suffix;
     }
-    return "inode:" + std::to_string(st.st_dev) + ":" + std::to_string(st.st_ino);
+    const std::string identitySuffix = "\nsuffix:" + suffix;
+    struct stat st = {};
+    if (lstat(boundPath.c_str(), &st) != 0) {
+        return "path:" + boundPath + identitySuffix;
+    }
+    return "inode:" + std::to_string(st.st_dev) + ":" + std::to_string(st.st_ino) + identitySuffix;
 }
 
 // Reject one path/cmd under two different actions of an operation (deny+allow, deny+ask,
-// allow+ask). objectAction is per group, so only intra-group conflicts are caught; cross-group
-// overlap is legal (groups deliver independently, never merged).
+// allow+ask). A path's identity is its bound inode plus SUFFIX, so patterns take part too;
+// only the same rule clashes, not mere overlap. objectAction is per group, so only intra-group
+// conflicts are caught; cross-group overlap is legal (groups deliver independently, never merged).
 // One operation's objects grouped by action, plus what it takes to judge them: the label a
 // clash is reported under, and the item type that decides how two objects are told apart.
 struct OperationActionSets {
@@ -586,8 +683,14 @@ static int ValidateOperationActionConflict(const OperationActionSets &op,
         for (const auto &obj : *entry.objects) {
             // Keyed the way the kernel keys the rule, not on the spelling; see
             // ObjectIdentity. A string key would miss "/a/x" against "/a/./x",
-            // deliver both, and let the later action silently win.
-            const std::string key = opLabel + ":" + ObjectIdentity(obj, op.itemType);
+            // deliver both, and let the later action silently win. A pattern's key
+            // also carries its suffix, so only the same rule under two actions clashes.
+            const std::string identity = ObjectIdentity(obj, op.itemType);
+            if (identity.empty()) {
+                // Illegal pattern; ConvertFileRulesToTlv reports it with InvalidPattern.
+                continue;
+            }
+            const std::string key = opLabel + ":" + identity;
             auto it = objectAction.find(key);
             if (it != objectAction.end() && it->second != entry.action) {
                 ReportActionConflict(opLabel, obj, it->second, entry.action, errors);
@@ -617,7 +720,57 @@ static int ConvertNetworkRuleGroupToTlv(const SandboxPolicyRuleGroup &group,
     return SANDBOX_SUCCESS;
 }
 
-// FILE module: write the header, catch same-path conflicts within this group, emit delete rules.
+// One file operation: its event bits (which also name it) and its three action arrays.
+struct FileOperation {
+    uint32_t eventType;
+    const std::vector<std::string> *deny;
+    const std::vector<std::string> *allow;
+    const std::vector<std::string> *ask;
+};
+
+// Convert one file operation: reject the same object under two actions, then turn each
+// action array into rules. A conflict or a bad pattern ends the operation - its three
+// arrays stand or fall together.
+static int ConvertFileOperationToTlv(const FileOperation &operation,
+    SandboxPolicyTlv::Policy &policy, std::map<std::string, uint32_t> &objectAction,
+    std::vector<PolicyError> *errors)
+{
+    const OperationActionSets fileOp = {
+        .opLabel = PolicyFileNameOfEvent(operation.eventType),
+        .itemType = DEC_POLICY_ITEM_TYPE_PATH,
+        .deny = operation.deny,
+        .allow = operation.allow,
+        .ask = operation.ask,
+    };
+    int ret = ValidateOperationActionConflict(fileOp, objectAction, errors);
+    if (ret != SANDBOX_SUCCESS) {
+        SANDBOX_LOGE("ConvertFileRuleGroupToTlv: %{public}s action conflict, ret=%{public}d",
+            fileOp.opLabel, ret);
+        return ret;
+    }
+
+    const struct {
+        const std::vector<std::string> *paths;
+        uint32_t action;
+    } actionArrays[] = {
+        {operation.deny, DEC_POLICY_ACTION_DENY},
+        {operation.allow, DEC_POLICY_ACTION_ALLOW},
+        {operation.ask, DEC_POLICY_ACTION_ASK},
+    };
+    for (const auto &entry : actionArrays) {
+        ret = ConvertFileRulesToTlv(*entry.paths, entry.action, operation.eventType, policy, errors);
+        if (ret != SANDBOX_SUCCESS) {
+            SANDBOX_LOGE("ConvertFileRuleGroupToTlv: %{public}s has an illegal path pattern, "
+                "ret=%{public}d", fileOp.opLabel, ret);
+            return ret;
+        }
+    }
+    return SANDBOX_SUCCESS;
+}
+
+// FILE module: write the header, then convert each operation on its own. The kernel keys
+// a rule by object and event bits, so operations are independent; conflict keys carry the
+// operation label, keeping read and write rules for one path from colliding.
 static int ConvertFileRuleGroupToTlv(const SandboxPolicyRuleGroup &group,
     SandboxPolicyTlv::Policy &policy, std::map<std::string, uint32_t> &objectAction,
     std::vector<PolicyError> *errors)
@@ -626,21 +779,22 @@ static int ConvertFileRuleGroupToTlv(const SandboxPolicyRuleGroup &group,
     // Explicit per-rule actions always win.
     policy.operationType = DEC_POLICY_OP_TYPE_FILE;
     policy.defaultAction = static_cast<uint32_t>(group.fileRules.defaultAction);
-    const OperationActionSets fileOp = {
-        .opLabel = "FileDelete",
-        .itemType = DEC_POLICY_ITEM_TYPE_PATH,
-        .deny = &group.fileRules.denyDelete,
-        .allow = &group.fileRules.allowDelete,
-        .ask = &group.fileRules.askDelete,
+
+    // One row per operation.
+    const FileOperation fileOperations[] = {
+        {DEC_POLICY_FILE_EVENT_READ, &group.fileRules.denyReadData, &group.fileRules.allowReadData,
+            &group.fileRules.askReadData},
+        {DEC_POLICY_FILE_EVENT_WRITE, &group.fileRules.denyWriteData, &group.fileRules.allowWriteData,
+            &group.fileRules.askWriteData},
+        {DEC_POLICY_FILE_EVENT_DELETE, &group.fileRules.denyDelete, &group.fileRules.allowDelete,
+            &group.fileRules.askDelete},
     };
-    int ret = ValidateOperationActionConflict(fileOp, objectAction, errors);
-    if (ret != SANDBOX_SUCCESS) {
-        SANDBOX_LOGE("ConvertFileRuleGroupToTlv: FileDelete action conflict, ret=%{public}d", ret);
-        return ret;
+    for (const FileOperation &operation : fileOperations) {
+        int ret = ConvertFileOperationToTlv(operation, policy, objectAction, errors);
+        if (ret != SANDBOX_SUCCESS) {
+            return ret;
+        }
     }
-    ConvertFileDeleteRulesToTlv(group.fileRules.denyDelete, DEC_POLICY_ACTION_DENY, policy);
-    ConvertFileDeleteRulesToTlv(group.fileRules.allowDelete, DEC_POLICY_ACTION_ALLOW, policy);
-    ConvertFileDeleteRulesToTlv(group.fileRules.askDelete, DEC_POLICY_ACTION_ASK, policy);
     return SANDBOX_SUCCESS;
 }
 
@@ -747,17 +901,30 @@ static void AppendTlvBytes(std::vector<uint8_t> &out, uint32_t type, const uint8
     out.insert(out.end(), data, data + len);
 }
 
+// Which comparison operators an item type may carry: a path takes EQ/PREFIX/SUFFIX; a
+// command takes EQ only, because the kernel does not match command names by prefix or
+// suffix; an fd is a bound handle and takes EQ only. NE and _NR are never emitted.
+static bool IsCmpTypeAllowed(uint32_t cmpType, uint32_t itemType)
+{
+    if (itemType == DEC_POLICY_ITEM_TYPE_PATH) {
+        return cmpType == DEC_POLICY_CMP_EQ || cmpType == DEC_POLICY_CMP_PREFIX ||
+            cmpType == DEC_POLICY_CMP_SUFFIX;
+    }
+    if (itemType == DEC_POLICY_ITEM_TYPE_CMD || itemType == DEC_POLICY_ITEM_TYPE_FD) {
+        return cmpType == DEC_POLICY_CMP_EQ;
+    }
+    return false;
+}
+
 // Serialize one filter rule: [11]cmp_type [12]item_type [13]item (single value; its length
 // comes from the TLV header, no item_size tag). PATH->path_str, CMD->cmd_str, FD->4-byte fd
 // in its own entity (see AppendRuleEntitySection).
 static int AppendFilterRuleBlock(std::vector<uint8_t> &out, const SandboxPolicyTlv::FilterRule &rule)
 {
-    switch (rule.cmpType) {
-        case DEC_POLICY_CMP_EQ:
-            break;
-        default:
-            SANDBOX_LOGE("AppendFilterRuleBlock: unsupported cmpType=%{public}u", rule.cmpType);
-            return SANDBOX_ERR_CONFIG_INVALID;
+    if (!IsCmpTypeAllowed(rule.cmpType, rule.itemType)) {
+        SANDBOX_LOGE("AppendFilterRuleBlock: cmpType=%{public}u not allowed for itemType=%{public}u",
+            rule.cmpType, rule.itemType);
+        return SANDBOX_ERR_CONFIG_INVALID;
     }
 
     std::vector<uint8_t> item;
@@ -783,22 +950,24 @@ static int AppendFilterRuleBlock(std::vector<uint8_t> &out, const SandboxPolicyT
     return SANDBOX_SUCCESS;
 }
 
-// Wire entities one PATH rule expands into: an FD entity + a PATH entity (named so the count
-// pass and the emit pass share one value).
+// Wire entities one PATH rule expands into: the fd entity and one string entity, always. Named so
+// the count pass and the emit pass share one value.
 static constexpr uint32_t PATH_RULE_WIRE_ENTITY_CNT = 2u;
 
-// Wire entities a single filter rule expands into: only PATH expands (PATH_RULE_WIRE_ENTITY_CNT),
-// CMD/FD stay single. Kept here so the expansion is not hard-coded at the call site.
+// Wire entities a single filter rule expands into: only PATH expands, CMD/FD stay single. Kept
+// here so the expansion is not hard-coded at the call site.
 static uint32_t GetFilterRuleWireEntityCnt(const SandboxPolicyTlv::FilterRule &rule)
 {
-    if (rule.itemType == DEC_POLICY_ITEM_TYPE_PATH) {
-        return PATH_RULE_WIRE_ENTITY_CNT;
+    if (rule.itemType != DEC_POLICY_ITEM_TYPE_PATH) {
+        return 1u;
     }
-    return 1u;
+    return PATH_RULE_WIRE_ENTITY_CNT;
 }
 
-// One filter rule's wire entities. A PATH rule goes out as an FD entity followed by the PATH
-// entity itself, so the kernel gets both the handle it matches on and the name it reports.
+// One filter rule's wire entities. A PATH rule goes out as an FD entity followed by exactly one
+// string entity, so the kernel gets both the handle it binds the rule to and the rest of the
+// match: the path itself for an exact rule, the tail after the '**' for a pattern. Two entities
+// whichever it is - a pattern has no third, its prefix being the fd.
 static int AppendFilterRuleEntities(std::vector<uint8_t> &out,
     const SandboxPolicyTlv::FilterRule &fr)
 {
@@ -813,12 +982,33 @@ static int AppendFilterRuleEntities(std::vector<uint8_t> &out,
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
-    return AppendFilterRuleBlock(out, fr);
+    switch (fr.cmpType) {
+        case DEC_POLICY_CMP_EQ:
+        case DEC_POLICY_CMP_PREFIX:
+            return AppendFilterRuleBlock(out, fr);
+        case DEC_POLICY_CMP_SUFFIX: {
+            // Built here rather than kept in the entity, so that nothing which walks the model -
+            // the fd opener above all - can mistake a suffix fragment for a path to open (see
+            // pathSuffix). An empty suffix is the pattern that ends in '**': it asks for no tail,
+            // and still goes out as the string entity, so a PATH rule is two entities however
+            // the pattern was written.
+            SandboxPolicyTlv::FilterRule suffixRule;
+            suffixRule.cmpType = DEC_POLICY_CMP_SUFFIX;
+            suffixRule.itemType = DEC_POLICY_ITEM_TYPE_PATH;
+            suffixRule.path = fr.pathSuffix;
+            return AppendFilterRuleBlock(out, suffixRule);
+        }
+        default:
+            SANDBOX_LOGE("AppendFilterRuleEntities: cmpType=%{public}u not allowed for a PATH rule",
+                fr.cmpType);
+            return SANDBOX_ERR_CONFIG_INVALID;
+    }
 }
 
 // Append a rule's subject (10) or object (14) section: entity_cnt tag + filter-rule blocks
 // (subject/object_item_cnt dropped -- each entity carries one rule). A PATH rule expands to an
-// FD entity + a PATH entity, both with a valid fd (open failure is fatal, see OpenFileFds).
+// FD entity + a PATH entity, the fd one carrying the valid fd (open failure is fatal, see
+// OpenFileFds).
 // Wire entities a whole section expands into. The count has to go out before the blocks,
 // so it is its own pass over the same rules.
 static uint32_t CountSectionWireEntities(

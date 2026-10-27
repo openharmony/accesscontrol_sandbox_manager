@@ -160,6 +160,19 @@ static size_t FindTlvEntry(const std::vector<ParsedTlvEntry> &entries, uint32_t 
     return entries.size();
 }
 
+// Layout of one PATH rule's object list: a count entry, then the bound fd entity
+// and the path entity, each of which is (cmp type, item type, item value).
+constexpr uint32_t PATH_RULE_OBJECT_CNT = 2;
+constexpr size_t ENTITY_TLV_CNT = 3;
+constexpr size_t PATH_RULE_ENTRY_CNT = 1 + PATH_RULE_OBJECT_CNT * ENTITY_TLV_CNT;
+
+constexpr size_t TLV_U32_SIZE = sizeof(uint32_t);
+// Simulated descriptor of an already-opened bound directory, unrelated to the
+// ioctl mock's fd.
+constexpr int TEST_BOUND_DIR_FD = 7;
+// An empty suffix is still NUL-terminated, so its item payload is one byte.
+constexpr size_t EMPTY_SUFFIX_PAYLOAD_LEN = 1;
+
 }  // namespace
 
 /**
@@ -674,6 +687,36 @@ HWTEST_F(ClawSandboxOpControlParserTest, OperationControlTlvSerializeFdPathSplit
         }
     }
     EXPECT_EQ(0, fdItemCnt);
+}
+
+/**
+ * @tc.name: OperationControlTlvSerializeCmpType001
+ * @tc.desc: A CMD item takes EQ only: the kernel does not match command names by
+ *           prefix or suffix, so serialization refuses both.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxOpControlParserTest, OperationControlTlvSerializeCmpType001, TestSize.Level0)
+{
+    const uint32_t unsupported[] = {DEC_POLICY_CMP_PREFIX, DEC_POLICY_CMP_SUFFIX};
+    for (uint32_t cmpType : unsupported) {
+        SandboxPolicyTlv tlv;
+        SandboxPolicyTlv::Policy policy;
+        policy.operationType = DEC_POLICY_OP_TYPE_PROCESS;
+        SandboxPolicyTlv::Rule rule;
+        rule.action = DEC_POLICY_ACTION_DENY;
+        rule.eventType = static_cast<uint32_t>(DEC_POLICY_PROCESS_EVENT_EXEC);
+        SandboxPolicyTlv::FilterRule cmdRule;
+        cmdRule.cmpType = cmpType;
+        cmdRule.itemType = DEC_POLICY_ITEM_TYPE_CMD;
+        cmdRule.cmd = "/bin/echo";
+        rule.objectRules.push_back(std::vector<SandboxPolicyTlv::FilterRule>{cmdRule});
+        policy.rules.push_back(rule);
+        tlv.policies.push_back(policy);
+
+        std::vector<uint8_t> out;
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, tlv.Serialize(out)) << "cmpType=" << cmpType;
+    }
 }
 
 /**
@@ -1266,6 +1309,365 @@ HWTEST_F(ClawSandboxOpControlParserTest, ConvertOperationControlToTlv017, TestSi
 
     unlink(second.c_str());
     unlink(first.c_str());
+}
+
+/**
+ * @tc.name: ConvertOperationControlToTlv018
+ * @tc.desc: Read, Write and Delete each keep their own event bits, and the same
+ *           path under three different operations is not a conflict: the
+ *           operations are independent, not three names for one rule.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxOpControlParserTest, ConvertOperationControlToTlv018, TestSize.Level0)
+{
+    SandboxPolicyRuleGroup group;
+    group.hasFile = true;
+    group.fileRules.denyReadData = {"/x"};
+    group.fileRules.allowWriteData = {"/x"};
+    group.fileRules.askDelete = {"/x"};
+
+    SandboxPolicyTlv tlv;
+    int ret = CmdParser::ConvertOperationControlToTlv({group}, DEC_POLICY_OP_TYPE_FILE, tlv);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(1u, tlv.policies.size());
+    const std::vector<SandboxPolicyTlv::Rule> &rules = tlv.policies[0].rules;
+    ASSERT_EQ(3u, rules.size());
+
+    EXPECT_EQ(static_cast<uint32_t>(
+        DEC_POLICY_FILE_EVENT_OPEN_READ | DEC_POLICY_FILE_EVENT_STAT), rules[0].eventType);
+    EXPECT_EQ(DEC_POLICY_ACTION_DENY, rules[0].action);
+
+    EXPECT_EQ(static_cast<uint32_t>(
+        DEC_POLICY_FILE_EVENT_OPEN_WRITE | DEC_POLICY_FILE_EVENT_CREATE |
+        DEC_POLICY_FILE_EVENT_LINK | DEC_POLICY_FILE_EVENT_RENAME |
+        DEC_POLICY_FILE_EVENT_MKDIR), rules[1].eventType);
+    EXPECT_EQ(DEC_POLICY_ACTION_ALLOW, rules[1].action);
+
+    EXPECT_EQ(static_cast<uint32_t>(
+        DEC_POLICY_FILE_EVENT_UNLINK | DEC_POLICY_FILE_EVENT_RMDIR), rules[2].eventType);
+    EXPECT_EQ(DEC_POLICY_ACTION_ASK, rules[2].action);
+
+    // The operation labels the caller sees follow the same event bits.
+    EXPECT_STREQ("FileRead", PolicyFileNameOfEvent(rules[0].eventType));
+    EXPECT_STREQ("FileWrite", PolicyFileNameOfEvent(rules[1].eventType));
+    EXPECT_STREQ("FileDelete", PolicyFileNameOfEvent(rules[2].eventType));
+}
+
+/**
+ * @tc.name: ConvertOperationControlToTlv019
+ * @tc.desc: Deny and allow on one path inside the Read operation is a conflict,
+ *           just as it is for Delete - the check is per operation, not global.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxOpControlParserTest, ConvertOperationControlToTlv019, TestSize.Level0)
+{
+    SandboxPolicyRuleGroup group;
+    group.hasFile = true;
+    group.fileRules.denyReadData = {"/x"};
+    group.fileRules.allowReadData = {"/x"};
+
+    SandboxPolicyTlv tlv;
+    int ret = CmdParser::ConvertOperationControlToTlv({group}, DEC_POLICY_OP_TYPE_FILE, tlv);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+    EXPECT_TRUE(tlv.policies.empty());
+}
+
+/**
+ * @tc.name: ConvertOperationControlToTlv020
+ * @tc.desc: A wildcard pattern becomes an fd path plus a SUFFIX string: the
+ *           prefix before '**', and the tail after it. A literal tail keeps its
+ *           slash; the star-led form drops the star and the separating slash;
+ *           a bare star-led tail with an empty literal folds into the same
+ *           empty suffix as the double-star form.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxOpControlParserTest, ConvertOperationControlToTlv020, TestSize.Level0)
+{
+    SandboxPolicyRuleGroup group;
+    group.hasFile = true;
+    group.fileRules.denyDelete = {
+        "/data/s/**",
+        "/data/s/**/*",
+        "/data/s/**/a/b",
+        "/data/s/**/*.jpg",
+    };
+
+    SandboxPolicyTlv tlv;
+    int ret = CmdParser::ConvertOperationControlToTlv({group}, DEC_POLICY_OP_TYPE_FILE, tlv);
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    ASSERT_EQ(1u, tlv.policies.size());
+    const std::vector<SandboxPolicyTlv::Rule> &rules = tlv.policies[0].rules;
+    const std::vector<std::string> expectedSuffixes = {"", "", "/a/b", ".jpg"};
+    ASSERT_EQ(expectedSuffixes.size(), rules.size());
+
+    for (size_t i = 0; i < rules.size(); ++i) {
+        ASSERT_EQ(1u, rules[i].objectRules.size());
+        ASSERT_EQ(1u, rules[i].objectRules[0].size());
+        const SandboxPolicyTlv::FilterRule &rule = rules[i].objectRules[0][0];
+        EXPECT_EQ(DEC_POLICY_ITEM_TYPE_PATH, rule.itemType);
+        EXPECT_EQ(DEC_POLICY_CMP_SUFFIX, rule.cmpType);
+        EXPECT_EQ("/data/s/", rule.path);
+        EXPECT_EQ(expectedSuffixes[i], rule.pathSuffix);
+    }
+}
+
+/**
+ * @tc.name: ConvertOperationControlToTlv021
+ * @tc.desc: An illegal pattern is refused with the reason and the operation it
+ *           came from, rather than converted into something that matches
+ *           nothing the caller asked for.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxOpControlParserTest, ConvertOperationControlToTlv021, TestSize.Level0)
+{
+    SandboxPolicyRuleGroup group;
+    group.hasFile = true;
+    group.fileRules.denyWriteData = {"/data/**/*a/b"};
+
+    std::vector<PolicyError> errors;
+    SandboxPolicyTlv tlv;
+    int ret = CmdParser::ConvertOperationControlToTlv(
+        {group}, DEC_POLICY_OP_TYPE_FILE, tlv, &errors);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+
+    ASSERT_EQ(1u, errors.size());
+    EXPECT_EQ("invalid_pattern", errors[0].reason);
+    EXPECT_EQ("FileWrite", errors[0].operation);
+    EXPECT_EQ("/data/**/*a/b", errors[0].object);
+    EXPECT_FALSE(errors[0].detail.empty());
+}
+
+/**
+ * @tc.name: ConvertOperationControlToTlv022
+ * @tc.desc: The same pattern under deny and allow binds one rule - same
+ *           directory inode, same suffix - so it conflicts even though it was
+ *           written twice as two separate config entries.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxOpControlParserTest, ConvertOperationControlToTlv022, TestSize.Level0)
+{
+    const std::string file = CreateOpenableFile();
+    const size_t slash = file.rfind('/');
+    ASSERT_NE(std::string::npos, slash);
+    const std::string dir = file.substr(0, slash + 1);
+    const std::string name = file.substr(slash + 1);
+    const std::string pattern = dir + "**/" + name;
+
+    SandboxPolicyRuleGroup group;
+    group.hasFile = true;
+    group.fileRules.denyDelete = {pattern};
+    group.fileRules.allowDelete = {pattern};
+
+    SandboxPolicyTlv tlv;
+    int ret = CmdParser::ConvertOperationControlToTlv({group}, DEC_POLICY_OP_TYPE_FILE, tlv);
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, ret);
+
+    unlink(file.c_str());
+}
+
+/**
+ * @tc.name: ConvertOperationControlToTlv023
+ * @tc.desc: Patterns that merely overlap are not a conflict: different suffixes
+ *           under one directory are different rules. A literal directory and
+ *           its recursive form (directory followed by '**') bind the same
+ *           inode with an empty suffix, so those do clash.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxOpControlParserTest, ConvertOperationControlToTlv023, TestSize.Level0)
+{
+    const std::string file = CreateOpenableFile();
+    const size_t slash = file.rfind('/');
+    ASSERT_NE(std::string::npos, slash);
+    const std::string dir = file.substr(0, slash + 1);
+
+    SandboxPolicyRuleGroup overlap;
+    overlap.hasFile = true;
+    overlap.fileRules.denyDelete = {dir + "**/*.jpg"};
+    overlap.fileRules.allowDelete = {dir + "**/*.png"};
+
+    SandboxPolicyTlv tlv;
+    EXPECT_EQ(SANDBOX_SUCCESS,
+        CmdParser::ConvertOperationControlToTlv({overlap}, DEC_POLICY_OP_TYPE_FILE, tlv));
+
+    SandboxPolicyRuleGroup sameEmptySuffix;
+    sameEmptySuffix.hasFile = true;
+    sameEmptySuffix.fileRules.denyDelete = {dir};
+    sameEmptySuffix.fileRules.allowDelete = {dir + "**"};
+
+    SandboxPolicyTlv conflicting;
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID,
+        CmdParser::ConvertOperationControlToTlv(
+            {sameEmptySuffix}, DEC_POLICY_OP_TYPE_FILE, conflicting));
+
+    unlink(file.c_str());
+}
+
+/**
+ * @tc.name: ParseOperationControlPolicyPattern001
+ * @tc.desc: The new read/write fields accept legal patterns; an illegal pattern
+ *           is refused at parse time, so it never reaches conversion.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxOpControlParserTest, ParseOperationControlPolicyPattern001, TestSize.Level0)
+{
+    const char *valid = R"({
+        "AddOperationControlRuleGroups": [
+            {
+                "Scope": { "Type": "self_session" },
+                "File": {
+                    "DenyReadData": ["/data/**/*.jpg"],
+                    "AllowWriteData": ["/data/**/a/b"],
+                    "AskDelete": ["/data/**"],
+                    "AllowDelete": ["/data/**/*"]
+                }
+            }
+        ]
+    })";
+    std::vector<SandboxPolicyRuleGroup> ruleGroups;
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ParseOperationControlPolicy(valid, ruleGroups));
+    ASSERT_EQ(1u, ruleGroups.size());
+    EXPECT_EQ(1u, ruleGroups[0].fileRules.denyReadData.size());
+    EXPECT_EQ("/data/**/*.jpg", ruleGroups[0].fileRules.denyReadData[0]);
+    EXPECT_EQ(1u, ruleGroups[0].fileRules.allowWriteData.size());
+    EXPECT_EQ("/data/**/a/b", ruleGroups[0].fileRules.allowWriteData[0]);
+    EXPECT_EQ(1u, ruleGroups[0].fileRules.askDelete.size());
+    EXPECT_EQ("/data/**", ruleGroups[0].fileRules.askDelete[0]);
+    EXPECT_EQ(1u, ruleGroups[0].fileRules.allowDelete.size());
+    EXPECT_EQ("/data/**/*", ruleGroups[0].fileRules.allowDelete[0]);
+
+    const char *invalidPatterns[] = {
+        "/data/**/b/",       // trailing slash: directory-only
+        "/data/**abc",       // '**' not on a segment boundary
+        "/data/**/*a/b",     // '*' may only lead the final component
+        "/data/**/*l*l.jpg", // more than one '*' in the final component
+        "/data/**/b?",       // unsupported metacharacter
+        "data/**",           // not absolute
+        "/data/./**/b",      // '.' component
+        "/data//b/**",       // empty component
+    };
+    for (const char *pattern : invalidPatterns) {
+        const std::string json =
+            R"({"AddOperationControlRuleGroups":[{"Scope":{"Type":"self_session"},)"
+            R"("File":{"DenyDelete":[")" + std::string(pattern) + R"("]}}]})";
+        std::vector<SandboxPolicyRuleGroup> rejected;
+        EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID,
+            CmdParser::ParseOperationControlPolicy(json, rejected)) << pattern;
+        EXPECT_TRUE(rejected.empty()) << pattern;
+    }
+}
+
+/**
+ * @tc.name: OperationControlTlvSerializeSuffix001
+ * @tc.desc: A SUFFIX PATH rule serializes as the same two entities as an EQ
+ *           rule - the bound fd, then the string entity. The string entity
+ *           carries the suffix, not the fd path, and says SUFFIX.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxOpControlParserTest, OperationControlTlvSerializeSuffix001, TestSize.Level0)
+{
+    SandboxPolicyTlv tlv;
+    SandboxPolicyTlv::Policy policy;
+    policy.operationType = DEC_POLICY_OP_TYPE_FILE;
+    SandboxPolicyTlv::Rule rule;
+    rule.action = DEC_POLICY_ACTION_DENY;
+    rule.eventType = static_cast<uint32_t>(DEC_POLICY_FILE_EVENT_RMDIR | DEC_POLICY_FILE_EVENT_UNLINK);
+    SandboxPolicyTlv::FilterRule suffixRule;
+    suffixRule.cmpType = DEC_POLICY_CMP_SUFFIX;
+    suffixRule.itemType = DEC_POLICY_ITEM_TYPE_PATH;
+    suffixRule.path = "/data/x/";
+    suffixRule.pathSuffix = "/a/b";
+    suffixRule.fd = TEST_BOUND_DIR_FD;  // simulate a successful open of the bound directory
+    rule.objectRules.push_back(std::vector<SandboxPolicyTlv::FilterRule>{suffixRule});
+    policy.rules.push_back(rule);
+    tlv.policies.push_back(policy);
+
+    std::vector<uint8_t> out;
+    ASSERT_EQ(SANDBOX_SUCCESS, tlv.Serialize(out));
+    std::vector<uint8_t> policyBlock;
+    ASSERT_TRUE(ExtractOperationPolicyBlock(out, policyBlock));
+
+    std::vector<ParsedTlvEntry> entries;
+    ASSERT_TRUE(ParseTlvEntries(policyBlock, entries));
+    const size_t objCntIdx = FindTlvEntry(entries, DEC_POLICY_TLV_FILTER_RULE_OBJECT_CNT);
+    ASSERT_NE(entries.size(), objCntIdx);
+    EXPECT_EQ(PATH_RULE_OBJECT_CNT, EntryU32(entries[objCntIdx]));
+
+    ASSERT_GE(entries.size(), objCntIdx + PATH_RULE_ENTRY_CNT);
+    // FD entity, unchanged from an exact PATH rule.
+    EXPECT_EQ(DEC_POLICY_TLV_FILTER_RULE_CMP_TYPE, entries[objCntIdx + 1].tag);
+    EXPECT_EQ(DEC_POLICY_CMP_EQ, EntryU32(entries[objCntIdx + 1]));
+    EXPECT_EQ(DEC_POLICY_TLV_FILTER_RULE_ITEM_TYPE, entries[objCntIdx + 2].tag);
+    EXPECT_EQ(DEC_POLICY_ITEM_TYPE_FD, EntryU32(entries[objCntIdx + 2]));
+    EXPECT_EQ(DEC_POLICY_TLV_FILTER_RULE_ITEM, entries[objCntIdx + 3].tag);
+    ASSERT_EQ(TLV_U32_SIZE, entries[objCntIdx + 3].payload.size());
+    EXPECT_EQ(static_cast<uint32_t>(TEST_BOUND_DIR_FD), EntryU32(entries[objCntIdx + 3]));
+
+    // String entity: SUFFIX over the tail, never the fd path.
+    const std::string suffix("/a/b");
+    EXPECT_EQ(DEC_POLICY_TLV_FILTER_RULE_CMP_TYPE, entries[objCntIdx + 4].tag);
+    EXPECT_EQ(DEC_POLICY_CMP_SUFFIX, EntryU32(entries[objCntIdx + 4]));
+    EXPECT_EQ(DEC_POLICY_TLV_FILTER_RULE_ITEM_TYPE, entries[objCntIdx + 5].tag);
+    EXPECT_EQ(DEC_POLICY_ITEM_TYPE_PATH, EntryU32(entries[objCntIdx + 5]));
+    EXPECT_EQ(DEC_POLICY_TLV_FILTER_RULE_ITEM, entries[objCntIdx + 6].tag);
+    ASSERT_EQ(suffix.size() + 1, entries[objCntIdx + 6].payload.size());
+    std::string item(reinterpret_cast<const char *>(entries[objCntIdx + 6].payload.data()),
+        entries[objCntIdx + 6].payload.size());
+    EXPECT_EQ(suffix + '\0', item);
+}
+
+/**
+ * @tc.name: OperationControlTlvSerializeSuffix002
+ * @tc.desc: A pattern ending in '**' has an empty suffix and still goes out as
+ *           the second entity, so the kernel sees the same two-entity shape for
+ *           every PATH rule.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxOpControlParserTest, OperationControlTlvSerializeSuffix002, TestSize.Level0)
+{
+    SandboxPolicyTlv tlv;
+    SandboxPolicyTlv::Policy policy;
+    policy.operationType = DEC_POLICY_OP_TYPE_FILE;
+    SandboxPolicyTlv::Rule rule;
+    rule.action = DEC_POLICY_ACTION_DENY;
+    rule.eventType = static_cast<uint32_t>(DEC_POLICY_FILE_EVENT_RMDIR | DEC_POLICY_FILE_EVENT_UNLINK);
+    SandboxPolicyTlv::FilterRule suffixRule;
+    suffixRule.cmpType = DEC_POLICY_CMP_SUFFIX;
+    suffixRule.itemType = DEC_POLICY_ITEM_TYPE_PATH;
+    suffixRule.path = "/data/x/";
+    suffixRule.pathSuffix = "";
+    suffixRule.fd = TEST_BOUND_DIR_FD;
+    rule.objectRules.push_back(std::vector<SandboxPolicyTlv::FilterRule>{suffixRule});
+    policy.rules.push_back(rule);
+    tlv.policies.push_back(policy);
+
+    std::vector<uint8_t> out;
+    ASSERT_EQ(SANDBOX_SUCCESS, tlv.Serialize(out));
+    std::vector<uint8_t> policyBlock;
+    ASSERT_TRUE(ExtractOperationPolicyBlock(out, policyBlock));
+
+    std::vector<ParsedTlvEntry> entries;
+    ASSERT_TRUE(ParseTlvEntries(policyBlock, entries));
+    const size_t objCntIdx = FindTlvEntry(entries, DEC_POLICY_TLV_FILTER_RULE_OBJECT_CNT);
+    ASSERT_NE(entries.size(), objCntIdx);
+    EXPECT_EQ(PATH_RULE_OBJECT_CNT, EntryU32(entries[objCntIdx]));
+
+    ASSERT_GE(entries.size(), objCntIdx + PATH_RULE_ENTRY_CNT);
+    EXPECT_EQ(DEC_POLICY_TLV_FILTER_RULE_CMP_TYPE, entries[objCntIdx + 4].tag);
+    EXPECT_EQ(DEC_POLICY_CMP_SUFFIX, EntryU32(entries[objCntIdx + 4]));
+    EXPECT_EQ(DEC_POLICY_TLV_FILTER_RULE_ITEM_TYPE, entries[objCntIdx + 5].tag);
+    EXPECT_EQ(DEC_POLICY_ITEM_TYPE_PATH, EntryU32(entries[objCntIdx + 5]));
+    EXPECT_EQ(DEC_POLICY_TLV_FILTER_RULE_ITEM, entries[objCntIdx + 6].tag);
+    ASSERT_EQ(EMPTY_SUFFIX_PAYLOAD_LEN, entries[objCntIdx + 6].payload.size());
+    EXPECT_EQ(0, entries[objCntIdx + 6].payload[0]);
 }
 
 } // namespace SANDBOX
