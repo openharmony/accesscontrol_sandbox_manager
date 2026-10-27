@@ -20,6 +20,7 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <utility>
 #include <linux/filter.h>
 #include "cJSON.h"
 #include "sandbox_cmd_parser.h"
@@ -35,6 +36,9 @@ namespace SANDBOX {
 // DEC ioctl code in sandbox_manager.cpp; the ioctl vocabulary itself lives in
 // sandbox_device_ioctl.h.
 constexpr int UID_BASE = 200000;
+
+// Low 32-bit mask for extracting AccessTokenID from AccessTokenIDEx.
+constexpr uint64_t TOKEN_ID_LOWMASK = 0xFFFFFFFF;
 
 /**
  * @brief Sandbox manager, responsible for executing the 15-step sandbox creation workflow
@@ -212,6 +216,8 @@ private:
     int PrepareWorkdir();
     int ApplyEnvironment();
 #ifdef CONFIG_SHELL_SANDBOX
+    int FetchToolCredentials();
+    int SetToolCredentials();
     int DeliverDaemonSidePolicies();
     int DeliverExecuterInit();
     int SetEncapsProcFlag();
@@ -361,6 +367,11 @@ public:
     int startGateWriteFd_ = -1;
     bool initialized_ = false;
     bool pivotRootDone_ = false;
+#ifdef CONFIG_SHELL_SANDBOX
+    // Tool credentials fetched from SAF. first is the environment variable
+    // name, second is its value.
+    std::vector<std::pair<std::string, std::string>> toolCredentials_;
+#endif
 };
 
 } // namespace SANDBOX

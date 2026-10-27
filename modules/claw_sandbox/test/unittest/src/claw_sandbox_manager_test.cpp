@@ -3702,6 +3702,282 @@ HWTEST_F(ClawSandboxManagerTest, ParentAfterFork003, TestSize.Level0)
     EXPECT_EQ(EBADF, errno);
 }
 
+#ifdef CONFIG_SHELL_SANDBOX
+// ==================== Tool credential tests ====================
+
+/**
+ * @tc.name: SetToolCredentials001
+ * @tc.desc: An empty toolCredentials_ injects nothing
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetToolCredentials001, TestSize.Level0)
+{
+    const std::string envName = "CLAW_UT_CRED_SET_EMPTY";
+    unsetenv(envName.c_str());
+
+    SandboxManager manager;
+    manager.config_.type = "shell";
+    manager.toolCredentials_.clear();
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetToolCredentials());
+    EXPECT_EQ(nullptr, getenv(envName.c_str()));
+
+    unsetenv(envName.c_str());
+}
+
+/**
+ * @tc.name: SetToolCredentials002
+ * @tc.desc: CLI type skips credential injection
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetToolCredentials002, TestSize.Level0)
+{
+    const std::string envName = "CLAW_UT_CRED_SET_CLI";
+    unsetenv(envName.c_str());
+
+    SandboxManager manager;
+    manager.config_.type = "cli";
+    manager.toolCredentials_ = {{envName, "value"}};
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetToolCredentials());
+    EXPECT_EQ(nullptr, getenv(envName.c_str()));
+
+    unsetenv(envName.c_str());
+}
+
+/**
+ * @tc.name: SetToolCredentials003
+ * @tc.desc: Multiple credentials are injected into the environment
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetToolCredentials003, TestSize.Level0)
+{
+    const std::string envA = "CLAW_UT_CRED_SET_MULTI_A";
+    const std::string envB = "CLAW_UT_CRED_SET_MULTI_B";
+    unsetenv(envA.c_str());
+    unsetenv(envB.c_str());
+
+    SandboxManager manager;
+    manager.config_.type = "shell";
+    manager.toolCredentials_ = {{envA, "valueA"}, {envB, "valueB"}};
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetToolCredentials());
+    const char *valueA = getenv(envA.c_str());
+    ASSERT_NE(nullptr, valueA);
+    EXPECT_STREQ("valueA", valueA);
+    const char *valueB = getenv(envB.c_str());
+    ASSERT_NE(nullptr, valueB);
+    EXPECT_STREQ("valueB", valueB);
+
+    unsetenv(envA.c_str());
+    unsetenv(envB.c_str());
+}
+
+/**
+ * @tc.name: SetToolCredentials004
+ * @tc.desc: An env name containing '=' is skipped; a later valid credential is
+ *           still injected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, SetToolCredentials004, TestSize.Level0)
+{
+    const std::string badEnv = "CLAW_UT_CRED_SET_BAD=VALUE";
+    const std::string goodEnv = "CLAW_UT_CRED_SET_BAD_GOOD";
+    unsetenv(goodEnv.c_str());
+
+    SandboxManager manager;
+    manager.config_.type = "shell";
+    manager.toolCredentials_ = {{badEnv, "bad"}, {goodEnv, "good"}};
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetToolCredentials());
+    // setenv() rejects a name containing '=', so the bad entry is skipped.
+    EXPECT_EQ(nullptr, getenv(badEnv.c_str()));
+
+    const char *goodValue = getenv(goodEnv.c_str());
+    ASSERT_NE(nullptr, goodValue);
+    EXPECT_STREQ("good", goodValue);
+
+    unsetenv(goodEnv.c_str());
+}
+
+/**
+ * @tc.name: FetchToolCredentials001
+ * @tc.desc: An empty subjectId skips the SAF fetch
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, FetchToolCredentials001, TestSize.Level0)
+{
+    g_toolCredentialMockState = ToolCredentialMockState {};
+    g_toolCredentialMockState.mockEnabled = true;
+    const std::string envName = "CLAW_UT_CRED_FETCH_EMPTY_SUBJECT";
+    g_toolCredentialMockState.credentials = {{envName, "value"}};
+
+    SandboxManager manager;
+    manager.config_.type = "shell";
+    manager.config_.subjectId = "";
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.FetchToolCredentials());
+    EXPECT_TRUE(manager.toolCredentials_.empty());
+
+    g_toolCredentialMockState = ToolCredentialMockState {};
+}
+
+/**
+ * @tc.name: FetchToolCredentials002
+ * @tc.desc: A successful SAF fetch fills toolCredentials_
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, FetchToolCredentials002, TestSize.Level0)
+{
+    g_toolCredentialMockState = ToolCredentialMockState {};
+    g_toolCredentialMockState.mockEnabled = true;
+    const std::string envA = "CLAW_UT_CRED_FETCH_A";
+    const std::string envB = "CLAW_UT_CRED_FETCH_B";
+    g_toolCredentialMockState.credentials = {{envA, "valueA"}, {envB, "valueB"}};
+
+    SandboxManager manager;
+    manager.config_.type = "shell";
+    manager.config_.subjectId = "subject-002";
+    manager.config_.callerTokenId = TEST_HAP_TOKEN_ID;
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.FetchToolCredentials());
+    ASSERT_EQ(2U, manager.toolCredentials_.size());
+    EXPECT_EQ(envA, manager.toolCredentials_[0].first);
+    EXPECT_EQ("valueA", manager.toolCredentials_[0].second);
+    EXPECT_EQ(envB, manager.toolCredentials_[1].first);
+    EXPECT_EQ("valueB", manager.toolCredentials_[1].second);
+
+    g_toolCredentialMockState = ToolCredentialMockState {};
+}
+
+/**
+ * @tc.name: FetchToolCredentials003
+ * @tc.desc: A failing SAF call leaves toolCredentials_ empty
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, FetchToolCredentials003, TestSize.Level0)
+{
+    g_toolCredentialMockState = ToolCredentialMockState {};
+    g_toolCredentialMockState.mockEnabled = true;
+    const std::string envName = "CLAW_UT_CRED_FETCH_FAIL";
+    g_toolCredentialMockState.getToolCredentialRet = -1;
+    g_toolCredentialMockState.credentials = {{envName, "value"}};
+
+    SandboxManager manager;
+    manager.config_.type = "shell";
+    manager.config_.subjectId = "subject-003";
+    manager.config_.callerTokenId = TEST_HAP_TOKEN_ID;
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.FetchToolCredentials());
+    EXPECT_TRUE(manager.toolCredentials_.empty());
+
+    g_toolCredentialMockState = ToolCredentialMockState {};
+}
+
+/**
+ * @tc.name: FetchToolCredentials004
+ * @tc.desc: CLI type skips the SAF fetch
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, FetchToolCredentials004, TestSize.Level0)
+{
+    g_toolCredentialMockState = ToolCredentialMockState {};
+    g_toolCredentialMockState.mockEnabled = true;
+    const std::string envName = "CLAW_UT_CRED_FETCH_CLI";
+    g_toolCredentialMockState.credentials = {{envName, "value"}};
+
+    SandboxManager manager;
+    manager.config_.type = "cli";
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.FetchToolCredentials());
+    EXPECT_TRUE(manager.toolCredentials_.empty());
+
+    g_toolCredentialMockState = ToolCredentialMockState {};
+}
+
+/**
+ * @tc.name: FetchToolCredentials005
+ * @tc.desc: Fetched credentials can be injected into the environment
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, FetchToolCredentials005, TestSize.Level0)
+{
+    g_toolCredentialMockState = ToolCredentialMockState {};
+    g_toolCredentialMockState.mockEnabled = true;
+    const std::string envName = "CLAW_UT_CRED_FETCH_SET";
+    unsetenv(envName.c_str());
+    g_toolCredentialMockState.credentials = {{envName, "value"}};
+
+    SandboxManager manager;
+    manager.config_.type = "shell";
+    manager.config_.subjectId = "subject-005";
+    manager.config_.callerTokenId = TEST_HAP_TOKEN_ID;
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.FetchToolCredentials());
+    ASSERT_EQ(1U, manager.toolCredentials_.size());
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetToolCredentials());
+
+    const char *value = getenv(envName.c_str());
+    ASSERT_NE(nullptr, value);
+    EXPECT_STREQ("value", value);
+
+    unsetenv(envName.c_str());
+    g_toolCredentialMockState = ToolCredentialMockState {};
+}
+
+/**
+ * @tc.name: FetchToolCredentials006
+ * @tc.desc: Invalid env names are filtered; only the valid credential is
+ *           injected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxManagerTest, FetchToolCredentials006, TestSize.Level0)
+{
+    g_toolCredentialMockState = ToolCredentialMockState {};
+    g_toolCredentialMockState.mockEnabled = true;
+    const std::string goodEnv = "CLAW_UT_CRED_FETCH_FILTER_GOOD";
+    const std::string badPrefix = "CLAW_UT_CRED_FETCH_FILTER_BAD";
+    const std::string badEnv = badPrefix + "=VALUE";
+    unsetenv(goodEnv.c_str());
+    unsetenv(badPrefix.c_str());
+    g_toolCredentialMockState.credentials = {
+        {"", "empty"},
+        {badEnv, "bad"},
+        {goodEnv, "good"}
+    };
+
+    SandboxManager manager;
+    manager.config_.type = "shell";
+    manager.config_.subjectId = "subject-006";
+    manager.config_.callerTokenId = TEST_HAP_TOKEN_ID;
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.FetchToolCredentials());
+    ASSERT_EQ(1U, manager.toolCredentials_.size());
+    EXPECT_EQ(goodEnv, manager.toolCredentials_[0].first);
+    EXPECT_EQ("good", manager.toolCredentials_[0].second);
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.SetToolCredentials());
+    const char *goodValue = getenv(goodEnv.c_str());
+    ASSERT_NE(nullptr, goodValue);
+    EXPECT_STREQ("good", goodValue);
+    EXPECT_EQ(nullptr, getenv(badPrefix.c_str()));
+
+    unsetenv(goodEnv.c_str());
+    unsetenv(badPrefix.c_str());
+    g_toolCredentialMockState = ToolCredentialMockState {};
+}
+#endif // CONFIG_SHELL_SANDBOX
+
 } // namespace SANDBOX
 } // namespace AccessControl
 } // namespace OHOS

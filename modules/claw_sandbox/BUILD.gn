@@ -33,6 +33,7 @@ if(!defined(ohos_lite)) {
     # units removes it outright instead.
     if (sandbox_manager_shell_sandbox) {
       sources += [
+        "src/sandbox_credential.cpp",
         "src/sandbox_op_control_deliver.cpp",
         "src/sandbox_policy.cpp",
         "src/sandbox_op_control_parser.cpp",
@@ -109,6 +110,10 @@ if(!defined(ohos_lite)) {
       "c_utils:utils",
       "selinux:libselinux",
     ]
+
+    if (sandbox_manager_shell_sandbox) {
+      external_deps += [ "asset:saf_credential" ]
+    }
 
     defines = [
       "SANDBOX_STUB_MAINTHREAD",
