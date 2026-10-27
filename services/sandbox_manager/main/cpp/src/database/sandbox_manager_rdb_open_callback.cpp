@@ -94,16 +94,9 @@ int32_t SandboxManagerRdbOpenCallback::OnUpgrade(
     }
     // Upgrade from version < 4 to version 4: Add volumeUnmountTs column to persisted_policy_table
     if (currentVersion < 4 && targetVersion >= 4) {
-        std::string sql = "ALTER TABLE ";
-        sql.append(PERSISTED_POLICY_TABLE)
-            .append(" ADD COLUMN ")
-            .append(PolicyFiledConst::FIELD_VOLUME_UNMOUNT_TS)
-            .append(" integer not null default 0");
-        int32_t res = rdbStore.ExecuteSql(sql);
+        int32_t res = AddVolumeUnmountTsColumn(rdbStore);
         if (res != NativeRdb::E_OK) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "ALTER TABLE failed (res=%{public}d), column may already exist", res);
-        } else {
-            SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 4");
+            return res;
         }
     }
     // Upgrade from version < 5 to version 5: Add UGC_PERMISSION_TABLE
@@ -146,6 +139,37 @@ int32_t SandboxManagerRdbOpenCallback::CreatePersistedPolicyTable(NativeRdb::Rdb
         .append(PolicyFiledConst::FIELD_MODE)
         .append("))");
     return rdbStore.ExecuteSql(sql);
+}
+
+int32_t SandboxManagerRdbOpenCallback::AddVolumeUnmountTsColumn(NativeRdb::RdbStore &rdbStore) const
+{
+    std::string sql = "ALTER TABLE ";
+    sql.append(PERSISTED_POLICY_TABLE)
+        .append(" ADD COLUMN ")
+        .append(PolicyFiledConst::FIELD_VOLUME_UNMOUNT_TS)
+        .append(" integer not null default 0");
+    int32_t res = rdbStore.ExecuteSql(sql);
+    if (res == NativeRdb::E_OK) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 4");
+        return NativeRdb::E_OK;
+    }
+    std::string pragmaSql = "PRAGMA table_info(" + PERSISTED_POLICY_TABLE + ")";
+    auto resultSet = rdbStore.QuerySql(pragmaSql);
+    bool columnExists = false;
+    while (resultSet != nullptr && resultSet->GoToNextRow() == NativeRdb::E_OK) {
+        std::string colName;
+        resultSet->GetString(1, colName);
+        if (colName == PolicyFiledConst::FIELD_VOLUME_UNMOUNT_TS) {
+            columnExists = true;
+            break;
+        }
+    }
+    if (columnExists) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Column already exists, treating as success");
+        return NativeRdb::E_OK;
+    }
+    SANDBOXMANAGER_LOG_ERROR(LABEL, "ALTER TABLE failed and column does not exist, res=%{public}d", res);
+    return res;
 }
 
 int32_t SandboxManagerRdbOpenCallback::CreateBundlePersistentPolicyTable(NativeRdb::RdbStore &rdbStore,
