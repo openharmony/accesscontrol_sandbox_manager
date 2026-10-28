@@ -38,12 +38,12 @@ public:
     static VolumePreserveManager &GetInstance();
     int32_t DeactivePolicyByPath(const std::string &volumeMountPath);
     int32_t ActivePolicyByPath(const std::string &volumeMountPath);
-    void SetAgingTtlMs(int64_t ttlMs);
 
 private:
     VolumePreserveManager() = default;
     ~VolumePreserveManager() = default;
     DISALLOW_COPY_AND_MOVE(VolumePreserveManager);
+    void SetAgingTtlMs(int64_t ttlMs);
 
     bool ValidatePath(const std::string &path, std::string &adjustedOut);
     int64_t CurrentTimeMs();

@@ -146,7 +146,7 @@ int32_t VolumePreserveManager::ActivateMacPolicy(
 int32_t VolumePreserveManager::DeactiveRecords(
     const std::vector<GenericValues> &records, int64_t now)
 {
-    bool hasError = false;
+    int32_t errorCode = SANDBOX_MANAGER_OK;
     for (const auto &record : records) {
         GenericValues modifyValues;
         modifyValues.Put(PolicyFiledConst::FIELD_VOLUME_UNMOUNT_TS, now);
@@ -156,8 +156,7 @@ int32_t VolumePreserveManager::DeactiveRecords(
             SANDBOX_MANAGER_PERSISTED_POLICY, modifyValues, conditions);
         if (ret != SandboxManagerRdb::SUCCESS) {
             LOGE_WITH_REPORT(LABEL, "Modify volumeUnmountTs failed, ret=%{public}d", ret);
-            hasError = true;
-            continue;
+            errorCode = SANDBOX_MANAGER_DB_ERR;
         }
         uint32_t tokenId = 0;
         PolicyInfo policy;
@@ -166,9 +165,10 @@ int32_t VolumePreserveManager::DeactiveRecords(
         if (macRet != SANDBOX_MANAGER_OK) {
             LOGE_WITH_REPORT(LABEL,
                 "UnSetSandboxPolicy failed, tokenId=%{public}u, ret=%{public}d", tokenId, macRet);
+            errorCode = SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
     }
-    return hasError ? SANDBOX_MANAGER_DB_ERR : SANDBOX_MANAGER_OK;
+    return errorCode;
 }
 
 int32_t VolumePreserveManager::DeleteExpiredRecords(int64_t now)
@@ -207,7 +207,7 @@ void VolumePreserveManager::FilterRestorableRecords(
 
 int32_t VolumePreserveManager::ActivateRecords(const std::vector<GenericValues> &records)
 {
-    bool hasError = false;
+    int32_t errorCode = SANDBOX_MANAGER_OK;
     for (const auto &record : records) {
         uint32_t tokenId = 0;
         PolicyInfo policy;
@@ -222,8 +222,7 @@ int32_t VolumePreserveManager::ActivateRecords(const std::vector<GenericValues> 
         if (macRet != SANDBOX_MANAGER_OK) {
             LOGE_WITH_REPORT(LABEL,
                 "ActivateMacPolicy failed, tokenId=%{public}u, ret=%{public}d", tokenId, macRet);
-            hasError = true;
-            continue;
+            errorCode = SANDBOX_MANAGER_MAC_IOCTL_ERR;
         }
         GenericValues modifyValues;
         modifyValues.Put(PolicyFiledConst::FIELD_VOLUME_UNMOUNT_TS, static_cast<int64_t>(0));
@@ -233,10 +232,10 @@ int32_t VolumePreserveManager::ActivateRecords(const std::vector<GenericValues> 
             SANDBOX_MANAGER_PERSISTED_POLICY, modifyValues, conditions);
         if (ret != SandboxManagerRdb::SUCCESS) {
             LOGE_WITH_REPORT(LABEL, "Clear volumeUnmountTs failed, ret=%{public}d", ret);
-            hasError = true;
+            errorCode = SANDBOX_MANAGER_DB_ERR;
         }
     }
-    return hasError ? SANDBOX_MANAGER_DB_ERR : SANDBOX_MANAGER_OK;
+    return errorCode;
 }
 
 int32_t VolumePreserveManager::DeactivePolicyByPath(const std::string &volumeMountPath)
@@ -244,6 +243,7 @@ int32_t VolumePreserveManager::DeactivePolicyByPath(const std::string &volumeMou
     SANDBOXMANAGER_LOG_INFO(LABEL, "DeactivePolicyByPath called, path=%{public}s", volumeMountPath.c_str());
     std::string adjustedPath;
     if (!ValidatePath(volumeMountPath, adjustedPath)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "DeactivePolicyByPath invalid path=%{public}s", volumeMountPath.c_str());
         return INVALID_PARAMTER;
     }
     std::vector<GenericValues> dbResults;
@@ -258,7 +258,8 @@ int32_t VolumePreserveManager::DeactivePolicyByPath(const std::string &volumeMou
     int64_t now = CurrentTimeMs();
     ret = DeactiveRecords(dbResults, now);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "DeactiveRecords has errors, but continued processing all records");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "DeactiveRecords has errors, ret=%{public}d", ret);
+        return ret;
     }
     SANDBOXMANAGER_LOG_INFO(LABEL, "DeactivePolicyByPath success, count=%{public}zu", dbResults.size());
     return SANDBOX_MANAGER_OK;
@@ -269,11 +270,14 @@ int32_t VolumePreserveManager::ActivePolicyByPath(const std::string &volumeMount
     SANDBOXMANAGER_LOG_INFO(LABEL, "ActivePolicyByPath called, path=%{public}s", volumeMountPath.c_str());
     std::string adjustedPath;
     if (!ValidatePath(volumeMountPath, adjustedPath)) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "ActivePolicyByPath invalid path=%{public}s", volumeMountPath.c_str());
         return INVALID_PARAMTER;
     }
     int64_t now = CurrentTimeMs();
+    SANDBOXMANAGER_LOG_INFO(LABEL, "ActivePolicyByPath start aging, now=%{public}lld", static_cast<long long>(now));
     int32_t ret = DeleteExpiredRecords(now);
     if (ret != SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "DeleteExpiredRecords failed, ret=%{public}d", ret);
         return ret;
     }
     std::vector<GenericValues> dbResults;
@@ -281,14 +285,19 @@ int32_t VolumePreserveManager::ActivePolicyByPath(const std::string &volumeMount
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
+    size_t totalMatched = dbResults.size();
     FilterRestorableRecords(dbResults, now);
+    SANDBOXMANAGER_LOG_INFO(LABEL,
+        "FilterRestorableRecords: matched=%{public}zu, restorable=%{public}zu",
+        totalMatched, dbResults.size());
     if (dbResults.empty()) {
         SANDBOXMANAGER_LOG_INFO(LABEL, "No policies to restore for path=%{public}s", adjustedPath.c_str());
         return SANDBOX_MANAGER_OK;
     }
     ret = ActivateRecords(dbResults);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "ActivateRecords has errors, but continued processing all records");
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "ActivateRecords has errors, ret=%{public}d", ret);
+        return ret;
     }
     SANDBOXMANAGER_LOG_INFO(LABEL, "ActivePolicyByPath success, count=%{public}zu", dbResults.size());
     return SANDBOX_MANAGER_OK;

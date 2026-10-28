@@ -24,7 +24,6 @@
 #include "policy_info.h"
 #include "policy_vec_raw_data.h"
 #include "policy_trie.h"
-#include "sandbox_manager_const.h"
 
 namespace OHOS {
 namespace AccessControl {
