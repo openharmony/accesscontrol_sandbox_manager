@@ -56,6 +56,7 @@ private:
     bool MatchVolumePrefix(const std::string &path, std::string &suffixOut);
     int32_t UnsetMacPolicy(uint32_t tokenId, const PolicyInfo &policy);
     int32_t ActivateMacPolicy(uint32_t tokenId, const PolicyInfo &policy, int32_t userId);
+    void CleanMacPolicyByPath(const std::string &adjustedPath);
 
     int64_t agingTtlMs_ = VOLUME_POLICY_AGING_TTL_MS;
 };
