@@ -266,14 +266,16 @@ public:
      */
     void RemoveUgcPermissionByTokenId(const uint32_t tokenId);
 
+    /**
+     * @brief Clean policy list on MAC
+     * @param filePathList file path list to clean
+     * @param userId a given userid
+     */
+    void CleanPolicyOnMac(const std::vector<std::string> &filePathList, int32_t userId);
+
 private:
     PolicyInfoManager() = default;
     ~PolicyInfoManager() = default;
-    /**
-     * @brief Clean policy list on MAC
-     * @param GenericValues vector
-     */
-    void CleanPolicyOnMac(const std::vector<std::string> &filePathList, int32_t userId);
 
     /**
      * @brief find a record with same token and policy path (mode not inclued)

@@ -18,6 +18,7 @@
 #include <chrono>
 #include "accesstoken_kit.h"
 #include "hap_token_info.h"
+#include "os_account_manager.h"
 #include "policy_field_const.h"
 #include "policy_info_manager.h"
 #include "sandbox_manager_err_code.h"
@@ -143,6 +144,18 @@ int32_t VolumePreserveManager::ActivateMacPolicy(
         tokenId, policies, 1, results, setInfo);
 }
 
+void VolumePreserveManager::CleanMacPolicyByPath(const std::string &adjustedPath)
+{
+    int32_t userId = -1;
+    int32_t ret = AccountSA::OsAccountManager::GetForegroundOsAccountLocalId(userId);
+    if (ret != 0) {
+        LOGE_WITH_REPORT(LABEL, "CleanMacPolicyByPath get user id failed error=%{public}d", ret);
+        return;
+    }
+    std::vector<std::string> filePathList = {adjustedPath};
+    PolicyInfoManager::GetInstance().CleanPolicyOnMac(filePathList, userId);
+}
+
 int32_t VolumePreserveManager::DeactiveRecords(
     const std::vector<GenericValues> &records, int64_t now)
 {
@@ -261,6 +274,7 @@ int32_t VolumePreserveManager::DeactivePolicyByPath(const std::string &volumeMou
         SANDBOXMANAGER_LOG_ERROR(LABEL, "DeactiveRecords has errors, ret=%{public}d", ret);
         return ret;
     }
+    CleanMacPolicyByPath(adjustedPath);
     SANDBOXMANAGER_LOG_INFO(LABEL, "DeactivePolicyByPath success, count=%{public}zu", dbResults.size());
     return SANDBOX_MANAGER_OK;
 }
