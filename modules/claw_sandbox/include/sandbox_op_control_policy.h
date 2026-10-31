@@ -243,9 +243,10 @@ struct SandboxPolicyNetworkConfig {
  * @brief File operation control rules (AddOperationControlRuleGroups[].File).
  *
  *        One deny/allow/ask trio each for Read, Write and Delete; the operations are
- *        independent, but conflicting actions within one are refused. Every path must
- *        name an existing file: the rule binds to its inode through an fd, so a file
- *        that is not there yet cannot be named (see SandboxPolicyTlv::OpenFileFds).
+ *        independent, but conflicting actions within one are refused. Every path may
+ *        be at most 4096 bytes and must name an existing file: the rule binds to its
+ *        inode through an fd, so a file that is not there yet cannot be named (see
+ *        SandboxPolicyTlv::OpenFileFds).
  */
 struct SandboxPolicyFileConfig {
     // Optional; NONE when not configured. One value for the whole file module, and
@@ -264,6 +265,7 @@ struct SandboxPolicyFileConfig {
 
 /**
  * @brief Process operation control rules (AddOperationControlRuleGroups[].Process).
+ *        Exec commands are bare names of at most 256 bytes (no '/').
  */
 struct SandboxPolicyProcessConfig {
     // Optional DefaultAction (NONE when not configured).

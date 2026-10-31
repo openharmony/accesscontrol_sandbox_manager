@@ -29,6 +29,7 @@ ohos_fuzztest("ClawSandboxCmdFuzzTest") {
     "../../../common/fuzz_common.cpp",
     "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_cmd_parser.cpp",
     "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_exec.cpp",
+    "${sandbox_manager_path}/modules/claw_sandbox/src/sandbox_utils.cpp",
     "claw_sandbox_cmd_fuzzer.cpp",
   ]
 

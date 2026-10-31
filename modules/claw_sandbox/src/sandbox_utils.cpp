@@ -27,6 +27,16 @@ namespace SANDBOX {
 
 namespace {
 constexpr const char *PC_MODE_PARAM = "persist.sceneboard.ispcmode";
+
+// An octal escape is a backslash followed by three octal digits carrying one
+// byte, e.g. "\040" for a space. Only the four characters mountinfo escapes
+// need this today, but any such sequence decodes the same way.
+constexpr char ESCAPE_PREFIX = '\\';
+constexpr size_t OCTAL_DIGITS_PER_ESCAPE = 3;
+constexpr char OCTAL_DIGIT_FIRST = '0';
+constexpr char OCTAL_DIGIT_LAST = '7';
+constexpr unsigned int OCTAL_BASE = 8;
+constexpr unsigned int ESCAPED_BYTE_MAX = 0xFF;
 } // namespace
 
 bool IsPcMode(bool defaultValue)
@@ -60,6 +70,36 @@ std::string GetRealPath(const std::string &path)
     return std::string(resolvePath);
 }
 
+bool IsCanonicalAbsolutePath(const std::string &path)
+{
+    if (path.empty() || path[0] != '/') {
+        return false;
+    }
+    if (path == "/") {
+        return true;
+    }
+    if (path.back() == '/') {
+        return false;
+    }
+
+    size_t start = 1;
+    while (start < path.size()) {
+        size_t end = path.find('/', start);
+        if (end == std::string::npos) {
+            end = path.size();
+        }
+        if (end == start) {
+            return false;
+        }
+        const std::string_view component(path.data() + start, end - start);
+        if (component == "." || component == "..") {
+            return false;
+        }
+        start = end + 1;
+    }
+    return true;
+}
+
 bool IsPathUnder(const std::string &path, const std::string &dir)
 {
     std::string realPath = GetRealPath(path);
@@ -82,6 +122,40 @@ bool IsPathUnder(const std::string &path, const std::string &dir)
     return realPath.size() > realDir.size() &&
            realPath.compare(0, realDir.size(), realDir) == 0 &&
            realPath[realDir.size()] == '/';
+}
+
+std::string DecodeOctalEscapes(const std::string &raw)
+{
+    std::string result;
+    result.reserve(raw.size());
+    size_t pos = 0;
+    while (pos < raw.size()) {
+        if (raw[pos] != ESCAPE_PREFIX ||
+            pos + OCTAL_DIGITS_PER_ESCAPE >= raw.size()) {
+            result.push_back(raw[pos]);
+            ++pos;
+            continue;
+        }
+        unsigned int value = 0;
+        bool octal = true;
+        for (size_t j = 1; j <= OCTAL_DIGITS_PER_ESCAPE; ++j) {
+            const char digit = raw[pos + j];
+            if (digit < OCTAL_DIGIT_FIRST || digit > OCTAL_DIGIT_LAST) {
+                octal = false;
+                break;
+            }
+            value = value * OCTAL_BASE +
+                static_cast<unsigned int>(digit - OCTAL_DIGIT_FIRST);
+        }
+        if (!octal || value > ESCAPED_BYTE_MAX) {
+            result.push_back(raw[pos]);
+            ++pos;
+            continue;
+        }
+        result.push_back(static_cast<char>(value));
+        pos += OCTAL_DIGITS_PER_ESCAPE + 1;
+    }
+    return result;
 }
 
 } // namespace SANDBOX

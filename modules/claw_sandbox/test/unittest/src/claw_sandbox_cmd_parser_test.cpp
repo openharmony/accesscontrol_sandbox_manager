@@ -844,7 +844,7 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig025, TestSize.Level0)
     EXPECT_EQ("/bin", config.env["PATH"]);
     ASSERT_EQ(1U, config.policy.mounts.size());
     EXPECT_EQ("/data/test", config.policy.mounts[0].source);
-    EXPECT_FALSE(config.policy.mounts[0].readOnly);
+    EXPECT_EQ(SandboxConfig::PolicyMountMode::NONE, config.policy.mounts[0].mode);
 }
 
 /**
@@ -890,23 +890,55 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig027, TestSize.Level0)
 
 /**
  * @tc.name: ParseConfig028
- * @tc.desc: ParseConfig accepts policy source longer than the old per-source limit
+ * @tc.desc: ParseConfig accepts a policy source of exactly the 1024-byte limit
+ *           and rejects one byte more
  * @tc.type: FUNC
  * @tc.require:
  */
 HWTEST_F(ClawSandboxCmdParserTest, ParseConfig028, TestSize.Level0)
 {
-    std::string longSource = "/" + std::string(1500, 'a');
-    std::string policy = R"({"mounts":[{"source":")" + longSource + R"(","mode":"ro"}]})";
+    std::string maxSource = "/" + std::string(1023, 'a');
+    std::string policy = R"({"mounts":[{"source":")" + maxSource + R"(","mode":"ro"}]})";
     std::string json = AddConfigJsonField(BuildConfigJsonWithValue("", ""), "policy", ToJsonString(policy));
 
     SandboxConfig config;
-    int ret = CmdParser::ParseConfig(json, config);
-
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ParseConfig(json, config));
     ASSERT_EQ(1U, config.policy.mounts.size());
-    EXPECT_EQ(longSource, config.policy.mounts[0].source);
-    EXPECT_TRUE(config.policy.mounts[0].readOnly);
+    EXPECT_EQ(maxSource, config.policy.mounts[0].source);
+    EXPECT_EQ(SandboxConfig::PolicyMountMode::RO, config.policy.mounts[0].mode);
+
+    std::string tooLongSource = "/" + std::string(1024, 'a');
+    policy = R"({"mounts":[{"source":")" + tooLongSource + R"(","mode":"ro"}]})";
+    json = AddConfigJsonField(BuildConfigJsonWithValue("", ""), "policy", ToJsonString(policy));
+
+    SandboxConfig rejected;
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ParseConfig(json, rejected));
+}
+
+/**
+ * @tc.name: ParseConfig080
+ * @tc.desc: ParseConfig imposes no count cap on policy mounts; the array is
+ *           bounded only by the policy JSON length limit
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig080, TestSize.Level0)
+{
+    constexpr int mountCount = 1025;
+    std::string mounts = "[";
+    for (int i = 0; i < mountCount; i++) {
+        if (i != 0) {
+            mounts += ",";
+        }
+        mounts += R"({"source":"/data/m)" + std::to_string(i) + R"(","mode":"ro"})";
+    }
+    mounts += "]";
+    std::string policy = R"({"mounts":)" + mounts + "}";
+    std::string json = AddConfigJsonField(BuildConfigJsonWithValue("", ""), "policy", ToJsonString(policy));
+
+    SandboxConfig config;
+    EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ParseConfig(json, config));
+    EXPECT_EQ(static_cast<size_t>(mountCount), config.policy.mounts.size());
 }
 
 /**
@@ -952,9 +984,69 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig030, TestSize.Level0)
     EXPECT_EQ("/usr/bin", config.env["PATH"]);
     ASSERT_EQ(2U, config.policy.mounts.size());
     EXPECT_EQ("/data/ro", config.policy.mounts[0].source);
-    EXPECT_TRUE(config.policy.mounts[0].readOnly);
+    EXPECT_EQ(SandboxConfig::PolicyMountMode::RO, config.policy.mounts[0].mode);
     EXPECT_EQ("/data/rw", config.policy.mounts[1].source);
-    EXPECT_FALSE(config.policy.mounts[1].readOnly);
+    EXPECT_EQ(SandboxConfig::PolicyMountMode::NONE, config.policy.mounts[1].mode);
+}
+
+/**
+ * @tc.name: ParseConfig030PolicyRoot
+ * @tc.desc: ParseConfig accepts "/" as a policy mount source; the plan treats it
+ *           as a "/" -> "/" bind of the sandbox root and applies its mode there
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig030PolicyRoot, TestSize.Level0)
+{
+    std::string json = AddConfigJsonField(BuildConfigJsonWithValue("", ""), "policy",
+        R"({"mounts":[{"source":"/","mode":"rw"}]})");
+
+    SandboxConfig config;
+    ASSERT_EQ(SANDBOX_SUCCESS, CmdParser::ParseConfig(json, config));
+    ASSERT_EQ(1U, config.policy.mounts.size());
+    EXPECT_EQ("/", config.policy.mounts[0].source);
+    EXPECT_EQ(SandboxConfig::PolicyMountMode::NONE, config.policy.mounts[0].mode);
+}
+
+/**
+ * @tc.name: ParseConfig030PolicyModeNone
+ * @tc.desc: ParseConfig accepts mode none and keeps the mount attributes inherited
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig030PolicyModeNone, TestSize.Level0)
+{
+    std::string json = AddConfigJsonField(BuildConfigJsonWithValue("", ""), "policy",
+        R"({"mounts":[{"source":"/data/none","mode":"none"}]})");
+
+    SandboxConfig config;
+    ASSERT_EQ(SANDBOX_SUCCESS, CmdParser::ParseConfig(json, config));
+    ASSERT_EQ(1U, config.policy.mounts.size());
+    EXPECT_EQ("/data/none", config.policy.mounts[0].source);
+    EXPECT_EQ(SandboxConfig::PolicyMountMode::NONE, config.policy.mounts[0].mode);
+}
+
+/**
+ * @tc.name: ParseConfig030PolicyModeDefault
+ * @tc.desc: ParseConfig requires the mode field but still accepts an empty one,
+ *           which means none
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxCmdParserTest, ParseConfig030PolicyModeDefault, TestSize.Level0)
+{
+    std::string missing = AddConfigJsonField(BuildConfigJsonWithValue("", ""), "policy",
+        R"({"mounts":[{"source":"/data/default"}]})");
+    SandboxConfig missingConfig;
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, CmdParser::ParseConfig(missing, missingConfig));
+
+    std::string empty = AddConfigJsonField(BuildConfigJsonWithValue("", ""), "policy",
+        R"({"mounts":[{"source":"/data/empty","mode":""}]})");
+    SandboxConfig emptyConfig;
+    ASSERT_EQ(SANDBOX_SUCCESS, CmdParser::ParseConfig(empty, emptyConfig));
+    ASSERT_EQ(1U, emptyConfig.policy.mounts.size());
+    EXPECT_EQ("/data/empty", emptyConfig.policy.mounts[0].source);
+    EXPECT_EQ(SandboxConfig::PolicyMountMode::NONE, emptyConfig.policy.mounts[0].mode);
 }
 
 /**
@@ -990,12 +1082,18 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig032, TestSize.Level0)
     const ConfigJsonField invalidPolicyFields[] = {
         {"policy", R"({"mounts":"bad"})"},
         {"policy", R"({"mounts":[100]})"},
+        {"policy", R"({"mounts":[{"source":"/data/test"}]})"},
         {"policy", R"({"mounts":[{"mode":"ro"}]})"},
+        {"policy", R"({"mounts":[{"source":"/data/test","mode":123}]})"},
+        {"policy", R"({"mounts":[{"source":"/data/test","mode":null}]})"},
         {"policy", R"({"mounts":[{"source":123,"mode":"ro"}]})"},
         {"policy", R"({"mounts":[{"source":"","mode":"ro"}]})"},
         {"policy", R"({"mounts":[{"source":"relative","mode":"ro"}]})"},
-        {"policy", R"({"mounts":[{"source":"/data/test"}]})"},
         {"policy", R"({"mounts":[{"source":"/data/test","mode":"bad"}]})"},
+        {"policy", R"({"mounts":[{"source":"/data/","mode":"ro"}]})"},
+        {"policy", R"({"mounts":[{"source":"//data/test","mode":"ro"}]})"},
+        {"policy", R"({"mounts":[{"source":"/data/./test","mode":"ro"}]})"},
+        {"policy", R"({"mounts":[{"source":"/data/a","mode":"ro"},{"source":"/data/a","mode":"rw"}]})"},
     };
 
     for (const auto &field : invalidPolicyFields) {
@@ -1556,9 +1654,9 @@ HWTEST_F(ClawSandboxCmdParserTest, ParseConfig048, TestSize.Level0)
     EXPECT_EQ(SANDBOX_SUCCESS, CmdParser::ParseConfig(json, config));
     ASSERT_EQ(2U, config.policy.mounts.size());
     EXPECT_EQ("/data/a", config.policy.mounts[0].source);
-    EXPECT_TRUE(config.policy.mounts[0].readOnly);
+    EXPECT_EQ(SandboxConfig::PolicyMountMode::RO, config.policy.mounts[0].mode);
     EXPECT_EQ("/data/b", config.policy.mounts[1].source);
-    EXPECT_FALSE(config.policy.mounts[1].readOnly);
+    EXPECT_EQ(SandboxConfig::PolicyMountMode::NONE, config.policy.mounts[1].mode);
 }
 
 /**

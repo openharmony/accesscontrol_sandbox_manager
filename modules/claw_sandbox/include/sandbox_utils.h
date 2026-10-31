@@ -34,6 +34,17 @@ bool ParseDecimalU64(std::string_view text, uint64_t &value);
 // canonicalised first, so ".." and symlinks cannot be used to step outside.
 bool IsPathUnder(const std::string &path, const std::string &dir);
 
+// Whether path is an absolute path that needs no lexical normalisation: no
+// "//", no "." or ".." components, and no trailing slash except for "/".
+// Callers that compare paths for overlap rely on this so two spellings of the
+// same location cannot pass as different mount targets.
+bool IsCanonicalAbsolutePath(const std::string &path);
+
+// Decode "\ooo" octal escapes: a backslash followed by three octal digits
+// carrying one byte, the form /proc/self/mountinfo uses for space, tab,
+// newline and backslash. A malformed sequence is kept verbatim.
+std::string DecodeOctalEscapes(const std::string &raw);
+
 bool IsPcMode(bool defaultValue);
 
 } // namespace SANDBOX
