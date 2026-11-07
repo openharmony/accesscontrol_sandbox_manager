@@ -4683,6 +4683,244 @@ HWTEST_F(SandboxManagerKitTest, SetPolicyWithSpecificUserIdTest001, TestSize.Lev
     ASSERT_EQ(1, checkResult.size());
     EXPECT_FALSE(checkResult[0]); // Should NOT have permission anymore
 }
+
+/**
+ * @tc.name: DeactivePolicyByPathTest001
+ * @tc.desc: DeactivePolicyByPath with empty path.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, DeactivePolicyByPathTest001, TestSize.Level0)
+{
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::DeactivePolicyByPath(""));
+}
+
+/**
+ * @tc.name: DeactivePolicyByPathTest002
+ * @tc.desc: DeactivePolicyByPath with path exceeding length limit.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, DeactivePolicyByPathTest002, TestSize.Level0)
+{
+    std::string longPath;
+    GeneratePath(MAX_PATH_LENGTH + 1, longPath);
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::DeactivePolicyByPath(longPath));
+}
+
+/**
+ * @tc.name: DeactivePolicyByPathTest003
+ * @tc.desc: DeactivePolicyByPath without file_manager permission.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, DeactivePolicyByPathTest003, TestSize.Level0)
+{
+    EXPECT_EQ(PERMISSION_DENIED, SandboxManagerKit::DeactivePolicyByPath("/storage/External/test_uuid"));
+}
+
+/**
+ * @tc.name: DeactivePolicyByPathTest004
+ * @tc.desc: DeactivePolicyByPath with non-volume path.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, DeactivePolicyByPathTest004, TestSize.Level0)
+{
+    if (!fileManagerPresent_) {
+        return;
+    }
+    setuid(g_uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::DeactivePolicyByPath("/data/temp"));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+}
+
+/**
+ * @tc.name: DeactivePolicyByPathTest005
+ * @tc.desc: DeactivePolicyByPath with valid volume path but no policies.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, DeactivePolicyByPathTest005, TestSize.Level0)
+{
+    if (!fileManagerPresent_) {
+        return;
+    }
+    setuid(g_uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::DeactivePolicyByPath("/storage/External/empty_kit_uuid"));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+}
+
+/**
+ * @tc.name: ActivePolicyByPathTest001
+ * @tc.desc: ActivePolicyByPath with empty path.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, ActivePolicyByPathTest001, TestSize.Level0)
+{
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::ActivePolicyByPath(""));
+}
+
+/**
+ * @tc.name: ActivePolicyByPathTest002
+ * @tc.desc: ActivePolicyByPath with path exceeding length limit.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, ActivePolicyByPathTest002, TestSize.Level0)
+{
+    std::string longPath;
+    GeneratePath(MAX_PATH_LENGTH + 1, longPath);
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::ActivePolicyByPath(longPath));
+}
+
+/**
+ * @tc.name: ActivePolicyByPathTest003
+ * @tc.desc: ActivePolicyByPath without file_manager permission.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, ActivePolicyByPathTest003, TestSize.Level0)
+{
+    EXPECT_EQ(PERMISSION_DENIED, SandboxManagerKit::ActivePolicyByPath("/storage/External/test_uuid"));
+}
+
+/**
+ * @tc.name: ActivePolicyByPathTest004
+ * @tc.desc: ActivePolicyByPath with non-volume path.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, ActivePolicyByPathTest004, TestSize.Level0)
+{
+    if (!fileManagerPresent_) {
+        return;
+    }
+    setuid(g_uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+    EXPECT_EQ(INVALID_PARAMTER, SandboxManagerKit::ActivePolicyByPath("/data/temp"));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+}
+
+/**
+ * @tc.name: ActivePolicyByPathTest005
+ * @tc.desc: ActivePolicyByPath with valid volume path but no policies.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, ActivePolicyByPathTest005, TestSize.Level0)
+{
+    if (!fileManagerPresent_) {
+        return;
+    }
+    setuid(g_uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::ActivePolicyByPath("/storage/External/empty_kit_uuid"));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+}
+
+/**
+ * @tc.name: DeactiveAndActivePolicyByPathTest001
+ * @tc.desc: Deactive and active policy by path with persisted policies.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, DeactiveAndActivePolicyByPathTest001, TestSize.Level0)
+{
+    if (!fileManagerPresent_) {
+        return;
+    }
+    std::vector<PolicyInfo> policy;
+    uint64_t policyFlag = 1;
+    std::vector<uint32_t> policyResult;
+    PolicyInfo info = {
+        .path = "/storage/External/kit_deact_active_uuid/dir1",
+        .mode = OperateMode::READ_MODE | OperateMode::WRITE_MODE
+    };
+    policy.emplace_back(info);
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::SetPolicy(g_mockToken, policy, policyFlag, policyResult));
+
+    std::vector<uint32_t> persistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::PersistPolicy(policy, persistResult));
+
+    setuid(g_uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::DeactivePolicyByPath("/storage/External/kit_deact_active_uuid"));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    sleep(1);
+
+    std::vector<bool> checkResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, checkResult));
+    EXPECT_FALSE(checkResult[0]);
+
+    setuid(g_uid);
+    tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+    EXPECT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::ActivePolicyByPath("/storage/External/kit_deact_active_uuid"));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+    sleep(1);
+
+    checkResult.clear();
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::CheckPolicy(g_mockToken, policy, checkResult));
+    EXPECT_TRUE(checkResult[0]);
+
+    std::vector<uint32_t> unPersistResult;
+    ASSERT_EQ(SANDBOX_MANAGER_OK, SandboxManagerKit::UnPersistPolicy(policy, unPersistResult));
+}
+
+/**
+ * @tc.name: DeactivePolicyByPathTest006
+ * @tc.desc: DeactivePolicyByPath with trailing slash.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, DeactivePolicyByPathTest006, TestSize.Level0)
+{
+    if (!fileManagerPresent_) {
+        return;
+    }
+    setuid(g_uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        SandboxManagerKit::DeactivePolicyByPath("/storage/External/trailing_slash_uuid/"));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+}
+
+/**
+ * @tc.name: ActivePolicyByPathTest006
+ * @tc.desc: ActivePolicyByPath with trailing slash.
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerKitTest, ActivePolicyByPathTest006, TestSize.Level0)
+{
+    if (!fileManagerPresent_) {
+        return;
+    }
+    setuid(g_uid);
+    Security::AccessToken::AccessTokenID tokenID = GetTokenIdFromProcess("file_manager_service");
+    EXPECT_NE(0, tokenID);
+    EXPECT_EQ(0, SetSelfTokenID(tokenID));
+    EXPECT_EQ(SANDBOX_MANAGER_OK,
+        SandboxManagerKit::ActivePolicyByPath("/storage/External/trailing_slash_uuid/"));
+    EXPECT_EQ(0, SetSelfTokenID(g_mockToken));
+}
 } // SandboxManager
 } // AccessControl
 } // OHOS
