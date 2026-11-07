@@ -38,5 +38,10 @@ group("fuzztest") {
     "unsetdenypolicy_fuzzer:UnsetDenyPolicyFuzzTest",
     "unsetpolicyasync_fuzzer:UnsetPolicyAsyncFuzzTest",
     "setpolicybybundlename_fuzzer:SetPolicyByBundleNameFuzzTest",
+    "deactivepolicybypath_fuzzer:DeactivePolicyByPathFuzzTest",
+    "activepolicybypath_fuzzer:ActivePolicyByPathFuzzTest",
+    "grantpermissionbyuser_fuzzer:GrantPermissionByUserFuzzTest",
+    "revokepermissionbyuser_fuzzer:RevokePermissionByUserFuzzTest",
+    "getstatusbypermission_fuzzer:GetStatusByPermissionFuzzTest",
   ]
 }

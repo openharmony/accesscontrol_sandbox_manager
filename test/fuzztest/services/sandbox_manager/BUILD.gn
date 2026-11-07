@@ -49,6 +49,11 @@ group("fuzztest") {
     "mac_fuzzer:MacFuzzTest",
     "sandboxstub_fuzzer:SandboxStubFuzzTest",
     "setpolicycheckpolicyappdata_fuzzer:SetPolicyCheckPolicyAppdataFuzzTest",
-    "persistactivateappdata_fuzzer:PersistActivateAppdataFuzzTest"
+    "persistactivateappdata_fuzzer:PersistActivateAppdataFuzzTest",
+    "deactivepolicybypathstub_fuzzer:DeactivePolicyByPathStubFuzzTest",
+    "activepolicybypathstub_fuzzer:ActivePolicyByPathStubFuzzTest",
+    "grantpermissionbyuserstub_fuzzer:GrantPermissionByUserStubFuzzTest",
+    "revokepermissionbyuserstub_fuzzer:RevokePermissionByUserStubFuzzTest",
+    "getstatusbypermissionstub_fuzzer:GetStatusByPermissionStubFuzzTest",
   ]
 }
