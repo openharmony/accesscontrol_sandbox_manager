@@ -1799,9 +1799,22 @@ static std::string GenerateMaskedPath(const std::vector<std::string> &components
     if (components.size() <= SUB_PATH_SEGMENT) {
         return "invalid_path";
     }
-    std::string subMask = components[SUB_PATH_SEGMENT].substr(0, 3) + "*";
+    const std::string &subPath = components[SUB_PATH_SEGMENT];
+    size_t firstSlash = subPath.find('/');
+    if (firstSlash == std::string::npos) {
+        std::string subMask = subPath.substr(0, 3) + "*";
+        return "***" + components[EL_LEVEL_SEGMENT] + "/" + components[BASE_SEGMENT] + "/" +
+            components[MAX_CHECK_COM_NUM] + "/" + subMask;
+    }
     std::string pathMask = "***" + components[EL_LEVEL_SEGMENT] + "/" + components[BASE_SEGMENT] + "/" +
-        components[MAX_CHECK_COM_NUM] + "/" + subMask;
+        components[MAX_CHECK_COM_NUM] + "/" + subPath.substr(0, firstSlash);
+    std::string remaining = subPath.substr(firstSlash + 1);
+    size_t lastSlash = remaining.rfind('/');
+    if (lastSlash == std::string::npos) {
+        pathMask += "/" + SandboxManagerLog::MaskRealPath(remaining);
+    } else {
+        pathMask += "/" + SandboxManagerLog::MaskRealPath(remaining.substr(0, lastSlash)) + "/*";
+    }
     return pathMask;
 }
 
