@@ -24,7 +24,8 @@ const uint64_t POLICY_VECTOR_SIZE_LIMIT = 50;
 };
 void PolicyInfoRandomGenerator::GeneratePolicyInfo(PolicyInfo &policyInfo)
 {
-    policyInfo.mode = GetData<uint8_t>() % 3 + 1; // 3 is RW
+    policyInfo.mode = GetData<uint8_t>() % MAX_MODE; // cover all OperateMode bits (0-127)
+    policyInfo.type = static_cast<PolicyType>(GetData<uint8_t>() % 4); // 4 types: UNKNOWN..OTHERS_PATH
     GenerateString(policyInfo.path);
 }
 
