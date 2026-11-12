@@ -1564,6 +1564,50 @@ HWTEST_F(ClawSandboxOpControlParserTest, ParseOperationControlPolicyPattern001, 
 }
 
 /**
+ * @tc.name: ParseOperationControlPolicyLength001
+ * @tc.desc: File rule paths are capped at 4096 bytes and Process exec commands
+ *           at 256 bytes; exactly the limit is accepted, one byte more is refused
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxOpControlParserTest, ParseOperationControlPolicyLength001, TestSize.Level0)
+{
+    const std::string maxPath = "/" + std::string(4095, 'p');
+    const std::string tooLongPath = "/" + std::string(4096, 'p');
+    const std::string maxCmd = std::string(256, 'c');
+    const std::string tooLongCmd = std::string(257, 'c');
+
+    auto fileJson = [](const std::string &path) {
+        return R"({"AddOperationControlRuleGroups":[{"Scope":{"Type":"self_session"},)"
+            R"("File":{"DenyDelete":[")" + path + R"("]}}]})";
+    };
+    auto processJson = [](const std::string &cmd) {
+        return R"({"AddOperationControlRuleGroups":[{"Scope":{"Type":"self_session"},)"
+            R"("Process":{"DenyExecCmd":[")" + cmd + R"("]}}]})";
+    };
+
+    std::vector<SandboxPolicyRuleGroup> ruleGroups;
+    EXPECT_EQ(SANDBOX_SUCCESS,
+        CmdParser::ParseOperationControlPolicy(fileJson(maxPath), ruleGroups));
+    ASSERT_EQ(1u, ruleGroups.size());
+    EXPECT_EQ(maxPath, ruleGroups[0].fileRules.denyDelete[0]);
+
+    ruleGroups.clear();
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID,
+        CmdParser::ParseOperationControlPolicy(fileJson(tooLongPath), ruleGroups));
+
+    ruleGroups.clear();
+    EXPECT_EQ(SANDBOX_SUCCESS,
+        CmdParser::ParseOperationControlPolicy(processJson(maxCmd), ruleGroups));
+    ASSERT_EQ(1u, ruleGroups.size());
+    EXPECT_EQ(maxCmd, ruleGroups[0].processRules.denyExecCmd[0]);
+
+    ruleGroups.clear();
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID,
+        CmdParser::ParseOperationControlPolicy(processJson(tooLongCmd), ruleGroups));
+}
+
+/**
  * @tc.name: OperationControlTlvSerializeSuffix001
  * @tc.desc: A SUFFIX PATH rule serializes as the same two entities as an EQ
  *           rule - the bound fd, then the string entity. The string entity

@@ -317,127 +317,6 @@ void SandboxManager::ParsePermissionGids(cJSON *obj, PermissionConfig &pc)
     }
 }
 
-int SandboxManager::ParseConditionalJson(cJSON *root)
-{
-    if (!cJSON_IsObject(root)) {
-        return TemplateFieldInvalid("<root>", "an object");
-    }
-
-    cJSON *cond = cJSON_GetObjectItem(root, "conditional");
-    if (cond == nullptr) {
-        return SANDBOX_SUCCESS;
-    }
-    if (!cJSON_IsArray(cond)) {
-        return TemplateFieldInvalid("conditional", "an array");
-    }
-
-    std::vector<ConditionalRule> rules;
-    int arrSize = cJSON_GetArraySize(cond);
-    for (int i = 0; i < arrSize; i++) {
-        const std::string path = "conditional[" + std::to_string(i) + "]";
-        cJSON *item = cJSON_GetArrayItem(cond, i);
-        if (!cJSON_IsObject(item)) {
-            return TemplateFieldInvalid(path, "an object");
-        }
-
-        ConditionalRule rule;
-        int ret = ParseConditionalRule(item, rule, path);
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
-        rules.push_back(std::move(rule));
-    }
-    templateConfig_.conditionalRules = std::move(rules);
-    return SANDBOX_SUCCESS;
-}
-
-/*
- * One conditional entry. Every field is optional - a rule may name only a
- * target, for instance - so absence is fine and only a wrong type is not.
- */
-// One optional template string field: absent is fine, the wrong type is not.
-// Takes the destination rather than the rule, so it needs nothing private.
-static int ParseOptionalTemplateString(cJSON *item, const char *field,
-    const std::string &path, std::string &value)
-{
-    cJSON *node = cJSON_GetObjectItem(item, field);
-    if (node == nullptr) {
-        return SANDBOX_SUCCESS;
-    }
-    if (!cJSON_IsString(node) || node->valuestring == nullptr) {
-        return TemplateFieldInvalid(path + "." + field, "a string");
-    }
-    value = node->valuestring;
-    return SANDBOX_SUCCESS;
-}
-
-// One string array field. The index is reported too, so a bad element can be found
-// without counting through the array by hand.
-static int ParseTemplateStringArray(cJSON *node, const std::string &field,
-    std::vector<std::string> &values)
-{
-    if (!cJSON_IsArray(node)) {
-        return TemplateFieldInvalid(field, "an array");
-    }
-    int size = cJSON_GetArraySize(node);
-    for (int j = 0; j < size; j++) {
-        cJSON *element = cJSON_GetArrayItem(node, j);
-        if (!cJSON_IsString(element) || element->valuestring == nullptr) {
-            return TemplateFieldInvalid(field + "[" + std::to_string(j) + "]", "a string");
-        }
-        values.push_back(element->valuestring);
-    }
-    return SANDBOX_SUCCESS;
-}
-
-// One optional string array field, by name.
-static int ParseOptionalTemplateArray(cJSON *item, const char *field,
-    const std::string &path, std::vector<std::string> &values)
-{
-    cJSON *node = cJSON_GetObjectItem(item, field);
-    if (node == nullptr) {
-        return SANDBOX_SUCCESS;
-    }
-    return ParseTemplateStringArray(node, path + "." + field, values);
-}
-
-// One optional boolean field: absent leaves the default in place.
-static int ParseOptionalTemplateBool(cJSON *item, const char *field,
-    const std::string &path, bool &value)
-{
-    cJSON *node = cJSON_GetObjectItem(item, field);
-    if (node == nullptr) {
-        return SANDBOX_SUCCESS;
-    }
-    if (!cJSON_IsBool(node)) {
-        return TemplateFieldInvalid(path + "." + field, "a boolean");
-    }
-    value = cJSON_IsTrue(node);
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::ParseConditionalRule(cJSON *item, ConditionalRule &rule,
-    const std::string &path)
-{
-    int ret = ParseOptionalTemplateString(item, "target", path, rule.target);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-    ret = ParseOptionalTemplateString(item, "source", path, rule.source);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-    ret = ParseOptionalTemplateArray(item, "mount-flags", path, rule.mountFlags);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-    ret = ParseOptionalTemplateArray(item, "permissions", path, rule.permissions);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-    return ParseOptionalTemplateBool(item, "check-exists", path, rule.checkExists);
-}
-
 int SandboxManager::ParsePermissionJson(cJSON *root)
 {
     if (!cJSON_IsObject(root)) {
@@ -445,17 +324,7 @@ int SandboxManager::ParsePermissionJson(cJSON *root)
     }
 
     cJSON *perm = cJSON_GetObjectItem(root, "permission");
-    int ret = ParsePermissionSectionJson(perm);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    cJSON *conditional = cJSON_GetObjectItem(root, "conditional");
-    if (cJSON_IsObject(conditional)) {
-        perm = cJSON_GetObjectItem(conditional, "permission");
-        ret = ParsePermissionSectionJson(perm);
-    }
-    return ret;
+    return ParsePermissionSectionJson(perm);
 }
 
 int SandboxManager::ParsePermissionSectionJson(cJSON *perm)
@@ -711,7 +580,6 @@ int SandboxManager::LoadJsonConfig(const std::string &jsonPath)
         &SandboxManager::ParsePermissionJson,
         &SandboxManager::ParseSeccompJson,
         &SandboxManager::ParseEnvPolicyJson,
-        &SandboxManager::ParseConditionalJson,
         &SandboxManager::ParseExecSelinuxTypesJson
     };
 

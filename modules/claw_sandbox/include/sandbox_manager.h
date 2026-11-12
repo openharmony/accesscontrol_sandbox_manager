@@ -16,10 +16,13 @@
 #ifndef CLAW_SANDBOX_SANDBOX_MANAGER_H
 #define CLAW_SANDBOX_SANDBOX_MANAGER_H
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <map>
 #include <memory>
+#include <set>
 #include <utility>
 #include <linux/filter.h>
 #include "cJSON.h"
@@ -92,17 +95,6 @@ private:
         std::vector<std::string> decPaths;       // decryption paths (dec-paths)
     };
 
-    // Conditional mount rule: defines a permission-gated mount entry.
-    // The mount is performed (or validated) only if at least one permission
-    // in the permissions list is granted (OR logic).
-    struct ConditionalRule {
-        std::string source;                      // host source path
-        std::string target;                      // sandbox target path
-        std::vector<std::string> mountFlags;     // e.g. ["bind", "rec"]
-        bool checkExists = true;                 // check source existence before mount
-        std::vector<std::string> permissions;    // required permissions (OR)
-    };
-
     struct EnvPolicy {
         std::vector<std::string> blockedEverywhereKeys;
         std::vector<std::string> blockedOverrideOnlyKeys;
@@ -119,7 +111,35 @@ private:
         std::vector<std::string> seccompAllowList;
         EnvPolicy envPolicy;
         std::map<std::string, PermissionConfig> permissions;  // permission name -> config
-        std::vector<ConditionalRule> conditionalRules;        // conditional mount rules
+    };
+
+    // Where a plan entry came from: the template's system or app list, or policy.
+    enum class MountOrigin : uint8_t {
+        SYSTEM = 0,
+        APP = 1,
+        POLICY = 2,
+    };
+
+    /*
+     * One entry of the mount plan. Template and policy binds share the list so
+     * invalid entries fail before anything is created; symbol links come after,
+     * when their sources exist in the view. target is an absolute path in the
+     * sandbox view; a "/" target binds onto the root itself and sorts first.
+     */
+    struct MountOp {
+        MountOrigin origin = MountOrigin::SYSTEM;
+        // Host source path.
+        std::string source;
+        // Absolute path in the sandbox view, resolved under the sandbox root.
+        // "/" addresses the sandbox root itself.
+        std::string target;
+        // Template bind flags, validated before execution. Empty for policy.
+        std::vector<std::string> mountFlags;
+        SandboxConfig::PolicyMountMode mode = SandboxConfig::PolicyMountMode::NONE;
+        // A missing source is skipped instead of failing the launch.
+        bool checkExists = false;
+        // Stable order within one source list.
+        size_t seq = 0;
     };
 
     // Expose individual steps for testing (not intended for public use)
@@ -134,13 +154,23 @@ private:
     int LoadTemplate();
     int GenerateTokenId();
     int EnterCallerSandbox();
+    /*
+     * Build and validate the whole plan before CreateNewRoot touches disk;
+     * execution is one ordered pass over it after MountNewRoot.
+     */
+    int PrepareMountPlan();
     int CreateNewRoot();
     int UnshareNamespaces();
     int MountNewRoot();
-    int MountSystemDirs();
-    int MountSymLinks();
-    int MountAppDirs();
-    int ApplyPolicyMounts();
+    // Debug dump of the plan, kept out of the execution path.
+    void DumpMountPlan() const;
+    int ExecuteMountPlan();
+    /*
+     * Create the template symbol links after every bind. The links are not part
+     * of the plan and are validated here, because a link source is only present
+     * in the view once the mounts it lives behind have been attached.
+     */
+    int CreateTemplateSymlinks();
     int PivotRoot();
 #ifdef CONFIG_SHELL_SANDBOX
     void CollectDenyPaths(DecPolicyInfo& decPolicyInfo);
@@ -230,39 +260,55 @@ private:
     int ExecuteCommand();
 
     // Helper methods
+    // Where system, app and policy mounts are attached: the sandbox root
+    // created by CreateNewRoot, which is also the pivot_root target.
+    const std::string &GetMountRootPath() const;
     int MountDir(const std::string &source, const std::string &target,
                  const std::vector<std::string> &mountFlags);
     int CreateDir(const std::string &path);
     void Cleanup();
     int LoadJsonConfig(const std::string &jsonPath);
 
-    // Mount a single system entry (simple bind mount, no remount readonly or propagation)
-    int MountSystemEntry(const MountEntry &entry, const std::string &targetPrefix);
-
-    // symlink a signle entry
-    int DoMountSequence(const std::string &source, const std::string &target,
-                        unsigned long allFlags);
-    int SymlinkSingleEntry(const SymLinkEntry &entry, const std::string &targetPrefix);
-
-    // Mount a single entry (extracted from MountAppDirs for 50-line limit)
-    int MountSingleEntry(const MountEntry &entry, const std::string &targetPrefix);
-
-    enum ConditionalMatchResult {
-        CONDITIONAL_MATCHED,
-        CONDITIONAL_BLOCKED,
-        CONDITIONAL_NOMATCH
-    };
-
-    int MountPolicyPath(const SandboxConfig::PolicyMount &policyMount);
-    int RemountPolicyMount(const SandboxConfig::PolicyMount &policyMount,
-                           const std::string &target);
-    int BindMountConditionalPath(const SandboxConfig::PolicyMount &policyMount,
-                                  const std::string &mountTarget,
-                                  const std::string &physicalSource);
-    ConditionalMatchResult MatchConditionalSource(const std::string &target,
-                                                   std::string &physicalSource) const;
+    // Mount plan helpers (sandbox_mount.cpp).
+    int BuildMountPlan();
+    int AppendTemplateBindOps(MountOrigin origin, const std::vector<MountEntry> &entries);
+    void AppendPolicyBindOps();
+    // Exact-target override: a policy mount replaces the template bind with the
+    // same target, so only the policy op is executed. Nested targets are not
+    // overrides; the sort orders them parent first.
+    void ApplyPolicyOverrides(const std::set<std::string> &policyTargets);
+    // Parents before children, so a policy bind above a template bind attaches
+    // first. Same-depth targets are never ancestors, so seq alone breaks ties.
+    static void SortMountPlan(std::vector<MountOp> &ops);
+    // Host path the op mounts onto: the sandbox root for "/", otherwise the
+    // root joined with the view target.
+    std::string GetMountTargetPath(const MountOp &op) const;
+    // Template and policy binds share one implementation: open the source,
+    // prepare the target, bind, then apply the mode and propagation flags to
+    // the mount just created.
+    int ExecuteBindOp(const MountOp &op);
+    // Steps of ExecuteBindOp.
+    static unsigned long BindOpFlags(const MountOp &op, bool sourceIsDirectory);
+    static int AttachBind(const MountOp &op, const std::string &mountTarget,
+                          int srcFd, const std::string &procTargetPath,
+                          unsigned long allFlags);
+    static int AttachBindAtTarget(const MountOp &op, const std::string &root,
+                                  const std::string &mountTarget, int srcFd,
+                                  bool sourceIsDirectory, unsigned long allFlags);
+    static int ApplyBindMode(const MountOp &op, const std::string &root,
+                             const std::string &mountTarget, bool sourceIsDirectory,
+                             unsigned long allFlags);
+    static int ApplyBindPropagation(const std::string &mountTarget, unsigned long propFlags);
+    int CreateSymlink(const SymLinkEntry &entry);
+    // Steps of CreateSymlink: validate, decide whether to create, then write.
+    static int ValidateSymLinkEntry(const SymLinkEntry &entry);
+    static int CheckSymLinkPreconditions(const SymLinkEntry &entry,
+                                         const std::string &linkPath,
+                                         const std::string &viewSource, bool &proceed);
+    static int CreateSymLinkNode(const SymLinkEntry &entry, const std::string &linkPath);
+    int ValidateTemplateBindOps() const;
+    int ValidatePolicyBindOps(std::set<std::string> &policyTargets) const;
 public:
-    static bool IsPolicyWriteEscalation(bool policyReadOnly, bool existingReadOnly);
     std::vector<int> CollectGrantedPermissionGids() const;
     std::vector<std::string> CollectDecPolicyPaths() const;
     int CollectPermissionDecPaths(const PermissionConfig &config, std::vector<std::string> &decPaths) const;
@@ -284,8 +330,6 @@ public:
     void ParsePermissionSwitch(cJSON *obj, PermissionConfig &pc, bool defaultSwitch);
     void ParsePermissionGids(cJSON *obj, PermissionConfig &pc);
     void ParsePermissionDecPaths(cJSON *obj, PermissionConfig &pc);
-    int ParseConditionalJson(cJSON *root);
-    int ParseConditionalRule(cJSON *item, ConditionalRule &rule, const std::string &path);
     int LoadDefaultConfig();
     static void ParseMountEntry(cJSON *entry, MountEntry &me);
     static void ParseSymLinkEntry(cJSON *entry, SymLinkEntry &me);
@@ -324,6 +368,12 @@ public:
      */
     static unsigned long ConvertMountFlags(const std::vector<std::string> &mountFlags);
 
+    /**
+     * @brief Whether path is the mount point of its own mount, not just an
+     *        ordinary directory. Read from /proc/self/mountinfo.
+     */
+    static bool IsMountPoint(const std::string &path);
+
     std::string NormalizeDecPath(const std::string &decPath) const;
 
     // Move the "SANDBOX_SOCKET_PATH" entry out of config_.env into monitorSocketPath_,
@@ -340,9 +390,12 @@ public:
     SandboxConfig config_;
     CmdInfo cmdInfo_;
     TemplateConfig templateConfig_;
+    // Sandbox root: every bind attaches under it and pivot_root enters it.
+    // Set by CreateNewRoot; after a successful pivot it is "/".
     std::string newRootPath_;
-    std::string putOldPath_;
-    std::vector<std::string> mountedDirs_;
+    // Built and validated by PrepareMountPlan; consumed by ExecuteMountPlan.
+    std::vector<MountOp> mountPlan_;
+    std::vector<std::string> mountTargets_;
     std::vector<struct sock_filter> seccompFilter_;  // Persists filter data for PR_SET_SECCOMP
     // UDS path the calling app listens on, taken from the "SANDBOX_SOCKET_PATH" policy
     // env entry in Initialize. Empty when the caller supplied none, which leaves

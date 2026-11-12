@@ -40,6 +40,10 @@ namespace OHOS {
 namespace AccessControl {
 namespace SANDBOX {
 
+// Maximum byte length of a File rule path and of a Process exec command.
+constexpr size_t MAX_FILE_POLICY_PATH_LENGTH = 4096;
+constexpr size_t MAX_EXEC_CMD_LENGTH = 256;
+
 /* ============================================================================
  * [1] RuleGroup parsing + per-group model->TLV conversion (config model side)
  * ============================================================================ */
@@ -271,6 +275,13 @@ static int ParseNetworkOperationControl(cJSON *ruleGroupItem,
 static int ValidateFilePatternArray(const char *key, const std::vector<std::string> &paths)
 {
     for (const auto &path : paths) {
+        if (path.size() > MAX_FILE_POLICY_PATH_LENGTH) {
+            std::cerr << "Error: Config field '" << key << "' item exceeds max length (" <<
+                         MAX_FILE_POLICY_PATH_LENGTH << " bytes)" << std::endl;
+            SANDBOX_LOGE("Config field '%{public}s' item exceeds max length (%{public}zu bytes)",
+                key, MAX_FILE_POLICY_PATH_LENGTH);
+            return SANDBOX_ERR_CONFIG_INVALID;
+        }
         if (!IsWildcardPattern(path)) {
             continue;
         }
@@ -343,6 +354,13 @@ static bool IsExecCmdPathful(const std::string &cmd)
 static int ValidateExecCmdArray(const char *key, const std::vector<std::string> &cmds)
 {
     for (const auto &cmd : cmds) {
+        if (cmd.size() > MAX_EXEC_CMD_LENGTH) {
+            std::cerr << "Error: Config field '" << key << "' item exceeds max length (" <<
+                         MAX_EXEC_CMD_LENGTH << " bytes)" << std::endl;
+            SANDBOX_LOGE("Config field '%{public}s' item exceeds max length (%{public}zu bytes)",
+                key, MAX_EXEC_CMD_LENGTH);
+            return SANDBOX_ERR_CONFIG_INVALID;
+        }
         if (IsExecCmdPathful(cmd)) {
             std::cerr << "Error: Config field '" << key << "' item '" << cmd <<
                          "' must be a bare command name (no '/' allowed)" << std::endl;

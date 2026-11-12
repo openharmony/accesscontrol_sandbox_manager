@@ -38,9 +38,19 @@ namespace SANDBOX {
  * @brief Sandbox configuration parsed from --config JSON
  */
 struct SandboxConfig {
+    enum class PolicyMountMode : uint8_t {
+        RO = 0,   // force the mount readonly
+        NONE,     // leave the mount attributes as they are
+    };
+
     struct PolicyMount {
+        // Source and target are the same path: a bind onto that location in
+        // the sandbox view. "/" carries the whole filesystem, like a "/" -> "/"
+        // template entry. At most 1024 bytes.
         std::string source;
-        bool readOnly = true;
+        // Required in the config. "rw", "none" and an empty string all leave
+        // the mount attributes unchanged, which is PolicyMountMode::NONE.
+        PolicyMountMode mode = PolicyMountMode::NONE;
     };
 
     struct Policy {

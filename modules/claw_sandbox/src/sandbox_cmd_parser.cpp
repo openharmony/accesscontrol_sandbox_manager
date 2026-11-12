@@ -24,6 +24,8 @@
 #include "cJSON.h"
 #include <sched.h>
 #include <functional>
+#include <set>
+#include <utility>
 #include <securec.h>
 #include <cerrno>
 #include <fcntl.h>
@@ -128,8 +130,8 @@ constexpr size_t MAX_TYPE_LENGTH = 10;
 constexpr size_t MAX_NS_FLAGS_COUNT = 10;
 constexpr size_t MAX_NS_FLAG_STRING_LENGTH = 24;
 
-// Maximum count and length limits for collection fields
-constexpr int MAX_POLICY_MOUNTS_COUNT = 1024;      // Maximum number of policy mount points
+// Maximum byte length of a dynamic mount source path
+constexpr size_t MAX_POLICY_MOUNT_SOURCE_LENGTH = 1024;
 
 // Default Namespace flags if not specified in config
 // mnt|net namespaces are required for sandbox isolation, so they are included in the default flags.
@@ -430,47 +432,59 @@ static int ParsePolicyMountSource(cJSON *mountItem, SandboxConfig::PolicyMount &
         return SANDBOX_ERR_CONFIG_INVALID;
     }
     std::string path = source->valuestring;
-    if (path.empty() || path[0] != '/') {
-        std::cerr << "Error: Config field 'policy.mounts[].source' contains invalid path" << std::endl;
-        SANDBOX_LOGE("Config field 'policy.mounts[].source' contains invalid path");
+    if (path.length() > MAX_POLICY_MOUNT_SOURCE_LENGTH) {
+        std::cerr << "Error: Config field 'policy.mounts[].source' exceeds max length (" <<
+                  MAX_POLICY_MOUNT_SOURCE_LENGTH << ")" << std::endl;
+        SANDBOX_LOGE("Config field 'policy.mounts[].source' exceeds max length (%{public}zu)",
+            MAX_POLICY_MOUNT_SOURCE_LENGTH);
         return SANDBOX_ERR_CONFIG_INVALID;
     }
-    // Reject "/../" in the middle or "/.." at the end (path traversal).
-    constexpr const char *TRAVERSAL_DOTDOT = "/..";
-    constexpr size_t TRAVERSAL_DOTDOT_LEN = 3; // strlen("/..")
-    if (path.find("/../") != std::string::npos ||
-        (path.size() >= TRAVERSAL_DOTDOT_LEN &&
-         path.compare(path.size() - TRAVERSAL_DOTDOT_LEN, TRAVERSAL_DOTDOT_LEN, TRAVERSAL_DOTDOT) == 0)) {
-        std::cerr << "Error: Config field 'policy.mounts[].source' contains path traversal" << std::endl;
-        SANDBOX_LOGE("Config field 'policy.mounts[].source' contains path traversal");
+    if (!IsCanonicalAbsolutePath(path)) {
+        std::cerr << "Error: Config field 'policy.mounts[].source' must be a canonical absolute path: " <<
+                  path << std::endl;
+        SANDBOX_LOGE("Config field 'policy.mounts[].source' is not a canonical absolute path");
         return SANDBOX_ERR_CONFIG_INVALID;
     }
-    mount.source = path;
+    // "/" is accepted: it carries the whole filesystem into the view, the same
+    // bind a "/" -> "/" template entry does. A policy mount at a template bind's
+    // exact target replaces that bind.
+    mount.source = std::move(path);
     return SANDBOX_SUCCESS;
 }
 
 static int ParsePolicyMountMode(cJSON *mountItem, SandboxConfig::PolicyMount &mount)
 {
     cJSON *mode = cJSON_GetObjectItem(mountItem, "mode");
-    if (!cJSON_IsString(mode) || mode->valuestring == nullptr) {
-        std::cerr << "Error: Config field 'policy.mounts[].mode' missing or not a string" << std::endl;
-        SANDBOX_LOGE("Config field 'policy.mounts[].mode' missing or not a string");
+    if (mode == nullptr) {
+        std::cerr << "Error: Config field 'policy.mounts[].mode' missing" << std::endl;
+        SANDBOX_LOGE("Config field 'policy.mounts[].mode' missing");
         return SANDBOX_ERR_CONFIG_INVALID;
     }
+    if (!cJSON_IsString(mode) || mode->valuestring == nullptr) {
+        std::cerr << "Error: Config field 'policy.mounts[].mode' must be a string" << std::endl;
+        SANDBOX_LOGE("Config field 'policy.mounts[].mode' must be a string");
+        return SANDBOX_ERR_CONFIG_INVALID;
+    }
+    // "rw" asks for no change: the bind already carries the source's mode, and
+    // a read-only superblock cannot be made writable by a bind remount.
+    if (mode->valuestring[0] == '\0' ||
+        strcmp(mode->valuestring, "none") == 0 ||
+        strcmp(mode->valuestring, "rw") == 0) {
+        mount.mode = SandboxConfig::PolicyMountMode::NONE;
+        return SANDBOX_SUCCESS;
+    }
     if (strcmp(mode->valuestring, "ro") == 0) {
-        mount.readOnly = true;
+        mount.mode = SandboxConfig::PolicyMountMode::RO;
         return SANDBOX_SUCCESS;
     }
-    if (strcmp(mode->valuestring, "rw") == 0) {
-        mount.readOnly = false;
-        return SANDBOX_SUCCESS;
-    }
-    std::cerr << "Error: Config field 'policy.mounts[].mode' must be 'ro' or 'rw'" << std::endl;
-    SANDBOX_LOGE("Config field 'policy.mounts[].mode' must be 'ro' or 'rw'");
+    std::cerr << "Error: Config field 'policy.mounts[].mode' must be 'ro', 'rw', 'none' or '' "
+                 "(same as 'none')" << std::endl;
+    SANDBOX_LOGE("Config field 'policy.mounts[].mode' must be 'ro', 'rw', 'none' or '' "
+        "(same as 'none')");
     return SANDBOX_ERR_CONFIG_INVALID;
 }
 
-static int ParsePolicyMountItem(cJSON *mountItem, SandboxConfig::Policy &out)
+static int ParsePolicyMountItem(cJSON *mountItem, SandboxConfig::PolicyMount &mount)
 {
     if (!cJSON_IsObject(mountItem)) {
         std::cerr << "Error: Config field 'policy.mounts' should contain objects" << std::endl;
@@ -478,17 +492,11 @@ static int ParsePolicyMountItem(cJSON *mountItem, SandboxConfig::Policy &out)
         return SANDBOX_ERR_CONFIG_INVALID;
     }
 
-    SandboxConfig::PolicyMount mount;
     int ret = ParsePolicyMountSource(mountItem, mount);
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
-    ret = ParsePolicyMountMode(mountItem, mount);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-    out.mounts.push_back(mount);
-    return SANDBOX_SUCCESS;
+    return ParsePolicyMountMode(mountItem, mount);
 }
 
 static int ParsePolicyMounts(cJSON *policy, SandboxConfig::Policy &out)
@@ -504,18 +512,19 @@ static int ParsePolicyMounts(cJSON *policy, SandboxConfig::Policy &out)
     }
 
     int size = cJSON_GetArraySize(mounts);
-    if (size > MAX_POLICY_MOUNTS_COUNT) {
-        std::cerr << "Error: 'policy.mounts' array size (" << size <<
-                     ") exceeds limit (" << MAX_POLICY_MOUNTS_COUNT << ")" << std::endl;
-        SANDBOX_LOGE("'policy.mounts' array size exceeds limit");
-        return SANDBOX_ERR_CONFIG_INVALID;
-    }
-
+    std::set<std::string> targets;
     for (int i = 0; i < size; i++) {
-        int ret = ParsePolicyMountItem(cJSON_GetArrayItem(mounts, i), out);
+        SandboxConfig::PolicyMount mount;
+        int ret = ParsePolicyMountItem(cJSON_GetArrayItem(mounts, i), mount);
         if (ret != SANDBOX_SUCCESS) {
             return ret;
         }
+        if (!targets.insert(mount.source).second) {
+            std::cerr << "Error: Duplicate policy mount target: " << mount.source << std::endl;
+            SANDBOX_LOGE("Duplicate policy mount target: %{public}s", mount.source.c_str());
+            return SANDBOX_ERR_CONFIG_INVALID;
+        }
+        out.mounts.push_back(std::move(mount));
     }
     return SANDBOX_SUCCESS;
 }

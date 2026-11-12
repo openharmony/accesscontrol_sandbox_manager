@@ -59,6 +59,57 @@ HWTEST_F(ClawSandboxUtilsTest, GetRealPath002, TestSize.Level0)
     EXPECT_EQ("", GetRealPath(""));
 }
 
+/**
+ * @tc.name: IsCanonicalAbsolutePath001
+ * @tc.desc: Only absolute paths with no redundant or traversing components pass
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxUtilsTest, IsCanonicalAbsolutePath001, TestSize.Level0)
+{
+    EXPECT_FALSE(IsCanonicalAbsolutePath(""));
+    EXPECT_FALSE(IsCanonicalAbsolutePath("relative/path"));
+    EXPECT_FALSE(IsCanonicalAbsolutePath("/data/"));
+    EXPECT_FALSE(IsCanonicalAbsolutePath("//data"));
+    EXPECT_FALSE(IsCanonicalAbsolutePath("/data//file"));
+    EXPECT_FALSE(IsCanonicalAbsolutePath("/data/./file"));
+    EXPECT_FALSE(IsCanonicalAbsolutePath("/data/../file"));
+    EXPECT_FALSE(IsCanonicalAbsolutePath("/data/.."));
+
+    EXPECT_TRUE(IsCanonicalAbsolutePath("/"));
+    EXPECT_TRUE(IsCanonicalAbsolutePath("/data"));
+    EXPECT_TRUE(IsCanonicalAbsolutePath("/data/file"));
+    EXPECT_TRUE(IsCanonicalAbsolutePath("/data/.dotdir"));
+    EXPECT_TRUE(IsCanonicalAbsolutePath("/data/test.dir/file"));
+    EXPECT_TRUE(IsCanonicalAbsolutePath("/data/..."));
+}
+
+/**
+ * @tc.name: DecodeOctalEscapes001
+ * @tc.desc: Only a complete three-digit octal escape is decoded; anything else
+ *           stays as written so a malformed field cannot silently change
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxUtilsTest, DecodeOctalEscapes001, TestSize.Level0)
+{
+    // The four characters mountinfo escapes, as a consumer example.
+    EXPECT_EQ("/data/My Files", DecodeOctalEscapes("/data/My\\040Files"));
+    EXPECT_EQ("a\tb\nc", DecodeOctalEscapes("a\\011b\\012c"));
+    EXPECT_EQ("a\\b", DecodeOctalEscapes("a\\134b"));
+
+    // Nothing to decode, and several escapes in one field.
+    EXPECT_EQ("", DecodeOctalEscapes(""));
+    EXPECT_EQ("/data", DecodeOctalEscapes("/data"));
+    EXPECT_EQ("/a b c", DecodeOctalEscapes("/a\\040b\\040c"));
+
+    // Not a decodable escape: kept verbatim, character by character.
+    EXPECT_EQ("\\xyz", DecodeOctalEscapes("\\xyz"));
+    EXPECT_EQ("\\08", DecodeOctalEscapes("\\08"));
+    EXPECT_EQ("\\777", DecodeOctalEscapes("\\777"));
+    EXPECT_EQ("trail\\", DecodeOctalEscapes("trail\\"));
+}
+
 namespace {
 /*
  * A directory this process can create things in. IsPathUnder resolves both of

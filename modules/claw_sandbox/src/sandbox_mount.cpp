@@ -13,6 +13,13 @@
  * limitations under the License.
  */
 
+/*
+ * Sandbox mount namespace: enter the caller's namespace, create the sandbox
+ * root, and build the view. The view is described once as a mount plan and
+ * executed in one ordered pass; template symbol links come after the binds,
+ * because their sources only exist once the view is attached.
+ */
+
 #include "sandbox_manager.h"
 #include "sandbox_error.h"
 #include "sandbox_log.h"
@@ -20,28 +27,32 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
+#include <climits>
+#include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
-#include <sstream>
+#include <iomanip>
 #include <iostream>
 #include <map>
-#include <random>
-#include <iomanip>
 #include <memory>
+#include <random>
+#include <set>
+#include <sstream>
+#include <string>
 #include <utility>
-#include <filesystem>
+#include <vector>
+
+#include <fcntl.h>
 #include <grp.h>
 #include <sched.h>
-#include <sys/mount.h>
 #include <sys/ioctl.h>
-#include <sys/syscall.h>
-#include <sys/stat.h>
+#include <sys/mount.h>
 #include <sys/random.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <cerrno>
-#include <cstdlib>
-#include <climits>
 
 #include "securec.h"
 #include "accesstoken_kit.h"
@@ -71,8 +82,27 @@ constexpr int HEX_CNT = 16;
 // Namespace path buffer size
 constexpr size_t NS_PATH_BUF_SIZE = 256;
 
-// Mount flag string to numeric value mapping table
-static const std::map<std::string, unsigned long> MOUNT_FLAGS_MAP = {
+/*
+ * ============================== Mount plan ==============================
+ *
+ * Template and policy binds are collected into one plan, validated and sorted
+ * before anything is created, then applied in one ordered pass.
+ */
+
+namespace {
+
+constexpr mode_t BIND_TARGET_FILE_MODE = 0600;
+
+constexpr unsigned long PROPAGATION_MASK = MS_SLAVE | MS_SHARED | MS_PRIVATE | MS_UNBINDABLE;
+
+/*
+ * A remount rewrites the whole flag set; dropping any of these widens access.
+ * Atime flags are left out: a readonly mount never updates atime.
+ */
+constexpr unsigned long BIND_REMOUNT_KEEP_FLAGS = MS_NOSUID | MS_NODEV | MS_NOEXEC;
+
+// Flag names accepted in templates and in mountinfo's option field.
+const std::map<std::string, unsigned long> MOUNT_FLAGS_MAP = {
     {"rec", MS_REC}, {"MS_REC", MS_REC},
     {"bind", MS_BIND}, {"MS_BIND", MS_BIND},
     {"move", MS_MOVE}, {"MS_MOVE", MS_MOVE},
@@ -90,6 +120,431 @@ static const std::map<std::string, unsigned long> MOUNT_FLAGS_MAP = {
     {"private", MS_PRIVATE}, {"MS_PRIVATE", MS_PRIVATE},
 };
 
+struct MountInfoEntry {
+    std::string mountPoint;
+    unsigned long flags = 0;
+};
+
+bool HasOnlyKnownMountFlags(const std::vector<std::string> &mountFlags)
+{
+    for (const auto &flag : mountFlags) {
+        if (MOUNT_FLAGS_MAP.find(flag) == MOUNT_FLAGS_MAP.end()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::string NormalizeRootPath(const std::string &root)
+{
+    std::string result = root;
+    while (result.size() > 1 && result.back() == '/') {
+        result.pop_back();
+    }
+    return result;
+}
+
+/*
+ * View paths are absolute, so joining is concatenation. The root is normalised
+ * here to keep the output canonical; the view path is left alone because
+ * rejecting a malformed one is validation's job.
+ */
+std::string JoinViewPath(const std::string &root, const std::string &viewPath)
+{
+    const std::string normalizedRoot = NormalizeRootPath(root);
+    if (normalizedRoot == "/") {
+        return viewPath;
+    }
+    return normalizedRoot + viewPath;
+}
+
+/*
+ * The sixth mountinfo field lists per-mount options with the same names the
+ * template parser accepts; superblock options after "-" are not remount's.
+ */
+unsigned long MountOptionsToFlags(const std::string &options)
+{
+    unsigned long flags = 0;
+    std::istringstream iss(options);
+    std::string option;
+    while (std::getline(iss, option, ',')) {
+        auto it = MOUNT_FLAGS_MAP.find(option);
+        if (it != MOUNT_FLAGS_MAP.end()) {
+            flags |= it->second;
+        }
+    }
+    return flags;
+}
+
+int ReadMountInfo(std::vector<MountInfoEntry> &entries)
+{
+    std::ifstream mountInfo("/proc/self/mountinfo");
+    if (!mountInfo.is_open()) {
+        std::cerr << "Error: Failed to open /proc/self/mountinfo: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to open /proc/self/mountinfo: %{public}s", strerror(errno));
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+
+    std::string line;
+    while (std::getline(mountInfo, line)) {
+        std::istringstream iss(line);
+        std::string id;
+        std::string parent;
+        std::string majorMinor;
+        std::string root;
+        std::string mountPoint;
+        std::string options;
+        if (!(iss >> id >> parent >> majorMinor >> root >> mountPoint >> options)) {
+            continue;
+        }
+        MountInfoEntry entry;
+        entry.mountPoint = DecodeOctalEscapes(mountPoint);
+        entry.flags = MountOptionsToFlags(options);
+        entries.push_back(std::move(entry));
+    }
+    return SANDBOX_SUCCESS;
+}
+
+int GetMountFlags(const std::string &path, unsigned long &flags)
+{
+    std::vector<MountInfoEntry> entries;
+    int ret = ReadMountInfo(entries);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    size_t bestLen = 0;
+    bool found = false;
+    for (const auto &entry : entries) {
+        if (IsPathUnder(path, entry.mountPoint) && entry.mountPoint.size() >= bestLen) {
+            bestLen = entry.mountPoint.size();
+            flags = entry.flags;
+            found = true;
+        }
+    }
+
+    if (!found) {
+        std::cerr << "Error: Failed to find mount point for " << path << std::endl;
+        SANDBOX_LOGE("Failed to find mount point for %{public}s", path.c_str());
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+    return SANDBOX_SUCCESS;
+}
+
+const char *PolicyMountModeName(SandboxConfig::PolicyMountMode mode)
+{
+    switch (mode) {
+        case SandboxConfig::PolicyMountMode::RO:
+            return "ro";
+        case SandboxConfig::PolicyMountMode::NONE:
+            return "none";
+        default:
+            return "unknown";
+    }
+}
+
+int SplitBindTarget(const std::string &target, std::vector<std::string> &components)
+{
+    if (!IsCanonicalAbsolutePath(target) || target == "/") {
+        std::cerr << "Error: Invalid bind mount target: " << target << std::endl;
+        SANDBOX_LOGE("Invalid bind mount target: %{public}s", target.c_str());
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+
+    size_t start = 1;
+    while (start < target.size()) {
+        size_t end = target.find('/', start);
+        if (end == std::string::npos) {
+            end = target.size();
+        }
+        components.push_back(target.substr(start, end - start));
+        start = end + 1;
+    }
+    if (components.empty()) {
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+    return SANDBOX_SUCCESS;
+}
+
+/*
+ * Number of path components. "/" is the root and must sort before every other
+ * target; counting the single slash it contains would put it on the same level
+ * as "/data".
+ */
+size_t TargetDepth(const std::string &target)
+{
+    return target == "/" ? 0 :
+        static_cast<size_t>(std::count(target.begin(), target.end(), '/'));
+}
+
+int OpenBindRoot(const std::string &root, int &rootFd)
+{
+    rootFd = open(root.c_str(), O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (rootFd < 0) {
+        std::cerr << "Error: Failed to open sandbox root " << root << ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to open sandbox root %{public}s: %{public}s", root.c_str(), strerror(errno));
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+    SANDBOX_FDSAN_MARK(rootFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+    return SANDBOX_SUCCESS;
+}
+
+/*
+ * Walk (and create) every component but the last, relative to the pinned
+ * sandbox root. No component may be a symlink. On success dirFd is the parent
+ * directory of the leaf, which is copied to leaf.
+ */
+int OpenBindParent(const std::string &root, const std::string &target, int &dirFd, std::string &leaf)
+{
+    std::vector<std::string> components;
+    int ret = SplitBindTarget(target, components);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    ret = OpenBindRoot(NormalizeRootPath(root), dirFd);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    for (size_t i = 0; i + 1 < components.size(); ++i) {
+        const std::string &component = components[i];
+        int nextFd = openat(dirFd, component.c_str(),
+                            O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        if (nextFd < 0 && errno == ENOENT) {
+            if (mkdirat(dirFd, component.c_str(), DIR_MODE) < 0 && errno != EEXIST) {
+                std::cerr << "Error: Failed to create bind mount parent " << component <<
+                             ": " << strerror(errno) << std::endl;
+                SANDBOX_LOGE("Failed to create bind mount parent %{public}s: %{public}s",
+                    component.c_str(), strerror(errno));
+                SANDBOX_FDSAN_CLOSE(dirFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+                return SANDBOX_ERR_PATH_CREATE_FAILED;
+            }
+            nextFd = openat(dirFd, component.c_str(),
+                            O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        }
+        if (nextFd < 0) {
+            std::cerr << "Error: Bind mount target component " << component <<
+                         " is not a real directory: " << strerror(errno) << std::endl;
+            SANDBOX_LOGE("Bind mount target component %{public}s is not a real directory: %{public}s",
+                component.c_str(), strerror(errno));
+            SANDBOX_FDSAN_CLOSE(dirFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+            return SANDBOX_ERR_PATH_INVALID;
+        }
+        SANDBOX_FDSAN_MARK(nextFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+        SANDBOX_FDSAN_CLOSE(dirFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+        dirFd = nextFd;
+    }
+
+    leaf = components.back();
+    return SANDBOX_SUCCESS;
+}
+
+int PrepareBindDirectoryTarget(int dirFd, const std::string &leaf, int &targetFd)
+{
+    targetFd = -1;
+    if (mkdirat(dirFd, leaf.c_str(), DIR_MODE) < 0 && errno != EEXIST) {
+        std::cerr << "Error: Failed to create bind mount directory " << leaf <<
+                     ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to create bind mount directory %{public}s: %{public}s",
+            leaf.c_str(), strerror(errno));
+        return SANDBOX_ERR_PATH_CREATE_FAILED;
+    }
+    targetFd = openat(dirFd, leaf.c_str(),
+                      O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (targetFd < 0) {
+        std::cerr << "Error: Failed to open bind mount directory " << leaf <<
+                     ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to open bind mount directory %{public}s: %{public}s",
+            leaf.c_str(), strerror(errno));
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+    SANDBOX_FDSAN_MARK(targetFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+    return SANDBOX_SUCCESS;
+}
+
+/*
+ * A non-directory target is mounted as-is. A symlink leaf is refused because
+ * mount() would follow it and land elsewhere; a directory leaf is refused
+ * because it does not match the source.
+ */
+int ValidateNonDirectoryBindTarget(int targetFd, const std::string &leaf)
+{
+    struct stat st;
+    if (fstat(targetFd, &st) != 0) {
+        std::cerr << "Error: Failed to stat bind mount target " << leaf <<
+                     ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to stat bind mount target %{public}s: %{public}s",
+            leaf.c_str(), strerror(errno));
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+    if (S_ISLNK(st.st_mode)) {
+        std::cerr << "Error: Bind mount target " << leaf << " is a symlink" << std::endl;
+        SANDBOX_LOGE("Bind mount target %{public}s is a symlink", leaf.c_str());
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+    if (S_ISDIR(st.st_mode)) {
+        std::cerr << "Error: Bind mount target " << leaf <<
+                     " is a directory but the source is not" << std::endl;
+        SANDBOX_LOGE("Bind mount target %{public}s is a directory but the source is not",
+            leaf.c_str());
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+    return SANDBOX_SUCCESS;
+}
+
+/*
+ * Any non-directory inode can be bind mounted. A missing target is created as
+ * a regular file for the mount to cover.
+ */
+int PrepareBindNonDirectoryTarget(int dirFd, const std::string &leaf, int &targetFd)
+{
+    targetFd = openat(dirFd, leaf.c_str(), O_PATH | O_NOFOLLOW | O_CLOEXEC);
+    if (targetFd < 0 && errno == ENOENT) {
+        int createFd = openat(dirFd, leaf.c_str(),
+                              O_CREAT | O_WRONLY | O_CLOEXEC | O_NOFOLLOW,
+                              BIND_TARGET_FILE_MODE);
+        if (createFd < 0 && errno != EEXIST) {
+            std::cerr << "Error: Failed to create bind mount file " << leaf <<
+                         ": " << strerror(errno) << std::endl;
+            SANDBOX_LOGE("Failed to create bind mount file %{public}s: %{public}s",
+                leaf.c_str(), strerror(errno));
+            return SANDBOX_ERR_PATH_CREATE_FAILED;
+        }
+        if (createFd >= 0) {
+            SANDBOX_FDSAN_MARK(createFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+            SANDBOX_FDSAN_CLOSE(createFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+        }
+        targetFd = openat(dirFd, leaf.c_str(), O_PATH | O_NOFOLLOW | O_CLOEXEC);
+    }
+    if (targetFd < 0) {
+        std::cerr << "Error: Failed to open bind mount target " << leaf <<
+                     ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to open bind mount target %{public}s: %{public}s",
+            leaf.c_str(), strerror(errno));
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+    SANDBOX_FDSAN_MARK(targetFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+
+    int ret = ValidateNonDirectoryBindTarget(targetFd, leaf);
+    if (ret != SANDBOX_SUCCESS) {
+        SANDBOX_FDSAN_CLOSE(targetFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+        targetFd = -1;
+        return ret;
+    }
+    return SANDBOX_SUCCESS;
+}
+
+/*
+ * Create or validate one target without resolving a symlink: walk from a
+ * pinned parent and return an O_PATH fd so mount() can target
+ * /proc/self/fd/<leaf>. Reopen the target before remounting - the fd names the
+ * mount that existed when it was opened, not the one just attached.
+ */
+int OpenBindTarget(const std::string &root, const std::string &target,
+                   bool isDirectory, int &targetFd, std::string &procTargetPath)
+{
+    int dirFd = -1;
+    std::string leaf;
+    int ret = OpenBindParent(root, target, dirFd, leaf);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    ret = isDirectory ? PrepareBindDirectoryTarget(dirFd, leaf, targetFd) :
+                        PrepareBindNonDirectoryTarget(dirFd, leaf, targetFd);
+    SANDBOX_FDSAN_CLOSE(dirFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+    if (ret != SANDBOX_SUCCESS) {
+        std::cerr << "Error: Failed to prepare bind mount target " << target <<
+                     ", ret=" << ret << std::endl;
+        SANDBOX_LOGE("Failed to prepare bind mount target %{public}s, ret=%{public}d",
+            target.c_str(), ret);
+        return ret;
+    }
+
+    procTargetPath = "/proc/self/fd/" + std::to_string(targetFd);
+    return SANDBOX_SUCCESS;
+}
+
+/*
+ * A "/" target names the sandbox root itself rather than a path below it. The
+ * root is created by CreateNewRoot and is never walked component by component:
+ * a bind aimed at "/" lands directly on it.
+ */
+int OpenMountTarget(const std::string &root, const std::string &target, bool isDirectory,
+                    int &targetFd, std::string &procTargetPath)
+{
+    if (target != "/") {
+        return OpenBindTarget(root, target, isDirectory, targetFd, procTargetPath);
+    }
+    if (!isDirectory) {
+        std::cerr << "Error: Bind target / requires a directory source" << std::endl;
+        SANDBOX_LOGE("Bind target / requires a directory source");
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+    targetFd = open(NormalizeRootPath(root).c_str(),
+                    O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (targetFd < 0) {
+        std::cerr << "Error: Failed to open sandbox root " << root <<
+                     ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to open sandbox root %{public}s: %{public}s",
+            root.c_str(), strerror(errno));
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+    SANDBOX_FDSAN_MARK(targetFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+    procTargetPath = "/proc/self/fd/" + std::to_string(targetFd);
+    return SANDBOX_SUCCESS;
+}
+
+/*
+ * Pin the source inode with O_PATH. Symlinks are followed, as mount() does;
+ * every inode type is bindable and only directories are recursed into. A
+ * failure only leaves a hilog line here; the caller knows whether a missing
+ * source is benign (checkExists) or fatal and logs to the user accordingly.
+ */
+int OpenBindSource(const std::string &source, bool &isDirectory)
+{
+    int fd = open(source.c_str(), O_PATH | O_CLOEXEC);
+    if (fd < 0) {
+        return -1;
+    }
+    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
+
+    struct stat st;
+    if (fstat(fd, &st) != 0) {
+        SANDBOX_LOGE("fstat failed for %{public}s: %{public}s", source.c_str(), strerror(errno));
+        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
+        return -1;
+    }
+    isDirectory = S_ISDIR(st.st_mode);
+    return fd;
+}
+
+// Remount the bind just attached readonly, keeping nosuid/nodev/noexec.
+int RemountBindReadOnly(const std::string &mountTarget,
+                        const std::string &procTargetPath, bool isDirectory)
+{
+    unsigned long mountedFlags = 0;
+    int ret = GetMountFlags(mountTarget, mountedFlags);
+    if (ret == SANDBOX_SUCCESS) {
+        unsigned long remountFlags = MS_BIND | MS_REMOUNT | MS_RDONLY |
+            (isDirectory ? MS_REC : 0) | (mountedFlags & BIND_REMOUNT_KEEP_FLAGS);
+        if (mount(nullptr, procTargetPath.c_str(), nullptr, remountFlags, nullptr) == 0) {
+            SANDBOX_LOGD("Remounted bind path %{public}s as readonly", mountTarget.c_str());
+            return SANDBOX_SUCCESS;
+        }
+        std::cerr << "Error: Failed to remount bind path " << mountTarget <<
+                     " as readonly: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to remount bind path %{public}s as readonly: %{public}s",
+            mountTarget.c_str(), strerror(errno));
+        ret = SANDBOX_ERR_MOUNT_FAILED;
+    }
+    umount2(mountTarget.c_str(), MNT_DETACH);
+    return ret;
+}
+
+} // namespace
+
 unsigned long SandboxManager::ConvertMountFlags(const std::vector<std::string> &mountFlags)
 {
     unsigned long result = 0;
@@ -103,6 +558,546 @@ unsigned long SandboxManager::ConvertMountFlags(const std::vector<std::string> &
     }
     return result;
 }
+
+// A mount point entry is the only thing that separates an attached mount from
+// an ordinary directory that happens to have the same name.
+bool SandboxManager::IsMountPoint(const std::string &path)
+{
+    std::vector<MountInfoEntry> entries;
+    if (ReadMountInfo(entries) != SANDBOX_SUCCESS) {
+        return false;
+    }
+    for (const auto &entry : entries) {
+        if (entry.mountPoint == path) {
+            return true;
+        }
+    }
+    return false;
+}
+
+int SandboxManager::PrepareMountPlan()
+{
+    int ret = BuildMountPlan();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+    ret = ValidateTemplateBindOps();
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+    std::set<std::string> policyTargets;
+    ret = ValidatePolicyBindOps(policyTargets);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+    ApplyPolicyOverrides(policyTargets);
+    SortMountPlan(mountPlan_);
+
+    SANDBOX_LOGD("Mount plan ready: binds=%{public}zu", mountPlan_.size());
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::BuildMountPlan()
+{
+    mountPlan_.clear();
+
+    int ret = AppendTemplateBindOps(MountOrigin::SYSTEM, templateConfig_.systemMounts);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+    ret = AppendTemplateBindOps(MountOrigin::APP, templateConfig_.appMounts);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+    AppendPolicyBindOps();
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::AppendTemplateBindOps(MountOrigin origin,
+                                          const std::vector<MountEntry> &entries)
+{
+    for (const auto &entry : entries) {
+        if (origin == MountOrigin::SYSTEM &&
+            entry.source == "/proc" && (config_.nsFlags & CLONE_NEWPID) != 0) {
+            // Always mount procfs via mount -t proc, never bind-mount the
+            // outer /proc: it would expose the full process list.
+            SANDBOX_LOGD("Template bind %{public}s -> %{public}s skipped: "
+                "PID namespace mounts procfs instead",
+                entry.source.c_str(), entry.target.c_str());
+            continue;
+        }
+
+        // Every remaining entry is collected; a "/" target is an ordinary op
+        // that binds onto the sandbox root itself and sorts first.
+        MountOp op;
+        op.origin = origin;
+        op.source = entry.source;
+        op.target = entry.target;
+        op.mountFlags = entry.mountFlags;
+        // System entries have always been best-effort: a missing source is
+        // absent from the view rather than fatal.
+        op.checkExists = origin == MountOrigin::SYSTEM || entry.checkExists;
+        op.seq = mountPlan_.size();
+        mountPlan_.push_back(std::move(op));
+    }
+    return SANDBOX_SUCCESS;
+}
+
+void SandboxManager::AppendPolicyBindOps()
+{
+    for (const auto &policyMount : config_.policy.mounts) {
+        if (policyMount.source == "/proc" ||
+            policyMount.source.compare(0, sizeof("/proc/") - 1, "/proc/") == 0) {
+            SANDBOX_LOGD("Policy mount %{public}s skipped: /proc is platform-provided",
+                policyMount.source.c_str());
+            continue;
+        }
+        MountOp op;
+        op.origin = MountOrigin::POLICY;
+        // A policy mount uses one path as both source and target.
+        op.source = policyMount.source;
+        op.target = policyMount.source;
+        op.mode = policyMount.mode;
+        op.seq = mountPlan_.size();
+        mountPlan_.push_back(std::move(op));
+    }
+}
+
+/*
+ * A policy mount replaces a template bind at the same target - only one can be
+ * the mount there. Ancestor or descendant targets are not overrides; the sort
+ * orders them parent first.
+ */
+void SandboxManager::ApplyPolicyOverrides(const std::set<std::string> &policyTargets)
+{
+    if (policyTargets.empty()) {
+        return;
+    }
+
+    auto removedBegin = std::remove_if(mountPlan_.begin(), mountPlan_.end(),
+        [&policyTargets](const MountOp &op) {
+            if (op.origin == MountOrigin::POLICY || policyTargets.count(op.target) == 0) {
+                return false;
+            }
+            SANDBOX_LOGD("Policy mount %{public}s overrides template bind %{public}s",
+                op.target.c_str(), op.source.c_str());
+            return true;
+        });
+    mountPlan_.erase(removedBegin, mountPlan_.end());
+}
+
+int SandboxManager::ValidateTemplateBindOps() const
+{
+    for (const auto &op : mountPlan_) {
+        if (op.origin == MountOrigin::POLICY) {
+            continue;
+        }
+        if (!IsCanonicalAbsolutePath(op.target)) {
+            std::cerr << "Error: Invalid template mount target: " << op.target << std::endl;
+            SANDBOX_LOGE("Invalid template mount target: %{public}s", op.target.c_str());
+            return SANDBOX_ERR_TEMPLATE_INVALID;
+        }
+        if (!IsCanonicalAbsolutePath(op.source)) {
+            std::cerr << "Error: Invalid template mount source: " << op.source << std::endl;
+            SANDBOX_LOGE("Invalid template mount source: %{public}s", op.source.c_str());
+            return SANDBOX_ERR_TEMPLATE_INVALID;
+        }
+        if (!HasOnlyKnownMountFlags(op.mountFlags)) {
+            std::cerr << "Error: Unknown mount flag in template entry " << op.target << std::endl;
+            SANDBOX_LOGE("Unknown mount flag in template entry %{public}s", op.target.c_str());
+            return SANDBOX_ERR_TEMPLATE_INVALID;
+        }
+        const unsigned long flags = ConvertMountFlags(op.mountFlags);
+        if ((flags & MS_BIND) == 0 || (flags & (MS_MOVE | MS_REMOUNT)) != 0) {
+            std::cerr << "Error: Template mount " << op.target <<
+                         " must be a bind mount" << std::endl;
+            SANDBOX_LOGE("Template mount %{public}s must be a bind mount", op.target.c_str());
+            return SANDBOX_ERR_TEMPLATE_INVALID;
+        }
+    }
+    return SANDBOX_SUCCESS;
+}
+
+/*
+ * Policy targets are checked for their own legality only. Nesting either way
+ * is fine because the sort mounts the parent first; exact targets are
+ * overrides, not nesting. Symbol links are not compared - they are created
+ * after the binds, and writing through a bind is accepted. policyTargets is
+ * filled here so ApplyPolicyOverrides does not scan the plan again.
+ */
+int SandboxManager::ValidatePolicyBindOps(std::set<std::string> &policyTargets) const
+{
+    for (const auto &op : mountPlan_) {
+        if (op.origin != MountOrigin::POLICY) {
+            continue;
+        }
+        // "/" is legal: the policy source is also "/", so the bind carries the
+        // whole filesystem to the sandbox root and the mode applies to that
+        // mount.
+        if (!IsCanonicalAbsolutePath(op.target)) {
+            std::cerr << "Error: Invalid policy mount target: " << op.target << std::endl;
+            SANDBOX_LOGE("Invalid policy mount target: %{public}s", op.target.c_str());
+            return SANDBOX_ERR_PATH_INVALID;
+        }
+        if (!policyTargets.insert(op.target).second) {
+            std::cerr << "Error: Duplicate policy mount target: " << op.target << std::endl;
+            SANDBOX_LOGE("Duplicate policy mount target: %{public}s", op.target.c_str());
+            return SANDBOX_ERR_CONFIG_INVALID;
+        }
+    }
+    return SANDBOX_SUCCESS;
+}
+
+void SandboxManager::SortMountPlan(std::vector<MountOp> &ops)
+{
+    std::stable_sort(ops.begin(), ops.end(),
+        [](const MountOp &lhs, const MountOp &rhs) {
+            /*
+             * Parents before children: a parent must attach first or it would
+             * cover its children. Same-depth targets are never ancestors, so
+             * seq just keeps the order deterministic.
+             */
+            const auto lhsDepth = TargetDepth(lhs.target);
+            const auto rhsDepth = TargetDepth(rhs.target);
+            if (lhsDepth != rhsDepth) {
+                return lhsDepth < rhsDepth;
+            }
+            return lhs.seq < rhs.seq;
+        });
+}
+
+std::string SandboxManager::GetMountTargetPath(const MountOp &op) const
+{
+    const std::string &root = GetMountRootPath();
+    if (root.empty()) {
+        return op.target;
+    }
+    // The root itself, not the root plus a trailing slash: mountinfo compares
+    // the mount point by name, and cleanup unmounts by this path.
+    if (op.target == "/") {
+        return NormalizeRootPath(root);
+    }
+    return JoinViewPath(root, op.target);
+}
+
+void SandboxManager::DumpMountPlan() const
+{
+    SANDBOX_LOGD("Executing mount plan under %{public}s: %{public}zu bind(s)",
+        GetMountRootPath().c_str(), mountPlan_.size());
+    for (size_t i = 0; i < mountPlan_.size(); ++i) {
+        const MountOp &op = mountPlan_[i];
+        std::string flags;
+        for (const auto &flag : op.mountFlags) {
+            flags += flags.empty() ? "" : ",";
+            flags += flag;
+        }
+        const char *originName = "unknown";
+        switch (op.origin) {
+            case MountOrigin::SYSTEM:
+                originName = "system";
+                break;
+            case MountOrigin::APP:
+                originName = "app";
+                break;
+            case MountOrigin::POLICY:
+                originName = "policy";
+                break;
+            default:
+                break;
+        }
+        SANDBOX_LOGD("Mount plan[%{public}zu]: %{public}s bind %{public}s -> %{public}s "
+            "flags=[%{public}s] mode=%{public}s", i, originName,
+            op.source.c_str(), op.target.c_str(), flags.c_str(), PolicyMountModeName(op.mode));
+    }
+}
+
+int SandboxManager::ExecuteMountPlan()
+{
+    if (mountPlan_.empty()) {
+        return SANDBOX_SUCCESS;
+    }
+
+    DumpMountPlan();
+
+    for (const auto &op : mountPlan_) {
+        int ret = ExecuteBindOp(op);
+        if (ret != SANDBOX_SUCCESS) {
+            std::cerr << "Error: Mount plan failed on " << op.source << " -> " << op.target <<
+                         ", ret=" << ret << std::endl;
+            SANDBOX_LOGE("Mount plan failed on %{public}s -> %{public}s, ret=%{public}d",
+                op.source.c_str(), op.target.c_str(), ret);
+            return ret;
+        }
+    }
+    SANDBOX_LOGD("Mount plan executed: %{public}zu bind(s)", mountPlan_.size());
+    return SANDBOX_SUCCESS;
+}
+
+/*
+ * A policy bind always recurses into a directory source and carries no
+ * template flags; a template bind keeps whatever the entry declared.
+ */
+unsigned long SandboxManager::BindOpFlags(const MountOp &op, bool sourceIsDirectory)
+{
+    if (op.origin == MountOrigin::POLICY) {
+        return MS_BIND | (sourceIsDirectory ? MS_REC : 0);
+    }
+    return ConvertMountFlags(op.mountFlags);
+}
+
+/*
+ * Attach the bind itself, naming both sides through their pinned fds so
+ * neither can be swapped between validation and the mount.
+ */
+int SandboxManager::AttachBind(const MountOp &op, const std::string &mountTarget,
+                               int srcFd, const std::string &procTargetPath,
+                               unsigned long allFlags)
+{
+    const std::string procSourcePath = "/proc/self/fd/" + std::to_string(srcFd);
+    if (mount(procSourcePath.c_str(), procTargetPath.c_str(), nullptr,
+              allFlags & ~PROPAGATION_MASK, nullptr) < 0) {
+        std::cerr << "Error: Failed to bind " << op.source << " -> " << mountTarget <<
+                     ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to bind %{public}s -> %{public}s: %{public}s",
+            op.source.c_str(), mountTarget.c_str(), strerror(errno));
+        return SANDBOX_ERR_MOUNT_FAILED;
+    }
+    return SANDBOX_SUCCESS;
+}
+
+/*
+ * Open the target and attach the bind there. The target fd is only good for
+ * the mount call, so it is closed right after.
+ */
+int SandboxManager::AttachBindAtTarget(const MountOp &op, const std::string &root,
+                                       const std::string &mountTarget, int srcFd,
+                                       bool sourceIsDirectory, unsigned long allFlags)
+{
+    int targetFd = -1;
+    std::string procTargetPath;
+    int ret = OpenMountTarget(root, op.target, sourceIsDirectory, targetFd, procTargetPath);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+    ret = AttachBind(op, mountTarget, srcFd, procTargetPath, allFlags);
+    SANDBOX_FDSAN_CLOSE(targetFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+    return ret;
+}
+
+/*
+ * Force the bind readonly when the template's rdonly flag or a policy ro asks
+ * for it. "rw" and "none" change nothing here: the bind already carries the
+ * source's mode. The fd used for the bind names the mount that existed when it
+ * was opened, so the target is opened again now that the bind is attached.
+ */
+int SandboxManager::ApplyBindMode(const MountOp &op, const std::string &root,
+                                  const std::string &mountTarget, bool sourceIsDirectory,
+                                  unsigned long allFlags)
+{
+    const bool templateWantsReadOnly = (allFlags & MS_RDONLY) != 0;
+    const bool policyForcesReadOnly = op.origin == MountOrigin::POLICY &&
+        op.mode == SandboxConfig::PolicyMountMode::RO;
+    if (!templateWantsReadOnly && !policyForcesReadOnly) {
+        return SANDBOX_SUCCESS;
+    }
+
+    int targetFd = -1;
+    std::string procTargetPath;
+    int ret = OpenMountTarget(root, op.target, sourceIsDirectory, targetFd, procTargetPath);
+    if (ret != SANDBOX_SUCCESS) {
+        umount2(mountTarget.c_str(), MNT_DETACH);
+        return ret;
+    }
+    ret = RemountBindReadOnly(mountTarget, procTargetPath, sourceIsDirectory);
+    SANDBOX_FDSAN_CLOSE(targetFd, SANDBOX_FDSAN_SITE_POLICY_TARGET);
+    return ret;
+}
+
+int SandboxManager::ApplyBindPropagation(const std::string &mountTarget, unsigned long propFlags)
+{
+    if (propFlags == 0) {
+        return SANDBOX_SUCCESS;
+    }
+    if (mount(nullptr, mountTarget.c_str(), nullptr, propFlags, nullptr) < 0) {
+        std::cerr << "Error: Failed to set propagation on " << mountTarget <<
+                     ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to set propagation on %{public}s: %{public}s",
+            mountTarget.c_str(), strerror(errno));
+        umount2(mountTarget.c_str(), MNT_DETACH);
+        return SANDBOX_ERR_MOUNT_FAILED;
+    }
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::ExecuteBindOp(const MountOp &op)
+{
+    const std::string root = GetMountRootPath();
+    if (root.empty()) {
+        std::cerr << "Error: Refusing to bind " << op.target << " without a sandbox root" << std::endl;
+        SANDBOX_LOGE("Refusing to bind %{public}s without a sandbox root", op.target.c_str());
+        return SANDBOX_ERR_PATH_INVALID;
+    }
+    const std::string mountTarget = GetMountTargetPath(op);
+
+    bool sourceIsDirectory = false;
+    int srcFd = OpenBindSource(op.source, sourceIsDirectory);
+    if (srcFd < 0) {
+        if (op.checkExists && errno == ENOENT) {
+            SANDBOX_LOGD("Bind source %{public}s is absent, skipping", op.source.c_str());
+            return SANDBOX_SUCCESS;
+        }
+        std::cerr << "Error: Failed to open bind source " << op.source <<
+                     ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to open bind source %{public}s: %{public}s",
+            op.source.c_str(), strerror(errno));
+        return op.origin == MountOrigin::POLICY ? SANDBOX_ERR_PATH_INVALID :
+                                                  SANDBOX_ERR_MOUNT_FAILED;
+    }
+
+    const unsigned long allFlags = BindOpFlags(op, sourceIsDirectory);
+    int ret = AttachBindAtTarget(op, root, mountTarget, srcFd, sourceIsDirectory, allFlags);
+    if (ret != SANDBOX_SUCCESS) {
+        SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
+        return ret;
+    }
+
+    ret = ApplyBindMode(op, root, mountTarget, sourceIsDirectory, allFlags);
+    if (ret != SANDBOX_SUCCESS) {
+        SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
+        return ret;
+    }
+
+    ret = ApplyBindPropagation(mountTarget, allFlags & PROPAGATION_MASK);
+    SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    mountTargets_.push_back(mountTarget);
+    SANDBOX_LOGD("Bind mounted source=%{public}s, target=%{public}s, origin=%{public}d, mode=%{public}s",
+        op.source.c_str(), mountTarget.c_str(), static_cast<int>(op.origin),
+        PolicyMountModeName(op.mode));
+    return SANDBOX_SUCCESS;
+}
+
+/*
+ * ============================ Symbol links ============================
+ *
+ * Created after the binds: a link's source only exists in the view once the
+ * mounts it lives behind are attached.
+ */
+
+int SandboxManager::CreateTemplateSymlinks()
+{
+    if (templateConfig_.symLinks.empty()) {
+        return SANDBOX_SUCCESS;
+    }
+
+    SANDBOX_LOGD("Creating %{public}zu template symbol link(s) under %{public}s",
+        templateConfig_.symLinks.size(), GetMountRootPath().c_str());
+    for (const auto &entry : templateConfig_.symLinks) {
+        int ret = CreateSymlink(entry);
+        if (ret != SANDBOX_SUCCESS) {
+            SANDBOX_LOGE("Template symbol link failed on %{public}s -> %{public}s, ret=%{public}d",
+                entry.target.c_str(), entry.source.c_str(), ret);
+            return ret;
+        }
+    }
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::ValidateSymLinkEntry(const SymLinkEntry &entry)
+{
+    if (!IsCanonicalAbsolutePath(entry.target) || entry.target == "/") {
+        std::cerr << "Error: Invalid template symbol-link target: " << entry.target << std::endl;
+        SANDBOX_LOGE("Invalid template symbol-link target: %{public}s", entry.target.c_str());
+        return SANDBOX_ERR_TEMPLATE_INVALID;
+    }
+    if (!IsCanonicalAbsolutePath(entry.source)) {
+        std::cerr << "Error: Invalid template symbol-link source: " << entry.source << std::endl;
+        SANDBOX_LOGE("Invalid template symbol-link source: %{public}s", entry.source.c_str());
+        return SANDBOX_ERR_TEMPLATE_INVALID;
+    }
+    return SANDBOX_SUCCESS;
+}
+
+/*
+ * Whatever already occupies the link path wins: a node carried in by the "/"
+ * bind, a mount attached by the plan, or an earlier link. The source only
+ * matters when the link would actually be created; then a missing one fails
+ * the launch because the template link and the mounts it depends on disagree.
+ */
+int SandboxManager::CheckSymLinkPreconditions(const SymLinkEntry &entry,
+                                              const std::string &linkPath,
+                                              const std::string &viewSource, bool &proceed)
+{
+    proceed = false;
+    struct stat st = {};
+    if (lstat(linkPath.c_str(), &st) == 0) {
+        SANDBOX_LOGD("Symlink target %{public}s already exists, skipping", linkPath.c_str());
+        return SANDBOX_SUCCESS;
+    }
+    // Any other lstat failure is left to symlink(), which resolves the same
+    // path and reports the same errno.
+    if (access(viewSource.c_str(), F_OK) != 0) {
+        std::cerr << "Error: Symlink source " << entry.source << " is missing from the sandbox view ("
+                  << viewSource << "): " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Symlink source %{public}s is missing from the sandbox view (%{public}s): "
+            "%{public}s", entry.source.c_str(), viewSource.c_str(), strerror(errno));
+        return SANDBOX_ERR_SYMLINK_FAILED;
+    }
+    proceed = true;
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::CreateSymLinkNode(const SymLinkEntry &entry, const std::string &linkPath)
+{
+    if (symlink(entry.source.c_str(), linkPath.c_str()) < 0) {
+        if (errno == EEXIST) {
+            SANDBOX_LOGD("Symlink target %{public}s appeared concurrently, skipping",
+                linkPath.c_str());
+            return SANDBOX_SUCCESS;
+        }
+        std::cerr << "Error: Failed to symlink " << linkPath << " -> " << entry.source <<
+                  ": " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("Failed to symlink %{public}s -> %{public}s: %{public}s",
+            linkPath.c_str(), entry.source.c_str(), strerror(errno));
+        return SANDBOX_ERR_SYMLINK_FAILED;
+    }
+    SANDBOX_LOGD("Symlinked %{public}s -> %{public}s", linkPath.c_str(), entry.source.c_str());
+    return SANDBOX_SUCCESS;
+}
+
+int SandboxManager::CreateSymlink(const SymLinkEntry &entry)
+{
+    /*
+     * Validated here, after the binds, because a link only makes sense against
+     * the view they produced. Source is the link's content, target its path.
+     */
+    int ret = ValidateSymLinkEntry(entry);
+    if (ret != SANDBOX_SUCCESS) {
+        return ret;
+    }
+
+    const std::string &root = GetMountRootPath();
+    const std::string linkPath = JoinViewPath(root, entry.target);
+    const std::string viewSource = JoinViewPath(root, entry.source);
+    SANDBOX_LOGD("Executing symlink %{public}s -> %{public}s under %{public}s",
+        linkPath.c_str(), entry.source.c_str(), root.c_str());
+
+    bool proceed = false;
+    ret = CheckSymLinkPreconditions(entry, linkPath, viewSource, proceed);
+    if (ret != SANDBOX_SUCCESS || !proceed) {
+        return ret;
+    }
+    return CreateSymLinkNode(entry, linkPath);
+}
+
+/*
+ * =========================== Caller entry ===========================
+ *
+ * Join the caller's mount namespace before the sandbox view is built.
+ */
 
 /**
  * @brief Open /proc/<pid> directory and verify its uid/gid match the expected
@@ -296,6 +1291,13 @@ int SandboxManager::EnterCallerSandbox()
     return SANDBOX_SUCCESS;
 }
 
+/*
+ * ==================== Sandbox root and namespace ====================
+ *
+ * Create the root the view is built in, enter the new mount namespace, and
+ * make the root a mount point for pivot_root.
+ */
+
 static std::string GenerateSandboxName(void)
 {
     // Calculate required bytes: 1 byte provides 2 hexadecimal characters.
@@ -410,9 +1412,14 @@ int SandboxManager::CreateSandboxAutoName()
     return SANDBOX_ERR_SANDBOX_PATH_EXHAUSTED;
 }
 
+const std::string &SandboxManager::GetMountRootPath() const
+{
+    return newRootPath_;
+}
+
 int SandboxManager::CreateNewRoot()
 {
-    int ret;
+    int ret = SANDBOX_SUCCESS;
     if (!config_.name.empty()) {
         ret = CreateSandboxWithName(config_.name);
     } else {
@@ -422,12 +1429,10 @@ int SandboxManager::CreateNewRoot()
         return ret;
     }
 
-    putOldPath_ = newRootPath_ + "/put_old";
-    if (mkdir(putOldPath_.c_str(), S_IRWXU | S_IRGRP | S_IXGRP) < 0) {
-        std::cerr << "Error: mkdir put_old failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("mkdir put_old failed: %{public}s", strerror(errno));
-        return SANDBOX_ERR_PATH_CREATE_FAILED;
-    }
+    /*
+     * The sandbox directory is the view root: binds attach under it and
+     * pivot_root enters it directly. A "/" bind fills it with its source.
+     */
     SANDBOX_LOGD("Created new root at %{public}s", newRootPath_.c_str());
     return SANDBOX_SUCCESS;
 }
@@ -448,552 +1453,90 @@ int SandboxManager::UnshareNamespaces()
 
 int SandboxManager::MountNewRoot()
 {
-    // Bind mount the new root directory onto itself (pivot_root requires
-    // the new root to be a mount point)
+    /*
+     * pivot_root needs the sandbox root to be a mount point. A plan "/" bind
+     * stacks on top.
+     */
     if (mount(newRootPath_.c_str(), newRootPath_.c_str(),
               nullptr, MS_BIND | MS_REC, nullptr) < 0) {
         std::cerr << "Error: mount --bind new root failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("mount --bind new root failed: %{public}s", strerror(errno));
         return SANDBOX_ERR_MOUNT_FAILED;
     }
-    mountedDirs_.push_back(newRootPath_);
+    mountTargets_.push_back(newRootPath_);
+
     return SANDBOX_SUCCESS;
 }
 
 int SandboxManager::MountProcFs()
 {
-    if ((config_.nsFlags & CLONE_NEWPID) != 0) {
-        if (mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, nullptr) < 0) {
-            std::cerr << "Error: mount procfs failed: " << strerror(errno) << std::endl;
-            SANDBOX_LOGE("mount procfs failed: %{public}s", strerror(errno));
-            return SANDBOX_ERR_MOUNT_FAILED;
-        }
-    }
-    return SANDBOX_SUCCESS;
-}
-
-/**
- * @brief Open source path with O_PATH to pin the inode, preventing TOCTOU races.
- *        Uses fstat to verify it's a directory (the expected type for bind mounts).
- *
- * @param path Source path to open
- * @return File descriptor on success (caller must close), or -1 on error.
- *         On -1, errno is preserved (ENOENT indicates path does not exist).
- */
-static int OpenSourcePath(const std::string &path)
-{
-    int fd = open(path.c_str(), O_PATH | O_CLOEXEC | O_NOFOLLOW);
-    if (fd < 0) {
-        return -1;
-    }
-    SANDBOX_FDSAN_MARK(fd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
-
-    struct stat st;
-    if (fstat(fd, &st) != 0) {
-        std::cerr << "Error: fstat failed for " << path << ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("fstat failed for %{public}s: %{public}s", path.c_str(), strerror(errno));
-        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
-        return -1;
-    }
-
-    if (!S_ISDIR(st.st_mode)) {
-        std::cerr << "Error: " << path << " is not a directory" << std::endl;
-        SANDBOX_LOGE("%{public}s is not a directory", path.c_str());
-        SANDBOX_FDSAN_CLOSE(fd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
-        return -1;
-    }
-
-    return fd;
-}
-
-int SandboxManager::MountSystemEntry(const MountEntry &entry, const std::string &targetPrefix)
-{
-    std::string target = targetPrefix + entry.target;
-
-    // Open source path with O_PATH to pin inode (eliminates TOCTOU window
-    // between existence check and mount). The fd stays open so the kernel
-    // pins the dentry/inode even if the original path is tampered with.
-    int srcFd = OpenSourcePath(entry.source);
-    if (srcFd < 0) {
-        if (errno == ENOENT) {
-            SANDBOX_LOGD("MountSystemEntry: %{public}s does not exist, skipping", entry.source.c_str());
-            return SANDBOX_SUCCESS;
-        }
-        std::cerr << "Error: Failed to open " << entry.source <<
-                  ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to open %{public}s: %{public}s",
-            entry.source.c_str(), strerror(errno));
-        return SANDBOX_ERR_MOUNT_FAILED;
-    }
-
-    int ret = CreateDir(target);
-    if (ret != SANDBOX_SUCCESS) {
-        SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
-        return ret;
-    }
-
-    // Simple bind mount without remount readonly or propagation changes
-    unsigned long mountFlags = ConvertMountFlags(entry.mountFlags);
-    if (entry.source == "/proc" && (config_.nsFlags & CLONE_NEWPID) != 0) {
-        // Always mount procfs via mount -t proc, never bind-mount the host's /proc.
-        // Bind-mounting /proc would expose the host process list inside the sandbox,
-        // which is a security concern regardless of PID namespace isolation.
-        SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
-        return SANDBOX_SUCCESS;
-    }
-    if (mount(entry.source.c_str(), target.c_str(), nullptr, mountFlags, nullptr) < 0) {
-        std::cerr << "Error: Failed to mount " << entry.source << " -> " << target <<
-                  ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to mount %{public}s -> %{public}s: %{public}s",
-            entry.source.c_str(), target.c_str(), strerror(errno));
-        SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
-        return SANDBOX_ERR_MOUNT_FAILED;
-    }
-
-    SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
-    mountedDirs_.push_back(target);
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::SymlinkSingleEntry(const SymLinkEntry &entry, const std::string &targetPrefix)
-{
-    std::string target = targetPrefix + entry.target;
-
-    if (access(entry.source.c_str(), F_OK) != 0) {
-        SANDBOX_LOGD("SymlinkSingleEntry: %{public}s does not exist, skipping", entry.source.c_str());
+    if ((config_.nsFlags & CLONE_NEWPID) == 0) {
         return SANDBOX_SUCCESS;
     }
 
-    const std::string resolvedSource = targetPrefix + entry.source;
-    if (access(resolvedSource.c_str(), F_OK) != 0) {
-        // Worth a warning rather than a debug line: the host has it, so this is
-        // a mount entry that is missing or a step that ran in the wrong order.
-        SANDBOX_LOGW("SymlinkSingleEntry: %{public}s exists but %{public}s does not; skipping "
-            "%{public}s so the sandbox does not get a dangling link",
-            entry.source.c_str(), resolvedSource.c_str(), entry.target.c_str());
-        return SANDBOX_SUCCESS;
-    }
-
-    if (symlink(entry.source.c_str(), target.c_str()) < 0) {
-        std::cerr << "Error: Failed to symlink " << target << " -> " << entry.source <<
-                  ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to symlink %{public}s -> %{public}s: %{public}s",
-            target.c_str(), entry.source.c_str(), strerror(errno));
-        return SANDBOX_ERR_SYMLINK_FAILED;
-    }
-
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::DoMountSequence(const std::string &source, const std::string &target, unsigned long allFlags)
-{
-    constexpr unsigned long PROPAGATION_MASK = MS_SLAVE | MS_SHARED | MS_PRIVATE | MS_UNBINDABLE;
-    unsigned long mountFlags = allFlags & ~PROPAGATION_MASK;
-    unsigned long propFlags = allFlags & PROPAGATION_MASK;
-
-    if (mount(source.c_str(), target.c_str(), nullptr, mountFlags, nullptr) < 0) {
-        std::cerr << "Error: Failed to mount " << source << " -> " << target <<
-                     ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to mount %{public}s -> %{public}s: %{public}s",
-                     source.c_str(), target.c_str(), strerror(errno));
-        return SANDBOX_ERR_MOUNT_FAILED;
-    }
-
-    if (allFlags & MS_RDONLY) {
-        if (mount(source.c_str(), target.c_str(), nullptr,
-                  MS_BIND | MS_REMOUNT | MS_RDONLY | MS_REC, nullptr) < 0) {
-            SANDBOX_LOGE("Failed to remount readonly %{public}s: %{public}s",
-                         target.c_str(), strerror(errno));
-            umount2(target.c_str(), MNT_DETACH);
-            return SANDBOX_ERR_MOUNT_FAILED;
-        }
-    }
-
-    if (propFlags != 0) {
-        if (mount(nullptr, target.c_str(), nullptr, propFlags, nullptr) < 0) {
-            std::cerr << "Error: Failed to set propagation on " << target <<
-                         ": " << strerror(errno) << std::endl;
-            SANDBOX_LOGE("Failed to set propagation on %{public}s: %{public}s",
-                         target.c_str(), strerror(errno));
-            return SANDBOX_ERR_MOUNT_FAILED;
-        }
-    }
-
-    return SANDBOX_SUCCESS;
-}
-
-
-int SandboxManager::MountSingleEntry(const MountEntry &entry, const std::string &targetPrefix)
-{
-    std::string target = targetPrefix + entry.target;
-
-    int srcFd = OpenSourcePath(entry.source);
-    if (srcFd < 0) {
-        if (entry.checkExists && errno == ENOENT) {
-            SANDBOX_LOGD("MountSingleEntry: %{public}s does not exist, skipping", entry.source.c_str());
-            return SANDBOX_SUCCESS;
-        }
-        std::cerr << "Error: Failed to open " << entry.source << ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to open %{public}s: %{public}s", entry.source.c_str(), strerror(errno));
-        return SANDBOX_ERR_MOUNT_FAILED;
-    }
-
-    int ret = CreateDir(target);
-    if (ret != SANDBOX_SUCCESS) {
-        SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
-        return ret;
-    }
-
-    unsigned long allFlags = ConvertMountFlags(entry.mountFlags);
-    ret = DoMountSequence(entry.source, target, allFlags);
-    if (ret != SANDBOX_SUCCESS) {
-        SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
-        return ret;
-    }
-
-    mountedDirs_.push_back(target);
-    SANDBOX_FDSAN_CLOSE(srcFd, SANDBOX_FDSAN_SITE_MOUNT_SRC);
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::MountSystemDirs()
-{
-    for (const auto &entry : templateConfig_.systemMounts) {
-        int ret = MountSystemEntry(entry, newRootPath_);
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
-    }
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::MountSymLinks()
-{
-    for (const auto &entry : templateConfig_.symLinks) {
-        int ret = SymlinkSingleEntry(entry, newRootPath_);
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
-    }
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::MountAppDirs()
-{
-    for (const auto &entry : templateConfig_.appMounts) {
-        int ret = MountSingleEntry(entry, newRootPath_);
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
-    }
-    return SANDBOX_SUCCESS;
-}
-
-static bool MountOptionsReadOnly(const std::string &options)
-{
-    std::istringstream iss(options);
-    std::string option;
-    while (std::getline(iss, option, ',')) {
-        if (option == "ro") {
-            return true;
-        }
-    }
-    return false;
-}
-
-static int GetMountReadOnly(const std::string &path, bool &readOnly)
-{
-    std::ifstream mountInfo("/proc/self/mountinfo");
-    if (!mountInfo.is_open()) {
-        std::cerr << "Error: Failed to open /proc/self/mountinfo: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to open /proc/self/mountinfo: %{public}s", strerror(errno));
-        return SANDBOX_ERR_PATH_INVALID;
-    }
-
-    std::string line;
-    size_t bestLen = 0;
-    bool found = false;
-    while (std::getline(mountInfo, line)) {
-        std::istringstream iss(line);
-        std::string id;
-        std::string parent;
-        std::string majorMinor;
-        std::string root;
-        std::string mountPoint;
-        std::string options;
-        if (!(iss >> id >> parent >> majorMinor >> root >> mountPoint >> options)) {
-            continue;
-        }
-        if (IsPathUnder(path, mountPoint) && mountPoint.size() >= bestLen) {
-            bestLen = mountPoint.size();
-            readOnly = MountOptionsReadOnly(options);
-            found = true;
-        }
-    }
-
-    if (!found) {
-        std::cerr << "Error: Failed to find mount point for " << path << std::endl;
-        SANDBOX_LOGE("Failed to find mount point for %{public}s", path.c_str());
-        return SANDBOX_ERR_PATH_INVALID;
-    }
-    return SANDBOX_SUCCESS;
-}
-
-static int IsExactMountPoint(const std::string &path, bool &isMountPoint)
-{
-    std::ifstream mountInfo("/proc/self/mountinfo");
-    if (!mountInfo.is_open()) {
-        std::cerr << "Error: Failed to open /proc/self/mountinfo: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to open /proc/self/mountinfo: %{public}s", strerror(errno));
-        return SANDBOX_ERR_PATH_INVALID;
-    }
-
-    isMountPoint = false;
-    std::string line;
-    std::string id;
-    std::string parent;
-    std::string majorMinor;
-    std::string root;
-    std::string mountPoint;
-    while (std::getline(mountInfo, line)) {
-        std::istringstream iss(line);
-        if (!(iss >> id >> parent >> majorMinor >> root >> mountPoint)) {
-            continue;
-        }
-        if (mountPoint == path) {
-            isMountPoint = true;
-            return SANDBOX_SUCCESS;
-        }
-    }
-    return SANDBOX_SUCCESS;
-}
-
-bool SandboxManager::IsPolicyWriteEscalation(bool policyReadOnly, bool existingReadOnly)
-{
-    // Policy may tighten access to readonly, but must not widen an existing readonly mount to writable.
-    return !policyReadOnly && existingReadOnly;
-}
-
-SandboxManager::ConditionalMatchResult SandboxManager::MatchConditionalSource(const std::string &target,
-    std::string &physicalSource) const
-{
-    if (templateConfig_.conditionalRules.empty()) {
-        return CONDITIONAL_NOMATCH;
-    }
-
-    bool anyPrefixMatched = false;
-    for (const auto &rule : templateConfig_.conditionalRules) {
-        // Skip rules with empty target (would match everything via rfind)
-        if (rule.target.empty()) {
-            continue;
-        }
-        // Prefix match: target must start with rule.target
-        if (target.rfind(rule.target, 0) != 0) {
-            continue;
-        }
-        if (target.length() > rule.target.length() && target[rule.target.length()] != '/') {
-            continue;
-        }
-        anyPrefixMatched = true;
-
-        // Empty permissions means unconditionally permitted
-        if (rule.permissions.empty()) {
-            physicalSource = rule.source + target.substr(rule.target.length());
-            SANDBOX_LOGD("Conditional rule matched (no permissions), target=%{public}s, "
-                "physicalSource=%{public}s", target.c_str(), physicalSource.c_str());
-            return CONDITIONAL_MATCHED;
-        }
-        // OR logic: any single granted permission is sufficient
-        for (const auto &perm : rule.permissions) {
-            if (IsPermissionGranted(perm)) {
-                physicalSource = rule.source + target.substr(rule.target.length());
-                SANDBOX_LOGD("Conditional rule matched, target=%{public}s, "
-                    "physicalSource=%{public}s, permission=%{public}s",
-                    target.c_str(), physicalSource.c_str(), perm.c_str());
-                return CONDITIONAL_MATCHED;
-            }
-        }
-        // Prefix matched but no permission granted for this rule — continue
-        // to check if other rules match (OR across rules)
-    }
-
-    if (anyPrefixMatched) {
-        SANDBOX_LOGD("Conditional rule prefix matched but no permission granted, "
-            "target=%{public}s", target.c_str());
-        return CONDITIONAL_BLOCKED;
-    }
-    return CONDITIONAL_NOMATCH;
-}
-
-int SandboxManager::MountPolicyPath(const SandboxConfig::PolicyMount &policyMount)
-{
-    std::string target = policyMount.source;
-    std::string mountTarget = newRootPath_ + target;
-
-    // Step 1: If target is already a mount point, just remount (no need for conditional)
-    bool targetIsMountPoint = false;
-    int ret = IsExactMountPoint(mountTarget, targetIsMountPoint);
+    /*
+     * With a PID namespace the plan drops the template's /proc bind, so create
+     * the mount point here. Runs after pivot_root, where "/proc" is the view
+     * path.
+     */
+    int ret = CreateDir("/proc");
     if (ret != SANDBOX_SUCCESS) {
         return ret;
     }
-    if (targetIsMountPoint) {
-        return RemountPolicyMount(policyMount, mountTarget);
-    }
-
-    // Step 2: Not an existing mount point — try conditional rule to derive physical source
-    std::string physicalSource;
-    ConditionalMatchResult matchResult = MatchConditionalSource(target, physicalSource);
-    if (matchResult == CONDITIONAL_MATCHED) {
-        return BindMountConditionalPath(policyMount, mountTarget, physicalSource);
-    }
-    if (matchResult == CONDITIONAL_BLOCKED) {
-        std::cerr << "Error: policy mount target is denied by conditional rules: " <<
-                  target << std::endl;
-        SANDBOX_LOGE("policy mount target is denied by conditional rules: %{public}s",
-            target.c_str());
-        return SANDBOX_ERR_PATH_INVALID;
-    }
-
-    // CONDITIONAL_NOMATCH — no rule can resolve this path
-    std::cerr << "Error: policy mount target is not a mount point and no "
-              << "conditional rule matched: " << target << std::endl;
-    SANDBOX_LOGE("policy mount target is not a mount point and no "
-        "conditional rule matched: %{public}s", target.c_str());
-    return SANDBOX_ERR_PATH_INVALID;
-}
-
-int SandboxManager::RemountPolicyMount(const SandboxConfig::PolicyMount &policyMount,
-                                       const std::string &target)
-{
-    if (!policyMount.readOnly) {
-        bool targetReadOnly = false;
-        int ret = GetMountReadOnly(target, targetReadOnly);
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
-        if (IsPolicyWriteEscalation(policyMount.readOnly, targetReadOnly)) {
-            std::cerr << "Error: policy rw target is readonly in sandbox template: " <<
-                      target << std::endl;
-            SANDBOX_LOGE("policy rw target is readonly in sandbox template: %{public}s",
-                target.c_str());
-            return SANDBOX_ERR_PATH_INVALID;
-        }
-    }
-    unsigned long remountFlags = MS_BIND | MS_REMOUNT | MS_REC;
-    if (policyMount.readOnly) {
-        remountFlags |= MS_RDONLY;
-    }
-    if (mount(target.c_str(), target.c_str(), nullptr, remountFlags, nullptr) < 0) {
-        std::cerr << "Error: Failed to remount policy path " << target << " as " <<
-                  (policyMount.readOnly ? "ro" : "rw") << ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to remount policy path %{public}s as %{public}s: %{public}s",
-            target.c_str(), policyMount.readOnly ? "ro" : "rw", strerror(errno));
+    if (mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, nullptr) < 0) {
+        std::cerr << "Error: mount procfs failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("mount procfs failed: %{public}s", strerror(errno));
         return SANDBOX_ERR_MOUNT_FAILED;
     }
-    SANDBOX_LOGD("Policy mount remounted, target=%{public}s, mode=%{public}s",
-        target.c_str(), policyMount.readOnly ? "ro" : "rw");
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::BindMountConditionalPath(const SandboxConfig::PolicyMount &policyMount,
-                                             const std::string &mountTarget,
-                                             const std::string &physicalSource)
-{
-    struct stat st;
-    if (stat(physicalSource.c_str(), &st) != 0) {
-        std::cerr << "Error: Conditional physical source does not exist: " <<
-                  physicalSource << std::endl;
-        SANDBOX_LOGE("Conditional physical source does not exist: %{public}s",
-            physicalSource.c_str());
-        return SANDBOX_ERR_PATH_INVALID;
-    }
-    // Create target directory under new root
-    int ret = CreateDir(mountTarget);
-    if (ret != SANDBOX_SUCCESS) {
-        return ret;
-    }
-
-    // Bind mount physical source → target
-    unsigned long bindFlags = MS_BIND | MS_REC;
-    if (mount(physicalSource.c_str(), mountTarget.c_str(), nullptr, bindFlags, nullptr) < 0) {
-        std::cerr << "Error: Failed to bind mount conditional path " << physicalSource <<
-                  " -> " << mountTarget << ": " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("Failed to bind mount conditional path %{public}s -> %{public}s: %{public}s",
-            physicalSource.c_str(), mountTarget.c_str(), strerror(errno));
-        return SANDBOX_ERR_MOUNT_FAILED;
-    }
-
-    // Remount readonly if required (tighten, always OK)
-    if (policyMount.readOnly) {
-        unsigned long roFlags = MS_BIND | MS_REMOUNT | MS_REC | MS_RDONLY;
-        if (mount(nullptr, mountTarget.c_str(), nullptr, roFlags, nullptr) < 0) {
-            SANDBOX_LOGE("Failed to remount conditional path %{public}s as readonly: %{public}s",
-                mountTarget.c_str(), strerror(errno));
-            umount2(mountTarget.c_str(), MNT_DETACH);
-            return SANDBOX_ERR_MOUNT_FAILED;
-        }
-    }
-
-    SANDBOX_LOGD("Policy bind mount via conditional, source=%{public}s, target=%{public}s, "
-        "mode=%{public}s", physicalSource.c_str(), mountTarget.c_str(),
-        policyMount.readOnly ? "ro" : "rw");
-
-    mountedDirs_.push_back(mountTarget);
-    return SANDBOX_SUCCESS;
-}
-
-int SandboxManager::ApplyPolicyMounts()
-{
-    std::vector<SandboxConfig::PolicyMount> policyMounts = config_.policy.mounts;
-    SANDBOX_LOGD("Applying policy mounts, count=%{public}zu", policyMounts.size());
-    for (const auto &item : policyMounts) {
-        SANDBOX_LOGD("Applying policy mount source=%{public}s, mode=%{public}s",
-            item.source.c_str(), item.readOnly ? "ro" : "rw");
-        int ret = MountPolicyPath(item);
-        if (ret != SANDBOX_SUCCESS) {
-            return ret;
-        }
-    }
-    SANDBOX_LOGD("Applied policy mounts successfully, total=%{public}zu", policyMounts.size());
+    SANDBOX_LOGD("Mounted procfs on /proc for pid namespace");
     return SANDBOX_SUCCESS;
 }
 
 int SandboxManager::PivotRoot()
 {
-    if (syscall(SYS_pivot_root, newRootPath_.c_str(), putOldPath_.c_str()) < 0) {
+    /*
+     * "." is both new root and put_old, so no put_old directory is needed - a
+     * plan "/" bind would cover one. The kernel stacks the old root on this
+     * mount point; the umount below detaches it lazily and leaves the view.
+     */
+    if (chdir(newRootPath_.c_str()) < 0) {
+        std::cerr << "Error: chdir new root failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("chdir new root failed: %{public}s", strerror(errno));
+        return SANDBOX_ERR_CHDIR_FAILED;
+    }
+    if (syscall(SYS_pivot_root, ".", ".") < 0) {
         std::cerr << "Error: pivot_root failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("pivot_root failed: %{public}s", strerror(errno));
         return SANDBOX_ERR_NS_FAILED;
     }
-
+    /*
+     * The process root is the new root from here on, so the pre-pivot path no
+     * longer names the same directory: cleanup must not run by path.
+     */
+    pivotRootDone_ = true;
+    if (umount2(".", MNT_DETACH) < 0) {
+        std::cerr << "Error: umount old root failed: " << strerror(errno) << std::endl;
+        SANDBOX_LOGE("umount old root failed: %{public}s", strerror(errno));
+        return SANDBOX_ERR_MOUNT_FAILED;
+    }
     if (chdir("/") < 0) {
         std::cerr << "Error: chdir / after pivot_root failed: " << strerror(errno) << std::endl;
         SANDBOX_LOGE("chdir / after pivot_root failed: %{public}s", strerror(errno));
         return SANDBOX_ERR_CHDIR_FAILED;
     }
-
-    // Unmount the old root
-    if (umount2("/put_old", MNT_DETACH) < 0) {
-        std::cerr << "Error: umount put_old failed: " << strerror(errno) << std::endl;
-        SANDBOX_LOGE("umount put_old failed: %{public}s", strerror(errno));
-        return SANDBOX_ERR_MOUNT_FAILED;
-    }
-
-    // Remove the put_old directory
-    if (rmdir("/put_old") < 0) {
-        SANDBOX_LOGW("rmdir put_old failed: %{public}s", strerror(errno));
-    }
-
-    pivotRootDone_ = true;
+    // From here on the sandbox root is "/".
+    newRootPath_ = "/";
     SANDBOX_LOGD("pivot_root completed");
     return SANDBOX_SUCCESS;
 }
 
+/*
+ * ==================== Path helpers and cleanup ====================
+ */
+
 int SandboxManager::MountDir(const std::string &source, const std::string &target,
                              const std::vector<std::string> &mountFlags)
 {
-    constexpr unsigned long PROPAGATION_MASK = MS_SLAVE | MS_SHARED | MS_PRIVATE | MS_UNBINDABLE;
-
     int ret = CreateDir(target);
     if (ret != SANDBOX_SUCCESS) {
         return ret;
@@ -1017,11 +1560,14 @@ int SandboxManager::MountDir(const std::string &source, const std::string &targe
                       ": " << strerror(errno) << std::endl;
             SANDBOX_LOGE("Failed to set propagation on %{public}s: %{public}s",
                 target.c_str(), strerror(errno));
+            // The bind above exists but is not recorded yet: detach it so a
+            // failed call cannot leave an untracked mount behind.
+            umount2(target.c_str(), MNT_DETACH);
             return SANDBOX_ERR_MOUNT_FAILED;
         }
     }
 
-    mountedDirs_.push_back(target);
+    mountTargets_.push_back(target);
     return SANDBOX_SUCCESS;
 }
 
@@ -1055,6 +1601,16 @@ int SandboxManager::CreateDir(const std::string &path)
     return MkdirIfNotExist(path);
 }
 
+/*
+ * Only ever delete a directory this manager created. RemoveAll is used for the
+ * sandbox root, and a wrong path here would delete host data.
+ */
+static bool IsOwnedSandboxRoot(const std::string &path)
+{
+    const std::string prefix = std::string(SANDBOX_BASE_DIR) + "/";
+    return path.size() > prefix.size() && path.compare(0, prefix.size(), prefix) == 0;
+}
+
 void SandboxManager::Cleanup()
 {
     if (pivotRootDone_) {
@@ -1063,24 +1619,35 @@ void SandboxManager::Cleanup()
         return;
     }
 
-    // Unmount mounted directories in reverse order
-    for (auto it = mountedDirs_.rbegin(); it != mountedDirs_.rend(); ++it) {
+    // Unmount mount targets in reverse creation order
+    bool unmountedAll = true;
+    for (auto it = mountTargets_.rbegin(); it != mountTargets_.rend(); ++it) {
         if (umount2(it->c_str(), MNT_DETACH) < 0) {
+            unmountedAll = false;
             SANDBOX_LOGW("umount %{public}s failed: %{public}s",
                 it->c_str(), strerror(errno));
         }
     }
-    mountedDirs_.clear();
+    mountTargets_.clear();
 
-    // Clean up temporary directories
-    if (!newRootPath_.empty()) {
-        if (!putOldPath_.empty()) {
-            rmdir(putOldPath_.c_str());
-            putOldPath_.clear();
+    /*
+     * The sandbox root holds directories and symlinks now, so rmdir no longer
+     * enough. remove_all may only run once every mount is gone: descending into
+     * a still-mounted host tree would delete host data.
+     */
+    if (!newRootPath_.empty() && unmountedAll && IsOwnedSandboxRoot(newRootPath_)) {
+        std::error_code ec;
+        std::filesystem::remove_all(newRootPath_, ec);
+        if (ec) {
+            SANDBOX_LOGW("Cleanup: failed to remove %{public}s: %{public}s",
+                newRootPath_.c_str(), ec.message().c_str());
         }
-        rmdir(newRootPath_.c_str());
-        newRootPath_.clear();
+    } else if (!newRootPath_.empty() && unmountedAll) {
+        SANDBOX_LOGW("Cleanup: %{public}s is not a sandbox root, not removing",
+            newRootPath_.c_str());
     }
+
+    newRootPath_.clear();
 }
 
 } // namespace SANDBOX

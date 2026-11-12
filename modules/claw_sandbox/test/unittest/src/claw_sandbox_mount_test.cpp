@@ -23,10 +23,13 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <utility>
+#include <vector>
 
 #define private public
 #include "sandbox_manager.h"
@@ -268,6 +271,10 @@ HWTEST_F(ClawSandboxMountTest, CreateDir001, TestSize.Level0)
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_TRUE(SandboxDirGuard::Exists(guard.RootPath() + "/nested"));
 
+    // Creating it again is not an error: every component already exists.
+    ret = manager.CreateDir(guard.RootPath() + "/nested");
+    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+
     // Empty path returns PATH_CREATE_FAILED
     ret = manager.CreateDir("");
     EXPECT_EQ(SANDBOX_ERR_PATH_CREATE_FAILED, ret);
@@ -337,7 +344,6 @@ HWTEST_F(ClawSandboxMountTest, CreateNewRoot001, TestSize.Level0)
     if (ret == SANDBOX_SUCCESS) {
         guard.TrackCreatedRoot(manager.newRootPath_);
         EXPECT_TRUE(SandboxDirGuard::Exists(manager.newRootPath_));
-        EXPECT_TRUE(SandboxDirGuard::Exists(manager.putOldPath_));
     }
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
@@ -367,7 +373,27 @@ HWTEST_F(ClawSandboxMountTest, CreateNewRoot002, TestSize.Level0)
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
     EXPECT_EQ(guard.RootPath(), manager.newRootPath_);
     EXPECT_TRUE(SandboxDirGuard::Exists(guard.RootPath()));
-    EXPECT_TRUE(SandboxDirGuard::Exists(manager.putOldPath_));
+    // The sandbox root is the view root itself: CreateNewRoot stages nothing
+    // inside it.
+    EXPECT_EQ(guard.RootPath(), manager.GetMountRootPath());
+    std::error_code ec;
+    EXPECT_TRUE(std::filesystem::is_empty(guard.RootPath(), ec));
+}
+
+/**
+ * @tc.name: GetMountRootPath001
+ * @tc.desc: Mounts attach under the sandbox root, and an unset root is empty
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, GetMountRootPath001, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.newRootPath_ = "/tmp/claw_root";
+    EXPECT_EQ("/tmp/claw_root", manager.GetMountRootPath());
+
+    manager.newRootPath_.clear();
+    EXPECT_TRUE(manager.GetMountRootPath().empty());
 }
 
 /**
@@ -459,350 +485,6 @@ HWTEST_F(ClawSandboxMountTest, MountProcFs002, TestSize.Level0)
     EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_MOUNT_FAILED);
 }
 
-
-/**
- * @tc.name: IsPolicyWriteEscalation001
- * @tc.desc: IsPolicyWriteEscalation rejects only rw policy over existing readonly mounts
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, IsPolicyWriteEscalation001, TestSize.Level0)
-{
-    // Policy RO + Existing RO = not escalation
-    EXPECT_FALSE(SandboxManager::IsPolicyWriteEscalation(true, true));
-    // Policy RO + Existing RW = not escalation
-    EXPECT_FALSE(SandboxManager::IsPolicyWriteEscalation(true, false));
-    // Policy RW + Existing RW = not escalation
-    EXPECT_FALSE(SandboxManager::IsPolicyWriteEscalation(false, false));
-    // Policy RW + Existing RO = escalation (rw policy over readonly mount)
-    EXPECT_TRUE(SandboxManager::IsPolicyWriteEscalation(false, true));
-    // Summary: escalation only when policy requests write and existing mount is readonly
-    EXPECT_FALSE(SandboxManager::IsPolicyWriteEscalation(true, true)); // verify idempotent
-}
-
-/**
- * @tc.name: MountSystemEntry001
- * @tc.desc: MountSystemEntry with non-existent source returns success (skip)
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, MountSystemEntry001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    SandboxManager::MountEntry entry;
-    entry.source = "/nonexistent_source_path_xyz";
-    entry.target = "/test_target";
-
-    int ret = manager.MountSystemEntry(entry, "");
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: MountSystemEntry002
- * @tc.desc: MountSystemEntry with /proc source and CLONE_NEWPID returns success (skip)
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, MountSystemEntry002, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.nsFlags = CLONE_NEWPID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    SandboxManager::MountEntry entry;
-    entry.source = "/proc";
-    entry.target = "/proc";
-
-    int ret = manager.MountSystemEntry(entry, "");
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: MountSystemEntry003
- * @tc.desc: MountSystemEntry with /proc source without CLONE_NEWPID attempts mount
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, MountSystemEntry003, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    config.nsFlags = 0;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    SandboxManager::MountEntry entry;
-    entry.source = "/proc";
-    entry.target = "/proc";
-
-    int ret = manager.MountSystemEntry(entry, "");
-    // /proc exists, so it will try to create dir and mount
-    // mount may succeed or fail depending on test environment
-    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_MOUNT_FAILED);
-}
-
-/**
- * @tc.name: SymlinkSingleEntry001
- * @tc.desc: SymlinkSingleEntry with non-existent source returns success (skip)
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, SymlinkSingleEntry001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    SandboxManager::SymLinkEntry entry;
-    entry.source = "/nonexistent_source_path_xyz";
-    entry.target = "/test_target";
-
-    int ret = manager.SymlinkSingleEntry(entry, "");
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: SymlinkSingleEntry002
- * @tc.desc: A source the host has but the new root does not is skipped, so the
- *           sandbox never gets a dangling link
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, SymlinkSingleEntry002, TestSize.Level0)
-{
-    // An empty stand-in for a new root that no mount step populated.
-    std::string root = MakeTempRoot("symlink_empty_root");
-    ASSERT_FALSE(root.empty());
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    SandboxManager::SymLinkEntry entry;
-    entry.source = "/dev";
-    entry.target = "/dev_link";
-
-    // The premise of the test: present on the host, absent in the new root.
-    ASSERT_EQ(0, access(entry.source.c_str(), F_OK));
-    ASSERT_NE(0, access((root + entry.source).c_str(), F_OK));
-
-    EXPECT_EQ(SANDBOX_SUCCESS, manager.SymlinkSingleEntry(entry, root));
-
-    struct stat st = {};
-    EXPECT_NE(0, lstat((root + entry.target).c_str(), &st));
-
-    std::error_code ec;
-    std::filesystem::remove_all(root, ec);
-}
-
-/**
- * @tc.name: SymlinkSingleEntry003
- * @tc.desc: Once the new root has the source, the link is created
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, SymlinkSingleEntry003, TestSize.Level0)
-{
-    std::string root = MakeTempRoot("symlink_ready_root");
-    ASSERT_FALSE(root.empty());
-
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    SandboxManager::SymLinkEntry entry;
-    entry.source = "/dev";
-    entry.target = "/dev_link";
-
-    // What a mount step would have left behind.
-    std::error_code ec;
-    ASSERT_TRUE(std::filesystem::create_directories(root + entry.source, ec));
-
-    EXPECT_EQ(SANDBOX_SUCCESS, manager.SymlinkSingleEntry(entry, root));
-
-    struct stat st = {};
-    ASSERT_EQ(0, lstat((root + entry.target).c_str(), &st));
-    EXPECT_TRUE(S_ISLNK(st.st_mode));
-
-    std::filesystem::remove_all(root, ec);
-}
-
-/**
- * @tc.name: MountSingleEntry001
- * @tc.desc: MountSingleEntry with checkExists and non-existent source returns error
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, MountSingleEntry001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    SandboxManager::MountEntry entry;
-    entry.source = "/nonexistent_source_xyz";
-    entry.target = "/test_target";
-    entry.checkExists = true;
-
-    int ret = manager.MountSingleEntry(entry, "");
-    EXPECT_EQ(0, ret);
-}
-
-/**
- * @tc.name: MountSingleEntry002
- * @tc.desc: MountSingleEntry without checkExists attempts mount
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, MountSingleEntry002, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.type = "cli";
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    SandboxManager::MountEntry entry;
-    entry.source = "/nonexistent_source_xyz";
-    entry.target = "/test_target";
-    entry.checkExists = false;
-
-    int ret = manager.MountSingleEntry(entry, "");
-    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_MOUNT_FAILED || ret == SANDBOX_ERR_PATH_CREATE_FAILED);
-}
-
-/**
- * @tc.name: MountSystemDirs001
- * @tc.desc: MountSystemDirs with empty systemMounts returns success
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, MountSystemDirs001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    manager.newRootPath_ = "/mnt/sandbox/claw/test";
-    int ret = 0;
-    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.MountSystemDirs(); }, ret));
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: MountSymLinks001
- * @tc.desc: MountSymLinks with empty systemMounts returns success
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, MountSymLinks001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    manager.newRootPath_ = "/mnt/sandbox/claw/test";
-    int ret = manager.MountSymLinks();
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
-}
-
-/**
- * @tc.name: Cleanup001
- * @tc.desc: Cleanup with pivotRootDone_ returns immediately without cleanup
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, Cleanup001, TestSize.Level0)
-{
-    SandboxManager manager;
-    manager.pivotRootDone_ = true;
-    manager.mountedDirs_.push_back("/nonexistent_mount");
-    manager.newRootPath_ = "/tmp/test_root";
-    manager.putOldPath_ = "/tmp/test_old";
-
-    // pivotRootDone_ == true ⇒ skip all cleanup
-    manager.Cleanup();
-
-    EXPECT_TRUE(manager.pivotRootDone_);
-    EXPECT_FALSE(manager.mountedDirs_.empty());
-    EXPECT_FALSE(manager.newRootPath_.empty());
-    EXPECT_FALSE(manager.putOldPath_.empty());
-}
-
-/**
- * @tc.name: Cleanup002
- * @tc.desc: Cleanup without pivotRootDone_ clears mountedDirs_ and paths
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, Cleanup002, TestSize.Level0)
-{
-    SandboxManager manager;
-    manager.pivotRootDone_ = false;
-    manager.mountedDirs_.push_back("/nonexistent_mount");
-    manager.newRootPath_ = "/nonexistent_root";
-    manager.putOldPath_ = "/nonexistent_old";
-
-    manager.Cleanup();
-
-    EXPECT_FALSE(manager.pivotRootDone_);
-    EXPECT_TRUE(manager.mountedDirs_.empty());
-    EXPECT_TRUE(manager.putOldPath_.empty());
-    // newRootPath_ may or may not be cleared depending on rmdir result
-}
-
 /**
  * @tc.name: MountDir001
  * @tc.desc: MountDir with non-existent source attempts mount
@@ -827,26 +509,69 @@ HWTEST_F(ClawSandboxMountTest, MountDir001, TestSize.Level0)
 }
 
 /**
- * @tc.name: MountAppDirs001
- * @tc.desc: MountAppDirs with empty appMounts returns success
+ * @tc.name: Cleanup001
+ * @tc.desc: Cleanup with pivotRootDone_ returns immediately without cleanup
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxMountTest, MountAppDirs001, TestSize.Level0)
+HWTEST_F(ClawSandboxMountTest, Cleanup001, TestSize.Level0)
 {
     SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
+    manager.pivotRootDone_ = true;
+    manager.mountTargets_.push_back("/nonexistent_mount");
+    manager.newRootPath_ = "/tmp/test_root";
 
-    manager.newRootPath_ = "/mnt/sandbox/claw/test";
-    int ret = 0;
-    ASSERT_TRUE(RunPrivilegedStepInChild([&manager]() { return manager.MountAppDirs(); }, ret));
-    EXPECT_EQ(SANDBOX_SUCCESS, ret);
+    // pivotRootDone_ == true ⇒ skip all cleanup
+    manager.Cleanup();
+
+    EXPECT_TRUE(manager.pivotRootDone_);
+    EXPECT_FALSE(manager.mountTargets_.empty());
+    EXPECT_FALSE(manager.newRootPath_.empty());
+}
+
+/**
+ * @tc.name: Cleanup002
+ * @tc.desc: Cleanup without pivotRootDone_ clears mountTargets_ and paths
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, Cleanup002, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.pivotRootDone_ = false;
+    manager.mountTargets_.push_back("/nonexistent_mount");
+    manager.newRootPath_ = "/nonexistent_root";
+
+    manager.Cleanup();
+
+    EXPECT_FALSE(manager.pivotRootDone_);
+    EXPECT_TRUE(manager.mountTargets_.empty());
+    EXPECT_TRUE(manager.newRootPath_.empty());
+}
+
+/**
+ * @tc.name: Cleanup003
+ * @tc.desc: Cleanup recursively removes an owned sandbox root, including
+ *           directories and symlinks that rmdir could not remove
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, Cleanup003, TestSize.Level0)
+{
+    SandboxDirGuard guard("cleanup_recursive");
+    ASSERT_TRUE(guard.MountRootExists());
+
+    SandboxManager manager;
+    manager.newRootPath_ = guard.RootPath();
+
+    std::error_code ec;
+    ASSERT_TRUE(std::filesystem::create_directories(guard.RootPath() + "/system/bin", ec));
+    ASSERT_EQ(0, symlink("/system/bin", (guard.RootPath() + "/bin").c_str()));
+
+    manager.Cleanup();
+
+    EXPECT_FALSE(std::filesystem::exists(guard.RootPath(), ec));
+    EXPECT_TRUE(manager.newRootPath_.empty());
 }
 
 /**
@@ -924,449 +649,1062 @@ HWTEST_F(ClawSandboxMountTest, EnterCallerSandbox003, TestSize.Level0)
     EXPECT_EQ(SANDBOX_ERR_NS_FAILED, ret);
 }
 
-// ==================== MatchConditionalSource tests ====================
+// ==================== unified mount plan tests ====================
 
 /**
- * @tc.name: MatchConditionalSource001
- * @tc.desc: Empty conditional rules returns CONDITIONAL_NOMATCH
+ * @tc.name: MountPlanBuildsAllOrigins001
+ * @tc.desc: The plan collects system binds, app binds and policy binds, sorted
+ *           by origin and target depth; template symlinks are not plan entries
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxMountTest, MatchConditionalSource001, TestSize.Level0)
+HWTEST_F(ClawSandboxMountTest, MountPlanBuildsAllOrigins001, TestSize.Level0)
 {
     SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
+    manager.templateConfig_.systemMounts = {{"/sys", "/sys", {"bind", "rec"}, true}};
+    manager.templateConfig_.appMounts = {{"/data/x", "/data/x", {"bind", "rec"}, true}};
+    manager.templateConfig_.symLinks = {{"/system/bin", "/bin"}};
+    manager.config_.policy.mounts = {{"/data/y", SandboxConfig::PolicyMountMode::NONE}};
 
-    std::string physicalSource;
-    EXPECT_EQ(manager.MatchConditionalSource("/any/path", physicalSource),
-              SandboxManager::CONDITIONAL_NOMATCH);
-    EXPECT_EQ(manager.MatchConditionalSource("", physicalSource),
-              SandboxManager::CONDITIONAL_NOMATCH);
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(3U, manager.mountPlan_.size());
+
+    EXPECT_EQ(SandboxManager::MountOrigin::SYSTEM, manager.mountPlan_[0].origin);
+    EXPECT_EQ("/sys", manager.mountPlan_[0].target);
+
+    EXPECT_EQ(SandboxManager::MountOrigin::APP, manager.mountPlan_[1].origin);
+    EXPECT_EQ("/data/x", manager.mountPlan_[1].target);
+
+    EXPECT_EQ(SandboxManager::MountOrigin::POLICY, manager.mountPlan_[2].origin);
+    EXPECT_EQ("/data/y", manager.mountPlan_[2].target);
 }
 
 /**
- * @tc.name: MatchConditionalSource002
- * @tc.desc: Prefix match with granted permission returns CONDITIONAL_MATCHED with derived physicalSource
+ * @tc.name: MountPlanKeepsSelfBinds001
+ * @tc.desc: A "/" bind and template self-binds are ordinary ops. Nothing is
+ *           pruned: "/" sorts first and each child stacks on the host view
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxMountTest, MatchConditionalSource002, TestSize.Level0)
+HWTEST_F(ClawSandboxMountTest, MountPlanKeepsSelfBinds001, TestSize.Level0)
 {
     SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
+    manager.templateConfig_.systemMounts = {
+        {"/", "/", {"bind", "rec"}, true},
+        {"/dev", "/dev", {"bind", "rec"}, true},
+        {"/data", "/mnt/data", {"bind", "rec"}, true},
+        {"/sys", "/sys", {"bind", "rec", "rdonly"}, true},
+    };
 
-    SandboxManager::ConditionalRule rule;
-    rule.source = "/mnt/user/123/nosharefs/docs";
-    rule.target = "/storage/Users";
-    rule.permissions = {"ohos.permission.GRANTED_TEST"};
-    manager.templateConfig_.conditionalRules.push_back(rule);
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
 
-    std::string physicalSource;
-    EXPECT_EQ(manager.MatchConditionalSource("/storage/Users/Desktop", physicalSource),
-              SandboxManager::CONDITIONAL_MATCHED);
-    EXPECT_EQ(physicalSource, "/mnt/user/123/nosharefs/docs/Desktop");
-    EXPECT_EQ(manager.MatchConditionalSource("/storage/Users", physicalSource),
-              SandboxManager::CONDITIONAL_MATCHED);
-    EXPECT_EQ(physicalSource, "/mnt/user/123/nosharefs/docs");
+    ASSERT_EQ(4U, manager.mountPlan_.size());
+    // "/" is depth 0; /dev and /sys are depth 1 in sequence order; /mnt/data
+    // is depth 2.
+    EXPECT_EQ("/", manager.mountPlan_[0].target);
+    EXPECT_EQ("/dev", manager.mountPlan_[1].target);
+    EXPECT_EQ("/sys", manager.mountPlan_[2].target);
+    EXPECT_EQ("/mnt/data", manager.mountPlan_[3].target);
+    for (const auto &op : manager.mountPlan_) {
+        EXPECT_EQ(SandboxManager::MountOrigin::SYSTEM, op.origin);
+    }
 }
 
 /**
- * @tc.name: MatchConditionalSource003
- * @tc.desc: Prefix match without granted permission returns CONDITIONAL_BLOCKED
+ * @tc.name: MountPlanRootBindFromPolicy001
+ * @tc.desc: Template and policy "/" address the same target, so the policy bind
+ *           replaces the template one; only the policy "/" remains, at depth 0
+ *           before any child mount is attached
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxMountTest, MatchConditionalSource003, TestSize.Level0)
+HWTEST_F(ClawSandboxMountTest, MountPlanRootBindFromPolicy001, TestSize.Level0)
 {
     SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
+    manager.templateConfig_.systemMounts = {
+        {"/", "/", {"bind", "rec"}, true},
+        {"/dev", "/dev", {"bind", "rec"}, true},
+    };
+    manager.config_.policy.mounts = {
+        {"/data", SandboxConfig::PolicyMountMode::NONE},
+        {"/", SandboxConfig::PolicyMountMode::RO},
+    };
 
-    SandboxManager::ConditionalRule rule;
-    rule.source = "/mnt/user/123/nosharefs";
-    rule.target = "/storage/Users";
-    rule.permissions = {"ohos.permission.DENIED_CONDITIONAL"};
-    manager.templateConfig_.conditionalRules.push_back(rule);
-
-    std::string physicalSource;
-    EXPECT_EQ(manager.MatchConditionalSource("/storage/Users/Desktop", physicalSource),
-              SandboxManager::CONDITIONAL_BLOCKED);
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(3U, manager.mountPlan_.size());
+    // The policy "/" replaced the template "/" and is the only depth-0 op.
+    // Depth 1 follows, SYSTEM before POLICY.
+    EXPECT_EQ("/", manager.mountPlan_[0].target);
+    EXPECT_EQ(SandboxManager::MountOrigin::POLICY, manager.mountPlan_[0].origin);
+    EXPECT_EQ(SandboxConfig::PolicyMountMode::RO, manager.mountPlan_[0].mode);
+    EXPECT_EQ("/dev", manager.mountPlan_[1].target);
+    EXPECT_EQ(SandboxManager::MountOrigin::SYSTEM, manager.mountPlan_[1].origin);
+    EXPECT_EQ("/data", manager.mountPlan_[2].target);
+    EXPECT_EQ(SandboxManager::MountOrigin::POLICY, manager.mountPlan_[2].origin);
 }
 
 /**
- * @tc.name: MatchConditionalSource004
- * @tc.desc: No prefix match returns CONDITIONAL_NOMATCH when rules exist
+ * @tc.name: MountPlanPolicyOverridesTemplate001
+ * @tc.desc: A policy bind at the same target as a template bind replaces it, so
+ *           only the policy op remains; the template symlink is not a plan entry
+ *           at all
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxMountTest, MatchConditionalSource004, TestSize.Level0)
+HWTEST_F(ClawSandboxMountTest, MountPlanPolicyOverridesTemplate001, TestSize.Level0)
 {
     SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
+    manager.templateConfig_.systemMounts = {{"/data/x", "/data/x", {"bind", "rec"}, true}};
+    manager.templateConfig_.symLinks = {{"/system/bin", "/bin"}};
+    manager.config_.policy.mounts = {
+        {"/data/x", SandboxConfig::PolicyMountMode::RO},
+        {"/bin", SandboxConfig::PolicyMountMode::NONE},
+    };
 
-    SandboxManager::ConditionalRule rule;
-    rule.source = "/mnt/user/123/nosharefs/docs";
-    rule.target = "/storage/Users";
-    rule.permissions = {"ohos.permission.GRANTED_TEST"};
-    manager.templateConfig_.conditionalRules.push_back(rule);
-
-    std::string physicalSource;
-    EXPECT_EQ(manager.MatchConditionalSource("/other/path", physicalSource),
-              SandboxManager::CONDITIONAL_NOMATCH);
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(2U, manager.mountPlan_.size());
+    EXPECT_EQ("/bin", manager.mountPlan_[0].target);
+    EXPECT_EQ(SandboxManager::MountOrigin::POLICY, manager.mountPlan_[0].origin);
+    EXPECT_EQ("/data/x", manager.mountPlan_[1].target);
+    EXPECT_EQ(SandboxManager::MountOrigin::POLICY, manager.mountPlan_[1].origin);
+    EXPECT_EQ(SandboxConfig::PolicyMountMode::RO, manager.mountPlan_[1].mode);
 }
 
 /**
- * @tc.name: MatchConditionalSource005
- * @tc.desc: Prefix match with empty permissions returns CONDITIONAL_MATCHED
+ * @tc.name: MountPlanSortOrder001
+ * @tc.desc: Parents mount before children whichever origin owns them, so a
+ *           policy bind above a template bind attaches first; equal depth
+ *           keeps SYSTEM, APP, POLICY order
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxMountTest, MatchConditionalSource005, TestSize.Level0)
+HWTEST_F(ClawSandboxMountTest, MountPlanSortOrder001, TestSize.Level0)
 {
     SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
+    manager.templateConfig_.systemMounts = {
+        {"/a/b/c", "/a/b/c", {"bind", "rec"}, true},
+        {"/s", "/s", {"bind", "rec"}, true},
+    };
+    manager.templateConfig_.appMounts = {{"/a/x", "/a/x", {"bind", "rec"}, true}};
+    manager.config_.policy.mounts = {{"/a", SandboxConfig::PolicyMountMode::NONE}};
 
-    SandboxManager::ConditionalRule rule;
-    rule.source = "/host/public";
-    rule.target = "/public";
-    rule.permissions = {};  // empty = unconditionally permitted
-    manager.templateConfig_.conditionalRules.push_back(rule);
-
-    std::string physicalSource;
-    EXPECT_EQ(manager.MatchConditionalSource("/public/dir", physicalSource),
-              SandboxManager::CONDITIONAL_MATCHED);
-    EXPECT_EQ(physicalSource, "/host/public/dir");
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(4U, manager.mountPlan_.size());
+    // Depth 1: system before policy within the same depth.
+    EXPECT_EQ(SandboxManager::MountOrigin::SYSTEM, manager.mountPlan_[0].origin);
+    EXPECT_EQ("/s", manager.mountPlan_[0].target);
+    EXPECT_EQ(SandboxManager::MountOrigin::POLICY, manager.mountPlan_[1].origin);
+    EXPECT_EQ("/a", manager.mountPlan_[1].target);
+    // Depth 2, then depth 3.
+    EXPECT_EQ(SandboxManager::MountOrigin::APP, manager.mountPlan_[2].origin);
+    EXPECT_EQ("/a/x", manager.mountPlan_[2].target);
+    EXPECT_EQ(SandboxManager::MountOrigin::SYSTEM, manager.mountPlan_[3].origin);
+    EXPECT_EQ("/a/b/c", manager.mountPlan_[3].target);
 }
 
 /**
- * @tc.name: MatchConditionalSource006
- * @tc.desc: Multiple rules, second one matching with granted permission returns CONDITIONAL_MATCHED
+ * @tc.name: MountPlanPolicyOverridesTemplateTarget001
+ * @tc.desc: A policy bind replaces a template bind at the same target rather
+ *           than stacking on it; symlinks are not plan entries
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxMountTest, MatchConditionalSource006, TestSize.Level0)
+HWTEST_F(ClawSandboxMountTest, MountPlanPolicyOverridesTemplateTarget001, TestSize.Level0)
 {
     SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
+    manager.templateConfig_.systemMounts = {{"/a", "/x", {"bind"}, true}};
+    manager.config_.policy.mounts = {{"/x", SandboxConfig::PolicyMountMode::NONE}};
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(1U, manager.mountPlan_.size());
+    EXPECT_EQ(SandboxManager::MountOrigin::POLICY, manager.mountPlan_[0].origin);
 
-    SandboxManager::ConditionalRule rule1;
-    rule1.source = "/host/blocked";
-    rule1.target = "/blocked";
-    rule1.permissions = {"ohos.permission.DENIED"};
-    manager.templateConfig_.conditionalRules.push_back(rule1);
-
-    SandboxManager::ConditionalRule rule2;
-    rule2.source = "/host/allowed";
-    rule2.target = "/allowed";
-    rule2.permissions = {"ohos.permission.GRANTED_TEST"};
-    manager.templateConfig_.conditionalRules.push_back(rule2);
-
-    std::string physicalSource;
-    EXPECT_EQ(manager.MatchConditionalSource("/allowed/subdir", physicalSource),
-              SandboxManager::CONDITIONAL_MATCHED);
-    EXPECT_EQ(physicalSource, "/host/allowed/subdir");
-    EXPECT_EQ(manager.MatchConditionalSource("/blocked/subdir", physicalSource),
-              SandboxManager::CONDITIONAL_BLOCKED);
-}
-
-// ==================== BindMountConditionalPath tests ====================
-
-/**
- * @tc.name: BindMountConditionalPath001
- * @tc.desc: BindMountConditionalPath returns error when physical source does not exist
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, BindMountConditionalPath001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    manager.newRootPath_ = "/tmp/claw_sandbox_ut_nonexistent";
-
-    SandboxConfig::PolicyMount policyMount;
-    policyMount.readOnly = true;
-
-    int ret = manager.BindMountConditionalPath(policyMount,
-        "/tmp/claw_sandbox_ut_nonexistent/target",
-        "/nonexistent/source/path");
-    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, ret);
+    manager.templateConfig_.systemMounts.clear();
+    manager.config_.policy.mounts.clear();
+    manager.templateConfig_.symLinks = {
+        {"/system/bin", "/bin"},
+        {"/system/lib", "/bin"},
+    };
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    EXPECT_TRUE(manager.mountPlan_.empty());
 }
 
 /**
- * @tc.name: BindMountConditionalPath002
- * @tc.desc: BindMountConditionalPath fails at mount when not running as root
+ * @tc.name: MountPlanRejectsInvalidTemplateMount001
+ * @tc.desc: Unknown flags, non-bind entries, and non-canonical paths are
+ *           rejected before anything is created
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxMountTest, BindMountConditionalPath002, TestSize.Level0)
+HWTEST_F(ClawSandboxMountTest, MountPlanRejectsInvalidTemplateMount001, TestSize.Level0)
 {
     SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
+    manager.templateConfig_.systemMounts = {{"/a", "/a", {"bind", "bogus"}, true}};
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.PrepareMountPlan());
 
-    // Create a temporary physical source directory
-    std::string tmpDir = "/tmp/claw_sandbox_ut_bindmount_" + std::to_string(getpid());
+    manager.templateConfig_.systemMounts = {{"/a", "/a", {"rec"}, true}};
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.PrepareMountPlan());
+
+    manager.templateConfig_.systemMounts = {{"/a", "/a", {"bind", "remount"}, true}};
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.PrepareMountPlan());
+
+    manager.templateConfig_.systemMounts = {{"/a", "relative", {"bind"}, true}};
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.PrepareMountPlan());
+
+    manager.templateConfig_.systemMounts = {{"relative", "/a", {"bind"}, true}};
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.PrepareMountPlan());
+}
+
+/**
+ * @tc.name: MountPlanAllowsTemplateRootBind001
+ * @tc.desc: A "/" target is an ordinary target: any source may carry the
+ *           whole view, and the op still sorts first
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MountPlanAllowsTemplateRootBind001, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.templateConfig_.systemMounts = {
+        {"/data/root", "/", {"bind", "rec"}, true},
+        {"/dev", "/dev", {"bind", "rec"}, true},
+    };
+
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(2U, manager.mountPlan_.size());
+    EXPECT_EQ("/", manager.mountPlan_[0].target);
+    EXPECT_EQ("/data/root", manager.mountPlan_[0].source);
+    EXPECT_EQ("/dev", manager.mountPlan_[1].target);
+}
+
+/**
+ * @tc.name: MountPlanRejectsPolicyConflicts001
+ * @tc.desc: Policy targets must be canonical and unique; symbol links are not
+ *           plan entries and are not compared against policy targets, so a
+ *           policy above or below a link path is accepted
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MountPlanRejectsPolicyConflicts001, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.templateConfig_.symLinks = {{"/system/bin", "/usr/bin"}};
+
+    // The link is not part of the plan; only the policy bind is.
+    manager.config_.policy.mounts = {{"/usr", SandboxConfig::PolicyMountMode::NONE}};
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(1U, manager.mountPlan_.size());
+    EXPECT_EQ("/usr", manager.mountPlan_[0].target);
+
+    manager.config_.policy.mounts = {{"/usr/bin/tool", SandboxConfig::PolicyMountMode::NONE}};
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(1U, manager.mountPlan_.size());
+    EXPECT_EQ("/usr/bin/tool", manager.mountPlan_[0].target);
+
+    // A policy bind above a template bind is allowed: it is mounted first and
+    // the template bind stacks on top of it.
+    manager.templateConfig_.symLinks.clear();
+    manager.templateConfig_.systemMounts = {{"/a/b", "/a/b", {"bind", "rec"}, true}};
+    manager.config_.policy.mounts = {{"/a", SandboxConfig::PolicyMountMode::NONE}};
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(2U, manager.mountPlan_.size());
+    EXPECT_EQ(SandboxManager::MountOrigin::POLICY, manager.mountPlan_[0].origin);
+    EXPECT_EQ("/a", manager.mountPlan_[0].target);
+    EXPECT_EQ(SandboxManager::MountOrigin::SYSTEM, manager.mountPlan_[1].origin);
+    EXPECT_EQ("/a/b", manager.mountPlan_[1].target);
+
+    // Below a template bind is fine too: parents always mount first.
+    manager.config_.policy.mounts = {{"/a/b/c", SandboxConfig::PolicyMountMode::NONE}};
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    manager.templateConfig_.systemMounts.clear();
+    manager.templateConfig_.symLinks = {{"/system/bin", "/usr/bin"}};
+
+    // The policy owns the exact link path: the link is still not a plan entry,
+    // and the mount wins when the link pass runs.
+    manager.config_.policy.mounts = {{"/usr/bin", SandboxConfig::PolicyMountMode::NONE}};
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(1U, manager.mountPlan_.size());
+    EXPECT_EQ(SandboxManager::MountOrigin::POLICY, manager.mountPlan_[0].origin);
+
+    manager.config_.policy.mounts = {
+        {"/data", SandboxConfig::PolicyMountMode::NONE},
+        {"/data", SandboxConfig::PolicyMountMode::RO},
+    };
+    EXPECT_EQ(SANDBOX_ERR_CONFIG_INVALID, manager.PrepareMountPlan());
+
+    manager.config_.policy.mounts = {{"/data/", SandboxConfig::PolicyMountMode::NONE}};
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.PrepareMountPlan());
+
+    // "/" is legal: it is an ordinary bind onto the sandbox root, and the mode
+    // is applied to that mount.
+    manager.config_.policy.mounts = {{"/", SandboxConfig::PolicyMountMode::NONE}};
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(1U, manager.mountPlan_.size());
+    EXPECT_EQ(SandboxManager::MountOrigin::POLICY, manager.mountPlan_[0].origin);
+    EXPECT_EQ("/", manager.mountPlan_[0].target);
+}
+
+// ==================== symlink execution ====================
+
+/**
+ * @tc.name: CreateTemplateSymlinksFailsMissingViewSource001
+ * @tc.desc: A source missing from the sandbox view fails the link pass instead
+ *           of silently leaving the link out
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, CreateTemplateSymlinksFailsMissingViewSource001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("symlink_empty_root");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+    manager.templateConfig_.symLinks = {{"/dev", "/dev_link"}};
+
+    ASSERT_NE(0, access((root + "/dev").c_str(), F_OK));
+
+    EXPECT_EQ(SANDBOX_ERR_SYMLINK_FAILED, manager.CreateTemplateSymlinks());
+
+    struct stat st = {};
+    EXPECT_NE(0, lstat((root + "/dev_link").c_str(), &st));
+
     std::error_code ec;
-    std::filesystem::create_directories(tmpDir, ec);
-
-    manager.newRootPath_ = "/tmp/claw_sandbox_ut_bindmount_root_" + std::to_string(getpid());
-
-    SandboxConfig::PolicyMount policyMount;
-    policyMount.readOnly = true;
-
-    // Without root privileges, mount() will fail with EPERM.
-    // In privileged environments, it may succeed.
-    int ret = manager.BindMountConditionalPath(policyMount,
-        manager.newRootPath_ + "/mounted",
-        tmpDir);
-    EXPECT_TRUE(ret == SANDBOX_ERR_MOUNT_FAILED || ret == SANDBOX_SUCCESS ||
-                ret == SANDBOX_ERR_PATH_INVALID);
-
-    // Cleanup
-    std::filesystem::remove_all(tmpDir, ec);
-    std::filesystem::remove_all(manager.newRootPath_, ec);
-}
-
-// ==================== RemountPolicyMount tests ====================
-
-/**
- * @tc.name: RemountPolicyMount001
- * @tc.desc: RemountPolicyMount with readonly policy skips writability check and fails at mount in non-root environment
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, RemountPolicyMount001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    SandboxConfig::PolicyMount policyMount;
-    policyMount.readOnly = true;
-
-    // readonly policy skips writability check; mount() fails in non-root env
-    int ret = manager.RemountPolicyMount(policyMount, "/nonexistent/path");
-    EXPECT_EQ(SANDBOX_ERR_MOUNT_FAILED, ret);
+    std::filesystem::remove_all(root, ec);
 }
 
 /**
- * @tc.name: RemountPolicyMount002
- * @tc.desc: RemountPolicyMount with rw policy reads existing mount readonly status, then mount fails
+ * @tc.name: CreateTemplateSymlinksCreatesLink001
+ * @tc.desc: Once the view has the source, the link is created
  * @tc.type: FUNC
  * @tc.require:
  */
-HWTEST_F(ClawSandboxMountTest, RemountPolicyMount002, TestSize.Level0)
+HWTEST_F(ClawSandboxMountTest, CreateTemplateSymlinksCreatesLink001, TestSize.Level0)
 {
+    std::string root = MakeTempRoot("symlink_ready_root");
+    ASSERT_FALSE(root.empty());
+
     SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
+    manager.newRootPath_ = root;
+    manager.templateConfig_.symLinks = {{"/dev", "/dev_link"}};
 
-    SandboxConfig::PolicyMount policyMount;
-    policyMount.readOnly = false;
-
-    /*
-     * In a child, or it really remounts /proc for the rest of the test binary.
-     * This used to be safe for the wrong reason: an earlier test had stripped
-     * the process of its capabilities, so the mount could not succeed.
-     *
-     * Either answer is correct, since that depends on privileges. What is pinned
-     * is that it gets as far as attempting the remount: PATH_INVALID would mean
-     * GetMountReadOnly failed to find /proc (compare RemountPolicyMount003).
-     */
-    int ret = 0;
-    ASSERT_TRUE(RunPrivilegedStepInChild([&manager, &policyMount]() {
-        return manager.RemountPolicyMount(policyMount, "/proc");
-    }, ret));
-    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_MOUNT_FAILED);
-}
-
-/**
- * @tc.name: RemountPolicyMount003
- * @tc.desc: RemountPolicyMount with rw policy fails when mount point is not found
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, RemountPolicyMount003, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    SandboxConfig::PolicyMount policyMount;
-    policyMount.readOnly = false;
-
-    // rw policy + non-existent path → GetMountReadOnly fails → PATH_INVALID
-    int ret = manager.RemountPolicyMount(policyMount, "/nonexistent/path/that/does/not/exist");
-    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, ret);
-}
-
-// ==================== MountPolicyPath tests ====================
-
-/**
- * @tc.name: MountPolicyPath001
- * @tc.desc: MountPolicyPath returns error when target is not a mount point and no conditional rule matches
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, MountPolicyPath001, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    manager.newRootPath_ = "/tmp/claw_test_nomatch";
-    SandboxConfig::PolicyMount policyMount;
-    policyMount.source = "/nonexistent/mount/path";
-    policyMount.readOnly = true;
-
-    // No conditional rules → CONDITIONAL_NOMATCH → error
-    int ret = manager.MountPolicyPath(policyMount);
-    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, ret);
-}
-
-/**
- * @tc.name: MountPolicyPath002
- * @tc.desc: MountPolicyPath returns CONDITIONAL_BLOCKED when target matches rule but permission is denied
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, MountPolicyPath002, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    manager.newRootPath_ = "/tmp/claw_test_blocked";
-    SandboxManager::ConditionalRule rule;
-    rule.source = "/host/path";
-    rule.target = "/policy/target";
-    rule.permissions = {"ohos.permission.DENIED_CONDITIONAL"};
-    manager.templateConfig_.conditionalRules.push_back(rule);
-
-    SandboxConfig::PolicyMount policyMount;
-    policyMount.source = "/policy/target/subdir";
-    policyMount.readOnly = true;
-
-    // Permission denied for the matching rule → CONDITIONAL_BLOCKED
-    int ret = manager.MountPolicyPath(policyMount);
-    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, ret);
-}
-
-/**
- * @tc.name: MountPolicyPath003
- * @tc.desc: MountPolicyPath reaches BindMountConditionalPath when conditional match succeeds
- * @tc.type: FUNC
- * @tc.require:
- */
-HWTEST_F(ClawSandboxMountTest, MountPolicyPath003, TestSize.Level0)
-{
-    SandboxManager manager;
-    SandboxConfig config;
-    config.uid = 20020026;
-    config.gid = 20020026;
-    config.callerPid = 1000;
-    config.callerTokenId = TEST_HAP_TOKEN_ID;
-    CmdInfo cmdInfo;
-    manager.Initialize(std::move(config), cmdInfo);
-
-    // Create a physical source directory
-    std::string tmpSource = "/tmp/claw_test_mpp_source_" + std::to_string(getpid());
     std::error_code ec;
-    std::filesystem::create_directories(tmpSource, ec);
+    ASSERT_TRUE(std::filesystem::create_directories(root + "/dev", ec));
 
-    manager.newRootPath_ = "/tmp/claw_test_mpp_root_" + std::to_string(getpid());
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.CreateTemplateSymlinks());
 
-    SandboxManager::ConditionalRule rule;
-    rule.source = tmpSource;
-    rule.target = "/policy/target";
-    rule.permissions = {"ohos.permission.GRANTED_TEST"};
-    manager.templateConfig_.conditionalRules.push_back(rule);
+    struct stat st = {};
+    ASSERT_EQ(0, lstat((root + "/dev_link").c_str(), &st));
+    EXPECT_TRUE(S_ISLNK(st.st_mode));
+    char linkTarget[64] = {0};
+    ASSERT_GT(readlink((root + "/dev_link").c_str(), linkTarget, sizeof(linkTarget) - 1), 0);
+    EXPECT_STREQ("/dev", linkTarget);
 
-    SandboxConfig::PolicyMount policyMount;
-    policyMount.source = "/policy/target/subdir";
-    policyMount.readOnly = true;
+    std::filesystem::remove_all(root, ec);
+}
 
-    // MatchConditionalSource succeeds → BindMountConditionalPath may fail at mount()
-    // In privileged environments, mount may succeed.
-    int ret = manager.MountPolicyPath(policyMount);
-    EXPECT_TRUE(ret == SANDBOX_ERR_MOUNT_FAILED || ret == SANDBOX_ERR_PATH_INVALID ||
-                ret == SANDBOX_SUCCESS);
+/**
+ * @tc.name: CreateTemplateSymlinksHandlesExistingPath001
+ * @tc.desc: Whatever already occupies a link path wins, so an existing path is
+ *           skipped without requiring the source
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, CreateTemplateSymlinksHandlesExistingPath001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("symlink_existing_root");
+    ASSERT_FALSE(root.empty());
 
-    // Cleanup
-    std::filesystem::remove_all(tmpSource, ec);
-    std::filesystem::remove_all(manager.newRootPath_, ec);
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+    manager.templateConfig_.symLinks = {{"/system/missing", "/bin"}};
+
+    std::error_code ec;
+    ASSERT_TRUE(std::filesystem::create_directories(root + "/bin", ec));
+    ASSERT_NE(0, access((root + "/system/missing").c_str(), F_OK));
+
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.CreateTemplateSymlinks());
+
+    struct stat st = {};
+    EXPECT_EQ(0, lstat((root + "/bin").c_str(), &st));
+    EXPECT_TRUE(S_ISDIR(st.st_mode));
+
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
+ * @tc.name: CreateTemplateSymlinksValidatesPaths001
+ * @tc.desc: Symbol-link paths are validated when the link pass runs, after the
+ *           mounts, rather than during plan preparation
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, CreateTemplateSymlinksValidatesPaths001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("symlink_invalid_root");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+
+    manager.templateConfig_.symLinks = {{"relative", "/bin"}};
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.CreateTemplateSymlinks());
+
+    manager.templateConfig_.symLinks = {{"/system/bin", "relative"}};
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.CreateTemplateSymlinks());
+
+    manager.templateConfig_.symLinks = {{"/system/bin", "/"}};
+    EXPECT_EQ(SANDBOX_ERR_TEMPLATE_INVALID, manager.CreateTemplateSymlinks());
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+// ==================== policy bind execution ====================
+
+/**
+ * @tc.name: ExecuteBindOpRejectsTargetSymlink001
+ * @tc.desc: A policy target whose leaf is a symlink is rejected rather than followed
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ExecuteBindOpRejectsTargetSymlink001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("policy_target_symlink");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+
+    std::error_code ec;
+    ASSERT_TRUE(std::filesystem::create_directories(root + "/real", ec));
+    ASSERT_EQ(0, symlink((root + "/real").c_str(), (root + "/dev").c_str()));
+    ASSERT_TRUE(std::filesystem::is_directory("/dev"));
+
+    SandboxManager::MountOp op;
+    op.origin = SandboxManager::MountOrigin::POLICY;
+    op.source = "/dev";
+    op.target = "/dev";
+    op.mode = SandboxConfig::PolicyMountMode::RO;
+
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.ExecuteBindOp(op));
+    EXPECT_FALSE(std::filesystem::exists(root + "/real/child", ec));
+
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
+ * @tc.name: ExecuteBindOpRejectsMissingSource001
+ * @tc.desc: A policy bind fails when the canonical target has no host source
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ExecuteBindOpRejectsMissingSource001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("policy_missing_source");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+
+    SandboxManager::MountOp op;
+    op.origin = SandboxManager::MountOrigin::POLICY;
+    op.source = "/nonexistent/policy/source/for/unit/test";
+    op.target = op.source;
+    op.mode = SandboxConfig::PolicyMountMode::RO;
+
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.ExecuteBindOp(op));
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
+ * @tc.name: ExecuteBindOpNonDirectorySource001
+ * @tc.desc: A FIFO is a valid policy source, like any other non-directory inode
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ExecuteBindOpNonDirectorySource001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("policy_fifo");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+
+    const std::string fifoPath = root + "/fifo_source";
+    ASSERT_EQ(0, mkfifo(fifoPath.c_str(), 0600));
+
+    SandboxManager::MountOp op;
+    op.origin = SandboxManager::MountOrigin::POLICY;
+    op.source = fifoPath;
+    op.target = fifoPath;
+    op.mode = SandboxConfig::PolicyMountMode::NONE;
+    const std::string mountTarget = root + fifoPath;
+
+    int ret = manager.ExecuteBindOp(op);
+    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_MOUNT_FAILED) << ret;
+    ASSERT_TRUE(std::filesystem::exists(mountTarget));
+
+    if (ret == SANDBOX_SUCCESS) {
+        EXPECT_TRUE(std::filesystem::is_fifo(mountTarget));
+        EXPECT_EQ(0, umount2(mountTarget.c_str(), MNT_DETACH));
+    } else {
+        // The mount never happened, so the placeholder is still a regular file.
+        EXPECT_TRUE(std::filesystem::is_regular_file(mountTarget));
+    }
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
+ * @tc.name: ExecuteBindOpFileTarget001
+ * @tc.desc: A regular-file policy mount creates a regular-file target
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ExecuteBindOpFileTarget001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("policy_file_target");
+    ASSERT_FALSE(root.empty());
+    std::string sourceRoot = MakeTempRoot("policy_file_source");
+    ASSERT_FALSE(sourceRoot.empty());
+
+    const std::string sourceFile = sourceRoot + "/payload";
+    {
+        std::ofstream out(sourceFile);
+        ASSERT_TRUE(out.is_open());
+        out << "policy file target";
+    }
+    ASSERT_TRUE(std::filesystem::is_regular_file(sourceFile));
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+
+    SandboxManager::MountOp op;
+    op.origin = SandboxManager::MountOrigin::POLICY;
+    op.source = sourceFile;
+    op.target = sourceFile;
+    op.mode = SandboxConfig::PolicyMountMode::NONE;
+    const std::string mountTarget = root + sourceFile;
+
+    int ret = manager.ExecuteBindOp(op);
+    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_MOUNT_FAILED) << ret;
+    EXPECT_TRUE(std::filesystem::is_regular_file(mountTarget));
+
+    if (ret == SANDBOX_SUCCESS) {
+        umount2(mountTarget.c_str(), MNT_DETACH);
+    }
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::remove_all(sourceRoot, ec);
+}
+
+/**
+ * @tc.name: ExecuteBindOpUsesSandboxRoot001
+ * @tc.desc: A policy mount is attached under the sandbox root returned by
+ *           GetMountRootPath
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ExecuteBindOpUsesSandboxRoot001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("policy_sandbox_root");
+    ASSERT_FALSE(root.empty());
+    std::string sourceRoot = MakeTempRoot("policy_sandbox_root_source");
+    ASSERT_FALSE(sourceRoot.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+
+    SandboxManager::MountOp op;
+    op.origin = SandboxManager::MountOrigin::POLICY;
+    op.source = sourceRoot;
+    op.target = sourceRoot;
+    op.mode = SandboxConfig::PolicyMountMode::NONE;
+    const std::string mountTarget = root + sourceRoot;
+
+    int ret = manager.ExecuteBindOp(op);
+    EXPECT_TRUE(ret == SANDBOX_SUCCESS || ret == SANDBOX_ERR_MOUNT_FAILED) << ret;
+    ASSERT_TRUE(std::filesystem::exists(mountTarget));
+
+    std::error_code ec;
+
+    if (ret == SANDBOX_SUCCESS) {
+        EXPECT_EQ(0, umount2(mountTarget.c_str(), MNT_DETACH));
+    }
+
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::remove_all(sourceRoot, ec);
+}
+
+// ==================== plan and bind validation branches ====================
+
+/**
+ * @tc.name: MountPlanSkipsPolicyProc001
+ * @tc.desc: Policy mounts at /proc or under it are platform-provided and skipped;
+ *           a lookalike path such as /procfoo is not
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MountPlanSkipsPolicyProc001, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.templateConfig_.systemMounts = {{"/sys", "/sys", {"bind", "rec"}, true}};
+    manager.config_.policy.mounts = {
+        {"/proc", SandboxConfig::PolicyMountMode::NONE},
+        {"/proc/self", SandboxConfig::PolicyMountMode::NONE},
+        {"/procfoo", SandboxConfig::PolicyMountMode::NONE},
+    };
+
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(2U, manager.mountPlan_.size());
+    EXPECT_EQ("/sys", manager.mountPlan_[0].target);
+    EXPECT_EQ("/procfoo", manager.mountPlan_[1].target);
+}
+
+/**
+ * @tc.name: MountPlanProcBindUnderPidNamespace001
+ * @tc.desc: Only a SYSTEM /proc bind is dropped under CLONE_NEWPID, because
+ *           procfs is mounted after the fork; app entries are kept
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MountPlanProcBindUnderPidNamespace001, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.templateConfig_.systemMounts = {
+        {"/proc", "/proc", {"bind", "rec"}, true},
+        {"/dev", "/dev", {"bind", "rec"}, true},
+    };
+    manager.config_.nsFlags = CLONE_NEWPID;
+
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(1U, manager.mountPlan_.size());
+    EXPECT_EQ("/dev", manager.mountPlan_[0].target);
+
+    // Without a pid namespace the template /proc bind stays.
+    manager.config_.nsFlags = 0;
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    EXPECT_EQ(2U, manager.mountPlan_.size());
+
+    // The skip is for SYSTEM entries only; an app entry is kept.
+    manager.config_.nsFlags = CLONE_NEWPID;
+    manager.templateConfig_.appMounts = {{"/proc", "/proc", {"bind", "rec"}, true}};
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    ASSERT_EQ(2U, manager.mountPlan_.size());
+    EXPECT_EQ("/dev", manager.mountPlan_[0].target);
+    EXPECT_EQ("/proc", manager.mountPlan_[1].target);
+}
+
+/**
+ * @tc.name: MountTargetPathViewRoot001
+ * @tc.desc: GetMountTargetPath joins the root and the view target, keeps "/" as
+ *           the root itself, and leaves the target alone without a root
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MountTargetPathViewRoot001, TestSize.Level0)
+{
+    SandboxManager manager;
+    SandboxManager::MountOp op;
+    op.target = "/data/x";
+
+    // No root yet: the view path stands alone.
+    EXPECT_EQ("/data/x", manager.GetMountTargetPath(op));
+
+    manager.newRootPath_ = "/";
+    EXPECT_EQ("/data/x", manager.GetMountTargetPath(op));
+
+    // A trailing slash on the root does not double up.
+    manager.newRootPath_ = "/mnt/sandbox/claw/abc/";
+    EXPECT_EQ("/mnt/sandbox/claw/abc/data/x", manager.GetMountTargetPath(op));
+
+    // "/" names the root itself, and never carries a trailing slash.
+    op.target = "/";
+    EXPECT_EQ("/mnt/sandbox/claw/abc", manager.GetMountTargetPath(op));
+
+    manager.newRootPath_ = "/";
+    EXPECT_EQ("/", manager.GetMountTargetPath(op));
+}
+
+/**
+ * @tc.name: BindOpFlagsPolicyAndTemplate001
+ * @tc.desc: A policy bind always recurses into a directory source and carries no
+ *           template flags; a template bind keeps the flags it declared
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, BindOpFlagsPolicyAndTemplate001, TestSize.Level0)
+{
+    SandboxManager::MountOp op;
+    op.origin = SandboxManager::MountOrigin::POLICY;
+    EXPECT_EQ(static_cast<unsigned long>(MS_BIND | MS_REC),
+        SandboxManager::BindOpFlags(op, true));
+    EXPECT_EQ(static_cast<unsigned long>(MS_BIND),
+        SandboxManager::BindOpFlags(op, false));
+
+    op.origin = SandboxManager::MountOrigin::SYSTEM;
+    op.mountFlags = {"bind", "rec", "rdonly"};
+    EXPECT_EQ(static_cast<unsigned long>(MS_BIND | MS_REC | MS_RDONLY),
+        SandboxManager::BindOpFlags(op, true));
+}
+
+/**
+ * @tc.name: ExecuteMountPlanEmptyPlan001
+ * @tc.desc: An empty plan is a no-op success
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ExecuteMountPlanEmptyPlan001, TestSize.Level0)
+{
+    SandboxManager manager;
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ExecuteMountPlan());
+}
+
+/**
+ * @tc.name: ExecuteBindOpRejectsEmptyRoot001
+ * @tc.desc: A bind refuses to run before the sandbox root exists
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ExecuteBindOpRejectsEmptyRoot001, TestSize.Level0)
+{
+    SandboxManager manager;
+
+    SandboxManager::MountOp op;
+    op.origin = SandboxManager::MountOrigin::POLICY;
+    op.source = "/dev";
+    op.target = "/dev";
+
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.ExecuteBindOp(op));
+    EXPECT_TRUE(manager.mountTargets_.empty());
+}
+
+/**
+ * @tc.name: ExecuteBindOpCheckExists001
+ * @tc.desc: checkExists skips only ENOENT; any other source failure still fails
+ *           the launch and nothing is attached
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ExecuteBindOpCheckExists001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("check_exists_source");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+
+    SandboxManager::MountOp op;
+    op.origin = SandboxManager::MountOrigin::SYSTEM;
+    op.source = root + "/missing_source";
+    op.target = "/missing_source";
+    op.checkExists = true;
+
+    // Missing source on a best-effort entry: skipped, nothing attached.
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.ExecuteBindOp(op));
+    EXPECT_TRUE(manager.mountTargets_.empty());
+
+    // The same entry without best-effort fails instead.
+    op.checkExists = false;
+    EXPECT_EQ(SANDBOX_ERR_MOUNT_FAILED, manager.ExecuteBindOp(op));
+
+    // A non-ENOENT failure is never swallowed, even when best-effort is on.
+    const std::string filePath = root + "/plain_file";
+    {
+        std::ofstream out(filePath);
+        ASSERT_TRUE(out.is_open());
+    }
+    op.source = filePath + "/child";
+    op.checkExists = true;
+    EXPECT_EQ(SANDBOX_ERR_MOUNT_FAILED, manager.ExecuteBindOp(op));
+    EXPECT_TRUE(manager.mountTargets_.empty());
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
+ * @tc.name: ExecuteBindOpRejectsInvalidTargetPath001
+ * @tc.desc: A relative target fails target walking before any mount is attempted
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ExecuteBindOpRejectsInvalidTargetPath001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("invalid_target_path");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+
+    SandboxManager::MountOp op;
+    op.origin = SandboxManager::MountOrigin::SYSTEM;
+    op.source = "/dev";
+    op.target = "relative";
+
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.ExecuteBindOp(op));
+    EXPECT_TRUE(manager.mountTargets_.empty());
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
+ * @tc.name: ExecuteBindOpRejectsMissingRootPath001
+ * @tc.desc: The sandbox root must exist; failing to open it is a path error
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ExecuteBindOpRejectsMissingRootPath001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("missing_root_path");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root + "/absent";
+
+    SandboxManager::MountOp op;
+    op.origin = SandboxManager::MountOrigin::SYSTEM;
+    op.source = "/dev";
+    op.target = "/dev";
+
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.ExecuteBindOp(op));
+    EXPECT_TRUE(manager.mountTargets_.empty());
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
+ * @tc.name: ExecuteBindOpRejectsTargetUnderFile001
+ * @tc.desc: A component of the target that is not a directory is rejected
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ExecuteBindOpRejectsTargetUnderFile001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("target_under_file");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+
+    {
+        std::ofstream out(root + "/blocker");
+        ASSERT_TRUE(out.is_open());
+    }
+
+    SandboxManager::MountOp op;
+    op.origin = SandboxManager::MountOrigin::SYSTEM;
+    op.source = "/dev";
+    op.target = "/blocker/child";
+
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.ExecuteBindOp(op));
+    EXPECT_TRUE(manager.mountTargets_.empty());
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
+ * @tc.name: ExecuteBindOpRejectsNonDirectorySourceAtRoot001
+ * @tc.desc: A "/" target requires a directory source, since it covers the root
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ExecuteBindOpRejectsNonDirectorySourceAtRoot001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("file_source_at_root");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+
+    const std::string sourceFile = root + "/payload";
+    {
+        std::ofstream out(sourceFile);
+        ASSERT_TRUE(out.is_open());
+    }
+
+    SandboxManager::MountOp op;
+    op.origin = SandboxManager::MountOrigin::SYSTEM;
+    op.source = sourceFile;
+    op.target = "/";
+
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.ExecuteBindOp(op));
+    EXPECT_TRUE(manager.mountTargets_.empty());
+
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
+ * @tc.name: ExecuteBindOpRejectsFileSourceLeafMismatch001
+ * @tc.desc: A non-directory source refuses a symlink leaf and a directory leaf
+ *           rather than following one or mounting over the other
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ExecuteBindOpRejectsFileSourceLeafMismatch001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("file_source_leaf");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+
+    const std::string sourceFile = root + "/payload";
+    {
+        std::ofstream out(sourceFile);
+        ASSERT_TRUE(out.is_open());
+    }
+    ASSERT_EQ(0, symlink("/dev/null", (root + "/link_leaf").c_str()));
+    std::error_code ec;
+    ASSERT_TRUE(std::filesystem::create_directories(root + "/dir_leaf", ec));
+
+    SandboxManager::MountOp op;
+    op.origin = SandboxManager::MountOrigin::SYSTEM;
+    op.source = sourceFile;
+
+    op.target = "/link_leaf";
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.ExecuteBindOp(op));
+
+    op.target = "/dir_leaf";
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, manager.ExecuteBindOp(op));
+    EXPECT_TRUE(manager.mountTargets_.empty());
+
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
+ * @tc.name: CreateTemplateSymlinksSafeBranches001
+ * @tc.desc: An empty link list is a no-op, and a link whose parent directory does
+ *           not exist fails instead of escaping the view
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, CreateTemplateSymlinksSafeBranches001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("symlink_safe_branches");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+
+    // Nothing to create.
+    EXPECT_EQ(SANDBOX_SUCCESS, manager.CreateTemplateSymlinks());
+
+    std::error_code ec;
+    ASSERT_TRUE(std::filesystem::create_directories(root + "/dev", ec));
+    manager.templateConfig_.symLinks = {{"/dev", "/missing_dir/link"}};
+    EXPECT_EQ(SANDBOX_ERR_SYMLINK_FAILED, manager.CreateTemplateSymlinks());
+
+    struct stat st = {};
+    EXPECT_NE(0, lstat((root + "/missing_dir/link").c_str(), &st));
+
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
+ * @tc.name: ApplyBindModeBranches001
+ * @tc.desc: No mode is a no-op; a forced ro that cannot open its target fails
+ *           without mounting anything
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ApplyBindModeBranches001, TestSize.Level0)
+{
+    SandboxManager::MountOp plain;
+    plain.origin = SandboxManager::MountOrigin::SYSTEM;
+    plain.target = "/x";
+    EXPECT_EQ(SANDBOX_SUCCESS, SandboxManager::ApplyBindMode(plain, "", "/nonexistent_target",
+        true, MS_BIND));
+
+    SandboxManager::MountOp ro;
+    ro.origin = SandboxManager::MountOrigin::POLICY;
+    ro.mode = SandboxConfig::PolicyMountMode::RO;
+    ro.target = "/x";
+    EXPECT_EQ(SANDBOX_ERR_PATH_INVALID, SandboxManager::ApplyBindMode(ro, "/nonexistent_root",
+        "/nonexistent_target", true, MS_BIND));
+}
+
+/**
+ * @tc.name: ApplyBindPropagationNoFlags001
+ * @tc.desc: No propagation flag means no mount call
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, ApplyBindPropagationNoFlags001, TestSize.Level0)
+{
+    EXPECT_EQ(SANDBOX_SUCCESS,
+        SandboxManager::ApplyBindPropagation("/nonexistent_target", 0));
+}
+
+/**
+ * @tc.name: MountDirRejectsEmptyTarget001
+ * @tc.desc: MountDir creates the target first, so an empty target fails before
+ *           the mount call
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, MountDirRejectsEmptyTarget001, TestSize.Level0)
+{
+    SandboxManager manager;
+    EXPECT_EQ(SANDBOX_ERR_PATH_CREATE_FAILED,
+        manager.MountDir("/dev", "", {"bind"}));
+}
+
+/**
+ * @tc.name: CleanupSkipsUnownedRoot001
+ * @tc.desc: Cleanup removes only paths under the sandbox base directory; any
+ *           other path is left on disk untouched
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, CleanupSkipsUnownedRoot001, TestSize.Level0)
+{
+    std::string root = MakeTempRoot("cleanup_unowned");
+    ASSERT_FALSE(root.empty());
+
+    SandboxManager manager;
+    manager.newRootPath_ = root;
+
+    manager.Cleanup();
+
+    std::error_code ec;
+    EXPECT_TRUE(std::filesystem::exists(root, ec));
+    EXPECT_TRUE(manager.newRootPath_.empty());
+
+    std::filesystem::remove_all(root, ec);
+}
+
+/**
+ * @tc.name: DumpMountPlanAllOrigins001
+ * @tc.desc: DumpMountPlan walks every origin and mode without touching the mount
+ *           table, including values outside the known enumerators
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(ClawSandboxMountTest, DumpMountPlanAllOrigins001, TestSize.Level0)
+{
+    SandboxManager manager;
+    manager.templateConfig_.systemMounts = {{"/sys", "/sys", {"bind", "rec"}, true}};
+    manager.templateConfig_.appMounts = {{"/data/x", "/data/x", {"bind", "rec"}, true}};
+    manager.config_.policy.mounts = {{"/data/y", SandboxConfig::PolicyMountMode::NONE}};
+    ASSERT_EQ(SANDBOX_SUCCESS, manager.PrepareMountPlan());
+    manager.DumpMountPlan();
+
+    SandboxManager::MountOp unknown;
+    unknown.origin = static_cast<SandboxManager::MountOrigin>(0xFF);
+    unknown.mode = static_cast<SandboxConfig::PolicyMountMode>(0xFF);
+    unknown.source = "/x";
+    unknown.target = "/x";
+    manager.mountPlan_.push_back(unknown);
+    manager.DumpMountPlan();
 }
 
 } // namespace SANDBOX

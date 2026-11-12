@@ -558,21 +558,25 @@ int SandboxManager::ExecuteEarlySteps()
 }
 
 /**
- * @brief Execute steps 5-10: create root, unshare namespaces, mount directories,
- *        and pivot_root. These steps require cleanup on failure.
+ * @brief Execute steps 5-10: build the mount plan, create the root, unshare
+ *        namespaces, apply the plan, and pivot_root. These steps require
+ *        cleanup on failure.
  */
 int SandboxManager::ExecuteMountSteps()
 {
     using MountStep = int (SandboxManager::*)();
     static const MountStep steps[] = {
+        &SandboxManager::SetGroups,
+        // Collect and validate the whole view before anything is created, so an
+        // invalid entry fails the launch without leaving directories behind.
+        &SandboxManager::PrepareMountPlan,
         &SandboxManager::CreateNewRoot,
         &SandboxManager::UnshareNamespaces,
         &SandboxManager::MountNewRoot,
-        &SandboxManager::MountSystemDirs,
-        &SandboxManager::MountSymLinks,
-        &SandboxManager::MountAppDirs,
-        &SandboxManager::SetGroups,
-        &SandboxManager::ApplyPolicyMounts,
+        &SandboxManager::ExecuteMountPlan,
+        // Links are not part of the plan: their sources only exist once the
+        // binds are attached, so they are validated and created afterwards.
+        &SandboxManager::CreateTemplateSymlinks,
         &SandboxManager::PivotRoot,
 
         // Create a new process group (must be done BEFORE SetSeccomp & Fork,
@@ -2412,7 +2416,8 @@ static int MarkSandboxRootPath(int fd)
 
 /*
  * Mark the per-user UGC directory with SEC_UGC_PATH_TYPE. The caller owns fd.
- * Returns the ioctl result; an absent directory is not an error.
+ * Returns the ioctl result; a path that is not its own mount point is not an
+ * error.
  */
 static int MarkUgcPath(int fd)
 {
@@ -2420,11 +2425,11 @@ static int MarkUgcPath(int fd)
     ugcInfo.path = "/storage/Users/currentUser";
     ugcInfo.flags = SEC_UGC_PATH_TYPE;
     ugcInfo.recursive = 0;
-    // Only a conditional mount can put anything here; marking an unseen path would
-    // land on whatever else sits there.
-    if (access(ugcInfo.path, F_OK) != 0) {
-        SANDBOX_LOGD("SetSandboxPathMark: %{public}s is not there (%{public}s), ugc mark skipped",
-            ugcInfo.path, strerror(errno));
+    // Only a policy mount attached at this path makes it worth marking; a plain
+    // directory with the same name would mark whatever else lives there.
+    if (!SandboxManager::IsMountPoint(ugcInfo.path)) {
+        SANDBOX_LOGD("SetSandboxPathMark: %{public}s is not a mount point, ugc mark skipped",
+            ugcInfo.path);
         return SANDBOX_SUCCESS;
     }
 
