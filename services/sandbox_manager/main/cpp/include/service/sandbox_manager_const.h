@@ -40,6 +40,7 @@ const std::string GET_SENSITIVE_PERMISSIONS_NAME = "ohos.permission.GET_SENSITIV
 
 const int32_t SPACE_MGR_SERVICE_UID = 7013;
 const int32_t FOUNDATION_UID = 5523;
+const int32_t CODE_PROTECT_UID = 7666;
 
 constexpr uint32_t MAX_BATCH_COUNT_SHIFT = 5;
 constexpr uint32_t MAX_BATCH_COUNT = 1u << MAX_BATCH_COUNT_SHIFT;
@@ -50,6 +51,10 @@ const uint32_t PERSIST_POLICY_BATCH_SIZE = 200000;
 
 // Aging TTL for volume-removed persisted policies: 30 days in milliseconds
 const int64_t VOLUME_POLICY_AGING_TTL_MS = 30LL * 24 * 60 * 60 * 1000;
+
+// UGC policy mode flag bits used by MAC layer
+constexpr uint64_t UGC_ENABLE_MODE = 1ULL << 12;
+constexpr uint64_t UGC_STATUS_MODE = 1ULL << 13;
 
 } // namespace SandboxManager
 } // namespace AccessControl

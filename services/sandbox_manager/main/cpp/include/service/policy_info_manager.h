@@ -245,9 +245,13 @@ public:
      *        Updates records (status=DENIED) in UGC_PERMISSION_TABLE and unsets MAC policies
      * @param tokenId token id of the object
      * @param policies policy information to revoke permission on URIs
+     * @param statusChanged output flag, set to true only when at least one record's status was
+     *        actually flipped from GRANTED to DENIED (i.e. a real state change happened for a
+     *        path belonging to tokenId). Caller may use it to decide whether to kill the process.
      * @return SANDBOX_MANAGER_OK on success, error code on failure
      */
-    int32_t RevokePermissionByUser(const uint32_t tokenId, const std::vector<PolicyInfo> &policies);
+    int32_t RevokePermissionByUser(const uint32_t tokenId, const std::vector<PolicyInfo> &policies,
+        bool &statusChanged);
 
     /**
      * @brief Get status of UGC permissions for a list of tokenIds
@@ -430,6 +434,13 @@ private:
         MacParams &macParams, SetPolicyType type);
     int32_t SetPolicyInner(std::vector<PolicyInfo> &validPolicies, std::vector<size_t> &validIndex,
         MacParams &macParams, std::vector<uint32_t> &result, PolicyInfoInner &info);
+    int32_t SetUgcRuleToMac(const std::vector<PolicyInfo> &policies, uint64_t mode,
+        MacParams &macParams, const std::string &caller);
+    void ApplyUgcRuleForPaths(const std::vector<PolicyInfo> &policies, uint64_t mode,
+        MacParams &macParams, const std::string &caller);
+    void UpdateUgcRecords(const uint32_t tokenId, const std::vector<PolicyInfo> &validPolicies,
+        std::vector<PolicyInfo> &macPolicies, std::vector<GenericValues> &addValues, bool &statusChanged);
+    GenericValues BuildUgcRecordValues(const uint32_t tokenId, const PolicyInfo &policy);
     std::vector<std::string> splitPath(const std::string &path);
     bool IsAppDataPathPrefix(const std::vector<std::string> &components);
     bool IsAllowedPath(const std::string &path);

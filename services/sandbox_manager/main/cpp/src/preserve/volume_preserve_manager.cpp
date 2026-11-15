@@ -165,8 +165,9 @@ int32_t VolumePreserveManager::DeactiveRecords(
         modifyValues.Put(PolicyFiledConst::FIELD_VOLUME_UNMOUNT_TS, now);
         GenericValues conditions;
         BuildRecordConditions(record, conditions);
+        int32_t changedRows = 0;
         int32_t ret = SandboxManagerRdb::GetInstance().Modify(
-            SANDBOX_MANAGER_PERSISTED_POLICY, modifyValues, conditions);
+            SANDBOX_MANAGER_PERSISTED_POLICY, modifyValues, conditions, changedRows);
         if (ret != SandboxManagerRdb::SUCCESS) {
             LOGE_WITH_REPORT(LABEL, "Modify volumeUnmountTs failed, ret=%{public}d", ret);
             errorCode = SANDBOX_MANAGER_DB_ERR;
@@ -241,8 +242,9 @@ int32_t VolumePreserveManager::ActivateRecords(const std::vector<GenericValues> 
         modifyValues.Put(PolicyFiledConst::FIELD_VOLUME_UNMOUNT_TS, static_cast<int64_t>(0));
         GenericValues conditions;
         BuildRecordConditions(record, conditions);
+        int32_t changedRows = 0;
         int32_t ret = SandboxManagerRdb::GetInstance().Modify(
-            SANDBOX_MANAGER_PERSISTED_POLICY, modifyValues, conditions);
+            SANDBOX_MANAGER_PERSISTED_POLICY, modifyValues, conditions, changedRows);
         if (ret != SandboxManagerRdb::SUCCESS) {
             LOGE_WITH_REPORT(LABEL, "Clear volumeUnmountTs failed, ret=%{public}d", ret);
             errorCode = SANDBOX_MANAGER_DB_ERR;
