@@ -991,14 +991,21 @@ bool SandboxManagerService::PackageChangedEventAction(const SystemAbilityOnDeman
     }
     SANDBOXMANAGER_LOG_INFO(LABEL, "PackageChangedEventAction bundleName = %{public}s.%{public}d.%{public}u",
         bundleName.c_str(), userId, tokenId);
-    ret = PolicyInfoManager::GetInstance().CleanPolicyByPackageChanged(bundleName, userId);
+    int32_t changedAppIndex = 0;
+    ret = GetDemandReasonAppIndex(startReason, changedAppIndex);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return false;
+    }
+    ret = PolicyInfoManager::GetInstance().CleanPolicyByPackageChanged(bundleName, userId, changedAppIndex);
     if (ret != SANDBOX_MANAGER_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "%{public}s clean policy failed", bundleName.c_str());
         return false;
     }
 
 #ifdef NOT_RESIDENT
-    SandboxManagerShare::GetInstance().Refresh(bundleName, userId);
+    if (changedAppIndex == 0) {
+        SandboxManagerShare::GetInstance().Refresh(bundleName, userId);
+    }
 #endif
 
     return true;
@@ -1018,13 +1025,20 @@ bool SandboxManagerService::PackageAddEventAction(const SystemAbilityOnDemandRea
     if (ret != SANDBOX_MANAGER_OK) {
         return false;
     }
-    SANDBOXMANAGER_LOG_INFO(LABEL, "PackageAdd %{public}s, %{public}s, userId=%{public}d, tokenId=%{public}u",
-        bundleName.c_str(), appIdentifier.c_str(), userId, tokenId);
-    ret = PersistentPreserve::RestoreBundlePersistentPolicies(appIdentifier, userId, tokenId, bundleName);
+    int32_t appIndex = 0;
+    ret = GetDemandReasonAppIndex(startReason, appIndex);
     if (ret != SANDBOX_MANAGER_OK) {
         return false;
     }
-    ret = PersistentPreserve::DeleteBundlePersistentPolicies(appIdentifier, userId);
+    SANDBOXMANAGER_LOG_INFO(LABEL,
+        "PackageAdd %{public}s, %{public}s, userId=%{public}d, tokenId=%{public}u, appIndex=%{public}d",
+        bundleName.c_str(), appIdentifier.c_str(), userId, tokenId, appIndex);
+    ret = PersistentPreserve::RestoreBundlePersistentPolicies(
+        appIdentifier, userId, tokenId, bundleName, appIndex);
+    if (ret != SANDBOX_MANAGER_OK) {
+        return false;
+    }
+    ret = PersistentPreserve::DeleteBundlePersistentPolicies(appIdentifier, userId, appIndex);
     if (ret != SANDBOX_MANAGER_OK) {
         return false;
     }
@@ -1050,7 +1064,7 @@ bool SandboxManagerService::PackageRemoveEventAction(const SystemAbilityOnDemand
     }
     SANDBOXMANAGER_LOG_INFO(LABEL, "PackageRemoveEventAction bundleName=%{public}s.%{public}d.%{public}u.%{public}d",
         bundleName.c_str(), userId, tokenId, appIndex);
-    if (appIndex == 0) {
+    if (IsMainApp(appIndex)) {
         std::string shouldPreserve;
         ret = GetDemandPreserveConfig(startReason, shouldPreserve);
         if (ret != SANDBOX_MANAGER_OK) {
@@ -1062,7 +1076,8 @@ bool SandboxManagerService::PackageRemoveEventAction(const SystemAbilityOnDemand
             if (ret != SANDBOX_MANAGER_OK) {
                 return false;
             }
-            ret = PersistentPreserve::SaveBundlePersistentPolicies(bundleName, userId, appIdentifier, tokenId);
+            ret = PersistentPreserve::SaveBundlePersistentPolicies(
+                bundleName, userId, appIdentifier, tokenId, appIndex);
             if (ret != SANDBOX_MANAGER_OK) {
                 LOGE_WITH_REPORT(LABEL, "SaveBundlePersistentPolicies failed for %{public}s", bundleName.c_str());
             }

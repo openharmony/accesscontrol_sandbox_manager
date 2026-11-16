@@ -43,7 +43,7 @@ public:
     * @return int32_t
     */
     static int32_t SaveBundlePersistentPolicies(const std::string &bundleName, int32_t userId,
-        const std::string &appIdentifier, uint32_t tokenId);
+        const std::string &appIdentifier, uint32_t tokenId, int32_t appIndex);
 
     /**
     * @brief Restore bundle persistent policies when app is installed
@@ -54,7 +54,7 @@ public:
     * @return int32_t
     */
     static int32_t RestoreBundlePersistentPolicies(const std::string &appIdentifier, int32_t userId,
-        uint32_t newTokenId, const std::string &bundleName);
+        uint32_t newTokenId, const std::string &bundleName, int32_t appIndex);
 
     /**
     * @brief Delete bundle persistent policies after restore
@@ -62,7 +62,9 @@ public:
     * @param userId user id
     * @return int32_t
     */
-    static int32_t DeleteBundlePersistentPolicies(const std::string &appIdentifier, int32_t userId);
+    static int32_t DeleteBundlePersistentPolicies(const std::string &appIdentifier, int32_t userId,
+        int32_t appIndex);
+
 private:
 
     /**
@@ -75,7 +77,7 @@ private:
     * @return int32_t SANDBOX_MANAGER_OK if success, error code otherwise
     */
     static int32_t FindBundleRecord(const std::string &appIdentifier, int32_t userId,
-        GenericValues &bundleRecord);
+        int32_t appIndex, GenericValues &bundleRecord);
 
     /**
     * @brief Fetch bundle records by appIdentifier and userId
@@ -85,7 +87,7 @@ private:
     * @return int32_t SANDBOX_MANAGER_OK if success, error code otherwise
     */
     static int32_t FetchBundleRecordsByIdentifier(const std::string &appIdentifier, int32_t userId,
-        std::vector<GenericValues> &bundleRecords);
+        int32_t appIndex, std::vector<GenericValues> &bundleRecords);
 
     /**
     * @brief Handle duplicate bundle records - use latest and delete old ones
@@ -96,7 +98,9 @@ private:
     * @return int32_t SANDBOX_MANAGER_OK if success, error code otherwise
     */
     static int32_t HandleDuplicateBundleRecords(const std::string &appIdentifier, int32_t userId,
-        const std::vector<GenericValues> &bundleRecords, GenericValues &bundleRecord);
+        int32_t appIndex, const std::vector<GenericValues> &bundleRecords, GenericValues &bundleRecord);
+
+    static int32_t MigratePersistedPoliciesTokenId(uint32_t oldTokenId, uint32_t newTokenId);
 };
 } // namespace SandboxManager
 } // namespace AccessControl

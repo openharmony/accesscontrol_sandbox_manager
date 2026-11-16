@@ -62,7 +62,7 @@ const uint8_t EVENT_TYPE_MAX = EVENT_MAX;
 
         uint32_t userId = gen.GetData<uint32_t>() % 1000;
         uint32_t tokenId = gen.GetData<uint32_t>() % 1000000 + 100000;
-        int32_t appIndex = gen.GetData<int32_t>() % 10;
+        int32_t appIndex = gen.GetData<int32_t>() % 10006;
 
         userIdStr = std::to_string(userId);
         tokenIdStr = std::to_string(tokenId);
@@ -129,21 +129,25 @@ const uint8_t EVENT_TYPE_MAX = EVENT_MAX;
         std::string appIdentifier;
         std::string userIdStr;
         std::string tokenIdStr;
+        std::string appIndexStr;
 
         gen.GenerateString(bundleName);
         gen.GenerateString(appIdentifier);
 
         uint32_t userId = gen.GetData<uint32_t>() % 1000;
         uint32_t tokenId = gen.GetData<uint32_t>() % 1000000 + 100000;
+        int32_t appIndex = gen.GetData<int32_t>() % 10006;
 
         userIdStr = std::to_string(userId);
         tokenIdStr = std::to_string(tokenId);
+        appIndexStr = std::to_string(appIndex);
 
         std::map<std::string, std::string> want;
         want["bundleName"] = bundleName;
         want["userId"] = userIdStr;
         want["accessTokenId"] = tokenIdStr;
         want["appIdentifier"] = appIdentifier;
+        want["appIndex"] = appIndexStr;
 
         OnDemandReasonExtraData extraData(0, "fuzz_test", want);
         startReason.SetExtraData(extraData);

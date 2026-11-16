@@ -49,7 +49,7 @@ int32_t PersistentPreserve::GetPersistedPoliciesByTokenId(const uint32_t tokenId
 }
 
 int32_t PersistentPreserve::SaveBundlePersistentPolicies(const std::string &bundleName, int32_t userId,
-    const std::string &appIdentifier, uint32_t tokenId)
+    const std::string &appIdentifier, uint32_t tokenId, int32_t appIndex)
 {
     if (appIdentifier.empty()) {
         LOGE_WITH_REPORT(LABEL, "SaveBundlePersistentPolicies: appIdentifier is empty");
@@ -57,20 +57,24 @@ int32_t PersistentPreserve::SaveBundlePersistentPolicies(const std::string &bund
     }
 
     // Reserve media policies (failure does not affect the main persistence flow)
-    (void)SandboxManagerMedia::GetInstance().ReserveMediaPoliciesOnRemove(appIdentifier, bundleName, tokenId);
+    (void)SandboxManagerMedia::GetInstance().ReserveMediaPoliciesOnRemove(
+        appIdentifier, bundleName, tokenId, appIndex);
 
     // Delete existing records to avoid duplicates
-    DeleteBundlePersistentPolicies(appIdentifier, userId);
+    DeleteBundlePersistentPolicies(appIdentifier, userId, appIndex);
 
     std::vector<GenericValues> bundlePolicies;
     int64_t timestamp = static_cast<int64_t>(time(nullptr));
-    SANDBOXMANAGER_LOG_INFO(LABEL, "SaveBundlePersistentPolicies: appIdentifier=%{public}s", appIdentifier.c_str());
+    SANDBOXMANAGER_LOG_INFO(LABEL,
+        "SaveBundlePersistentPolicies: %{public}s, tokenId=%{public}u, appIndex=%{public}d",
+        appIdentifier.c_str(), tokenId, appIndex);
     GenericValues bundlePolicy;
     bundlePolicy.Put(PolicyFiledConst::FIELD_BUNDLENAME, bundleName);
     bundlePolicy.Put(PolicyFiledConst::FIELD_USERID, userId);
     bundlePolicy.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, appIdentifier);
     bundlePolicy.Put(PolicyFiledConst::FIELD_ORIGINAL_TOKENID, static_cast<int32_t>(tokenId));
     bundlePolicy.Put(PolicyFiledConst::FIELD_TIMESTAMP, static_cast<int64_t>(timestamp));
+    bundlePolicy.Put(PolicyFiledConst::FIELD_APPINDEX, appIndex);
     bundlePolicies.push_back(bundlePolicy);
 
     int32_t ret = SandboxManagerRdb::GetInstance().Add(
@@ -86,7 +90,7 @@ int32_t PersistentPreserve::SaveBundlePersistentPolicies(const std::string &bund
 }
 
 int32_t PersistentPreserve::RestoreBundlePersistentPolicies(const std::string &appIdentifier, int32_t userId,
-    uint32_t newTokenId, const std::string &bundleName)
+    uint32_t newTokenId, const std::string &bundleName, int32_t appIndex)
 {
     if (appIdentifier.empty()) {
         LOGE_WITH_REPORT(LABEL, "RestorePersistent: appIdentifier is empty");
@@ -94,10 +98,11 @@ int32_t PersistentPreserve::RestoreBundlePersistentPolicies(const std::string &a
     }
 
     // Resume media policies (failure does not affect the main restore flow)
-    (void)SandboxManagerMedia::GetInstance().ResumeMediaPoliciesOnAdd(appIdentifier, bundleName, newTokenId);
+    (void)SandboxManagerMedia::GetInstance().ResumeMediaPoliciesOnAdd(
+        appIdentifier, bundleName, newTokenId, appIndex);
 
     GenericValues bundleRecord;
-    int32_t ret = FindBundleRecord(appIdentifier, userId, bundleRecord);
+    int32_t ret = FindBundleRecord(appIdentifier, userId, appIndex, bundleRecord);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -108,16 +113,21 @@ int32_t PersistentPreserve::RestoreBundlePersistentPolicies(const std::string &a
     }
 
     uint32_t originalTokenId = static_cast<uint32_t>(bundleRecord.GetInt(PolicyFiledConst::FIELD_ORIGINAL_TOKENID));
+    return MigratePersistedPoliciesTokenId(originalTokenId, newTokenId);
+}
 
+int32_t PersistentPreserve::MigratePersistedPoliciesTokenId(uint32_t oldTokenId, uint32_t newTokenId)
+{
     std::vector<GenericValues> persistedPolicies;
-    ret = GetPersistedPoliciesByTokenId(originalTokenId, persistedPolicies);
+    int32_t ret = GetPersistedPoliciesByTokenId(oldTokenId, persistedPolicies);
     if (ret != SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "RestorePersistent: get policies failed for token=%{public}u", originalTokenId);
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "MigratePersistedPoliciesTokenId: get policies failed for token=%{public}u",
+            oldTokenId);
         return ret;
     }
 
     if (persistedPolicies.empty()) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "RestorePersistent: no persisted policies to restore");
+        SANDBOXMANAGER_LOG_INFO(LABEL, "MigratePersistedPoliciesTokenId: no persisted policies to restore");
         return SANDBOX_MANAGER_OK;
     }
 
@@ -125,21 +135,24 @@ int32_t PersistentPreserve::RestoreBundlePersistentPolicies(const std::string &a
     modifyValues.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(newTokenId));
 
     GenericValues conditions;
-    conditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(originalTokenId));
+    conditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(oldTokenId));
 
     int32_t changedRows = 0;
     ret = SandboxManagerRdb::GetInstance().Modify(
         SANDBOX_MANAGER_PERSISTED_POLICY, modifyValues, conditions, changedRows);
     if (ret != SandboxManagerRdb::SUCCESS) {
-        LOGE_WITH_REPORT(LABEL, "RestorePersistent: failed to update tokenId for token=%{public}u", originalTokenId);
+        LOGE_WITH_REPORT(LABEL, "MigratePersistedPoliciesTokenId: failed to update tokenId for token=%{public}u",
+            oldTokenId);
         return SANDBOX_MANAGER_DB_ERR;
     }
 
-    SANDBOXMANAGER_LOG_INFO(LABEL, "RestorePersistent: restored %{public}zu policies", persistedPolicies.size());
+    SANDBOXMANAGER_LOG_INFO(LABEL, "MigratePersistedPoliciesTokenId: restored %{public}zu policies",
+        persistedPolicies.size());
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t PersistentPreserve::DeleteBundlePersistentPolicies(const std::string &appIdentifier, int32_t userId)
+int32_t PersistentPreserve::DeleteBundlePersistentPolicies(const std::string &appIdentifier, int32_t userId,
+    int32_t appIndex)
 {
     if (appIdentifier.empty()) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "DeleteBundlePersistentPolicies: appIdentifier is empty");
@@ -149,6 +162,7 @@ int32_t PersistentPreserve::DeleteBundlePersistentPolicies(const std::string &ap
     GenericValues conditions;
     conditions.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, appIdentifier);
     conditions.Put(PolicyFiledConst::FIELD_USERID, userId);
+    conditions.Put(PolicyFiledConst::FIELD_APPINDEX, appIndex);
 
     int32_t ret = SandboxManagerRdb::GetInstance().Remove(
         SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
@@ -158,15 +172,16 @@ int32_t PersistentPreserve::DeleteBundlePersistentPolicies(const std::string &ap
         return SANDBOX_MANAGER_DB_ERR;
     }
 
-    SANDBOXMANAGER_LOG_INFO(LABEL, "DeleteBundlePersistentPolicies for %{public}s", appIdentifier.c_str());
+    SANDBOXMANAGER_LOG_INFO(LABEL,
+        "DeleteBundlePersistentPolicies: %{public}s, appIndex=%{public}d", appIdentifier.c_str(), appIndex);
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t PersistentPreserve::FindBundleRecord(const std::string &appIdentifier, int32_t userId,
+int32_t PersistentPreserve::FindBundleRecord(const std::string &appIdentifier, int32_t userId, int32_t appIndex,
     GenericValues &bundleRecord)
 {
     std::vector<GenericValues> bundleRecords;
-    int32_t ret = FetchBundleRecordsByIdentifier(appIdentifier, userId, bundleRecords);
+    int32_t ret = FetchBundleRecordsByIdentifier(appIdentifier, userId, appIndex, bundleRecords);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
     }
@@ -183,19 +198,21 @@ int32_t PersistentPreserve::FindBundleRecord(const std::string &appIdentifier, i
     }
 
     // Multiple records found, use latest and delete old ones
-    return HandleDuplicateBundleRecords(appIdentifier, userId, bundleRecords, bundleRecord);
+    return HandleDuplicateBundleRecords(appIdentifier, userId, appIndex, bundleRecords, bundleRecord);
 }
 
 int32_t PersistentPreserve::FetchBundleRecordsByIdentifier(const std::string &appIdentifier, int32_t userId,
-    std::vector<GenericValues> &bundleRecords)
+    int32_t appIndex, std::vector<GenericValues> &bundleRecords)
 {
     GenericValues bundleConditions;
     bundleConditions.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, appIdentifier);
     bundleConditions.Put(PolicyFiledConst::FIELD_USERID, userId);
+    bundleConditions.Put(PolicyFiledConst::FIELD_APPINDEX, appIndex);
 
     GenericValues bundleSymbols;
     bundleSymbols.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, std::string("="));
     bundleSymbols.Put(PolicyFiledConst::FIELD_USERID, std::string("="));
+    bundleSymbols.Put(PolicyFiledConst::FIELD_APPINDEX, std::string("="));
 
     int32_t ret = SandboxManagerRdb::GetInstance().Find(
         SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, bundleConditions, bundleSymbols, bundleRecords);
@@ -208,7 +225,7 @@ int32_t PersistentPreserve::FetchBundleRecordsByIdentifier(const std::string &ap
 }
 
 int32_t PersistentPreserve::HandleDuplicateBundleRecords(const std::string &appIdentifier, int32_t userId,
-    const std::vector<GenericValues> &bundleRecords, GenericValues &bundleRecord)
+    int32_t appIndex, const std::vector<GenericValues> &bundleRecords, GenericValues &bundleRecord)
 {
     LOGE_WITH_REPORT(LABEL, "HandleDuplicateBundleRecords: found %{public}zu duplicate records for %{public}s",
         bundleRecords.size(), appIdentifier.c_str());
@@ -233,6 +250,7 @@ int32_t PersistentPreserve::HandleDuplicateBundleRecords(const std::string &appI
             GenericValues deleteConditions;
             deleteConditions.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, appIdentifier);
             deleteConditions.Put(PolicyFiledConst::FIELD_USERID, userId);
+            deleteConditions.Put(PolicyFiledConst::FIELD_APPINDEX, appIndex);
             deleteConditions.Put(PolicyFiledConst::FIELD_ORIGINAL_TOKENID,
                 bundleRecords[i].GetInt(PolicyFiledConst::FIELD_ORIGINAL_TOKENID));
             int32_t ret = SandboxManagerRdb::GetInstance().Remove(

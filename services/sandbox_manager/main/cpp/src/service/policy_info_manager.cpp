@@ -1760,7 +1760,9 @@ bool PolicyInfoManager::CheckPathWithinBundleName(const std::string &path, const
 
     if (components[MAX_CHECK_COM_NUM] != bundleName) {
         std::string maskPath = SandboxManagerLog::MaskRealPath(path);
-        SANDBOXMANAGER_LOG_ERROR(LABEL, "check path %{public}s by bundle failed", maskPath.c_str());
+        SANDBOXMANAGER_LOG_ERROR(LABEL,
+            "check path %{public}s by bundle failed, pathBundle=%{public}s, inputBundle=%{public}s",
+            maskPath.c_str(), components[MAX_CHECK_COM_NUM].c_str(), bundleName.c_str());
         return false;
     }
 
@@ -1835,6 +1837,10 @@ bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::strin
     }
 
     std::string bundleNameTmp = components[MAX_CHECK_COM_NUM];
+    // Sub-mode apps (appIndex >= 10000) not supported by g_shareMap
+    if (IsSubModePath(bundleNameTmp)) {
+        return true;
+    }
     std::string bundleRemoveIndex = RemoveClonePrefix(bundleNameTmp);
     std::string pathTmp = APPDATA_PATH_WITH_SLASH;
     for (size_t i = EL_LEVEL_SEGMENT; i < components.size(); ++i) {
@@ -1848,7 +1854,7 @@ bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::strin
         }
     }
     std::string maskedPath = GenerateMaskedPath(components);
-    uint32_t permission = SandboxManagerShare::GetInstance().FindPermission(bundleNameTmp, userID, pathTmp);
+    uint32_t permission = SandboxManagerShare::GetInstance().FindPermission(bundleRemoveIndex, userID, pathTmp);
     if ((permission == SHARE_BUNDLE_UNSET) || (permission == SHARE_PATH_UNSET)) {
         /* refresh only once when multiple paths are input */
         if (index != 0) {
@@ -1858,7 +1864,7 @@ bool PolicyInfoManager::CheckPathWithinShareMap(int32_t userID, const std::strin
             SANDBOXMANAGER_LOG_ERROR(LABEL, "refresh GetAllShareCfg failed");
             return false;
         }
-        permission = SandboxManagerShare::GetInstance().FindPermission(bundleNameTmp, userID, pathTmp);
+        permission = SandboxManagerShare::GetInstance().FindPermission(bundleRemoveIndex, userID, pathTmp);
     }
 
     return CheckShareMode(permission, policy.mode, maskedPath, bundleNameTmp);
@@ -2226,7 +2232,8 @@ static sptr<AppExecFwk::IBundleMgr> GetBundleMgrsa()
     return iface_cast<AppExecFwk::IBundleMgr>(bundleMgrSa);
 }
 
-int32_t PolicyInfoManager::CleanPolicyByPackageChanged(const std::string &bundleName, int32_t userID)
+int32_t PolicyInfoManager::CleanPolicyByPackageChanged(const std::string &bundleName,
+    int32_t userID, int32_t appIndex)
 {
     auto bundleMgr = GetBundleMgrsa();
     if (bundleMgr == nullptr) {
@@ -2241,15 +2248,18 @@ int32_t PolicyInfoManager::CleanPolicyByPackageChanged(const std::string &bundle
         return PERMISSION_DENIED;
     }
     SANDBOXMANAGER_LOG_INFO(LABEL, "get appindex size = %{public}zu", appIndexes.size());
-    appIndexes.emplace_back(0);
+    appIndexes.emplace_back(appIndex);
 
     for (int32_t appIndex : appIndexes) {
         uint32_t tokenId =  Security::AccessToken::AccessTokenKit::GetHapTokenID(userID, bundleName, appIndex);
         if (tokenId == Security::AccessToken::INVALID_TOKENID) {
-            SANDBOXMANAGER_LOG_ERROR(LABEL, "GetHapTokenID failed uid = %{public}d, %{public}s",
-                userID, bundleName.c_str());
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "GetHapTokenID failed uid=%{public}d, %{public}s, appIndex=%{public}d",
+                userID, bundleName.c_str(), appIndex);
             continue;
         }
+        SANDBOXMANAGER_LOG_INFO(LABEL,
+            "CleanByPackageChanged: %{public}s, appIndex=%{public}d, tokenId=%{public}u",
+            bundleName.c_str(), appIndex, tokenId);
         int32_t ret = UnSetAllPolicyByToken(tokenId);
         if (ret != SANDBOX_MANAGER_OK) {
             LOGE_WITH_REPORT(LABEL, "CleanByPackageChanged failed, bundleName = %{public}s, tokenId = %{public}u",

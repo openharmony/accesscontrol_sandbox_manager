@@ -82,7 +82,7 @@ private:
     std::shared_ptr<NativeRdb::RdbStore> db_ = nullptr;
     std::mutex dbLock_;
     OHOS::Utils::RWLock rwLock_; // Used to ensure serialization of write operations
-    static const int DATABASE_VERSION = 5;
+    static const int DATABASE_VERSION = 6;
     
     std::shared_ptr<AppExecFwk::EventHandler> eventHandler_ = nullptr;
     int64_t dbCleanupDelay_ = 180000; // 180 seconds in milliseconds

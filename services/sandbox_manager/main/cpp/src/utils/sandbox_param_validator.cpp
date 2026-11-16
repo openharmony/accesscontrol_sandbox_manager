@@ -41,7 +41,33 @@ const std::string ROOT_PATH = "/storage";
 const std::string APPDATA_PATH = "/storage/Users/currentUser/appdata";
 const std::string ROOT_PATH_WITH_SLASH = "/storage/";
 const std::string APPDATA_PATH_WITH_SLASH = "/storage/Users/currentUser/appdata/";
+constexpr int32_t DECIMAL_BASE = 10;
 } // namespace
+
+bool IsSubModePath(const std::string &bundleSegment)
+{
+    const std::string prefix = "+clone-";
+    if (bundleSegment.find(prefix) != 0) {
+        return false;
+    }
+    size_t numStart = prefix.size();
+    size_t plusEnd = bundleSegment.find('+', numStart);
+    if (plusEnd == std::string::npos) {
+        return false;
+    }
+    int32_t result = 0;
+    for (size_t i = numStart; i < plusEnd; i++) {
+        if (bundleSegment[i] < '0' || bundleSegment[i] > '9') {
+            return false;
+        }
+        int32_t digit = bundleSegment[i] - '0';
+        if (result > (INT32_MAX - digit) / DECIMAL_BASE) {
+            return false;
+        }
+        result = result * DECIMAL_BASE + digit;
+    }
+    return result >= SUB_MODE_MAIN_APP_INDEX;
+}
 
 bool SandboxParamValidator::CheckShareMode(uint32_t permission, uint32_t mode, const std::string &path,
     const std::string &bundleName)
@@ -219,6 +245,10 @@ bool SandboxParamValidator::CheckPathWithinShareMap(int32_t userID, const std::s
     }
 
     std::string bundleNameTmp = components[MAX_CHECK_COM_NUM];
+    // Sub-mode apps (appIndex >= 10000) not supported by g_shareMap
+    if (IsSubModePath(bundleNameTmp)) {
+        return true;
+    }
     std::string bundleRemoveIndex = RemoveClonePrefix(bundleNameTmp);
     std::string pathTmp = APPDATA_PATH_WITH_SLASH;
     for (size_t i = EL_LEVEL_SEGMENT; i < components.size(); ++i) {
@@ -232,7 +262,7 @@ bool SandboxParamValidator::CheckPathWithinShareMap(int32_t userID, const std::s
         }
     }
     std::string maskedPath = GenerateMaskedPath(components);
-    uint32_t permission = SandboxManagerShare::GetInstance().FindPermission(bundleNameTmp, userID, pathTmp);
+    uint32_t permission = SandboxManagerShare::GetInstance().FindPermission(bundleRemoveIndex, userID, pathTmp);
     return CheckShareMode(permission, policy.mode, maskedPath, bundleNameTmp);
 }
 

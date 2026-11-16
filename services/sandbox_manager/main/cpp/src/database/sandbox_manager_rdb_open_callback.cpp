@@ -108,6 +108,15 @@ int32_t SandboxManagerRdbOpenCallback::OnUpgrade(
         }
         SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 5");
     }
+    // Upgrade from version < 6 to version 6: Add appIndex column to bundle_persistent_policy_table
+    if (currentVersion < 6 && targetVersion >= 6) {
+        int32_t res = AddAppIndexColumn(rdbStore);
+        if (res != NativeRdb::E_OK) {
+            SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to add appIndex column during upgrade, res=%{public}d", res);
+            return res;
+        }
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 6");
+    }
 
     return NativeRdb::E_OK;
 }
@@ -172,6 +181,37 @@ int32_t SandboxManagerRdbOpenCallback::AddVolumeUnmountTsColumn(NativeRdb::RdbSt
     return res;
 }
 
+int32_t SandboxManagerRdbOpenCallback::AddAppIndexColumn(NativeRdb::RdbStore &rdbStore) const
+{
+    std::string sql = "ALTER TABLE ";
+    sql.append(BUNDLE_PERSISTENT_POLICY_TABLE)
+        .append(" ADD COLUMN ")
+        .append(PolicyFiledConst::FIELD_APPINDEX)
+        .append(" integer not null default 0");
+    int32_t res = rdbStore.ExecuteSql(sql);
+    if (res == NativeRdb::E_OK) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "Successfully upgraded database to version 6");
+        return NativeRdb::E_OK;
+    }
+    std::string pragmaSql = "PRAGMA table_info(" + BUNDLE_PERSISTENT_POLICY_TABLE + ")";
+    auto resultSet = rdbStore.QuerySql(pragmaSql);
+    bool columnExists = false;
+    while (resultSet != nullptr && resultSet->GoToNextRow() == NativeRdb::E_OK) {
+        std::string colName;
+        resultSet->GetString(1, colName);
+        if (colName == PolicyFiledConst::FIELD_APPINDEX) {
+            columnExists = true;
+            break;
+        }
+    }
+    if (columnExists) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "AppIndex column already exists, treating as success");
+        return NativeRdb::E_OK;
+    }
+    SANDBOXMANAGER_LOG_ERROR(LABEL, "ALTER TABLE appIndex failed and column does not exist, res=%{public}d", res);
+    return res;
+}
+
 int32_t SandboxManagerRdbOpenCallback::CreateBundlePersistentPolicyTable(NativeRdb::RdbStore &rdbStore,
     const std::string &tableName) const
 {
@@ -187,6 +227,8 @@ int32_t SandboxManagerRdbOpenCallback::CreateBundlePersistentPolicyTable(NativeR
         .append(INTEGER_STR)
         .append(PolicyFiledConst::FIELD_TIMESTAMP)
         .append(INTEGER_STR)
+        .append(PolicyFiledConst::FIELD_APPINDEX)
+        .append(" integer not null default 0,")
         .append("primary key(")
         .append(PolicyFiledConst::FIELD_BUNDLENAME)
         .append(",")
