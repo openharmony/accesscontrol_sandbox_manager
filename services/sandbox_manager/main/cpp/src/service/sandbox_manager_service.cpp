@@ -1077,6 +1077,7 @@ bool SandboxManagerService::PackageRemoveEventAction(const SystemAbilityOnDemand
         SANDBOXMANAGER_LOG_ERROR(LABEL, "RemoveBundlePolicy failed, tokenID = %{public}u.", tokenId);
         return false;
     }
+    PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId);
     SANDBOXMANAGER_LOG_INFO(LABEL, "RemoveBundlePolicy, tokenID = %{public}u.", tokenId);
     return true;
 }
@@ -1232,11 +1233,12 @@ int32_t SandboxManagerService::GrantPermissionByUser(uint32_t tokenId, const Pol
 {
     DelayUnloadService();
     uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
-    if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
-        LOGE_WITH_REPORT(LABEL, "GrantPermissionByUser failed, not system app");
-        return SANDBOX_MANAGER_NOT_SYS_APP;
+    if (IPCSkeleton::GetCallingUid() != CODE_PROTECT_UID) {
+        if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
+            LOGE_WITH_REPORT(LABEL, "GrantPermissionByUser failed, not system app");
+            return SANDBOX_MANAGER_NOT_SYS_APP;
+        }
     }
-
     AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
     if (!CheckPermission(callingTokenId, GRANT_SENSITIVE_PERMISSIONS_NAME)) {
         LOGE_WITH_REPORT(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
@@ -1263,11 +1265,12 @@ int32_t SandboxManagerService::RevokePermissionByUser(uint32_t tokenId, const Po
 {
     DelayUnloadService();
     uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
-    if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
-        LOGE_WITH_REPORT(LABEL, "RevokePermissionByUser failed, not system app");
-        return SANDBOX_MANAGER_NOT_SYS_APP;
+    if (IPCSkeleton::GetCallingUid() != CODE_PROTECT_UID) {
+        if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
+            LOGE_WITH_REPORT(LABEL, "RevokePermissionByUser failed, not system app");
+            return SANDBOX_MANAGER_NOT_SYS_APP;
+        }
     }
-
     AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
     if (!CheckPermission(callingTokenId, REVOKE_SENSITIVE_PERMISSIONS_NAME)) {
         LOGE_WITH_REPORT(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);
@@ -1287,9 +1290,15 @@ int32_t SandboxManagerService::RevokePermissionByUser(uint32_t tokenId, const Po
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Policies is empty");
         return INVALID_PARAMTER;
     }
-    ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, policies);
+    bool statusChanged = false;
+    ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, policies, statusChanged);
     if (ret != SANDBOX_MANAGER_OK) {
         return ret;
+    }
+    if (!statusChanged) {
+        SANDBOXMANAGER_LOG_INFO(LABEL,
+            "RevokePermissionByUser no actual status change for tokenId=%{public}u, skip kill", tokenId);
+        return SANDBOX_MANAGER_OK;
     }
     ATokenTypeEnum tokenType = AccessTokenKit::GetTokenType(tokenId);
     if (tokenType == ATokenTypeEnum::TOKEN_HAP) {
@@ -1308,11 +1317,12 @@ int32_t SandboxManagerService::GetStatusByPermission(const Uint32VecRawData &tok
 {
     DelayUnloadService();
     uint64_t fullTokenId = IPCSkeleton::GetCallingFullTokenID();
-    if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
-        LOGE_WITH_REPORT(LABEL, "GetStatusByPermission failed, not system app");
-        return SANDBOX_MANAGER_NOT_SYS_APP;
+    if (IPCSkeleton::GetCallingUid() != CODE_PROTECT_UID) {
+        if (!TokenIdKit::IsSystemAppByFullTokenID(fullTokenId)) {
+            LOGE_WITH_REPORT(LABEL, "GetStatusByPermission failed, not system app");
+            return SANDBOX_MANAGER_NOT_SYS_APP;
+        }
     }
-
     AccessTokenID callingTokenId = fullTokenId & TOKEN_ID_LOWMASK;
     if (!CheckPermission(callingTokenId, GET_SENSITIVE_PERMISSIONS_NAME)) {
         LOGE_WITH_REPORT(LABEL, "Permission denied(tokenID=%{public}u)", callingTokenId);

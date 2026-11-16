@@ -127,7 +127,9 @@ int32_t PersistentPreserve::RestoreBundlePersistentPolicies(const std::string &a
     GenericValues conditions;
     conditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(originalTokenId));
 
-    ret = SandboxManagerRdb::GetInstance().Modify(SANDBOX_MANAGER_PERSISTED_POLICY, modifyValues, conditions);
+    int32_t changedRows = 0;
+    ret = SandboxManagerRdb::GetInstance().Modify(
+        SANDBOX_MANAGER_PERSISTED_POLICY, modifyValues, conditions, changedRows);
     if (ret != SandboxManagerRdb::SUCCESS) {
         LOGE_WITH_REPORT(LABEL, "RestorePersistent: failed to update tokenId for token=%{public}u", originalTokenId);
         return SANDBOX_MANAGER_DB_ERR;

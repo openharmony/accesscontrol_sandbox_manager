@@ -135,6 +135,7 @@ void SandboxManagerCommonEventSubscriber::OnReceiveEventRemove(const EventFwk::W
     if (shouldPreserve != "true") {
         // Remove bundle policy
         PolicyInfoManager::GetInstance().RemoveBundlePolicy(tokenId);
+        PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId);
     }
 #ifdef NOT_RESIDENT
     if (appIndex != 0) {

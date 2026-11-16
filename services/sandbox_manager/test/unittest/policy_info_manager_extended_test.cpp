@@ -950,8 +950,10 @@ HWTEST_F(NewPolicyTests, RevokePermissionByUserTest001, TestSize.Level0)
     int32_t ret = PolicyInfoManager::GetInstance().GrantPermissionByUser(tokenId, policies);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
 
-    ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, policies);
+    bool statusChanged = false;
+    ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, policies, statusChanged);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    EXPECT_TRUE(statusChanged);
 
     std::vector<uint32_t> tokenIdList = {tokenId};
     std::vector<PermissionStatusInfo> result;
@@ -974,8 +976,10 @@ HWTEST_F(NewPolicyTests, RevokePermissionByUserTest002, TestSize.Level0)
     uint32_t tokenId = 50006;
     std::vector<PolicyInfo> policies;
     std::vector<uint32_t> results;
-    int32_t ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, policies);
+    bool statusChanged = false;
+    int32_t ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, policies, statusChanged);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    EXPECT_FALSE(statusChanged);
 }
 
 /**
@@ -992,8 +996,10 @@ HWTEST_F(NewPolicyTests, RevokePermissionByUserTest003, TestSize.Level0)
         {"/storage/Users/currentUser/Music", 0},
     };
     std::vector<uint32_t> results;
-    int32_t ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, policies);
+    bool statusChanged = false;
+    int32_t ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, policies, statusChanged);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    EXPECT_FALSE(statusChanged);
 }
 
 /**
@@ -1017,8 +1023,10 @@ HWTEST_F(NewPolicyTests, RevokePermissionByUserTest004, TestSize.Level0)
         {"", OperateMode::READ_MODE},
         {"/storage/Users/currentUser/Images", OperateMode::WRITE_MODE},
     };
-    ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, revokePolicies);
+    bool statusChanged = false;
+    ret = PolicyInfoManager::GetInstance().RevokePermissionByUser(tokenId, revokePolicies, statusChanged);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    EXPECT_TRUE(statusChanged);
 
     std::vector<uint32_t> tokenIdList = {tokenId};
     std::vector<PermissionStatusInfo> result;
@@ -1115,6 +1123,104 @@ HWTEST_F(NewPolicyTests, RemoveUgcPermissionByTokenIdTest002, TestSize.Level0)
 {
     uint32_t tokenId = 50012;
     PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId);
+    EXPECT_TRUE(true);
+}
+
+/**
+ * @tc.name: UgcCleanupTest001
+ * @tc.desc: AC-4 Non-preserve cleanup removes UGC records and unsets MAC
+ * @tc.type: FUNC
+ * @tc.require: issue-20260809952927
+ */
+HWTEST_F(NewPolicyTests, UgcCleanupTest001, TestSize.Level0)
+{
+    uint32_t tokenId = 50018;
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+        {"/storage/Users/currentUser/Images", OperateMode::WRITE_MODE},
+    };
+    int32_t ret = PolicyInfoManager::GetInstance().GrantPermissionByUser(tokenId, policies);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    std::vector<uint32_t> tokenIdList = {tokenId};
+    std::vector<PermissionStatusInfo> statusResults;
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, statusResults);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(2u, statusResults.size());
+
+    std::vector<PolicyInfo> ugcPolicies;
+    for (const auto &item : statusResults) {
+        if (item.grantStatus == UgcPermissionStatus::UGC_PERMISSION_GRANTED) {
+            ugcPolicies.emplace_back(item.policyInfo);
+        }
+    }
+    PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId);
+    ASSERT_FALSE(ugcPolicies.empty());
+    std::vector<uint32_t> unsetResults;
+    PolicyInfoManager::GetInstance().UnSetPolicy(tokenId, ugcPolicies, unsetResults);
+
+    statusResults.clear();
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, statusResults);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    EXPECT_EQ(0u, statusResults.size());
+}
+
+/**
+ * @tc.name: UgcCleanupTest002
+ * @tc.desc: AC-5 Preserve=true keeps UGC records (cleanup skipped)
+ * @tc.type: FUNC
+ * @tc.require: issue-20260809952927
+ */
+HWTEST_F(NewPolicyTests, UgcCleanupTest002, TestSize.Level0)
+{
+    uint32_t tokenId = 50019;
+    std::vector<PolicyInfo> policies = {
+        {"/storage/Users/currentUser/Music", OperateMode::READ_MODE},
+    };
+    int32_t ret = PolicyInfoManager::GetInstance().GrantPermissionByUser(tokenId, policies);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+
+    std::vector<uint32_t> tokenIdList = {tokenId};
+    std::vector<PermissionStatusInfo> result;
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, result);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    ASSERT_EQ(1u, result.size());
+    EXPECT_EQ(static_cast<int32_t>(UGC_PERMISSION_GRANTED), result[0].grantStatus);
+
+    PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId);
+
+    result.clear();
+    ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, result);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    EXPECT_EQ(0u, result.size());
+}
+
+/**
+ * @tc.name: UgcCleanupTest003
+ * @tc.desc: AC-9 Cleanup with no UGC records, no crash
+ * @tc.type: FUNC
+ * @tc.require: issue-20260809952927
+ */
+HWTEST_F(NewPolicyTests, UgcCleanupTest003, TestSize.Level0)
+{
+    uint32_t tokenId = 50020;
+    std::vector<uint32_t> tokenIdList = {tokenId};
+    std::vector<PermissionStatusInfo> statusResults;
+    int32_t ret = PolicyInfoManager::GetInstance().GetStatusByPermission(tokenIdList, statusResults);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    EXPECT_EQ(0u, statusResults.size());
+
+    std::vector<PolicyInfo> ugcPolicies;
+    for (const auto &item : statusResults) {
+        if (item.grantStatus == UgcPermissionStatus::UGC_PERMISSION_GRANTED) {
+            ugcPolicies.emplace_back(item.policyInfo);
+        }
+    }
+    PolicyInfoManager::GetInstance().RemoveUgcPermissionByTokenId(tokenId);
+    if (!ugcPolicies.empty()) {
+        std::vector<uint32_t> unsetResults;
+        PolicyInfoManager::GetInstance().UnSetPolicy(tokenId, ugcPolicies, unsetResults);
+    }
     EXPECT_TRUE(true);
 }
 

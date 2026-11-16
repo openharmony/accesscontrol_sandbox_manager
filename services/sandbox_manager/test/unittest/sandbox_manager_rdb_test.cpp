@@ -24,6 +24,7 @@
 #include <vector>
 #include "generic_values.h"
 #include "policy_field_const.h"
+#include "policy_info.h"
 #define private public
 #include "sandbox_manager_rdb.h"
 #undef private
@@ -668,8 +669,9 @@ HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest005, TestSize.Level0)
     GenericValues condition;
     condition.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(2));
     condition.Put(PolicyFiledConst::FIELD_PATH, "/user_grant");
+    int32_t changedRows = 0;
     EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Modify(SANDBOX_MANAGER_PERSISTED_POLICY,
-        tmpValue, condition));
+        tmpValue, condition, changedRows));
 
     GenericValues conditions;
 
@@ -1283,8 +1285,9 @@ HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ConcurrentModify, TestSize
                 condition.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(999));
                 condition.Put(PolicyFiledConst::FIELD_PATH, "/modify_target");
 
+                int32_t changedRows = 0;
                 int ret = SandboxManagerRdb::GetInstance().Modify(SANDBOX_MANAGER_PERSISTED_POLICY,
-                    modifyValue, condition);
+                    modifyValue, condition, changedRows);
                 if (ret == SandboxManagerRdb::SUCCESS) {
                     success.fetch_add(1);
                 }
@@ -1431,6 +1434,128 @@ HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ConcurrentFindAndCleanup, 
     // Clean up: remove all records
     GenericValues clearConditions;
     SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, clearConditions);
+}
+
+static GenericValues BuildUgcRecord(int64_t tokenId, const std::string &path, int64_t mode, int64_t status)
+{
+    GenericValues v;
+    v.Put(PolicyFiledConst::FIELD_TOKENID, tokenId);
+    v.Put(PolicyFiledConst::FIELD_PATH, path);
+    v.Put(PolicyFiledConst::FIELD_MODE, mode);
+    v.Put(PolicyFiledConst::FIELD_STATUS, status);
+    return v;
+}
+
+static void ClearUgcTable()
+{
+    GenericValues clearConditions;
+    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_UGC_PERMISSION, clearConditions);
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_ModifyChangedRows_001
+ * @tc.desc: Single matching row -> changedRows == 1, value verified
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ModifyChangedRows_001, TestSize.Level0)
+{
+    auto rec = BuildUgcRecord(1001, "/test/changedRows/single", 0b01, UGC_PERMISSION_GRANTED);
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_UGC_PERMISSION, {rec}));
+
+    GenericValues modifyValue;
+    modifyValue.Put(PolicyFiledConst::FIELD_STATUS, static_cast<int64_t>(UGC_PERMISSION_DENIED));
+    GenericValues condition;
+    condition.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1001));
+    condition.Put(PolicyFiledConst::FIELD_PATH, "/test/changedRows/single");
+    int32_t changedRows = -1;
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS, SandboxManagerRdb::GetInstance().Modify(
+        SANDBOX_MANAGER_UGC_PERMISSION, modifyValue, condition, changedRows));
+    EXPECT_EQ(1, changedRows);
+
+    GenericValues symbols;
+    std::vector<GenericValues> results;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Find(
+        SANDBOX_MANAGER_UGC_PERMISSION, condition, symbols, results));
+    ASSERT_EQ(1u, results.size());
+    EXPECT_EQ(static_cast<int32_t>(UGC_PERMISSION_DENIED),
+        results[0].GetInt(PolicyFiledConst::FIELD_STATUS));
+    ClearUgcTable();
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_ModifyChangedRows_002
+ * @tc.desc: Multiple matching rows -> changedRows == count, all verified
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ModifyChangedRows_002, TestSize.Level0)
+{
+    constexpr int64_t sharedTokenId = 1002;
+    const int multiCount = 3;
+    std::vector<GenericValues> multiValues;
+    for (int i = 0; i < multiCount; ++i) {
+        multiValues.emplace_back(BuildUgcRecord(sharedTokenId,
+            "/test/changedRows/multi/" + std::to_string(i), 0b01, UGC_PERMISSION_GRANTED));
+    }
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_UGC_PERMISSION, multiValues));
+
+    GenericValues modifyValue;
+    modifyValue.Put(PolicyFiledConst::FIELD_STATUS, static_cast<int64_t>(UGC_PERMISSION_DENIED));
+    GenericValues condition;
+    condition.Put(PolicyFiledConst::FIELD_TOKENID, sharedTokenId);
+    int32_t changedRows = -1;
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS, SandboxManagerRdb::GetInstance().Modify(
+        SANDBOX_MANAGER_UGC_PERMISSION, modifyValue, condition, changedRows));
+    EXPECT_EQ(multiCount, changedRows);
+
+    GenericValues symbols;
+    std::vector<GenericValues> results;
+    EXPECT_EQ(0, SandboxManagerRdb::GetInstance().Find(
+        SANDBOX_MANAGER_UGC_PERMISSION, condition, symbols, results));
+    ASSERT_EQ(static_cast<size_t>(multiCount), results.size());
+    for (const auto &r : results) {
+        EXPECT_EQ(static_cast<int32_t>(UGC_PERMISSION_DENIED),
+            r.GetInt(PolicyFiledConst::FIELD_STATUS));
+    }
+    ClearUgcTable();
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_ModifyChangedRows_003
+ * @tc.desc: No matching row -> SUCCESS, changedRows == 0
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ModifyChangedRows_003, TestSize.Level0)
+{
+    GenericValues modifyValue;
+    modifyValue.Put(PolicyFiledConst::FIELD_STATUS, static_cast<int64_t>(UGC_PERMISSION_DENIED));
+    GenericValues condition;
+    condition.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(99999));
+    condition.Put(PolicyFiledConst::FIELD_PATH, "/test/changedRows/nonexistent");
+    int32_t changedRows = -1;
+    EXPECT_EQ(SandboxManagerRdb::SUCCESS, SandboxManagerRdb::GetInstance().Modify(
+        SANDBOX_MANAGER_UGC_PERMISSION, modifyValue, condition, changedRows));
+    EXPECT_EQ(0, changedRows);
+    ClearUgcTable();
+}
+
+/**
+ * @tc.name: SandboxManagerRdbTest_ModifyChangedRows_004
+ * @tc.desc: Empty modifyValues -> FAILURE
+ * @tc.type: FUNC
+ * @tc.require:
+ */
+HWTEST_F(SandboxManagerRdbTest, SandboxManagerRdbTest_ModifyChangedRows_004, TestSize.Level0)
+{
+    GenericValues emptyModify;
+    GenericValues condition;
+    condition.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int64_t>(1004));
+    int32_t changedRows = -1;
+    EXPECT_EQ(SandboxManagerRdb::FAILURE, SandboxManagerRdb::GetInstance().Modify(
+        SANDBOX_MANAGER_UGC_PERMISSION, emptyModify, condition, changedRows));
+    ClearUgcTable();
 }
 } // SandboxManager
 } // AccessControl

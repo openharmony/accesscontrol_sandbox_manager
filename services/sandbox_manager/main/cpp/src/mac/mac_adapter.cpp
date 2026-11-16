@@ -72,6 +72,8 @@ struct AuthInfo {
 #define DENY_POLICY_ID 9
 #define DEL_DENY_POLICY_ID 10
 #define GET_MAX_AUTH_ID 13
+#define UGC_RULE_SET 17
+#define DESTROY_UGC_RULE 18
 
 #define SET_POLICY_CMD _IOWR(SANDBOX_IOCTL_BASE, SET_POLICY, struct SandboxPolicyInfo)
 #define UN_SET_POLICY_CMD _IOWR(SANDBOX_IOCTL_BASE, UN_SET_POLICY, struct SandboxPolicyInfo)
@@ -81,6 +83,8 @@ struct AuthInfo {
 #define DEL_DEC_POLICY_BY_USER_CMD _IOWR(SANDBOX_IOCTL_BASE, DEL_POLICY_BY_USER, struct SandboxPolicyInfo)
 #define DENY_DEC_RULE_CMD _IOWR(SANDBOX_IOCTL_BASE, DENY_POLICY_ID, struct SandboxPolicyInfo)
 #define DEL_DENY_DEC_RULE_CMD _IOWR(SANDBOX_IOCTL_BASE, DEL_DENY_POLICY_ID, struct SandboxPolicyInfo)
+#define UGC_RULE_SET_CMD _IOWR(SANDBOX_IOCTL_BASE, UGC_RULE_SET, struct SandboxPolicyInfo)
+#define DESTROY_UGC_RULE_CMD _IOWR(SANDBOX_IOCTL_BASE, DESTROY_UGC_RULE, struct SandboxPolicyInfo)
 #define GET_MAX_AUTH_CMD _IOR(SANDBOX_IOCTL_BASE, GET_MAX_AUTH_ID, struct AuthInfo)
 
 MacAdapter::MacAdapter() {}
@@ -397,6 +401,12 @@ int32_t MacAdapter::SetDenyPolicy(const std::vector<PolicyInfo> &policy, std::ve
     return SetPolicyToMac(policy, result, macParams, DENY_DEC_RULE_CMD);
 }
 
+int32_t MacAdapter::SetUgcRule(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+    MacParams &macParams)
+{
+    return SetPolicyToMac(policy, result, macParams, UGC_RULE_SET_CMD);
+}
+
 #define DEC_ERR_QUERY_RULE_NOT_FOUND 1
 #define DEC_ERR_QUERY_NON_PERSTST 2
 
@@ -650,6 +660,28 @@ int32_t MacAdapter::DestroySandboxPolicy(uint32_t tokenId, uint64_t timestamp)
 
     if (ioctl(fd_, DESTROY_POLICY_CMD, &info) < 0) {
         LOGE_WITH_REPORT(LABEL, "Destroy policy failed, errno=%{public}d.", errno);
+        return SANDBOX_MANAGER_MAC_IOCTL_ERR;
+    }
+
+    return SANDBOX_MANAGER_OK;
+}
+
+int32_t MacAdapter::DestroyUgcRule(uint32_t tokenId, uint64_t timestamp)
+{
+    SANDBOXMANAGER_LOG_INFO(LABEL, "Destroy ugc rule target:%{public}u timestamp:%{public}" PRIu64 ".", tokenId,
+        timestamp);
+
+    if (fd_ < 0) {
+        SANDBOXMANAGER_LOG_ERROR(LABEL, "Not init yet.");
+        return SANDBOX_MANAGER_MAC_NOT_INIT;
+    }
+
+    struct SandboxPolicyInfo info;
+    info.tokenId = tokenId;
+    info.timestamp = timestamp;
+
+    if (ioctl(fd_, DESTROY_UGC_RULE_CMD, &info) < 0) {
+        LOGE_WITH_REPORT(LABEL, "Destroy ugc rule failed, errno=%{public}d.", errno);
         return SANDBOX_MANAGER_MAC_IOCTL_ERR;
     }
 

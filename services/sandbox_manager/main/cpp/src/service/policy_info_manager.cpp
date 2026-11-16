@@ -883,6 +883,9 @@ int32_t PolicyInfoManager::SetPolicy(uint32_t tokenId, const std::vector<PolicyI
         validPolicies.emplace_back(policy[index]);
     }
     MacParams macParams = {tokenId, policyFlag, setInfo.timestamp, userId};
+#ifndef NOT_RESIDENT
+    ApplyUgcRuleForPaths(validPolicies, UGC_ENABLE_MODE | UGC_STATUS_MODE, macParams, "SetPolicy");
+#endif
     PolicyInfoInner info = {invalidNum, policySize, SetPolicyType::NORMAL_POLICY};
     return SetPolicyInner(validPolicies, validIndex, macParams, result, info);
 }
@@ -1121,6 +1124,12 @@ int32_t PolicyInfoManager::UnSetPolicy(uint32_t tokenId, const PolicyInfo &polic
         SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::UNSET_POLICY, info);
         return ret;
     }
+#ifndef NOT_RESIDENT
+    {
+        MacParams macParams = {tokenId, 0, 0, 0};
+        ApplyUgcRuleForPaths({policy}, UGC_ENABLE_MODE, macParams, "UnSetPolicy");
+    }
+#endif
     PolicyOperateInfo info(1, 1, 0, 0);
     SandboxManagerDfxHelper::WriteTempPolicyOperateSucc(OperateTypeEnum::UNSET_POLICY, info);
     return ret;
@@ -2367,6 +2376,50 @@ int32_t PolicyInfoManager::RevokeSharedDirectoryPermission(const uint32_t tokenI
     return SANDBOX_MANAGER_OK;
 }
 
+int32_t PolicyInfoManager::SetUgcRuleToMac(const std::vector<PolicyInfo> &policies, uint64_t mode,
+    MacParams &macParams, const std::string &caller)
+{
+    if (!macAdapter_.IsMacSupport()) {
+        return SANDBOX_MANAGER_OK;
+    }
+    std::vector<PolicyInfo> ugcPolicies;
+    ugcPolicies.reserve(policies.size());
+    for (const auto &policy : policies) {
+        PolicyInfo ugcPolicy;
+        ugcPolicy.path = policy.path;
+        ugcPolicy.mode = mode;
+        ugcPolicies.emplace_back(ugcPolicy);
+    }
+    std::vector<uint32_t> ugcResults(ugcPolicies.size(), SANDBOX_MANAGER_OK);
+    int32_t ret = macAdapter_.SetUgcRule(ugcPolicies, ugcResults, macParams);
+    if (ret != SANDBOX_MANAGER_OK) {
+        LOGE_WITH_REPORT(LABEL, "%{public}s SetUgcRule failed, ret=%{public}d", caller.c_str(), ret);
+    }
+    return ret;
+}
+
+void PolicyInfoManager::ApplyUgcRuleForPaths(const std::vector<PolicyInfo> &policies, uint64_t mode,
+    MacParams &macParams, const std::string &caller)
+{
+    static const std::vector<std::string> ugcPaths = {
+        "/storage/Users/currentUser/Desktop",
+        "/storage/Users/currentUser/Documents",
+        "/storage/Users/currentUser/Download",
+    };
+    std::vector<PolicyInfo> ugcPolicies;
+    for (const auto &p : policies) {
+        for (const auto &ugcPath : ugcPaths) {
+            if (p.path == ugcPath) {
+                ugcPolicies.emplace_back(p);
+                break;
+            }
+        }
+    }
+    if (!ugcPolicies.empty()) {
+        SetUgcRuleToMac(ugcPolicies, mode, macParams, caller);
+    }
+}
+
 int32_t PolicyInfoManager::GrantPermissionByUser(const uint32_t tokenId, const std::vector<PolicyInfo> &policies)
 {
     std::vector<PolicyInfo> validPolicies;
@@ -2410,15 +2463,25 @@ int32_t PolicyInfoManager::GrantPermissionByUser(const uint32_t tokenId, const s
         return ret;
     }
 
+#ifndef NOT_RESIDENT
+    ret = SetUgcRuleToMac(validPolicies, UGC_ENABLE_MODE | UGC_STATUS_MODE, macParams, "GrantPermissionByUser");
+    if (ret != SANDBOX_MANAGER_OK) {
+        return ret;
+    }
+#endif
+
     SANDBOXMANAGER_LOG_INFO(LABEL, "GrantPermissionByUser success, granted %{public}zu policies",
         validPolicies.size());
     return SANDBOX_MANAGER_OK;
 }
 
-int32_t PolicyInfoManager::RevokePermissionByUser(const uint32_t tokenId, const std::vector<PolicyInfo> &policies)
+int32_t PolicyInfoManager::RevokePermissionByUser(const uint32_t tokenId, const std::vector<PolicyInfo> &policies,
+    bool &statusChanged)
 {
     SANDBOXMANAGER_LOG_INFO(LABEL, "RevokePermissionByUser called, tokenId=%{public}u, count=%{public}zu",
         tokenId, policies.size());
+
+    statusChanged = false;
 
     std::vector<PolicyInfo> validPolicies;
     std::vector<uint32_t> results;
@@ -2429,6 +2492,42 @@ int32_t PolicyInfoManager::RevokePermissionByUser(const uint32_t tokenId, const 
     }
 
     int32_t ret = SANDBOX_MANAGER_OK;
+    std::vector<GenericValues> addValues;
+    std::vector<PolicyInfo> macPolicies;
+    UpdateUgcRecords(tokenId, validPolicies, macPolicies, addValues, statusChanged);
+
+    if (!addValues.empty()) {
+        int32_t dbRet = SandboxManagerRdb::GetInstance().Add(
+            SANDBOX_MANAGER_UGC_PERMISSION, addValues, SandboxManagerRdb::REPLACE);
+        if (dbRet != SandboxManagerRdb::SUCCESS) {
+            LOGE_WITH_REPORT(LABEL, "RevokePermissionByUser Add(REPLACE) failed, ret=%{public}d", dbRet);
+            ret = SANDBOX_MANAGER_DB_ERR;
+        }
+    }
+
+    for (const auto &policy : macPolicies) {
+        std::vector<uint32_t> setResult;
+        UnSetPolicy(tokenId, {policy}, setResult);
+    }
+
+#ifndef NOT_RESIDENT
+    MacParams macParams = {tokenId, 0, 0, 0};
+    int32_t ugcRet = SetUgcRuleToMac(macPolicies, UGC_ENABLE_MODE, macParams, "RevokePermissionByUser");
+    if (ugcRet != SANDBOX_MANAGER_OK) {
+        ret = ugcRet;
+    }
+#endif
+
+    if (ret == SANDBOX_MANAGER_OK) {
+        SANDBOXMANAGER_LOG_INFO(LABEL, "RevokePermissionByUser success, revoked %{public}zu policies",
+            validPolicies.size());
+    }
+    return ret;
+}
+
+void PolicyInfoManager::UpdateUgcRecords(const uint32_t tokenId, const std::vector<PolicyInfo> &validPolicies,
+    std::vector<PolicyInfo> &macPolicies, std::vector<GenericValues> &addValues, bool &statusChanged)
+{
     for (const auto &policy : validPolicies) {
         GenericValues modifyValues;
         modifyValues.Put(PolicyFiledConst::FIELD_STATUS,
@@ -2439,26 +2538,31 @@ int32_t PolicyInfoManager::RevokePermissionByUser(const uint32_t tokenId, const 
         conditions.Put(PolicyFiledConst::FIELD_PATH, policy.path);
         conditions.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(policy.mode));
 
+        int32_t changedRows = 0;
         int32_t dbRet = SandboxManagerRdb::GetInstance().Modify(
-            SANDBOX_MANAGER_UGC_PERMISSION, modifyValues, conditions);
+            SANDBOX_MANAGER_UGC_PERMISSION, modifyValues, conditions, changedRows);
         if (dbRet != SandboxManagerRdb::SUCCESS) {
             LOGE_WITH_REPORT(LABEL, "RevokePermissionByUser Modify failed, ret=%{public}d", dbRet);
-            ret = SANDBOX_MANAGER_DB_ERR;
             continue;
         }
-        std::vector<uint32_t> setResult;
-        int32_t macRet = UnSetPolicy(tokenId, {policy}, setResult);
-        if (macRet != SANDBOX_MANAGER_OK) {
-            LOGE_WITH_REPORT(LABEL, "RevokePermissionByUser UnSetPolicy failed, ret=%{public}d", macRet);
-            ret = macRet;
+        macPolicies.emplace_back(policy);
+        if (changedRows > 0) {
+            statusChanged = true;
+            continue;
         }
+        addValues.emplace_back(BuildUgcRecordValues(tokenId, policy));
     }
+}
 
-    if (ret == SANDBOX_MANAGER_OK) {
-        SANDBOXMANAGER_LOG_INFO(LABEL, "RevokePermissionByUser success, revoked %{public}zu policies",
-            validPolicies.size());
-    }
-    return ret;
+GenericValues PolicyInfoManager::BuildUgcRecordValues(const uint32_t tokenId, const PolicyInfo &policy)
+{
+    GenericValues value;
+    value.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(tokenId));
+    value.Put(PolicyFiledConst::FIELD_PATH, policy.path);
+    value.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(policy.mode));
+    value.Put(PolicyFiledConst::FIELD_STATUS,
+        static_cast<int64_t>(UgcPermissionStatus::UGC_PERMISSION_DENIED));
+    return value;
 }
 
 int32_t PolicyInfoManager::GetStatusByPermission(const std::vector<uint32_t> &tokenIdList,
@@ -2502,6 +2606,7 @@ void PolicyInfoManager::RemoveUgcPermissionByTokenId(const uint32_t tokenId)
         SANDBOXMANAGER_LOG_ERROR(LABEL, "RemoveUgcPermissionByTokenId failed, ret=%{public}d", ret);
         return;
     }
+    macAdapter_.DestroyUgcRule(tokenId, 0);
     SANDBOXMANAGER_LOG_INFO(LABEL, "RemoveUgcPermissionByTokenId success, tokenId=%{public}u", tokenId);
 }
 } // namespace SandboxManager

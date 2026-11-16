@@ -39,6 +39,8 @@ public:
 
     int32_t SetSandboxPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
         MacParams &macParams);
+    int32_t SetUgcRule(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
+        MacParams &macParams);
     int32_t UnSetSandboxPolicy(uint32_t tokenId, const PolicyInfo &policy);
     int32_t SetDenyPolicy(const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result,
         MacParams &macParams);
@@ -47,6 +49,7 @@ public:
     int32_t QuerySandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<uint32_t> &result);
     int32_t CheckSandboxPolicy(uint32_t tokenId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     int32_t DestroySandboxPolicy(uint32_t tokenId, uint64_t timestamp);
+    int32_t DestroyUgcRule(uint32_t tokenId, uint64_t timestamp);
     int32_t UnSetSandboxPolicyByUser(int32_t userId, const std::vector<PolicyInfo> &policy, std::vector<bool> &result);
     int32_t GetMaxAuthTokenId(uint64_t &tokenId, int32_t &count);
     void CheckResult(std::vector<uint32_t> &result);

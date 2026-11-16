@@ -348,7 +348,7 @@ int32_t SandboxManagerRdb::Remove(const DataType type, const std::vector<Generic
 }
 
 int32_t SandboxManagerRdb::Modify(const DataType type, const GenericValues& modifyValues,
-    const GenericValues& conditions)
+    const GenericValues& conditions, int32_t &changedRows)
 {
     std::string tableName;
     GetTableNameByType(type, tableName);
@@ -364,7 +364,7 @@ int32_t SandboxManagerRdb::Modify(const DataType type, const GenericValues& modi
     NativeRdb::RdbPredicates predicates(tableName);
     ToRdbPredicates(conditions, predicates);
 
-    int32_t changedRows = 0;
+    int32_t rowsUpdated = 0;
     std::shared_ptr<NativeRdb::RdbStore> db = GetRdb();
     if (db == nullptr) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Db is null, open db first");
@@ -372,7 +372,7 @@ int32_t SandboxManagerRdb::Modify(const DataType type, const GenericValues& modi
     }
 
     OHOS::Utils::UniqueWriteGuard<OHOS::Utils::RWLock> lock(rwLock_);
-    int32_t res = db->Update(changedRows, bucket, predicates);
+    int32_t res = db->Update(rowsUpdated, bucket, predicates);
     if (res != NativeRdb::E_OK) {
         SANDBOXMANAGER_LOG_ERROR(LABEL, "Failed to update record from table %{public}s, res is %{public}d.",
             tableName.c_str(), res);
@@ -386,9 +386,10 @@ int32_t SandboxManagerRdb::Modify(const DataType type, const GenericValues& modi
         }
         return FAILURE;
     }
-    
+
     ScheduleDbCleanup();
-    
+
+    changedRows = rowsUpdated;
     return SUCCESS;
 }
 

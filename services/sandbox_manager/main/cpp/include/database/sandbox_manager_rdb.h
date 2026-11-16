@@ -46,7 +46,8 @@ public:
 
     int32_t Remove(const DataType type, const std::vector<GenericValues> &conditions);
 
-    int32_t Modify(const DataType type, const GenericValues &modifyValues, const GenericValues &conditions);
+    int32_t Modify(const DataType type, const GenericValues &modifyValues, const GenericValues &conditions,
+        int32_t &changedRows);
 
     static std::string EscapeLikeWildcards(const std::string &input);
 
