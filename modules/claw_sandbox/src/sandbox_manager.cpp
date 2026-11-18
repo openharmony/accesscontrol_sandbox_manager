@@ -1158,7 +1158,8 @@ int SandboxManager::SetAinfo()
     // Same pair the DEC daemon context is built from, so when both interfaces
     // are used they name the sandbox identically. DEC runs for every type; this
     // one does not, so cli sandboxes are known to DEC but carry no AIDS label.
-    int ret = aids.SetLabel(config_.uid / UID_BASE, config_.appIdentifierU64);
+    int ret = aids.SetLabel(config_.uid / UID_BASE, config_.appIdentifierU64,
+        static_cast<uint32_t>(config_.callerPid));
     if (ret != 0) {
         std::cerr << "Error: SetAinfo failed: " << ret << std::endl;
         SANDBOX_LOGE("SetAinfo failed: %{public}d", ret);
