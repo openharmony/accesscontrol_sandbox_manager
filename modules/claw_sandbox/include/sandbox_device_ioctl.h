@@ -236,6 +236,7 @@ struct hkids_ioctl_arg {
 struct aids_set_ainfo_arg {
     uint32_t userid;
     uint64_t appIdentifier;
+    uint32_t pid;
 };
 
 struct hkids_blacklist_cmd_arg {

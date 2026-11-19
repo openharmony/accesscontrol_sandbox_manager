@@ -28,10 +28,11 @@ AidsClient::~AidsClient()
 {
 }
 
-int AidsClient::SetLabel(uint32_t userid, uint64_t appIdentifier)
+int AidsClient::SetLabel(uint32_t userid, uint64_t appIdentifier, uint32_t callerPid)
 {
     (void)userid;
     (void)appIdentifier;
+    (void)callerPid;
     return 0;
 }
 

@@ -57,7 +57,7 @@ static constexpr uint64_t TEST_APP_IDENTIFIER = 1001;
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel005, TestSize.Level0) {
     AidsClient aids("/dev/hkids_err");
-    int ret = aids.SetLabel(0, TEST_APP_IDENTIFIER);
+    int ret = aids.SetLabel(0, TEST_APP_IDENTIFIER, 0);
     EXPECT_EQ(-1, ret);
 }
 
@@ -189,7 +189,7 @@ HWTEST_F(ClawSandboxAidsTest, AidsSetLabel013, TestSize.Level0) {
     ASSERT_GE(mockFd, 0);
     AidsClient aids("/dev/hkids_err");
     aids.fd_ = mockFd;
-    int ret = aids.SetLabel(0, TEST_APP_IDENTIFIER);
+    int ret = aids.SetLabel(0, TEST_APP_IDENTIFIER, 0);
     EXPECT_EQ(-1, ret);
 }
 

@@ -29,6 +29,7 @@
 #include "sandbox_error.h"
 #include <cstdint>
 #include <string>
+#include <unistd.h>
 #include <utility>
 
 /*
@@ -65,7 +66,7 @@ static constexpr uint64_t TEST_HAP_TOKEN_ID = TEST_TOKEN_ID_HIGH_BIT | 0x200D000
  */
 HWTEST_F(ClawSandboxAidsTest, AidsSetLabel001, TestSize.Level0) {
     AidsClient aids;
-    int ret = aids.SetLabel(0, TEST_APP_IDENTIFIER);
+    int ret = aids.SetLabel(0, TEST_APP_IDENTIFIER, static_cast<uint32_t>(getpid()));
     EXPECT_EQ(SANDBOX_SUCCESS, ret);
 }
 
@@ -164,7 +165,7 @@ HWTEST_F(ClawSandboxManagerTest, SetAinfo002, TestSize.Level0)
     SandboxConfig config;
     config.uid = 20020026;
     config.gid = 20020026;
-    config.callerPid = 1000;
+    config.callerPid = getpid();
     config.callerTokenId = TEST_HAP_TOKEN_ID;
     config.type = "shell";
     config.appIdentifier = "20020026";

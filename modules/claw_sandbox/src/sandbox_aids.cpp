@@ -59,7 +59,7 @@ AidsClient::~AidsClient()
     }
 }
 
-int AidsClient::SetLabel(uint32_t userid, uint64_t appIdentifier)
+int AidsClient::SetLabel(uint32_t userid, uint64_t appIdentifier, uint32_t callerPid)
 {
     if (!IsOpen()) {
         SANDBOX_LOGE("SetLabel: device is not open");
@@ -68,7 +68,8 @@ int AidsClient::SetLabel(uint32_t userid, uint64_t appIdentifier)
 
     struct aids_set_ainfo_arg aidsArg = {
         .userid = userid,
-        .appIdentifier = appIdentifier
+        .appIdentifier = appIdentifier,
+        .pid = callerPid
     };
 
     struct hkids_ioctl_arg arg = {

@@ -33,7 +33,7 @@ public:
     AidsClient(const AidsClient &) = delete;
     AidsClient &operator=(const AidsClient &) = delete;
 
-    int SetLabel(uint32_t userid, uint64_t appIdentifier);
+    int SetLabel(uint32_t userid, uint64_t appIdentifier, uint32_t callerPid);
     int AddBlacklist(const std::string &cmd, const std::string &subcmd, uint32_t appid);
     int DelBlacklist(const std::string &cmd, const std::string &subcmd, uint32_t appid);
     int ClearBlacklist();
