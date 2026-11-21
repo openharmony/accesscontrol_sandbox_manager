@@ -47,6 +47,7 @@ public:
 private:
     int32_t CreatePersistedPolicyTable(NativeRdb::RdbStore &rdbStore, const std::string &tableName) const;
     int32_t AddVolumeUnmountTsColumn(NativeRdb::RdbStore &rdbStore) const;
+    int32_t AddAppIndexColumn(NativeRdb::RdbStore &rdbStore) const;
     /**
      * @brief Create bundle persistent policy table for storing bundle uninstall preserve mappings
      * @details This table stores the mapping information when an app is uninstalled with preserve enabled:

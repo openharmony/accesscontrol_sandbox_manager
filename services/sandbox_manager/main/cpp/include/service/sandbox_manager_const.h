@@ -15,12 +15,17 @@
 
 #ifndef SANDBOX_MANAGER_CONST_H
 #define SANDBOX_MANAGER_CONST_H
+#include <cstdint>
 #include <string>
 
 namespace OHOS {
 namespace AccessControl {
 namespace SandboxManager {
 #define SA_LIFE_TIME (1000 * 60 * 3)   // 3 min
+
+// appIndex range constants for main/sub mode dual-package isolation
+constexpr int32_t MAIN_MODE_MAIN_APP_INDEX = 0;
+constexpr int32_t SUB_MODE_MAIN_APP_INDEX = 10000;
 
 const uint32_t POLICY_PATH_LIMIT = 4095;
 
@@ -55,6 +60,14 @@ const int64_t VOLUME_POLICY_AGING_TTL_MS = 30LL * 24 * 60 * 60 * 1000;
 // UGC policy mode flag bits used by MAC layer
 constexpr uint64_t UGC_ENABLE_MODE = 1ULL << 12;
 constexpr uint64_t UGC_STATUS_MODE = 1ULL << 13;
+
+inline bool IsMainApp(int32_t appIndex)
+{
+    return appIndex == MAIN_MODE_MAIN_APP_INDEX || appIndex == SUB_MODE_MAIN_APP_INDEX;
+}
+
+// Check if bundleSegment is a sub-mode app path (appIndex >= 10000)
+bool IsSubModePath(const std::string &bundleSegment);
 
 } // namespace SandboxManager
 } // namespace AccessControl

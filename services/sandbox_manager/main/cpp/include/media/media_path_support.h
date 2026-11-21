@@ -59,16 +59,18 @@ public:
      * @return SANDBOX_MANAGER_OK on success, error code otherwise
      */
     int32_t ReserveMediaPoliciesOnRemove(const std::string &appIdentifier,
-        const std::string &bundleName, uint32_t tokenId);
+        const std::string &bundleName, uint32_t tokenId, int32_t appIndex);
 
     /**
      * @brief Called when app is being installed to resume media policies
      * @param appIdentifier app identifier
      * @param bundleName bundle name
      * @param tokenId token id of the app
+     * @param appIndex app index for dual-mode isolation (0=main mode main, 10000=sub mode main)
      * @return SANDBOX_MANAGER_OK on success, error code otherwise
      */
-    int32_t ResumeMediaPoliciesOnAdd(const std::string &appIdentifier, const std::string &bundleName, uint32_t tokenId);
+    int32_t ResumeMediaPoliciesOnAdd(const std::string &appIdentifier,
+        const std::string &bundleName, uint32_t tokenId, int32_t appIndex);
 
     int32_t GetPhotoUriPersistPermission(uint32_t tokenId,
         std::vector<Media::PhotoPermissionType> &photoPermissionList);

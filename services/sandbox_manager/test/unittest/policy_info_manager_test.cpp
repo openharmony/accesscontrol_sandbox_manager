@@ -3339,7 +3339,8 @@ HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest001, TestSize.Level0)
     std::string appIdentifier = "test.bundle.preserve";
     uint32_t tokenId = 12345;
 
-    int32_t ret = PersistentPreserve::SaveBundlePersistentPolicies(bundleName, userId, appIdentifier, tokenId);
+    int32_t ret = PersistentPreserve::SaveBundlePersistentPolicies(bundleName, userId, appIdentifier, tokenId,
+        MAIN_MODE_MAIN_APP_INDEX);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
 
     // Verify the record was saved
@@ -3360,7 +3361,7 @@ HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest001, TestSize.Level0)
     EXPECT_EQ(tokenId, static_cast<uint32_t>(dbResult[0].GetInt(PolicyFiledConst::FIELD_ORIGINAL_TOKENID)));
 
     // Test DeleteBundlePersistentPolicies
-    ret = PersistentPreserve::DeleteBundlePersistentPolicies(appIdentifier, userId);
+    ret = PersistentPreserve::DeleteBundlePersistentPolicies(appIdentifier, userId, MAIN_MODE_MAIN_APP_INDEX);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
 
     // Verify the record was deleted
@@ -3383,7 +3384,8 @@ HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest001, TestSize.Level0)
 HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest002, TestSize.Level0)
 {
     // Test with empty appIdentifier
-    int32_t ret = PersistentPreserve::SaveBundlePersistentPolicies("test.bundle", 100, "", 12345);
+    int32_t ret = PersistentPreserve::SaveBundlePersistentPolicies("test.bundle", 100, "", 12345,
+        MAIN_MODE_MAIN_APP_INDEX);
     EXPECT_EQ(INVALID_PARAMTER, ret);
 }
 
@@ -3395,7 +3397,6 @@ HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest002, TestSize.Level0)
  */
 HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest003, TestSize.Level0)
 {
-    // Clean up first
     GenericValues conditions;
     SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
     SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
@@ -3406,63 +3407,49 @@ HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest003, TestSize.Level0)
     uint32_t originalTokenId = 11111;
     uint32_t newTokenId = 22222;
 
-    // Step 1: Save some persisted policies for original token
     GenericValues policy1;
     policy1.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(originalTokenId));
     policy1.Put(PolicyFiledConst::FIELD_PATH, "/data/test/restore1");
     policy1.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(OperateMode::READ_MODE));
     policy1.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int32_t>(3));
     policy1.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int32_t>(0));
-
     GenericValues policy2;
     policy2.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(originalTokenId));
     policy2.Put(PolicyFiledConst::FIELD_PATH, "/data/test/restore2");
     policy2.Put(PolicyFiledConst::FIELD_MODE, static_cast<int64_t>(OperateMode::WRITE_MODE));
     policy2.Put(PolicyFiledConst::FIELD_DEPTH, static_cast<int32_t>(3));
     policy2.Put(PolicyFiledConst::FIELD_FLAG, static_cast<int32_t>(0));
-
     std::vector<GenericValues> policies = {policy1, policy2};
     int32_t ret = SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_PERSISTED_POLICY, policies);
     EXPECT_EQ(SandboxManagerRdb::SUCCESS, ret);
 
-    // Step 2: Save bundle persistent policy
-    ret = PersistentPreserve::SaveBundlePersistentPolicies(bundleName, userId, appIdentifier, originalTokenId);
+    ret = PersistentPreserve::SaveBundlePersistentPolicies(bundleName, userId, appIdentifier, originalTokenId,
+        MAIN_MODE_MAIN_APP_INDEX);
+    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
+    ret = PersistentPreserve::RestoreBundlePersistentPolicies(appIdentifier, userId, newTokenId, bundleName,
+        MAIN_MODE_MAIN_APP_INDEX);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
 
-    // Step 3: Restore policies with new token
-    ret = PersistentPreserve::RestoreBundlePersistentPolicies(appIdentifier, userId, newTokenId, bundleName);
-    EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
-
-    // Verify policies were restored with new token
     GenericValues newTokenConditions;
     newTokenConditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(newTokenId));
-
     GenericValues newTokenSymbols;
     newTokenSymbols.Put(PolicyFiledConst::FIELD_TOKENID, std::string("="));
-
     std::vector<GenericValues> restoredPolicies;
     ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
         newTokenConditions, newTokenSymbols, restoredPolicies);
     EXPECT_EQ(SandboxManagerRdb::SUCCESS, ret);
     EXPECT_EQ(2, restoredPolicies.size());
 
-    // Verify original token policies were removed
     GenericValues oldTokenConditions;
     oldTokenConditions.Put(PolicyFiledConst::FIELD_TOKENID, static_cast<int32_t>(originalTokenId));
-
     std::vector<GenericValues> oldPolicies;
     ret = SandboxManagerRdb::GetInstance().Find(SANDBOX_MANAGER_PERSISTED_POLICY,
         oldTokenConditions, newTokenSymbols, oldPolicies);
     EXPECT_EQ(SandboxManagerRdb::SUCCESS, ret);
     EXPECT_EQ(0, oldPolicies.size());
 
-    // Step 4: Delete bundle persistent policy
-    ret = PersistentPreserve::DeleteBundlePersistentPolicies(appIdentifier, userId);
+    ret = PersistentPreserve::DeleteBundlePersistentPolicies(appIdentifier, userId, MAIN_MODE_MAIN_APP_INDEX);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
-
-    // Clean up
-    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, conditions);
-    SandboxManagerRdb::GetInstance().Remove(SANDBOX_MANAGER_PERSISTED_POLICY, conditions);
 }
 
 /**
@@ -3482,7 +3469,8 @@ HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest004, TestSize.Level0)
     int32_t userId = 100;
     uint32_t newTokenId = 22222;
 
-    int32_t ret = PersistentPreserve::RestoreBundlePersistentPolicies(appIdentifier, userId, newTokenId, "test.bundle");
+    int32_t ret = PersistentPreserve::RestoreBundlePersistentPolicies(appIdentifier, userId, newTokenId, "test.bundle",
+        MAIN_MODE_MAIN_APP_INDEX);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret); // Should return OK when no record found
 
     // Clean up
@@ -3498,7 +3486,8 @@ HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest004, TestSize.Level0)
 HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest005, TestSize.Level0)
 {
     // Test with empty appIdentifier
-    int32_t ret = PersistentPreserve::RestoreBundlePersistentPolicies("", 100, 22222, "test.bundle");
+    int32_t ret = PersistentPreserve::RestoreBundlePersistentPolicies("", 100, 22222, "test.bundle",
+        MAIN_MODE_MAIN_APP_INDEX);
     EXPECT_EQ(INVALID_PARAMTER, ret);
 }
 
@@ -3522,11 +3511,13 @@ HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest006, TestSize.Level0)
     uint32_t newTokenId = 44444;
 
     // Save bundle persistent policy but no persisted policies
-    int32_t ret = PersistentPreserve::SaveBundlePersistentPolicies(bundleName, userId, appIdentifier, originalTokenId);
+    int32_t ret = PersistentPreserve::SaveBundlePersistentPolicies(bundleName, userId, appIdentifier, originalTokenId,
+        MAIN_MODE_MAIN_APP_INDEX);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
 
     // Restore should succeed even with no policies
-    ret = PersistentPreserve::RestoreBundlePersistentPolicies(appIdentifier, userId, newTokenId, bundleName);
+    ret = PersistentPreserve::RestoreBundlePersistentPolicies(appIdentifier, userId, newTokenId, bundleName,
+        MAIN_MODE_MAIN_APP_INDEX);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
 
     // Clean up
@@ -3556,6 +3547,7 @@ HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest013, TestSize.Level0)
         bundle.Put(PolicyFiledConst::FIELD_APPIDENTIFIER, appIdentifier);
         bundle.Put(PolicyFiledConst::FIELD_ORIGINAL_TOKENID, static_cast<int32_t>(90000 + i));
         bundle.Put(PolicyFiledConst::FIELD_TIMESTAMP, static_cast<int64_t>(currentTime - ((2 - i) * 5 * 24 * 60 * 60)));
+        bundle.Put(PolicyFiledConst::FIELD_APPINDEX, MAIN_MODE_MAIN_APP_INDEX);
         duplicateBundles.push_back(bundle);
     }
     int32_t ret = SandboxManagerRdb::GetInstance().Add(SANDBOX_MANAGER_BUNDLE_PERSISTENT_POLICY, duplicateBundles);
@@ -3563,7 +3555,7 @@ HWTEST_F(PolicyInfoManagerTest, PersistentPreserveTest013, TestSize.Level0)
 
     // Call FindBundleRecord - should use latest record and delete old ones
     GenericValues bundleRecord;
-    ret = PersistentPreserve::FindBundleRecord(appIdentifier, userId, bundleRecord);
+    ret = PersistentPreserve::FindBundleRecord(appIdentifier, userId, MAIN_MODE_MAIN_APP_INDEX, bundleRecord);
     EXPECT_EQ(SANDBOX_MANAGER_OK, ret);
     EXPECT_FALSE(bundleRecord.GetAllKeys().empty());
 

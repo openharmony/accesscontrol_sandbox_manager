@@ -37,6 +37,7 @@ public:
     static constexpr const char *FIELD_TIMESTAMP = "timestamp";
     static constexpr const char *FIELD_APPIDENTIFIER = "appIdentifier";
     static constexpr const char *FIELD_ORIGINAL_TOKENID = "tokenId";
+    static constexpr const char *FIELD_APPINDEX = "appIndex";
     // Fields for shared file info table
     static constexpr const char *FIELD_BUNDLE_NAME = "bundleName";
     static constexpr const char *FIELD_USER_ID = "userId";

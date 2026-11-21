@@ -1983,7 +1983,8 @@ HWTEST_F(SandboxManagerServiceTest, SandboxManagerServiceTest018, TestSize.Level
         {"accessTokenId", "54321"},
         {"bundleName", "test.bundle.add"},
         {"userId", "100"},
-        {"appIdentifier", "test.bundle.add"}
+        {"appIdentifier", "test.bundle.add"},
+        {"appIndex", "0"}
     };
     OnDemandReasonExtraData extraData(0, "test", want);
     startReason.SetExtraData(extraData);

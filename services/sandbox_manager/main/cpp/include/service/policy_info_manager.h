@@ -205,7 +205,7 @@ public:
      * @param userID a given userid
      * @return int32_t
      */
-    int32_t CleanPolicyByPackageChanged(const std::string &bundleName, int32_t userID);
+    int32_t CleanPolicyByPackageChanged(const std::string &bundleName, int32_t userID, int32_t appIndex);
     /**
      * @brief get shared directory info by a given userid
      * @param result store the obtained shared directory info list

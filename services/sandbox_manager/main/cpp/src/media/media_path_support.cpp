@@ -407,38 +407,42 @@ int32_t SandboxManagerMedia::EnsureMediaInitialized(const std::string &funcName)
 }
 
 int32_t SandboxManagerMedia::ReserveMediaPoliciesOnRemove(const std::string &appIdentifier,
-    const std::string &bundleName, uint32_t tokenId)
+    const std::string &bundleName, uint32_t tokenId, int32_t appIndex)
 {
     if (EnsureMediaInitialized(__FUNCTION__) != SANDBOX_MANAGER_OK) {
         return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
 
-    int32_t ret = media_->ReservePhotoUriPermission(true, appIdentifier, bundleName, 0, tokenId);
+    int32_t ret = media_->ReservePhotoUriPermission(true, appIdentifier, bundleName, appIndex, tokenId);
     if (ret != SANDBOX_MANAGER_OK) {
-        LOGE_WITH_REPORT(LABEL, "ReserveMediaPolicies error code:%{public}d, bundleName:%{public}s, tokenId:%{public}u",
-            ret, bundleName.c_str(), tokenId);
+        LOGE_WITH_REPORT(LABEL,
+            "ReserveMediaPolicies error:%{public}d, %{public}s, tokenId=%{public}u, appIndex=%{public}d",
+            ret, bundleName.c_str(), tokenId, appIndex);
         return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
-    SANDBOXMANAGER_LOG_INFO(LABEL, "ReserveMediaPolicies Finish: bundleName=%{public}s, tokenId=%{public}u",
-        bundleName.c_str(), tokenId);
+    SANDBOXMANAGER_LOG_INFO(LABEL,
+        "ReserveMediaPolicies Finish: %{public}s, tokenId=%{public}u, appIndex=%{public}d",
+        bundleName.c_str(), tokenId, appIndex);
     return SANDBOX_MANAGER_OK;
 }
 
 int32_t SandboxManagerMedia::ResumeMediaPoliciesOnAdd(const std::string &appIdentifier,
-    const std::string &bundleName, uint32_t tokenId)
+    const std::string &bundleName, uint32_t tokenId, int32_t appIndex)
 {
     if (EnsureMediaInitialized(__FUNCTION__) != SANDBOX_MANAGER_OK) {
         return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
 
-    int32_t ret = media_->ResumePhotoUriPermission(appIdentifier, bundleName, 0, tokenId);
+    int32_t ret = media_->ResumePhotoUriPermission(appIdentifier, bundleName, appIndex, tokenId);
     if (ret != SANDBOX_MANAGER_OK) {
-        LOGE_WITH_REPORT(LABEL, "ResumeMediaPolicies error code:%{public}d, bundleName:%{public}s, tokenId:%{public}u",
-            ret, bundleName.c_str(), tokenId);
+        LOGE_WITH_REPORT(LABEL,
+            "ResumeMediaPolicies error:%{public}d, %{public}s, tokenId=%{public}u, appIndex=%{public}d",
+            ret, bundleName.c_str(), tokenId, appIndex);
         return SANDBOX_MANAGER_MEDIA_CALL_ERR;
     }
-    SANDBOXMANAGER_LOG_INFO(LABEL, "ResumeMediaPolicies Finish: bundleName=%{public}s, tokenId=%{public}u",
-        bundleName.c_str(), tokenId);
+    SANDBOXMANAGER_LOG_INFO(LABEL,
+        "ResumeMediaPolicies Finish: %{public}s, tokenId=%{public}u, appIndex=%{public}d",
+        bundleName.c_str(), tokenId, appIndex);
     return SANDBOX_MANAGER_OK;
 }
 
